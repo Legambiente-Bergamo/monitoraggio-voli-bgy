@@ -1,0 +1,270 @@
+# ============================================================
+# CONFIGURAZIONE SISTEMA DI MONITORAGGIO BGY
+# Aeroporto di Orio al Serio (BGY)
+# ============================================================
+
+# ACCOUNT OPENSKY NETWORK
+OPENSKY_USER: info@legambientebergamo.it
+OPENSKY_PASS: Circolo049!
+
+# API KEYS PER SERVIZI ESTERNI
+AVIATIONSTACK_KEY: c534c8ddb197c8f90d45fcc022b4cb1e
+AVIATIONSTACK_ENDPOINT: http://api.aviationstack.com/v1/flights
+
+# ORARI MONITORAGGIO (Formato HH:MM)
+START: 19:36
+END: 19:45
+
+# COORDINATE AREA MONITORAGGIO (Rettangolo su BGY)
+LAT_MIN: 45.60
+LAT_MAX: 45.75
+LON_MIN: 9.60
+LON_MAX: 9.80
+
+# PARAMETRI TECNICI
+INTERVALLO_RADAR: 120
+INTERVALLO_METEO: 1800
+INTERVALLO_SACBO: 900
+
+# COORDINATE AEROPORTO BGY
+BGY_LAT: 45.667
+BGY_LON: 9.700
+BGY_ALT: 238
+
+# ============================================================
+# COORDINATE CENTRALINE RUMORE
+# Formato: nome,lat,lon
+# ============================================================
+CENTRALINE:
+Orio al Serio Largo XXV Aprile,45.66806,9.69167
+Bergamo Colognola Via Linneo,45.67639,9.67083
+Bergamo Campagnola Via Quasimodo,45.67917,9.68194
+Azzano S. Paolo Via XXIV Maggio,45.66111,9.67222
+Bagnatica Via delle Groane,45.65417,9.78056
+Seriate Cassinone Via Basse,45.65694,9.76111
+Grassobbio Via Lombardia,45.64722,9.72222
+
+# ============================================================
+# DATABASE COMPAGNIE AEREE
+# Formato: prefisso,nome,paese,tipo
+# tipo: lowcost, commerciale, cargo, business
+# ============================================================
+COMPAGNIE:
+RYR,Ryanair,Irlanda,lowcost
+EZY,EasyJet,Regno Unito,lowcost
+WZZ,Wizz Air,Ungheria,lowcost
+VLG,Vueling,Spagna,lowcost
+EJU,easyJet Europe,Austria,lowcost
+DLH,Lufthansa,Germania,commerciale
+SWR,Swiss,Svizzera,commerciale
+AFR,Air France,Francia,commerciale
+KLM,KLM Royal Dutch Airlines,Paesi Bassi,commerciale
+BAW,British Airways,Regno Unito,commerciale
+IBE,Iberia,Spagna,commerciale
+SAS,Scandinavian Airlines,Svezia,commerciale
+UAL,United Airlines,USA,commerciale
+ETH,Ethiopian Airlines,Etiopia,commerciale
+QTR,Qatar Airways,Qatar,commerciale
+AEE,Aegean Airlines,Grecia,commerciale
+TFL,TUI fly,Paesi Bassi,commerciale
+VND,Air Dolomiti,Italia,commerciale
+ITY,ITA Airways,Italia,commerciale
+AHY,Azerbaijan Airlines,Azerbaijan,commerciale
+ANA,ANA All Nippon Airways,Giappone,commerciale
+ETD,Etihad Airways,Emirati Arabi,commerciale
+EVA,EVA Air,Taiwan,commerciale
+DHK,DHL Air,Regno Unito,cargo
+FDX,FedEx Express,USA,cargo
+UPS,UPS Airlines,USA,cargo
+NJE,NetJets Europe,Portogallo,business
+VJT,VistaJet,Malta,business
+WMT,Wizz Air Malta,Malta,lowcost
+NO,Neos Air,Italia,commerciale
+H7,HiSky Europe,Romania,commerciale
+W6,Wizz Air,Ungheria,lowcost
+FR,Ryanair,Irlanda,lowcost
+3O,Air Arabia Maroc,Marocco,commerciale
+DY,Norwegian Air Shuttle,Norvegia,lowcost
+VF,AJet,Turchia,commerciale
+PC,Pegasus Airlines,Turchia,commerciale
+AZ,ITA Airways,Italia,commerciale
+
+# ============================================================
+# DATABASE MODELLI AEREI (ICAO24 -> Modello)
+# Formato: icao24,modello,typecode,descrizione
+# ============================================================
+MODELLI_AEREI:
+4ca847,Boeing 737-800,B738,Low-cost passeggeri
+4ca76a,Boeing 737-800,B738,Low-cost passeggeri
+4ca84f,Boeing 737-800,B738,Low-cost passeggeri
+4ca61e,Boeing 737-800,B738,Low-cost passeggeri
+4ca569,Boeing 737-800,B738,Low-cost passeggeri
+4d21e9,Boeing 737-800,B738,Low-cost passeggeri
+4ca9cc,Boeing 737-800,B738,Low-cost passeggeri
+4ca304,Boeing 737-800,B738,Low-cost passeggeri
+4caee4,Boeing 737-800,B738,Low-cost passeggeri
+4ca94e,Boeing 737-800,B738,Low-cost passeggeri
+4d2300,Boeing 737-800,B738,Low-cost passeggeri
+4d2279,Boeing 737-800,B738,Low-cost passeggeri
+4ca847,Boeing 737-800,B738,Low-cost passeggeri
+471d65,Airbus A320-200,A320,Low-cost passeggeri
+300979,Embraer E195,E195,Regionale passeggeri
+86d9f4,Boeing 787-9 Dreamliner,B789,Lungo raggio
+896407,Boeing 787-9 Dreamliner,B789,Lungo raggio
+8990e5,Boeing 777-300ER,B77W,Lungo raggio
+39cead,Boeing 737-800,B738,Low-cost passeggeri
+452124,Airbus A320-200,A320,Medio raggio
+300633,Cessna 172,C172,Aviazione generale
+3009fc,Piper PA-28,P28A,Aviazione generale
+424c8c,Cessna Citation Jet,C25A,Business jet
+506ce5,Pilatus PC-12,PC12,Executive
+486844,Cirrus SR22,SR22,Aviazione generale
+3cda69,Diamond DA40,DA40,Aviazione generale
+503d4b,Boeing 737-300,B733,Medio raggio
+33fc7f,Partenavia,P68,Aviazione generale
+
+# ============================================================
+# DATABASE AEROPORTI (per decodifica rotte)
+# Formato: codice,nome,citta,paese
+# ============================================================
+AEROPORTI:
+BGY,Bergamo Orio al Serio,Bergamo,Italia
+LIN,Milano Linate,Milano,Italia
+MXP,Milano Malpensa,Milano,Italia
+FCO,Roma Fiumicino,Roma,Italia
+CIA,Roma Ciampino,Roma,Italia
+VCE,Venezia Marco Polo,Venezia,Italia
+TSF,Treviso Canova,Treviso,Italia
+FLR,Firenze Peretola,Firenze,Italia
+PSA,Pisa Galileo Galilei,Pisa,Italia
+BLQ,Bologna Guglielmo Marconi,Bologna,Italia
+NAP,Napoli Capodichino,Napoli,Italia
+BRI,Bari Palese,Bari,Italia
+CTA,Catania Fontanarossa,Catania,Italia
+PMO,Palermo Punta Raisi,Palermo,Italia
+CAG,Cagliari Elmas,Cagliari,Italia
+OLB,Olbia Costa Smeralda,Olbia,Italia
+AHO,Alghero Fertilia,Alghero,Italia
+SUF,Lamezia Terme,Lamezia Terme,Italia
+REG,Reggio Calabria,Reggio Calabria,Italia
+TRN,Torino Caselle,Torino,Italia
+GOA,Genova Colombo,Genova,Italia
+BDS,Brindisi Papola Casale,Brindisi,Italia
+CRV,Crotone,Crotone,Italia
+TPS,Trapani Birgi,Trapani,Italia
+PMF,Parma,Parma,Italia
+LHR,Londra Heathrow,Londra,Regno Unito
+LGW,Londra Gatwick,Londra,Regno Unito
+STN,Londra Stansted,Londra,Regno Unito
+LTN,Londra Luton,Londra,Regno Unito
+LCY,Londra City,Londra,Regno Unito
+MAN,Manchester,Manchester,Regno Unito
+BHX,Birmingham,Birmingham,Regno Unito
+GLA,Glasgow,Glasgow,Regno Unito
+EDI,Edimburgo,Edimburgo,Regno Unito
+BRS,Bristol,Bristol,Regno Unito
+LPL,Liverpool,Liverpool,Regno Unito
+NCL,Newcastle,Newcastle,Regno Unito
+BFS,Belfast,Belfast,Regno Unito
+DUB,Dublino,Dublino,Irlanda
+SNN,Shannon,Shannon,Irlanda
+ORK,Cork,Cork,Irlanda
+CDG,Parigi Charles de Gaulle,Parigi,Francia
+ORY,Parigi Orly,Parigi,Francia
+BVA,Parigi Beauvais,Parigi,Francia
+NCE,Nizza,Nizza,Francia
+MRS,Marsiglia,Marsiglia,Francia
+LYS,Lione,Lione,Francia
+TLS,Tolosa,Tolosa,Francia
+BOD,Bordeaux,Bordeaux,Francia
+NTE,Nantes,Nantes,Francia
+FRA,Francoforte sul Meno,Francoforte,Germania
+MUC,Monaco di Baviera,Monaco,Germania
+BER,Berlino Brandeburgo,Berlino,Germania
+HAM,Amburgo,Amburgo,Germania
+DUS,Dusseldorf,Dusseldorf,Germania
+CGN,Colonia Bonn,Colonia,Germania
+STR,Stoccarda,Stoccarda,Germania
+NUE,Norimberga,Norimberga,Germania
+HAJ,Hannover,Hannover,Germania
+BRE,Brema,Brema,Germania
+DRS,Dresda,Dresda,Germania
+LEJ,Lipsia/Halle,Lipsia,Germania
+MAD,Madrid Barajas,Madrid,Spagna
+BCN,Barcellona El Prat,Barcellona,Spagna
+PMI,Palma di Maiorca,Palma,Spagna
+AGP,Malaga Costa del Sol,Malaga,Spagna
+ALC,Alicante Elche,Alicante,Spagna
+IBZ,Ibiza,Ibiza,Spagna
+MAH,Minorca,Minorca,Spagna
+LPA,Gran Canaria,Gran Canaria,Spagna
+TFS,Tenerife Sud,Tenerife,Spagna
+ACE,Lanzarote,Lanzarote,Spagna
+FUE,Fuerteventura,Fuerteventura,Spagna
+SVQ,Siviglia,Siviglia,Spagna
+VLC,Valencia,Valencia,Spagna
+BIO,Bilbao,Bilbao,Spagna
+GRO,Girona,Girona,Spagna
+REU,Reus,Reus,Spagna
+ZRH,Zurigo Kloten,Zurigo,Svizzera
+GVA,Ginevra Cointrin,Ginevra,Svizzera
+BSL,Basilea Mulhouse,Basilea,Svizzera
+AMS,Amsterdam Schiphol,Amsterdam,Paesi Bassi
+EIN,Eindhoven,Eindhoven,Paesi Bassi
+RTM,Rotterdam The Hague,Rotterdam,Paesi Bassi
+BRU,Bruxelles Zaventem,Bruxelles,Belgio
+CRL,Charleroi Bruxelles Sud,Charleroi,Belgio
+VIE,Vienna Schwechat,Vienna,Austria
+SZG,Salisburgo,Salisburgo,Austria
+INN,Innsbruck,Innsbruck,Austria
+GRZ,Graz,Graz,Austria
+PRG,Praga Vaclav Havel,Praga,Repubblica Ceca
+WAW,Varsavia Chopin,Varsavia,Polonia
+KRK,Cracovia Giovanni Paolo II,Cracovia,Polonia
+WRO,Wroclaw Nicolaus Copernicus,Breslavia,Polonia
+GDN,Gdansk Lech Walesa,Danzica,Polonia
+POZ,Poznan Lawica,Poznan,Polonia
+BUD,Budapest Ferenc Liszt,Budapest,Ungheria
+ATH,Atene Eleftherios Venizelos,Atene,Grecia
+SKG,Salonicco,Salonicco,Grecia
+HER,Heraklion,Heraklion,Grecia
+RHO,Rodi,Rodi,Grecia
+CFU,Corfu,Corfu,Grecia
+ZTH,Zante,Zante,Grecia
+IST,Istanbul,Istanbul,Turchia
+SAW,Istanbul Sabiha Gökçen,Istanbul,Turchia
+AYT,Antalya,Antalya,Turchia
+DLM,Dalaman,Dalaman,Turchia
+ESB,Ankara Esenboğa,Ankara,Turchia
+TIA,Tirana Madre Teresa,Tirana,Albania
+DBV,Dubrovnik,Dubrovnik,Croazia
+SPU,Spalato,Spalato,Croazia
+ZAG,Zagabria,Zagabria,Croazia
+BEG,Belgrado Nikola Tesla,Belgrado,Serbia
+SOF,Sofia,Sofia,Bulgaria
+BOJ,Burgas,Burgas,Bulgaria
+VAR,Varna,Varna,Bulgaria
+OTP,Bucarest Otopeni,Bucarest,Romania
+BBU,Bucarest Baneasa,Bucarest,Romania
+CLJ,Cluj-Napoca,Cluj-Napoca,Romania
+IAS,Iasi,Iasi,Romania
+CRA,Craiova,Craiova,Romania
+SUC,Suceava,Suceava,Romania
+KIV,Chisinau,Chisinau,Moldavia
+CMN,Casablanca Mohammed V,Casablanca,Marocco
+RAK,Marrakech Menara,Marrakech,Marocco
+TUN,Tunisi Cartagine,Tunisi,Tunisia
+DJE,Djerba Zarzis,Djerba,Tunisia
+MIR,Monastir Habib Bourguiba,Monastir,Tunisia
+ALG,Algeri Houari Boumedienne,Algeri,Algeria
+CPH,Copenaghen Kastrup,Copenaghen,Danimarca
+OSL,Oslo Gardermoen,Oslo,Norvegia
+TRF,Oslo Torp,Sandefjord,Norvegia
+BGO,Bergen,Bergen,Norvegia
+SVG,Stavanger,Stavanger,Norvegia
+GOT,Goteborg Landvetter,Goteborg,Svezia
+HEL,Helsinki Vantaa,Helsinki,Finlandia
+KEF,Reykjavik Keflavik,Reykjavik,Islanda
+LIS,Lisbona Humberto Delgado,Lisbona,Portogallo
+OPO,Porto,Porto,Portogallo
+FAO,Faro,Faro,Portogallo
