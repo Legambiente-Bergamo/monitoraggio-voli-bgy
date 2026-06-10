@@ -1,0 +1,42 @@
+name: Monitoraggio Notturno BGY
+
+on:
+  schedule:
+    # Fa partire il server ogni giorno alle 17:00 UTC (che corrispondono alle 19:00 italiane)
+    - cron: '0 17 * * *'
+  workflow_dispatch: # Ti permette di avviare il monitoraggio anche a mano cliccando un bottone
+
+jobs:
+  run-monitor:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Accedi al codice del Repository
+      uses: actions/checkout@v3
+
+    - name: Configura Python ambiente cloud
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Installa i requisiti e i browser per Selenium
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests beautifulsoup4 selenium schedule
+        sudo apt-get update
+        sudo apt-get install -y firefox geckodriver
+
+    - name: Esegui il Monitoraggio dei Voli
+      run: |
+        # Eseguiamo direttamente lo script master.
+        # Nel cloud l'orario di fine si attiva allo scadere del processo,
+        # oppure possiamo forzare l'esecuzione sequenziale dei report.
+        python bgy_master.py
+
+    - name: Salva i Report e gli Screenshot generati nel Repository
+      run: |
+        git config --global user.name "BGY Monitor Bot"
+        git config --global user.email "bot@legambientebergamo.it"
+        git add dati/ report/ screenshots/
+        git commit -m "Aggiornamento report automatico del $(date +'%Y-%m-%d')" || exit 0
+        git push
