@@ -11,28 +11,24 @@ from pathlib import Path
 DATA_DIR = "dati"
 
 def get_metar():
-    """Scarica METAR da NOAA"""
     url = "https://tgftp.nws.noaa.gov/data/observations/metar/stations/LIME.TXT"
     try:
         response = requests.get(url, timeout=30)
         if response.status_code == 200:
             raw = response.text.strip()
-            
             wind_dir = None
             wind_speed = None
             
-            # Cerca pattern vento (es: 23010KT)
             wind_match = re.search(r'(\d{3})(\d{2})KT', raw)
             if wind_match:
                 wind_dir = int(wind_match.group(1))
                 wind_speed = int(wind_match.group(2))
             
-            # Determina pista attiva
             if wind_dir:
                 if 250 <= wind_dir <= 310:
-                    active_runway = "28"  # Vento da ovest
+                    active_runway = "28"
                 elif 70 <= wind_dir <= 130:
-                    active_runway = "10"  # Vento da est
+                    active_runway = "10"
                 else:
                     active_runway = "variabile"
             else:
@@ -48,11 +44,10 @@ def get_metar():
     except Exception as e:
         print(f"[METEO] Errore download: {e}")
         return None
+    return None
 
 def save_metar(data, date_str):
-    """Salva dati meteo nel file CSV"""
-    if not data:
-        return
+    if not data: return
     Path(DATA_DIR).mkdir(exist_ok=True)
     filename = Path(DATA_DIR) / f"meteo_{date_str}.csv"
     write_header = not filename.exists()
@@ -67,13 +62,11 @@ def save_metar(data, date_str):
 def main():
     date_str = sys.argv[1] if len(sys.argv) > 1 else datetime.now().strftime("%Y%m%d")
     print(f"[METEO] Richiesta bollettino METAR per aeroporto LIME (BGY) il {date_str}...")
-    
     metar_data = get_metar()
     if metar_data:
         save_metar(metar_data, date_str)
-        print(f"[METEO] ✅ Analisi meteo completata.")
     else:
-        print("[METEO] ⚠️ Impossibile recuperare i dati meteo dai server NOAA.")
+        print("[METEO] ⚠️ Server NOAA non raggiungibile, salto turno senza bloccare il workflow.")
 
 if __name__ == "__main__":
     main()
