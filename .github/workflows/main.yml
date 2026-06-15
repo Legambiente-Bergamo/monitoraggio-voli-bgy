@@ -1,9 +1,10 @@
-name: Monitoraggio Notturno BGY
+name: Monitoraggio Continuo BGY e Invio Report
 
 on:
   schedule:
-    # Si attiva automaticamente ogni sera alle 23:00 Italiane (21:00 UTC)
-    - cron: '0 21 * * *'
+    # Esecuzione notturna speculare (Orari espressi in UTC: 21:00-04:00 corrisponde a 23:00-06:00 italiane)
+    - cron: '*/5 21-3 * * *' # Ogni 5 minuti dalle 23:00 alle 05:55
+    - cron: '0 4 * * *'      # Alle 06:00 esatte per la chiusura e reportistica
   workflow_dispatch:
 
 jobs:
@@ -31,15 +32,68 @@ jobs:
         python -m pip install --upgrade pip
         pip install requests beautifulsoup4 selenium schedule
 
-    - name: Esegui il Ciclo di Cattura ed Elaborazione Report
+    - name: Determina Azione (Cattura vs Report Finale)
+      id: check-hour
       run: |
-        # Avvia lo scraper grafico usando il display virtuale e passa la data odierna
-        xvfb-run --server-args="-screen 0 1920x1080x24" python bgy_master.py
+        # Ottiene l'ora corrente in Italia
+        HOURA_IT=$(TZ="Europe/Rome" date +'%H')
+        echo "Ora locale rilevata: $HOURA_IT"
+        if [ "$HOURA_IT" = "06" ]; then
+          echo "action_type=report" >> $GITHUB_OUTPUT
+        else
+          echo "action_type=capture" >> $GITHUB_OUTPUT
+        fi
 
-    - name: Salva i Report e gli Screenshot nel Repository
+    - name: [FASE CATTURA] Accumulo dati notturni
+      if: steps.check-hour.outputs.action_type == 'capture'
+      run: |
+        # Ottiene la data corrente italiana YYYYMMDD
+        DATE_STR=$(TZ="Europe/Rome" date +'%Y%m%d')
+        echo "Esecuzione campionamento rapido per data: $DATE_STR"
+        python bgy_meteo.py $DATE_STR
+        python bgy_radar.py $DATE_STR
+        xvfb-run --server-args="-screen 0 1920x1080x24" python bgy_sacbo_capture.py $DATE_STR
+
+    - name: [FASE REPORT] Generazione Analisi e Calcolo Decibel
+      if: steps.check-hour.outputs.action_type == 'report'
+      run: |
+        # Il report delle 06:00 elabora i dati accumulati nella notte appena passata
+        DATE_STR=$(TZ="Europe/Rome" date +'%Y%m%d')
+        echo "Generazione reportistica finale per la notte del: $DATE_STR"
+        python bgy_report.py $DATE_STR
+        if [ -f "bgy_report_vettori.py" ]; then python bgy_report_vettori.py $DATE_STR; fi
+        python bgy_centralina_rumore.py $DATE_STR
+
+    - name: Invia Report e Registro Sforamenti via Mail
+      if: steps.check-hour.outputs.action_type == 'report'
+      uses: dawidd6/action-send-mail@v3
+      with:
+        # Configurazione server SMTP (Esempio impostato su parametri standard Aruba, modificalo se usi Gmail o altri)
+        server_address: smtps.aruba.it
+        server_port: 465
+        username: ${{ secrets.EMAIL_USER }}
+        password: ${{ secrets.EMAIL_PASSWORD }}
+        subject: 📊 Report Monitoraggio Voli Notturni BGY - Oggi
+        to: info@legambientebergamo.it
+        from: BGY Monitor Bot <info@legambientebergamo.it>
+        body: |
+          Buongiorno Circolo,
+          
+          In allegato trovate i report generati automaticamente relativi al monitoraggio ambientale dell'Aeroporto di Bergamo Orio al Serio svolto questa notte.
+          
+          Il file di stima acustica evidenzia gli sforamenti teorici calcolati sopra i 60 dB in prossimità delle centraline ARPA di Colognola e dei comuni limitrofi, pesati in base ai modelli di aeromobile intercettati (vettori passeggeri vs cargo notturni).
+          
+          Un caro saluto,
+          Il Bot di Monitoraggio Ambientale
+        # Allega automaticamente il file CSV delle centraline del giorno corrente
+        attachments: |
+          report/rumore_centraline_*.csv
+          report/report_completo_*.csv
+
+    - name: Archivia e salva i dati nel Repository
       run: |
         git config --global user.name "BGY Monitor Bot"
         git config --global user.email "bot@legambientebergamo.it"
         git add dati/ report/ screenshots/
-        git diff-index --quiet HEAD || git commit -m "Aggiornamento report automatico del $(date +'%Y-%m-%d')"
+        git diff-index --quiet HEAD || git commit -m "Aggiornamento automatico del $(date +'%Y-%m-%d')"
         git push
