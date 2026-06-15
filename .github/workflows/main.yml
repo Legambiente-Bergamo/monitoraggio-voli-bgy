@@ -2,13 +2,15 @@ name: Monitoraggio Notturno BGY
 
 on:
   schedule:
-    # 17:00 UTC = 19:00 Italiane
-    - cron: '0 17 * * *'
+    # Si attiva automaticamente ogni sera alle 23:00 Italiane (21:00 UTC)
+    - cron: '0 21 * * *'
   workflow_dispatch:
 
 jobs:
   run-monitor:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
     - name: Accedi al codice del Repository
@@ -19,7 +21,7 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Installa pacchetti di sistema e Browser
+    - name: Installa Browser e Dipendenze di Sistema
       run: |
         sudo apt-get update
         sudo apt-get install -y firefox xvfb
@@ -29,16 +31,15 @@ jobs:
         python -m pip install --upgrade pip
         pip install requests beautifulsoup4 selenium schedule
 
-    - name: Esegui il Monitoraggio con Display Virtuale
+    - name: Esegui il Ciclo di Cattura ed Elaborazione Report
       run: |
-        # Avvia un server grafico virtuale in background per Selenium
+        # Avvia lo scraper grafico usando il display virtuale e passa la data odierna
         xvfb-run --server-args="-screen 0 1920x1080x24" python bgy_master.py
 
-    - name: Salva i Report e gli Screenshot generati nel Repository
+    - name: Salva i Report e gli Screenshot nel Repository
       run: |
         git config --global user.name "BGY Monitor Bot"
         git config --global user.email "bot@legambientebergamo.it"
         git add dati/ report/ screenshots/
-        # Sottopone a commit solo se ci sono nuovi file per evitare errori
         git diff-index --quiet HEAD || git commit -m "Aggiornamento report automatico del $(date +'%Y-%m-%d')"
         git push
