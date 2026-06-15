@@ -5,7 +5,7 @@ on:
     # Esecuzione notturna (Orari espressi in UTC: 21:00-04:00 corrispondono a 23:00-06:00 italiane)
     - cron: '*/5 21-3 * * *' # Ogni 5 minuti dalle 23:00 alle 05:55 per accumulare dati
     - cron: '0 4 * * *'      # Alle 06:00 esatte per la chiusura, analisi ed invio mail
-  workflow_dispatch: # Ti permette comunque di testarlo a mano quando vuoi
+  workflow_dispatch:
 
 jobs:
   run-monitor:
@@ -43,7 +43,7 @@ jobs:
           echo "action_type=capture" >> $GITHUB_OUTPUT
         fi
 
-    - name: [FASE CATTURA] Accumulo dati notturni
+    - name: FASE CATTURA Accumulo dati notturni
       if: steps.check-hour.outputs.action_type == 'capture'
       run: |
         DATE_STR=$(TZ="Europe/Rome" date +'%Y%m%d')
@@ -52,7 +52,7 @@ jobs:
         python bgy_radar.py $DATE_STR
         xvfb-run --server-args="-screen 0 1920x1080x24" python bgy_sacbo_capture.py $DATE_STR
 
-    - name: [FASE REPORT] Generazione Analisi e Calcolo Decibel
+    - name: FASE REPORT Generazione Analisi e Calcolo Decibel
       if: steps.check-hour.outputs.action_type == 'report'
       run: |
         DATE_STR=$(TZ="Europe/Rome" date +'%Y%m%d')
@@ -77,7 +77,7 @@ jobs:
           
           In allegato trovate i report generati automaticamente relativi al monitoraggio ambientale dell'Aeroporto di Bergamo Orio al Serio svolto questa notte.
           
-          Il file di stima acustica evidenzia gli sforamenti teorici calcolati sopra i 60 dB in prossimità delle centraline ARPA, pesati in base ai modelli di aeromobile intercettati (vettori passeggeri tradizionali vs i nuovi motori "Neo" e i cargo notturni pesanti).
+          Il file di stima acustica evidenzia gli sforamenti teorici calcolati sopra i 60 dB in prossimità delle centraline ARPA, pesati in base ai modelli di aeromobile intercettati.
           
           Un caro saluto,
           Il Bot di Monitoraggio Ambientale
