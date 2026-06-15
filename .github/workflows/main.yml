@@ -12,7 +12,7 @@ on:
     - cron: '0 4 * * *'
   workflow_dispatch:
 
-# Autorizzazioni di sicurezza per l'ambiente Cloud
+# Autorizzazioni di sicurezza globali per la scrittura nel repository
 permissions:
   contents: write
   actions: write
@@ -27,7 +27,6 @@ jobs:
     - name: Accedi al codice del Repository
       uses: actions/checkout@v4
       with:
-        # Forza la persistenza del token per i comandi Git successivi
         persist-credentials: true
 
     - name: Configura Python ambiente cloud
@@ -98,18 +97,16 @@ jobs:
           report/rumore_centraline_*.csv
           report/report_completo_*.csv
 
-    - name: Archivia e salva i dati nel Repository
-      env:
-        # Passa il token di sicurezza di GitHub come variabile d'ambiente sicura
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Registra modifiche locali (Git Commit)
       run: |
         git config --global user.name "BGY Monitor Bot"
         git config --global user.email "bot@legambientebergamo.it"
-        
-        # Configura l'URL remoto per includere il Token di autenticazione ad accesso scritto
-        git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-        
         git add dati/ report/ screenshots/
-        # Sottopone a commit ed esegue il push in modo sicuro
         git diff-index --quiet HEAD || git commit -m "Aggiornamento automatico del $(date +'%Y-%m-%d')"
-        git push origin HEAD:${{ github.ref_name }}
+
+    - name: Archivia e salva i dati nel Repository (Git Push Sicuro)
+      uses: ad-m/github-push-action@master
+      with:
+        # Usa il token di sistema nativo in minuscolo per autenticare il push
+        github_token: ${{ github.token }}
+        branch: ${{ github.ref }}
