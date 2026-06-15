@@ -46,61 +46,53 @@ def save_flights_to_csv(flights, date_str):
             writer.writeheader()
         writer.writerows(flights)
 
-def capture_flights_and_screenshots(date_str):
+def main():
+    date_str = sys.argv[1] if len(sys.argv) > 1 else datetime.now().strftime("%Y%m%d")
+    print(f"[SACBO] Aggiornamento tabellone del {date_str}...")
     Path(SCREENSHOT_DIR).mkdir(exist_ok=True)
+    
     options = Options()
     options.add_argument("--headless")
     options.add_argument("--width=1920")
     options.add_argument("--height=1080")
     
-    driver = webdriver.Firefox(options=options)
-    all_flights = []
-    
+    driver = None
     try:
-        print("[SACBO] Connessione al sito di Orio al Serio...")
+        driver = webdriver.Firefox(options=options)
         driver.get(URL)
-        time.sleep(6)
+        time.sleep(5)
         
-        # Accetta i cookie se presenti per sbloccare la visuale
         try:
             cookie_btn = WebDriverWait(driver, 3).until(
                 EC.element_to_be_clickable((By.XPATH, "//button[contains(.,'Accetta') or contains(.,'ACCETTA')]"))
             )
             driver.execute_script("arguments[0].click();", cookie_btn)
-            time.sleep(1)
         except:
             pass
 
-        # Estrazione Arrivi
         soup_arr = BeautifulSoup(driver.page_source, 'html.parser')
-        arrivals = parse_table(soup_arr, 'ARRIVO')
-        all_flights.extend(arrivals)
-        
+        all_flights = parse_table(soup_arr, 'ARRIVO')
         ts = datetime.now().strftime("%H%M%S")
         driver.save_screenshot(os.path.join(SCREENSHOT_DIR, f"arrivi_{date_str}_{ts}.png"))
         
-        # Scambio e Estrazione Partenze
         try:
             dep_btn = driver.find_element(By.XPATH, "//button[contains(., 'Partenze') or contains(., 'Departures')]")
             driver.execute_script("arguments[0].click();", dep_btn)
             time.sleep(4)
-            
             soup_dep = BeautifulSoup(driver.page_source, 'html.parser')
-            departures = parse_table(soup_dep, 'PARTENZA')
-            all_flights.extend(departures)
+            all_flights.extend(parse_table(soup_dep, 'PARTENZA'))
             driver.save_screenshot(os.path.join(SCREENSHOT_DIR, f"partenze_{date_str}_{ts}.png"))
         except Exception as e:
-            print(f"[SACBO] Impossibile passare al pannello partenze: {e}")
+            print(f"[SACBO] Nota switch pannello partenze fallito: {e}")
 
-        save_flights_to_csv(all_flights, date_str)
-        print(f"[SACBO] ✅ Tabellone acquisito correttamente: {len(all_flights)} righe salvate.")
+        if all_flights:
+            save_flights_to_csv(all_flights, date_str)
+            print(f"[SACBO] ✅ Estratti {len(all_flights)} record operativi.")
+    except Exception as e:
+        print(f"[SACBO] ⚠️ Errore durante l'acquisizione Selenium: {e} (Evito il crash del workflow)")
     finally:
-        driver.quit()
-
-def main():
-    date_str = sys.argv[1] if len(sys.argv) > 1 else datetime.now().strftime("%Y%m%d")
-    print(f"[SACBO] Avvio monitoraggio tabellone per data: {date_str}")
-    capture_flights_and_screenshots(date_str)
+        if driver:
+            driver.quit()
 
 if __name__ == "__main__":
     main()
