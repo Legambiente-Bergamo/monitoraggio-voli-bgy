@@ -12,7 +12,7 @@ on:
     - cron: '0 4 * * *'
   workflow_dispatch:
 
-# AUTORIZZAZIONI ESPLICITE PER EVITARE L'ERRORE 128
+# Autorizzazioni di sicurezza per l'ambiente Cloud
 permissions:
   contents: write
   actions: write
@@ -26,6 +26,9 @@ jobs:
     steps:
     - name: Accedi al codice del Repository
       uses: actions/checkout@v4
+      with:
+        # Forza la persistenza del token per i comandi Git successivi
+        persist-credentials: true
 
     - name: Configura Python ambiente cloud
       uses: actions/setup-python@v5
@@ -96,9 +99,17 @@ jobs:
           report/report_completo_*.csv
 
     - name: Archivia e salva i dati nel Repository
+      env:
+        # Passa il token di sicurezza di GitHub come variabile d'ambiente sicura
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         git config --global user.name "BGY Monitor Bot"
         git config --global user.email "bot@legambientebergamo.it"
+        
+        # Configura l'URL remoto per includere il Token di autenticazione ad accesso scritto
+        git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+        
         git add dati/ report/ screenshots/
+        # Sottopone a commit ed esegue il push in modo sicuro
         git diff-index --quiet HEAD || git commit -m "Aggiornamento automatico del $(date +'%Y-%m-%d')"
-        git push
+        git push origin HEAD:${{ github.ref_name }}
