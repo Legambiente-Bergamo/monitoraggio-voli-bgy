@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# bgy_centralina_rumore.py - Calcolo teorico impronta acustica per tipologia aereo
+# bgy_centralina_rumore.py - Calcolo teorico impronta acustica per tipologia aereo - Cloud Fix
 
 import csv
 import math
@@ -76,17 +76,26 @@ def calculate_noise(dist_orizzontale_km, quota_metri, modello_icao):
     
     rumore = db_base - (20 * math.log10(dist_3d))
     if dist_3d > 1.5:
-        rumore -= (dist_3d * 1.2) # Attenuazione atmosferica standard
+        rumore -= (dist_3d * 1.2)
     return max(30.0, rumore)
 
 def main():
     date_str = sys.argv[1] if len(sys.argv) > 1 else datetime.now().strftime("%Y%m%d")
     radar_file = Path(DATA_DIR) / f"radar_{date_str}.csv"
-    
-    print(f"[RUMORE] Elaborazione dati acustici per il {date_str}...")
+    output_file = Path(REPORT_DIR) / f"rumore_centraline_{date_str}.csv"
+    Path(REPORT_DIR).mkdir(exist_ok=True)
+
+    # FIX CRASH CLOUD AMBIENTE: Gestione file mancante o vuoto preventivo
+    if not radar_file.exists() or os.getsize(radar_file) == 0:
+        print(f"[RUMORE] ⚠️ File radar_{date_str}.csv assente o vuoto. Genero tracciato di log vuoto.")
+        with open(output_file, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow(['timestamp', 'callsign', 'modello', 'descrizione_aereo', 'centralina', 'distanza_km', 'altitudine_m', 'rumore_stimato_db', 'valutazione'])
+        return
+
     centraline = load_centraline()
-    if not centraline or not radar_file.exists():
-        print("[RUMORE] Database configurazione centraline o dati radar assenti.")
+    if not centraline:
+        print("[RUMORE] Database configurazione centraline assente nel file config.txt.")
         return
 
     voli_punti = defaultdict(list)
@@ -125,17 +134,17 @@ def main():
                 })
 
     results.sort(key=lambda x: x['timestamp'])
-    Path(REPORT_DIR).mkdir(exist_ok=True)
-    output_file = Path(REPORT_DIR) / f"rumore_centraline_{date_str}.csv"
     
-    if results:
-        with open(output_file, 'w', newline='', encoding='utf-8') as f:
+    with open(output_file, 'w', newline='', encoding='utf-8') as f:
+        if results:
             writer = csv.DictWriter(f, fieldnames=results[0].keys())
             writer.writeheader()
             writer.writerows(results)
-        print(f"[RUMORE] ✅ Registro generato per {len(results)} eventi di prossimità.")
-    else:
-        print("[RUMORE] Nessun passaggio registrato sotto la soglia dei 5km.")
+            print(f"[RUMORE] ✅ Registro generato con successo: {len(results)} intercettazioni acustiche.")
+        else:
+            writer = csv.writer(f)
+            writer.writerow(['timestamp', 'callsign', 'modello', 'descrizione_aereo', 'centralina', 'distanza_km', 'altitudine_m', 'rumore_stimato_db', 'valutazione'])
+            print("[RUMORE] Nessun aereo transitato sotto i 5km dalle centraline ARPA.")
 
 if __name__ == "__main__":
     main()
