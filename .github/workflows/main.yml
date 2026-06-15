@@ -2,9 +2,14 @@ name: Monitoraggio Continuo BGY e Invio Report
 
 on:
   schedule:
-    # Esecuzione notturna (Orari espressi in UTC: 21:00-04:00 corrispondono a 23:00-06:00 italiane)
-    - cron: '*/5 21-3 * * *' # Ogni 5 minuti dalle 23:00 alle 05:55 per accumulare dati
-    - cron: '0 4 * * *'      # Alle 06:00 esatte per la chiusura, analisi ed invio mail
+    # 1. Ogni 5 minuti dalle 23:00 alle 23:55 italiane (21:00 - 21:55 UTC)
+    - cron: '*/5 21 * * *'
+    
+    # 2. Ogni 5 minuti da mezzanotte alle 05:55 italiane (22:00 UTC - 03:55 UTC del giorno dopo)
+    - cron: '*/5 22-23,0-3 * * *'
+    
+    # 3. Alle 06:00 esatte italiane (04:00 UTC) per la chiusura, analisi e invio mail
+    - cron: '0 4 * * *'
   workflow_dispatch:
 
 jobs:
