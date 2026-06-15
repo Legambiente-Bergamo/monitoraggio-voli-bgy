@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# bgy_centralina_rumore.py - Calcolo teorico impronta acustica per tipologia aereo - Cloud Fix
+# bgy_centralina_rumore.py - Stima acustica ed elaborazione sforamenti - Cloud Fix
 
 import csv
 import math
@@ -13,7 +13,6 @@ DATA_DIR = "dati"
 REPORT_DIR = "report"
 CONFIG_FILE = "config.txt"
 
-# Firma db standard ponderata a 1000 metri di quota tridimensionale
 FIRMA_ACUSTICA_MODELLI = {
     'B738': {'base_db': 82.0, 'tipo': 'Boeing 737-800 Standard'},
     'B737': {'base_db': 83.5, 'tipo': 'Boeing 737 Classic (Elevato impatto)'},
@@ -70,10 +69,8 @@ def get_modello_da_config(icao24):
 def calculate_noise(dist_orizzontale_km, quota_metri, modello_icao):
     firma = FIRMA_ACUSTICA_MODELLI.get(modello_icao, FIRMA_ACUSTICA_MODELLI['DEFAULT'])
     db_base = firma['base_db']
-    
     dist_3d = math.sqrt(dist_orizzontale_km**2 + (quota_metri/1000.0)**2)
     if dist_3d < 0.1: dist_3d = 0.1
-    
     rumore = db_base - (20 * math.log10(dist_3d))
     if dist_3d > 1.5:
         rumore -= (dist_3d * 1.2)
@@ -85,19 +82,15 @@ def main():
     output_file = Path(REPORT_DIR) / f"rumore_centraline_{date_str}.csv"
     Path(REPORT_DIR).mkdir(exist_ok=True)
 
-    # FIX CRASH CLOUD AMBIENTE: Gestione file mancante o vuoto preventivo
+    # ACCORGIMENTO CLOUD INTEGRATO: Evita l'Exit Code 1 se il radar notturno è vuoto
     if not radar_file.exists() or os.getsize(radar_file) == 0:
-        print(f"[RUMORE] ⚠️ File radar_{date_str}.csv assente o vuoto. Genero tracciato di log vuoto.")
+        print(f"[RUMORE] File radar_{date_str}.csv vuoto o assente. Scrivo output vuoto preventivo.")
         with open(output_file, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
             writer.writerow(['timestamp', 'callsign', 'modello', 'descrizione_aereo', 'centralina', 'distanza_km', 'altitudine_m', 'rumore_stimato_db', 'valutazione'])
         return
 
     centraline = load_centraline()
-    if not centraline:
-        print("[RUMORE] Database configurazione centraline assente nel file config.txt.")
-        return
-
     voli_punti = defaultdict(list)
     with open(radar_file, 'r', encoding='utf-8') as f:
         reader = csv.DictReader(f)
@@ -109,7 +102,6 @@ def main():
     for callsign, punti in voli_punti.items():
         icao24 = punti[0]['icao24']
         modello = get_modello_da_config(icao24)
-        
         for centrale in centraline:
             dist_min = 999.0
             punto_critico = None
@@ -134,17 +126,16 @@ def main():
                 })
 
     results.sort(key=lambda x: x['timestamp'])
-    
     with open(output_file, 'w', newline='', encoding='utf-8') as f:
         if results:
             writer = csv.DictWriter(f, fieldnames=results[0].keys())
             writer.writeheader()
             writer.writerows(results)
-            print(f"[RUMORE] ✅ Registro generato con successo: {len(results)} intercettazioni acustiche.")
+            print(f"[RUMORE] ✅ Generato report acustico con {len(results)} intercettazioni.")
         else:
             writer = csv.writer(f)
             writer.writerow(['timestamp', 'callsign', 'modello', 'descrizione_aereo', 'centralina', 'distanza_km', 'altitudine_m', 'rumore_stimato_db', 'valutazione'])
-            print("[RUMORE] Nessun aereo transitato sotto i 5km dalle centraline ARPA.")
+            print("[RUMORE] Nessun volo sotto la soglia critica dei 5 km.")
 
 if __name__ == "__main__":
     main()
