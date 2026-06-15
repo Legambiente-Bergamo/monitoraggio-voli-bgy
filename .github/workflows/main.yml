@@ -5,7 +5,7 @@ on:
     # Esecuzione notturna (Orari espressi in UTC: 21:00-04:00 corrispondono a 23:00-06:00 italiane)
     - cron: '*/5 21-3 * * *' # Ogni 5 minuti dalle 23:00 alle 05:55 per accumulare dati
     - cron: '0 4 * * *'      # Alle 06:00 esatte per la chiusura, analisi ed invio mail
-  workflow_dispatch:
+  workflow_dispatch: # Ti permette comunque di testarlo a mano quando vuoi
 
 jobs:
   run-monitor:
@@ -65,7 +65,6 @@ jobs:
       if: steps.check-hour.outputs.action_type == 'report'
       uses: dawidd6/action-send-mail@v3
       with:
-        # Configurazione Server SMTP ufficiale Google
         server_address: smtp.gmail.com
         server_port: 465
         username: ${{ secrets.EMAIL_USER }}
