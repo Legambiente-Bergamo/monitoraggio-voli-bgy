@@ -2,9 +2,9 @@ name: Monitoraggio Continuo BGY e Invio Report
 
 on:
   schedule:
-    # Esecuzione notturna speculare (Orari espressi in UTC: 21:00-04:00 corrisponde a 23:00-06:00 italiane)
-    - cron: '*/5 21-3 * * *' # Ogni 5 minuti dalle 23:00 alle 05:55
-    - cron: '0 4 * * *'      # Alle 06:00 esatte per la chiusura e reportistica
+    # Esecuzione notturna (Orari espressi in UTC: 21:00-04:00 corrispondono a 23:00-06:00 italiane)
+    - cron: '*/5 21-3 * * *' # Ogni 5 minuti dalle 23:00 alle 05:55 per accumulare dati
+    - cron: '0 4 * * *'      # Alle 06:00 esatte per la chiusura, analisi ed invio mail
   workflow_dispatch:
 
 jobs:
@@ -35,7 +35,6 @@ jobs:
     - name: Determina Azione (Cattura vs Report Finale)
       id: check-hour
       run: |
-        # Ottiene l'ora corrente in Italia
         HOURA_IT=$(TZ="Europe/Rome" date +'%H')
         echo "Ora locale rilevata: $HOURA_IT"
         if [ "$HOURA_IT" = "06" ]; then
@@ -47,7 +46,6 @@ jobs:
     - name: [FASE CATTURA] Accumulo dati notturni
       if: steps.check-hour.outputs.action_type == 'capture'
       run: |
-        # Ottiene la data corrente italiana YYYYMMDD
         DATE_STR=$(TZ="Europe/Rome" date +'%Y%m%d')
         echo "Esecuzione campionamento rapido per data: $DATE_STR"
         python bgy_meteo.py $DATE_STR
@@ -57,35 +55,33 @@ jobs:
     - name: [FASE REPORT] Generazione Analisi e Calcolo Decibel
       if: steps.check-hour.outputs.action_type == 'report'
       run: |
-        # Il report delle 06:00 elabora i dati accumulati nella notte appena passata
         DATE_STR=$(TZ="Europe/Rome" date +'%Y%m%d')
         echo "Generazione reportistica finale per la notte del: $DATE_STR"
         python bgy_report.py $DATE_STR
         if [ -f "bgy_report_vettori.py" ]; then python bgy_report_vettori.py $DATE_STR; fi
         python bgy_centralina_rumore.py $DATE_STR
 
-    - name: Invia Report e Registro Sforamenti via Mail
+    - name: Invia Report e Registro Sforamenti via Mail (Gmail)
       if: steps.check-hour.outputs.action_type == 'report'
       uses: dawidd6/action-send-mail@v3
       with:
-        # Configurazione server SMTP (Esempio impostato su parametri standard Aruba, modificalo se usi Gmail o altri)
-        server_address: smtps.aruba.it
+        # Configurazione Server SMTP ufficiale Google
+        server_address: smtp.gmail.com
         server_port: 465
         username: ${{ secrets.EMAIL_USER }}
         password: ${{ secrets.EMAIL_PASSWORD }}
         subject: 📊 Report Monitoraggio Voli Notturni BGY - Oggi
         to: info@legambientebergamo.it
-        from: BGY Monitor Bot <info@legambientebergamo.it>
+        from: Monitor Bot Legambiente <legambiente.bg@gmail.com>
         body: |
           Buongiorno Circolo,
           
           In allegato trovate i report generati automaticamente relativi al monitoraggio ambientale dell'Aeroporto di Bergamo Orio al Serio svolto questa notte.
           
-          Il file di stima acustica evidenzia gli sforamenti teorici calcolati sopra i 60 dB in prossimità delle centraline ARPA di Colognola e dei comuni limitrofi, pesati in base ai modelli di aeromobile intercettati (vettori passeggeri vs cargo notturni).
+          Il file di stima acustica evidenzia gli sforamenti teorici calcolati sopra i 60 dB in prossimità delle centraline ARPA, pesati in base ai modelli di aeromobile intercettati (vettori passeggeri tradizionali vs i nuovi motori "Neo" e i cargo notturni pesanti).
           
           Un caro saluto,
           Il Bot di Monitoraggio Ambientale
-        # Allega automaticamente il file CSV delle centraline del giorno corrente
         attachments: |
           report/rumore_centraline_*.csv
           report/report_completo_*.csv
