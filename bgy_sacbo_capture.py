@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# bgy_sacbo_capture.py - Cattura voli e screenshot dal tabellone SACBO - Versione Cloud
+# bgy_sacbo_capture.py - Cattura voli e screenshot dal tabellone SACBO - Versione Cloud Aggiornata
 
 import csv
 import time
@@ -10,6 +10,7 @@ from pathlib import Path
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.firefox.options import Options
+from selenium.webdriver.firefox.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -56,15 +57,21 @@ def main():
     options.add_argument("--width=1920")
     options.add_argument("--height=1080")
     
+    # FORZATURA PERCORSO BINARIO CLOUD: Cerca l'eseguibile impostato dall'Action di GitHub
+    firefox_bin = os.environ.get("FIREFOX_BIN")
+    if firefox_bin and os.path.exists(firefox_bin):
+        options.binary_location = firefox_bin
+        print(path_msg := f"[SACBO] Utilizzo binario Firefox personalizzato: {firefox_bin}")
+        
     driver = None
     try:
         driver = webdriver.Firefox(options=options)
         driver.get(URL)
-        time.sleep(5)
+        time.sleep(6)
         
         try:
-            cookie_btn = WebDriverWait(driver, 3).until(
-                EC.element_to_be_clickable((By.XPATH, "//button[contains(.,'Accetta') or contains(.,'ACCETTA')]"))
+            cookie_btn = WebDriverWait(driver, 4).until(
+                EC.element_to_be_clickable((By.XPATH, "//button[contains(.,'Accetta') or contains(.,'ACCETTA') or contains(.,'Ok')]"))
             )
             driver.execute_script("arguments[0].click();", cookie_btn)
         except:
@@ -83,11 +90,11 @@ def main():
             all_flights.extend(parse_table(soup_dep, 'PARTENZA'))
             driver.save_screenshot(os.path.join(SCREENSHOT_DIR, f"partenze_{date_str}_{ts}.png"))
         except Exception as e:
-            print(f"[SACBO] Nota switch pannello partenze fallito: {e}")
+            print(f"[SACBO] Nota switch pannello partenze non riuscito: {e}")
 
         if all_flights:
             save_flights_to_csv(all_flights, date_str)
-            print(f"[SACBO] ✅ Estratti {len(all_flights)} record operativi.")
+            print(f"[SACBO] ✅ Estratti con successo {len(all_flights)} record operativi.")
     except Exception as e:
         print(f"[SACBO] ⚠️ Errore durante l'acquisizione Selenium: {e} (Evito il crash del workflow)")
     finally:
