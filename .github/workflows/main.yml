@@ -27,10 +27,15 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Installa Browser e Dipendenze di Sistema
+    - name: Installa Firefox Ufficiale di GitHub
+      uses: browser-actions/setup-firefox@v1
+      with:
+        firefox-version: 'latest'
+
+    - name: Installa Dipendenze di Sistema (Xvfb)
       run: |
         sudo apt-get update
-        sudo apt-get install -y firefox xvfb
+        sudo apt-get install -y xvfb
 
     - name: Installa Librerie Python
       run: |
@@ -54,7 +59,7 @@ jobs:
         DATE_STR=$(TZ="Europe/Rome" date +'%Y%m%d')
         echo "Esecuzione campionamento rapido per data: $DATE_STR"
         python bgy_meteo.py $DATE_STR
-        python pgy_radar.py $DATE_STR || python bgy_radar.py $DATE_STR
+        python bgy_radar.py $DATE_STR
         xvfb-run --server-args="-screen 0 1920x1080x24" python bgy_sacbo_capture.py $DATE_STR
 
     - name: FASE REPORT Generazione Analisi e Calcolo Decibel
@@ -90,7 +95,6 @@ jobs:
           report/rumore_centraline_*.csv
           report/report_completo_*.csv
 
-    # ALTERNATIVA SICURA AL PUSH: Archiviazione pacchetto dati senza toccare il codice
     - name: Salva i dati estratti come Allegato del Workflow
       uses: actions/upload-artifact@v4
       with:
