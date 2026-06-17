@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# bgy_report.py - Analisi incrociata Voli SACBO e Tracciati Radar
-
 import csv
 import sys
 from datetime import datetime
@@ -14,7 +12,6 @@ def main():
     sacbo_file = Path(DATA_DIR) / f"sacbo_{date_str}.csv"
     radar_file = Path(DATA_DIR) / f"radar_{date_str}.csv"
     output_file = Path(REPORT_DIR) / f"report_completo_{date_str}.csv"
-    
     Path(REPORT_DIR).mkdir(exist_ok=True)
     
     voli_sacbo = {}
@@ -31,13 +28,11 @@ def main():
             reader = csv.DictReader(f)
             for row in reader:
                 callsign = row.get('callsign', '').strip().lower()
-                # Incrocia il codice radio del radar con il numero volo del tabellone
                 info_tabellone = voli_sacbo.get(callsign, {})
-                
                 report_data.append({
                     'timestamp': row.get('timestamp'),
                     'volo': row.get('callsign'),
-                    'tipo_operazione': info_tabellone.get('tipo', 'NON TRACCIATO DA TABELLONE'),
+                    'tipo_operazione': info_tabellone.get('tipo', 'IN TRANSITO/NON TRACCIATO'),
                     'rotta_provenienza': info_tabellone.get('provenienza_destinazione', 'UNK'),
                     'stato_volo': info_tabellone.get('stato', 'IN VOLO'),
                     'altitudine_metri': row.get('altitude'),
@@ -50,13 +45,10 @@ def main():
             writer = csv.DictWriter(f, fieldnames=report_data[0].keys())
             writer.writeheader()
             writer.writerows(report_data)
-            print(f"[REPORT] ✅ Generata correttamente l'analisi dettagliata di {len(report_data)} vettori radar.")
+            print(f"[REPORT] ✅ Creata analisi dettagliata per {len(report_data)} punti radar.")
         else:
             writer = csv.writer(f)
             writer.writerow(['timestamp', 'volo', 'tipo_operazione', 'rotta_provenienza', 'stato_volo', 'altitudine_metri', 'velocita_kmh', 'icao24'])
-            # Righe di test se i dati sono a zero per non far fallire la mail
-            writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 'BGY_TEST', 'REGOLARE', 'TEST_ROTTA', 'COMPLETATO', '0', '0', 'UNK'])
-            print("[REPORT] Nessun dato radar utile per l'incrocio. Generato file di test base.")
 
 if __name__ == "__main__":
     main()
