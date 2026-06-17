@@ -59,9 +59,13 @@ jobs:
       if: steps.check-hour.outputs.action_type == 'report'
       run: |
         DATE_STR=$(TZ="Europe/Rome" date +'%Y%m%d')
-        if [ -f "bgy_report.py" ]; then python bgy_report.py $DATE_STR; fi
-        if [ -f "bgy_report_vettori.py" ]; then python bgy_report_vettori.py $DATE_STR; fi
         python bgy_centralina_rumore.py $DATE_STR
+        
+        # Se il report acustico è vuoto, inseriamo una riga fittizia di test per forzare l'invio mail
+        if [ ! -s "report/rumore_centraline_${DATE_STR}.csv" ] || [ $(wc -l < report/rumore_centraline_${DATE_STR}.csv) -le 1 ]; then
+          echo "timestamp,callsign,modello,descrizione_aereo,centralina,distanza_km,altitudine_m,rumore_stimato_db,valutazione" > report/rumore_centraline_${DATE_STR}.csv
+          echo "06:00:00,BGY_TEST,B752,Test Automatico Sistema,Colognola IC Muzio,1.2,350,71.5,REGOLARE (DATO DI TEST)" >> report/rumore_centraline_${DATE_STR}.csv
+        fi
 
     - name: Invia Report via Mail (Gmail)
       if: steps.check-hour.outputs.action_type == 'report'
@@ -75,14 +79,14 @@ jobs:
         to: info@legambientebergamo.it
         from: Monitor Bot Legambiente <legambiente.bg@gmail.com>
         body: |
-          Ciao,
+          Buongiorno Circolo,
           
           In allegato trovate il file relativo al monitoraggio e alla stima degli sforamenti acustici calcolati sopra i 60 dB per la notte appena trascorsa.
           
           Un caro saluto,
           Il Bot di Monitoraggio Ambientale
-        # Definito il percorso dinamico esatto senza asterischi ambigui
         attachments: report/rumore_centraline_*.csv
+        ignore_missing_files: true
 
     - name: Salva i dati estratti come Allegato del Workflow
       uses: actions/upload-artifact@v4
