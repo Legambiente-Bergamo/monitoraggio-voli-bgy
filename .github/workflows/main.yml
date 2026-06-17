@@ -2,9 +2,9 @@ name: Monitoraggio Continuo BGY e Invio Report
 
 on:
   schedule:
-    - cron: '*/15 21-23 * * *'  # Dalle 23:00 alle 01:45 italiane
-    - cron: '*/15 0-3 * * *'    # Dalle 02:00 alle 05:45 italiane
-    - cron: '0 4 * * *'         # Alle 06:00 esatte italiane per la chiusura definitiva
+    - cron: '*/15 21-23 * * *'
+    - cron: '*/15 0-3 * * *'
+    - cron: '0 4 * * *'
   workflow_dispatch:
 
 jobs:
@@ -45,22 +45,28 @@ jobs:
         python bgy_radar.py $DATE_STR
         python bgy_sacbo_capture.py $DATE_STR
 
-    - name: FASE REPORT (Elaborazione analisi e decibel)
+    - name: FASE REPORT (Elaborazione analisi, decibel e sintesi)
       if: steps.check-hour.outputs.action_type == 'report'
       run: |
         DATE_STR=$(TZ="Europe/Rome" date +'%Y%m%d')
         python bgy_report.py $DATE_STR
         python bgy_centralina_rumore.py $DATE_STR
+        python bgy_summary.py $DATE_STR  # Attivazione del file di testo riassuntivo
         
-        # Garanzia di file esistenti per non far fallire l'azione di invio mail
-        if [ ! -f "report/rumore_centraline_${DATE_STR}.csv" ]; then
-          echo "timestamp,callsign,modello,descrizione_aereo,centralina,distanza_km,altitudine_m,rumore_stimato_db,valutazione" > report/rumore_centraline_${DATE_STR}.csv
-          echo "06:00:00,ASSENTE,DEFAULT,Nessun volo critico rilevato,Centraline ARPA,0,0,0,REGOLARE" >> report/rumore_centraline_${DATE_STR}.csv
+        # Garanzia minimi strutturali per evitare fallimenti mail
+        if [ ! -f "report/riassunto_notte_${DATE_STR}.txt" ]; then
+          echo "Nessun dato strutturato generato per la notte del ${DATE_STR}." > report/riassunto_notte_${DATE_STR}.txt
         fi
-        if [ ! -f "report/report_completo_${DATE_STR}.csv" ]; then
-          echo "timestamp,volo,tipo_operazione,rotta_provenienza,stato_volo,altitudine_metri,velocita_kmh,icao24" > report/report_completo_${DATE_STR}.csv
-          echo "06:00:00,BGY_BOT,REGOLARE,ATTIVITA_NOTTURNA,COMPLETATO,0,0,UNK" >> report/report_completo_${DATE_STR}.csv
-        fi
+
+    - name: Leggi il riassunto testuale per il corpo della mail
+      if: steps.check-hour.outputs.action_type == 'report'
+      id: read-summary
+      run: |
+        DATE_STR=$(TZ="Europe/Rome" date +'%Y%m%d')
+        # Carica il file di testo in una variabile compatibile con GitHub Actions
+        echo "SUMMARY_BODY<<EOF" >> $GITHUB_OUTPUT
+        cat report/riassunto_notte_${DATE_STR}.txt >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
 
     - name: Invia Report via Mail (Gmail)
       if: steps.check-hour.outputs.action_type == 'report'
@@ -74,17 +80,9 @@ jobs:
         to: info@legambientebergamo.it
         from: Monitor Bot Legambiente <legambiente.bg@gmail.com>
         body: |
-          Buongiorno Circolo,
-          
-          In allegato trovate i report generati automaticamente relativi al monitoraggio ambientale e all'analisi incrociata dei voli dell'Aeroporto di Bergamo Orio al Serio per la notte appena trascorsa.
-          
-          I file includono:
-          1. L'analisi completa dei vettori intercettati dal radar combinati con il tabellone SACBO.
-          2. La stima degli sforamenti acustici teorici calcolati sopra i 60 dB in prossimità delle centraline ARPA.
-          
-          Un caro saluto,
-          Il Bot di Monitoraggio Ambientale
+          ${{ steps.read-summary.outputs.SUMMARY_BODY }}
         attachments: |
+          report/riassunto_notte_*.txt
           report/report_completo_*.csv
           report/rumore_centraline_*.csv
 
