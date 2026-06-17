@@ -45,46 +45,16 @@ jobs:
         python bgy_radar.py $DATE_STR
         python bgy_sacbo_capture.py $DATE_STR
 
-    - name: FASE REPORT (Elaborazione analisi, decibel e sintesi)
+    - name: FASE REPORT & INVIO MAIL
       if: steps.check-hour.outputs.action_type == 'report'
+      env:
+        EMAIL_USER: ${{ secrets.EMAIL_USER }}
+        EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
       run: |
         DATE_STR=$(TZ="Europe/Rome" date +'%Y%m%d')
         python bgy_report.py $DATE_STR
         python bgy_centralina_rumore.py $DATE_STR
-        python bgy_summary.py $DATE_STR  # Attivazione del file di testo riassuntivo
-        
-        # Garanzia minimi strutturali per evitare fallimenti mail
-        if [ ! -f "report/riassunto_notte_${DATE_STR}.txt" ]; then
-          echo "Nessun dato strutturato generato per la notte del ${DATE_STR}." > report/riassunto_notte_${DATE_STR}.txt
-        fi
-
-    - name: Leggi il riassunto testuale per il corpo della mail
-      if: steps.check-hour.outputs.action_type == 'report'
-      id: read-summary
-      run: |
-        DATE_STR=$(TZ="Europe/Rome" date +'%Y%m%d')
-        # Carica il file di testo in una variabile compatibile con GitHub Actions
-        echo "SUMMARY_BODY<<EOF" >> $GITHUB_OUTPUT
-        cat report/riassunto_notte_${DATE_STR}.txt >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
-
-    - name: Invia Report via Mail (Gmail)
-      if: steps.check-hour.outputs.action_type == 'report'
-      uses: dawidd6/action-send-mail@v3
-      with:
-        server_address: smtp.gmail.com
-        server_port: 465
-        username: ${{ secrets.EMAIL_USER }}
-        password: ${{ secrets.EMAIL_PASSWORD }}
-        subject: 📊 Report Monitoraggio Voli Notturni BGY - Oggi
-        to: info@legambientebergamo.it
-        from: Monitor Bot Legambiente <legambiente.bg@gmail.com>
-        body: |
-          ${{ steps.read-summary.outputs.SUMMARY_BODY }}
-        attachments: |
-          report/riassunto_notte_*.txt
-          report/report_completo_*.csv
-          report/rumore_centraline_*.csv
+        python bgy_summary.py $DATE_STR
 
     - name: Salva i dati estratti come Allegato del Workflow
       uses: actions/upload-artifact@v4
