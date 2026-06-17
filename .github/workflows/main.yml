@@ -2,14 +2,10 @@ name: Monitoraggio Continuo BGY e Invio Report
 
 on:
   schedule:
-    # 1. Ogni 5 minuti dalle 23:00 alle 23:55 italiane (21:00 - 21:55 UTC)
-    - cron: '*/5 21 * * *'
-    
-    # 2. Ogni 5 minuti da mezzanotte alle 05:55 italiane (22:00 UTC - 03:55 UTC)
-    - cron: '*/5 22-23,0-3 * * *'
-    
-    # 3. Alle 06:00 esatte italiane (04:00 UTC) per la chiusura, analisi e invio mail
-    - cron: '0 4 * * *'
+    # Ridotto il carico: esecuzione ogni 15 minuti di notte per evitare che GitHub ci metta in coda
+    - cron: '*/15 21-23 * * *'  # Dalle 23:00 alle 01:45 italiane
+    - cron: '*/15 0-3 * * *'    # Dalle 02:00 alle 05:45 italiane
+    - cron: '0 4 * * *'         # Alle 06:00 esatte italiane per la chiusura definitiva
   workflow_dispatch:
 
 jobs:
@@ -40,33 +36,34 @@ jobs:
     - name: Installa Librerie Python
       run: |
         python -m pip install --upgrade pip
-        pip install requests beautifulsoup4 selenium schedule
+        pip install requests beautifulsoup4 selenium
 
-    - name: Determina Azione (Cattura vs Report Finale)
+    - name: Determina Azione (Logica Flessibile Oraria)
       id: check-hour
       run: |
         HOURA_IT=$(TZ="Europe/Rome" date +'%H')
-        echo "Ora locale rilevata: $HOURA_IT"
-        if [ "$HOURA_IT" = "06" ]; then
+        echo "Ora locale rilevata sul server: $HOURA_IT"
+        
+        # Se sono le 06:00 del mattino (o se il server si attiva in ritardo nelle ore mattutine 06, 07, 08) genera il report
+        if [ "$HOURA_IT" = "06" ] || [ "$HOURA_IT" = "07" ] || [ "$HOURA_IT" = "08" ]; then
           echo "action_type=report" >> $GITHUB_OUTPUT
         else
           echo "action_type=capture" >> $GITHUB_OUTPUT
         fi
 
-    - name: FASE CATTURA Accumulo dati notturni
-      if: steps.check-hour.outputs.action_type == 'capture'
+    - name: FASE CATTURA (Eseguita sempre per non perdere l'ultimo passaggio)
       run: |
         DATE_STR=$(TZ="Europe/Rome" date +'%Y%m%d')
-        echo "Esecuzione campionamento rapido per data: $DATE_STR"
+        echo "Esecuzione campionamento per data: $DATE_STR"
         python bgy_meteo.py $DATE_STR
         python bgy_radar.py $DATE_STR
         xvfb-run --server-args="-screen 0 1920x1080x24" python bgy_sacbo_capture.py $DATE_STR
 
-    - name: FASE REPORT Generazione Analisi e Calcolo Decibel
+    - name: FASE REPORT (Attiva solo nella finestra di chiusura)
       if: steps.check-hour.outputs.action_type == 'report'
       run: |
         DATE_STR=$(TZ="Europe/Rome" date +'%Y%m%d')
-        echo "Generazione reportistica finale per la notte del: $DATE_STR"
+        echo "Finestra di chiusura rilevata. Avvio elaborazione decibel per il giorno: $DATE_STR"
         if [ -f "bgy_report.py" ]; then python bgy_report.py $DATE_STR; fi
         if [ -f "bgy_report_vettori.py" ]; then python bgy_report_vettori.py $DATE_STR; fi
         python bgy_centralina_rumore.py $DATE_STR
@@ -93,7 +90,6 @@ jobs:
           Il Bot di Monitoraggio Ambientale
         attachments: |
           report/rumore_centraline_*.csv
-          report/report_completo_*.csv
 
     - name: Salva i dati estratti come Allegato del Workflow
       uses: actions/upload-artifact@v4
