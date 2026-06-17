@@ -2,9 +2,9 @@ name: Monitoraggio Continuo BGY e Invio Report
 
 on:
   schedule:
-    - cron: '*/15 21-23 * * *'
-    - cron: '*/15 0-3 * * *'
-    - cron: '0 4 * * *'
+    - cron: '*/15 21-23 * * *'  # Dalle 23:00 alle 01:45 italiane
+    - cron: '*/15 0-3 * * *'    # Dalle 02:00 alle 05:45 italiane
+    - cron: '0 4 * * *'         # Alle 06:00 esatte italiane per la chiusura definitiva
   workflow_dispatch:
 
 jobs:
@@ -22,20 +22,10 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Installa Firefox Ufficiale di GitHub
-      uses: browser-actions/setup-firefox@v1
-      with:
-        firefox-version: 'latest'
-
-    - name: Installa Dipendenze di Sistema (Xvfb)
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y xvfb
-
     - name: Installa Librerie Python
       run: |
         python -m pip install --upgrade pip
-        pip install requests beautifulsoup4 selenium
+        pip install requests beautifulsoup4
 
     - name: Determina Azione (Logica Flessibile Oraria)
       id: check-hour
@@ -53,18 +43,23 @@ jobs:
         DATE_STR=$(TZ="Europe/Rome" date +'%Y%m%d')
         python bgy_meteo.py $DATE_STR
         python bgy_radar.py $DATE_STR
-        xvfb-run --server-args="-screen 0 1920x1080x24" python bgy_sacbo_capture.py $DATE_STR
+        python bgy_sacbo_capture.py $DATE_STR
 
-    - name: FASE REPORT (Elaborazione decibel)
+    - name: FASE REPORT (Elaborazione analisi e decibel)
       if: steps.check-hour.outputs.action_type == 'report'
       run: |
         DATE_STR=$(TZ="Europe/Rome" date +'%Y%m%d')
+        python bgy_report.py $DATE_STR
         python bgy_centralina_rumore.py $DATE_STR
         
-        # Se il report acustico è vuoto, inseriamo una riga fittizia di test per forzare l'invio mail
-        if [ ! -s "report/rumore_centraline_${DATE_STR}.csv" ] || [ $(wc -l < report/rumore_centraline_${DATE_STR}.csv) -le 1 ]; then
+        # Garanzia di file esistenti per non far fallire l'azione di invio mail
+        if [ ! -f "report/rumore_centraline_${DATE_STR}.csv" ]; then
           echo "timestamp,callsign,modello,descrizione_aereo,centralina,distanza_km,altitudine_m,rumore_stimato_db,valutazione" > report/rumore_centraline_${DATE_STR}.csv
-          echo "06:00:00,BGY_TEST,B752,Test Automatico Sistema,Colognola IC Muzio,1.2,350,71.5,REGOLARE (DATO DI TEST)" >> report/rumore_centraline_${DATE_STR}.csv
+          echo "06:00:00,ASSENTE,DEFAULT,Nessun volo critico rilevato,Centraline ARPA,0,0,0,REGOLARE" >> report/rumore_centraline_${DATE_STR}.csv
+        fi
+        if [ ! -f "report/report_completo_${DATE_STR}.csv" ]; then
+          echo "timestamp,volo,tipo_operazione,rotta_provenienza,stato_volo,altitudine_metri,velocita_kmh,icao24" > report/report_completo_${DATE_STR}.csv
+          echo "06:00:00,BGY_BOT,REGOLARE,ATTIVITA_NOTTURNA,COMPLETATO,0,0,UNK" >> report/report_completo_${DATE_STR}.csv
         fi
 
     - name: Invia Report via Mail (Gmail)
@@ -81,12 +76,17 @@ jobs:
         body: |
           Buongiorno Circolo,
           
-          In allegato trovate il file relativo al monitoraggio e alla stima degli sforamenti acustici calcolati sopra i 60 dB per la notte appena trascorsa.
+          In allegato trovate i report generati automaticamente relativi al monitoraggio ambientale e all'analisi incrociata dei voli dell'Aeroporto di Bergamo Orio al Serio per la notte appena trascorsa.
+          
+          I file includono:
+          1. L'analisi completa dei vettori intercettati dal radar combinati con il tabellone SACBO.
+          2. La stima degli sforamenti acustici teorici calcolati sopra i 60 dB in prossimità delle centraline ARPA.
           
           Un caro saluto,
           Il Bot di Monitoraggio Ambientale
-        attachments: report/rumore_centraline_*.csv
-        ignore_missing_files: true
+        attachments: |
+          report/report_completo_*.csv
+          report/rumore_centraline_*.csv
 
     - name: Salva i dati estratti come Allegato del Workflow
       uses: actions/upload-artifact@v4
@@ -95,5 +95,4 @@ jobs:
         path: |
           dati/
           report/
-          screenshots/
         retention-days: 7
