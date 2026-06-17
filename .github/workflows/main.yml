@@ -2,10 +2,9 @@ name: Monitoraggio Continuo BGY e Invio Report
 
 on:
   schedule:
-    # Ridotto il carico: esecuzione ogni 15 minuti di notte per evitare che GitHub ci metta in coda
-    - cron: '*/15 21-23 * * *'  # Dalle 23:00 alle 01:45 italiane
-    - cron: '*/15 0-3 * * *'    # Dalle 02:00 alle 05:45 italiane
-    - cron: '0 4 * * *'         # Alle 06:00 esatte italiane per la chiusura definitiva
+    - cron: '*/15 21-23 * * *'
+    - cron: '*/15 0-3 * * *'
+    - cron: '0 4 * * *'
   workflow_dispatch:
 
 jobs:
@@ -43,32 +42,28 @@ jobs:
       run: |
         HOURA_IT=$(TZ="Europe/Rome" date +'%H')
         echo "Ora locale rilevata sul server: $HOURA_IT"
-        
-        # Se sono le 06:00 del mattino (o se il server si attiva in ritardo nelle ore mattutine 06, 07, 08) genera il report
-        if [ "$HOURA_IT" = "06" ] || [ "$HOURA_IT" = "07" ] || [ "$HOURA_IT" = "08" ]; then
+        if [ "$HOURA_IT" = "06" ] || [ "$HOURA_IT" = "07" ] || [ "$HOURA_IT" = "08" ] || [ "$HOURA_IT" = "09" ]; then
           echo "action_type=report" >> $GITHUB_OUTPUT
         else
           echo "action_type=capture" >> $GITHUB_OUTPUT
         fi
 
-    - name: FASE CATTURA (Eseguita sempre per non perdere l'ultimo passaggio)
+    - name: FASE CATTURA (Esecuzione campionamento)
       run: |
         DATE_STR=$(TZ="Europe/Rome" date +'%Y%m%d')
-        echo "Esecuzione campionamento per data: $DATE_STR"
         python bgy_meteo.py $DATE_STR
         python bgy_radar.py $DATE_STR
         xvfb-run --server-args="-screen 0 1920x1080x24" python bgy_sacbo_capture.py $DATE_STR
 
-    - name: FASE REPORT (Attiva solo nella finestra di chiusura)
+    - name: FASE REPORT (Elaborazione decibel)
       if: steps.check-hour.outputs.action_type == 'report'
       run: |
         DATE_STR=$(TZ="Europe/Rome" date +'%Y%m%d')
-        echo "Finestra di chiusura rilevata. Avvio elaborazione decibel per il giorno: $DATE_STR"
         if [ -f "bgy_report.py" ]; then python bgy_report.py $DATE_STR; fi
         if [ -f "bgy_report_vettori.py" ]; then python bgy_report_vettori.py $DATE_STR; fi
         python bgy_centralina_rumore.py $DATE_STR
 
-    - name: Invia Report e Registro Sforamenti via Mail (Gmail)
+    - name: Invia Report via Mail (Gmail)
       if: steps.check-hour.outputs.action_type == 'report'
       uses: dawidd6/action-send-mail@v3
       with:
@@ -82,14 +77,12 @@ jobs:
         body: |
           Buongiorno Circolo,
           
-          In allegato trovate i report generati automaticamente relativi al monitoraggio ambientale dell'Aeroporto di Bergamo Orio al Serio svolto questa notte.
-          
-          Il file di stima acustica evidenzia gli sforamenti teorici calcolati sopra i 60 dB in prossimità delle centraline ARPA, pesati in base ai modelli di aeromobile intercettati.
+          In allegato trovate il file relativo al monitoraggio e alla stima degli sforamenti acustici calcolati sopra i 60 dB per la notte appena trascorsa.
           
           Un caro saluto,
           Il Bot di Monitoraggio Ambientale
-        attachments: |
-          report/rumore_centraline_*.csv
+        # Definito il percorso dinamico esatto senza asterischi ambigui
+        attachments: report/rumore_centraline_*.csv
 
     - name: Salva i dati estratti come Allegato del Workflow
       uses: actions/upload-artifact@v4
