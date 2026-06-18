@@ -1,65 +1,67 @@
-name: Monitoraggio Continuo BGY e Invio Report
+name: Monitoraggio BGY - Struttura Semplificata Ritarata
 
 on:
   schedule:
-    - cron: '*/15 21-23 * * *'
-    - cron: '*/15 0-3 * * *'
+    # Campionamento Radar e Meteo ogni 5 minuti nelle ore cruciali (dalle 23:00 alle 05:55 italiane)
+    - cron: '*/5 21-23 * * *'
+    - cron: '*/5 0-3 * * *'
+    # Esecuzione isolata SACBO alle 23:00 italiane (21:00 UTC)
+    - cron: '0 21 * * *'
+    # Generazione report finale e Invio Mail alle 06:00 italiane (04:00 UTC)
     - cron: '0 4 * * *'
   workflow_dispatch:
 
 jobs:
-  run-monitor:
+  bgy_process:
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
-    - name: Accedi al codice del Repository
+    - name: Accedi al codice
       uses: actions/checkout@v4
 
-    - name: Configura Python ambiente cloud
+    - name: Configura Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
 
-    - name: Installa Librerie Python
+    - name: Installa Librerie
       run: |
         python -m pip install --upgrade pip
         pip install requests beautifulsoup4
 
-    - name: Determina Azione (Logica Flessibile Oraria)
-      id: check-hour
-      run: |
-        HOURA_IT=$(TZ="Europe/Rome" date +'%H')
-        echo "Ora locale rilevata sul server: $HOURA_IT"
-        if [ "$HOURA_IT" = "06" ] || [ "$HOURA_IT" = "07" ] || [ "$HOURA_IT" = "08" ] || [ "$HOURA_IT" = "09" ]; then
-          echo "action_type=report" >> $GITHUB_OUTPUT
-        else
-          echo "action_type=capture" >> $GITHUB_OUTPUT
-        fi
-
-    - name: FASE CATTURA (Esecuzione campionamento)
-      run: |
-        DATE_STR=$(TZ="Europe/Rome" date +'%Y%m%d')
-        python bgy_meteo.py $DATE_STR
-        python bgy_radar.py $DATE_STR
-        python bgy_sacbo_capture.py $DATE_STR
-
-    - name: FASE REPORT & INVIO MAIL
-      if: steps.check-hour.outputs.action_type == 'report'
+    - name: Esecuzione Logica Oraria
       env:
         EMAIL_USER: ${{ secrets.EMAIL_USER }}
         EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
       run: |
+        HOURA_IT=$(TZ="Europe/Rome" date +'%H')
         DATE_STR=$(TZ="Europe/Rome" date +'%Y%m%d')
-        python bgy_report.py $DATE_STR
-        python bgy_centralina_rumore.py $DATE_STR
-        python bgy_summary.py $DATE_STR
+        
+        # Crea le cartelle se non esistono
+        mkdir -p dati report
+        
+        echo "[LOG][${HOURA_IT}:00] Avvio ciclo di monitoraggio automatizzato." >> report/diario_operazioni.log
 
-    - name: Salva i dati estratti come Allegato del Workflow
+        # 1. Se sono le 23:00, esegui SACBO in modo prioritario
+        if [ "$HOURA_IT" = "23" ]; then
+          python bgy_sacbo_capture.py $DATE_STR
+        fi
+
+        # 2. Se siamo nelle ore notturne o diurni di test, mappa Radar e Meteo
+        python bgy_meteo.py $DATE_STR
+        python bgy_radar.py $DATE_STR
+
+        # 3. Se sono le 06:00 (o un lancio manuale diurno), chiudi il sistema e spedisci la mail
+        if [ "$HOURA_IT" = "06" ] || [ "$HOURA_IT" = "08" ] || [ "$HOURA_IT" = "09" ] || [ "$HOURA_IT" = "10" ] || [ "$HOURA_IT" = "11" ]; then
+          python bgy_summary.py $DATE_STR
+        fi
+
+    - name: Archivia File su GitHub
       uses: actions/upload-artifact@v4
       with:
-        name: dati-monitoraggio-bgy
+        name: dati-bgy-ritarato
         path: |
           dati/
           report/
