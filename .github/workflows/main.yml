@@ -1,15 +1,12 @@
-name: Monitoraggio BGY - Struttura Semplificata Ritarata
+name: Monitoraggio BGY - Diagnostica Integrata
 
 on:
   schedule:
-    # Campionamento Radar e Meteo ogni 5 minuti nelle ore cruciali (dalle 23:00 alle 05:55 italiane)
-    - cron: '*/5 21-23 * * *'
+    - cron: '*/5 21-23 * * *'  # Radar e meteo ogni 5 minuti la notte
     - cron: '*/5 0-3 * * *'
-    # Esecuzione isolata SACBO alle 23:00 italiane (21:00 UTC)
-    - cron: '0 21 * * *'
-    # Generazione report finale e Invio Mail alle 06:00 italiane (04:00 UTC)
-    - cron: '0 4 * * *'
-  workflow_dispatch:
+    - cron: '0 21 * * *'       # SACBO alle 23:00 italiane
+    - cron: '0 4 * * *'        # Chiusura e mail alle 06:00 italiane
+  workflow_dispatch:          # Avvio manuale per i test
 
 jobs:
   bgy_process:
@@ -31,37 +28,36 @@ jobs:
         python -m pip install --upgrade pip
         pip install requests beautifulsoup4
 
-    - name: Esecuzione Logica Oraria
+    - name: Esecuzione Logica e Diagnostica
       env:
         EMAIL_USER: ${{ secrets.EMAIL_USER }}
         EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
       run: |
-        HOURA_IT=$(TZ="Europe/Rome" date +'%H')
+        HOURA_IT=$(TZ="Europe/Rome" date +'%H:%M')
         DATE_STR=$(TZ="Europe/Rome" date +'%Y%m%d')
         
-        # Crea le cartelle se non esistono
         mkdir -p dati report
         
-        echo "[LOG][${HOURA_IT}:00] Avvio ciclo di monitoraggio automatizzato." >> report/diario_operazioni.log
+        echo "[BASH][${HOURA_IT}] --- AVVIO SESSIONE DI MONITORAGGIO ---" >> report/diario_operazioni.log
 
-        # 1. Se sono le 23:00, esegui SACBO in modo prioritario
-        if [ "$HOURA_IT" = "23" ]; then
+        # Per i test manuali diurni, o se sono le 23:00 di notte, esegui sempre SACBO
+        if [ "$HOURA_IT" = "23:00" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
           python bgy_sacbo_capture.py $DATE_STR
         fi
 
-        # 2. Se siamo nelle ore notturne o diurni di test, mappa Radar e Meteo
+        # Esecuzione moduli standard
         python bgy_meteo.py $DATE_STR
         python bgy_radar.py $DATE_STR
 
-        # 3. Se sono le 06:00 (o un lancio manuale diurno), chiudi il sistema e spedisci la mail
-        if [ "$HOURA_IT" = "06" ] || [ "$HOURA_IT" = "08" ] || [ "$HOURA_IT" = "09" ] || [ "$HOURA_IT" = "10" ] || [ "$HOURA_IT" = "11" ]; then
+        # Spedisci la mail se siamo nella finestra di chiusura o se è un test manuale
+        if [ "$HOURA_IT" = "06:00" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
           python bgy_summary.py $DATE_STR
         fi
 
     - name: Archivia File su GitHub
       uses: actions/upload-artifact@v4
       with:
-        name: dati-bgy-ritarato
+        name: dati-bgy-diagnostica
         path: |
           dati/
           report/
