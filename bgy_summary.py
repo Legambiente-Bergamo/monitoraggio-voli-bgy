@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# bgy_summary.py - Report flessibile orientato al Tabellone SACBO + Radar opzionale
+# bgy_summary.py - Report flessibile con controllo anti-duplicazione mail
 
 import csv
 import sys
@@ -39,7 +39,6 @@ def invia_mail(testo_report, date_str):
     
     msg.attach(MIMEText(testo_report, 'plain', 'utf-8'))
     
-    # Allega i file CSV se esistono
     for cartella in [DATA_DIR, REPORT_DIR]:
         for file_path in Path(cartella).glob(f"*{date_str}*"):
             if file_path.suffix in ['.csv', '.log'] and file_path.stat().st_size > 0:
@@ -60,15 +59,22 @@ def invia_mail(testo_report, date_str):
 
 def main():
     date_str = sys.argv[1] if len(sys.argv) > 1 else datetime.now().strftime("%Y%m%d")
-    sacbo_file = Path(DATA_DIR) / f"sacbo_{date_str}.csv"
-    radar_file = Path(DATA_DIR) / f"radar_{date_str}.csv"
     output_txt = Path(REPORT_DIR) / f"riassunto_notte_{date_str}.txt"
     
-    Path(REPORT_DIR).mkdir(exist_ok=True)
+    # CONTROLLO SICUREZZA ANTI-DUPLICAZIONE:
+    # Se il file di riassunto di oggi esiste già E non siamo in un lancio manuale forzato,
+    # significa che abbiamo già elaborato e spedito la mail per questa notte.
+    is_manual = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
+    if output_txt.exists() and not is_manual:
+        scrivi_log("ℹ️ Report di oggi già inviato in precedenza. Salto il blocco mail per evitare duplicati.")
+        return
+
+    sacbo_file = Path(DATA_DIR) / f"sacbo_{date_str}.csv"
+    radar_file = Path(DATA_DIR) / f"radar_{date_str}.csv"
     
+    Path(REPORT_DIR).mkdir(exist_ok=True)
     data_it = datetime.strptime(date_str, "%Y%m%d").strftime("%d/%m/%Y")
     
-    # Intestazione del report leggibile
     corpo = [
         f"==================================================",
         f"📊 REPORT DI MONITORAGGIO VOLI - BGY ORIO AL SERIO",
@@ -76,8 +82,8 @@ def main():
         f"==================================================\n",
     ]
     
-    # SECTION 1: IL TABELLONE SACBO (Priorità 1 - Sempre presente)
-    corpo.append("📋 1. MOVIMENTI DAL TABELLONE AEROPORTO (Ore 23:00)")
+    # 1. TABELLONE SACBO
+    corpo.append("📋 1. MOVIMENTI DAL TABELLONE AEROPORTO (Fascia Ore 23:00)")
     voli_tabellone = []
     fonte_tabellone = "Non rilevata"
     
@@ -93,7 +99,7 @@ def main():
             corpo.append(f"  [Fonte: {fonte_tabellone}]")
             corpo.append(f"  Rilevati {len(voli_tabellone)} movimenti pianificati nella fascia critica:")
             for v in voli_tabellone:
-                corpo.append(f"    ✈️ Volo {v['volo']} delle {v['orario_previsto']} -> Dest/Prov: {v['destinazione']} ({v['stato']})")
+                corpo.append(f"    ✈️ Volo {v['volo']} delle {v['orario_previsto']} -> Dest: {v['destinazione']} ({v['stato']})")
         else:
             corpo.append("  ⚠️ Nessun volo commerciale attivo registrato nel tabellone per questa notte.")
     else:
@@ -101,7 +107,7 @@ def main():
         
     corpo.append("\n--------------------------------------------------\n")
     
-    # SECTION 2: IL RADAR GEOGRAFICO (Opzionale - Si attiva solo se ci sono dati)
+    # 2. RADAR GEOGRAFICO
     corpo.append("📡 2. RILEVAZIONI RADAR IN TEMPO REALE (Spazio Aereo Bergamo)")
     
     if radar_file.exists() and radar_file.stat().st_size > 0:
@@ -125,7 +131,6 @@ def main():
     else:
         corpo.append("  ℹ️ Dati radar non disponibili per questa notte (Nessun aereo tracciato o server offline).")
         
-    # Lettura e accodamento del Registro di Log per trasparenza (Priorità 2)
     contenuto_log = ""
     if Path(LOG_FILE).exists():
         with open(LOG_FILE, "r", encoding="utf-8") as f:
@@ -141,14 +146,10 @@ def main():
     ])
     
     testo_finale = "\n".join(corpo)
-    
-    # Salva il report leggibile su file
     with open(output_txt, 'w', encoding='utf-8') as f:
         f.write(testo_finale)
         
     scrivi_log("✅ Report leggibile strutturato con successo.")
-    
-    # Spedisci la mail
     invia_mail(testo_finale, date_str)
 
 if __name__ == "__main__":
