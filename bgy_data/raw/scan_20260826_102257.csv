@@ -1,0 +1,3 @@
+flight_num,type,sched_time,actual_time,origin_dest,status,scan_timestamp
+FR4512,Atterraggio,23:45,00:10,London STN,Atterrato,2026-08-26 10:22:57
+BCS882,Decollo,01:15,01:15,Leipzig LEJ,Decollato,2026-08-26 10:22:57

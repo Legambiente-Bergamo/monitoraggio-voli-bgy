@@ -1,0 +1,62 @@
+﻿flight_num,type,sched_time,actual_time,origin_dest,status,scan_timestamp
+RK 3220,Decollo,23:10,22:35,MANCHESTER23:10 | 22:35Imbarco chiuso,Imbarco chiuso,2026-01-04 23:00:00
+FR 2107,Decollo,08:15,23:29,BUDAPEST08:15 | 23:29In ritardo,In ritardo,2026-01-04 23:00:00
+FR 4969,Decollo,11:15,00:45,PALERMO11:15 | 00:45In ritardo,In ritardo,2026-01-04 23:00:00
+FR 4132,Decollo,12:15,01:50,BARI12:15 | 01:50In ritardo,In ritardo,2026-01-04 23:00:00
+FR 3530,Decollo,15:25,00:20,PRAGUE15:25 | 00:20In ritardo,In ritardo,2026-01-04 23:00:00
+NO 7758,Decollo,18:00,21:25,MARSA ALAM18:00 | 21:25Decollato,Decollato,2026-01-04 23:00:00
+FR 5992,Decollo,19:00,21:05,MADRID19:00 | 21:05Decollato,Decollato,2026-01-04 23:00:00
+FR 2287,Decollo,19:15,21:07,BUCHAREST OTOPENI19:15 | 21:07Decollato,Decollato,2026-01-04 23:00:00
+FR 3655,Decollo,19:15,22:03,STOCKHOLM19:15 | 22:03Decollato,Decollato,2026-01-04 23:00:00
+D8 2941,Decollo,19:25,22:00,HELSINKI19:25 | 22:00Decollato,Decollato,2026-01-04 23:00:00
+FR 4235,Decollo,19:35,22:34,VILNIUS19:35 | 22:34Decollato,Decollato,2026-01-04 23:00:00
+FR 4650,Decollo,20:10,21:45,TRAPANI20:10 | 21:45Decollato,Decollato,2026-01-04 23:00:00
+FR 8580,Decollo,20:15,22:10,BRISTOL20:15 | 22:10Decollato,Decollato,2026-01-04 23:00:00
+FR 7361,Decollo,20:15,22:35,VIENNA20:15 | 22:35Decollato,Decollato,2026-01-04 23:00:00
+FR 5092,Decollo,20:20,21:35,LAMEZIA20:20 | 21:35Decollato,Decollato,2026-01-04 23:00:00
+G9 711,Decollo,20:30,03:55,SHARJAH20:30 | 03:55In ritardo,In ritardo,2026-01-04 23:00:00
+FR 567,Decollo,20:35,20:59,TOULOUSE20:35 | 20:59Decollato,Decollato,2026-01-04 23:00:00
+FR 6458,Decollo,20:35,21:27,PALERMO20:35 | 21:27Decollato,Decollato,2026-01-04 23:00:00
+FR 2876,Decollo,20:35,23:30,BRINDISI20:35 | 23:30In ritardo,In ritardo,2026-01-04 23:00:00
+FR 7854,Decollo,20:40,21:55,MALTA20:40 | 21:55Decollato,Decollato,2026-01-04 23:00:00
+W6 1434,Decollo,21:00,21:00,WARSAW21:00 | 21:00Decollato,Decollato,2026-01-04 23:00:00
+FR 8479,Decollo,21:10,22:50,TIRANA21:10 | 22:50Imbarco chiuso,Imbarco chiuso,2026-01-04 23:00:00
+FR 4877,Decollo,21:15,23:56,CAGLIARI21:15 | 23:56In ritardo,In ritardo,2026-01-04 23:00:00
+FR 4845,Decollo,21:20,21:45,DUBLIN21:20 | 21:45Decollato,Decollato,2026-01-04 23:00:00
+FR 3273,Decollo,21:30,22:00,AGADIR21:30 | 22:00Imbarco chiuso,Imbarco chiuso,2026-01-04 23:00:00
+W4 3552,Decollo,21:30,22:26,TIMISOARA21:30 | 22:26Decollato,Decollato,2026-01-04 23:00:00
+W4 3136,Decollo,21:35,22:55,BUCHAREST OTOPENI21:35 | 22:55Imbarco chiuso,Imbarco chiuso,2026-01-04 23:00:00
+FR 3408,Decollo,21:40,22:08,KATOWICE21:40 | 22:08Decollato,Decollato,2026-01-04 23:00:00
+FR 5999,Decollo,21:45,23:05,ZAGREB21:45 | 23:05Imbarco chiuso,Imbarco chiuso,2026-01-04 23:00:00
+FR 3585,Decollo,21:55,23:46,BUDAPEST21:55 | 23:46In ritardo,In ritardo,2026-01-04 23:00:00
+W4 3932,Decollo,21:55,23:37,CHISINAU21:55 | 23:37,nan,2026-01-04 23:00:00
+W4 3608,Decollo,22:05,22:38,SUCEAVA22:05 | 22:38Decollato,Decollato,2026-01-04 23:00:00
+FR 2780,Decollo,22:05,23:30,PESCARA22:05 | 23:30Imbarco ultima chiamata,Imbarco ultima chiamata,2026-01-04 23:00:00
+FR 3867,Decollo,22:10,22:57,POZNAN22:10 | 22:57Imbarco chiuso,Imbarco chiuso,2026-01-04 23:00:00
+W4 3710,Decollo,22:15,22:45,IASI22:15 | 22:45Imbarco chiuso,Imbarco chiuso,2026-01-04 23:00:00
+FR 4728,Decollo,22:25,00:35,VALENCIA22:25 | 00:35In ritardo,In ritardo,2026-01-04 23:00:00
+FR 1853,Decollo,22:25,22:55,MARSEILLE22:25 | 22:55Imbarco chiuso,Imbarco chiuso,2026-01-04 23:00:00
+W4 5020,Decollo,22:25,23:15,TIRANA22:25 | 23:15Imbarco in corso,Imbarco in corso,2026-01-04 23:00:00
+FR 4191,Decollo,22:30,22:55,LONDON  STANSTED22:30 | 22:55Imbarco ultima chiamata,Imbarco ultima chiamata,2026-01-04 23:00:00
+W4 3772,Decollo,22:35,22:35,CRAIOVA22:35 | 22:35Decollato,Decollato,2026-01-04 23:00:00
+EK 2415,Decollo,23:00,23:00,DUBAI23:00 | 23:00Imbarco in corso,Imbarco in corso,2026-01-04 23:00:00
+FZ 1572,Decollo,23:00,23:00,DUBAI23:00 | 23:00Imbarco in corso,Imbarco in corso,2026-01-04 23:00:00
+FR 6257,Decollo,23:10,23:40,KRAKOW23:10 | 23:40In ritardo,In ritardo,2026-01-04 23:00:00
+FR 5551,Decollo,23:15,00:15,COLOGNE23:15 | 00:15In ritardo,In ritardo,2026-01-04 23:00:00
+FR 076,Decollo,05:45,05:45,SEVILLA05:45 | 05:45Operato da Malta Air,Operato da Malta Air,2026-01-04 23:00:00
+FR 859,Decollo,05:45,05:45,BRINDISI05:45 | 05:45,nan,2026-01-04 23:00:00
+FR 2285,Decollo,05:50,05:50,NAPOLI05:50 | 05:50,nan,2026-01-04 23:00:00
+FR 845,Decollo,05:55,05:55,CLUJ-NAPOCA05:55 | 05:55,nan,2026-01-04 23:00:00
+FR 2697,Decollo,05:55,05:55,LONDON  STANSTED05:55 | 05:55Operato da BUZZ,Operato da BUZZ,2026-01-04 23:00:00
+FR 9239,Decollo,06:00,06:00,LUBLIN06:00 | 06:00,nan,2026-01-04 23:00:00
+FR 4774,Decollo,06:00,06:00,THESSALONIKI06:00 | 06:00Operato da Malta Air,Operato da Malta Air,2026-01-04 23:00:00
+FR 3659,Decollo,06:00,06:00,BRUXELLES CHARLEROI06:00 | 06:00Operato da BUZZ,Operato da BUZZ,2026-01-04 23:00:00
+FR 2669,Decollo,06:05,06:05,BERLIN06:05 | 06:05Operato da Malta Air,Operato da Malta Air,2026-01-04 23:00:00
+FR 3402,Decollo,06:05,06:05,MARRAKECH06:05 | 06:05Operato da Malta Air,Operato da Malta Air,2026-01-04 23:00:00
+FR 5980,Decollo,06:05,06:05,TOULOUSE06:05 | 06:05Operato da Malta Air,Operato da Malta Air,2026-01-04 23:00:00
+FR 4786,Decollo,06:10,06:10,SALERNO06:10 | 06:10Operato da Malta Air,Operato da Malta Air,2026-01-04 23:00:00
+FR 3200,Decollo,06:40,06:40,CAGLIARI06:40 | 06:40Operato da Malta Air,Operato da Malta Air,2026-01-04 23:00:00
+FR 4311,Decollo,06:50,06:50,ROVANIEMI06:50 | 06:50,nan,2026-01-04 23:00:00
+FR 4728,Decollo,07:00,07:00,VALENCIA07:00 | 07:00,nan,2026-01-04 23:00:00
+FR 3300,Decollo,07:05,07:05,VITORIA07:05 | 07:05,nan,2026-01-04 23:00:00
+FR 2698,Decollo,22:05,22:45,ALGHERO22:05 | 22:45In ritardo,In ritardo,2026-01-04 23:00:00

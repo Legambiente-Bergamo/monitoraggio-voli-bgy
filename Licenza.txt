@@ -1,0 +1,27 @@
+Copyright (c) 2026 Circolo Legambiente Bergamo APS
+
+È concesso a chiunque di utilizzare, copiare, modificare, unire, pubblicare, distribuire, concedere in sublicenza e/o vendere copie di questo software e della documentazione associata (collettivamente, il "Software"), a condizione che:
+
+1. **Attribuzione**: In qualsiasi distribuzione o opera derivata, deve essere chiaramente indicato che il Software è stato originariamente sviluppato dal Circolo Legambiente Bergamo APS, con la seguente dicitura: "Questo software è basato sul progetto originale sviluppato dal Circolo Legambiente Bergamo APS".
+
+2. **Uso non commerciale**: Il Software non può essere utilizzato per scopi commerciali o per generare profitto diretto o indiretto, salvo esplicita autorizzazione scritta del Circolo Legambiente Bergamo APS.
+
+3. **Condizioni invariate**: Questa nota di copyright e le condizioni di licenza devono essere incluse in tutte le copie o porzioni sostanziali del Software.
+
+IL SOFTWARE VIENE FORNITO "COSÌ COM'È", SENZA GARANZIA DI ALCUN TIPO, ESPRESSA O IMPLICITA, IVI INCLUSE, A TITOLO ESEMPLIFICATIVO, LE GARANZIE DI COMMERCIABILITÀ, IDONEITÀ PER UN PARTICOLARE SCOPO E NON VIOLAZIONE. IN NESSUN CASO GLI AUTORI O I TITOLARI DEL COPYRIGHT POTRANNO ESSERE RITENUTI RESPONSABILI PER QUALSIASI RECLAMO, DANNO O ALTRA RESPONSABILITÀ, SIA IN UN'AZIONE CONTRATTUALE, ILLECITA O MENO, DERIVANTE DA, CONNESSO A O IN RELAZIONE AL SOFTWARE O ALL'USO O AD ALTRE OPERAZIONI NEL SOFTWARE.
+
+---
+
+**Tradotto in inglese per compatibilità con GitHub:**
+
+Copyright (c) 2026 Circolo Legambiente Bergamo APS
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, subject to the following conditions:
+
+1. **Attribution**: Any distribution or derivative work must clearly state that the Software was originally developed by Circolo Legambiente Bergamo APS, with the following notice: "This software is based on the original project developed by Circolo Legambiente Bergamo APS".
+
+2. **Non-Commercial Use**: The Software may not be used for commercial purposes or to generate direct or indirect profit, except with explicit written permission from Circolo Legambiente Bergamo APS.
+
+3. **Same Conditions**: This copyright notice and license conditions must be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

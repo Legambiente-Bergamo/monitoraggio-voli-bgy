@@ -1,0 +1,9 @@
+timestamp,sessione_notturna,callsign,icao24,modello_aereo,pista,fase_volo,direzione,quota_ft,rotta_deg,a_terra,paese
+2026-08-27 08:23:30,2026-08-27,RYR605H,4d2221,N/D,RWY 28,Decollo,Est -> Ovest (Sorvolo Curno/Bergamo),2075,250.19,False,Malta
+2026-08-27 08:24:12,2026-08-27,RYR605H,4d2221,N/D,RWY 28,Decollo,Est -> Ovest (Sorvolo Curno/Bergamo),4525,224.56,False,Malta
+2026-08-27 08:24:13,2026-08-27,BCS942,451dbd,N/D,RWY 10,Decollo,Ovest -> Est (Sorvolo Seriate/Bagnatica),15825,91.26,False,Bulgaria
+2026-08-27 08:44:43,2026-08-27,RYR80GB,4cadc0,N/D,RWY 10,Atterraggio,Ovest -> Est (Sorvolo Seriate/Bagnatica),9925,156.14,False,Ireland
+2026-08-27 08:44:44,2026-08-27,RYR49YB,4cadfc,N/D,RWY 28,Atterraggio,Est -> Ovest (Sorvolo Curno/Bergamo),675,285.08,False,Ireland
+2026-08-27 08:46:40,2026-08-27,RYR18JC,4ca73a,N/D,RWY 28,Atterraggio,Est -> Ovest (Sorvolo Curno/Bergamo),950,284.96,False,Ireland
+2026-08-27 08:46:41,2026-08-27,WZZ488R,4d2536,N/D,RWY 28,Decollo,Est -> Ovest (Sorvolo Curno/Bergamo),1700,264.13,False,Malta
+2026-08-27 08:46:41,2026-08-27,RYR49YB,4cadfc,N/D,RWY 28,Atterraggio,Est -> Ovest (Sorvolo Curno/Bergamo),675,285.08,False,Ireland

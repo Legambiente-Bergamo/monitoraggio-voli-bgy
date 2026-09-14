@@ -1,0 +1,3 @@
+﻿timestamp,sessione_notturna,callsign,icao24,modello_aereo,pista,fase_volo,direzione,quota_ft,rotta_deg,distanza_km,a_terra,paese
+2026-08-27 19:21:29,2026-08-27,NSZ2940,4aca88,N/D,RWY 28,Atterraggio,Est -> Ovest,205,284.88,1.91,False,Sweden
+2026-08-27 19:21:29,2026-08-27,RYR62FP,4d234b,N/D,RWY 28,Atterraggio,Est -> Ovest,213,285.36,1.92,False,Malta
