@@ -1,7 +1,7 @@
 """
 core/bgy_github_sync.py - Sincronizzazione automatica verso GitHub.
-Sincronizza: script, config generiche, dati raw.
-Esclude: report, grafici, log, credenziali.
+v2.3.9: flusso robusto (commit locale prima del pull), no credential prompt,
+        timeout aumentato, gestione config auto-arricchite.
 """
 import os
 import sys
@@ -19,7 +19,6 @@ CONFIG_GITHUB = os.path.join(CONFIG_DIR, "config_github.json")
 
 
 def _load_github_config():
-    """Carica la configurazione GitHub."""
     if not os.path.exists(CONFIG_GITHUB):
         logger.warning(f"⚠️ config_github.json non trovato: {CONFIG_GITHUB}")
         return None
@@ -31,15 +30,26 @@ def _load_github_config():
         return None
 
 
-def _run_git(args, cwd=None, timeout=60):
-    """Esegue un comando git. Ritorna (returncode, stdout, stderr)."""
+def _run_git(args, cwd=None, timeout=60, check_credential_prompt=False):
+    """
+    Esegue un comando git.
+    Se check_credential_prompt=True, imposta GIT_TERMINAL_PROMPT=0 per evitare
+    prompt interattivi che bloccherebbero il processo.
+    """
+    env = os.environ.copy()
+    if check_credential_prompt:
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        env["GCM_INTERACTIVE"] = "Never"
+        env["GIT_ASKPASS"] = "echo"
+
     try:
         result = sp.run(
             ["git"] + args,
             cwd=cwd or PROJECT_ROOT,
             capture_output=True,
             text=True,
-            timeout=timeout
+            timeout=timeout,
+            env=env
         )
         return result.returncode, result.stdout.strip(), result.stderr.strip()
     except sp.TimeoutExpired:
@@ -51,18 +61,15 @@ def _run_git(args, cwd=None, timeout=60):
 
 
 def _ensure_remote_url(cfg):
-    """Imposta l'URL del remote con il token per l'autenticazione."""
+    """Imposta l'URL del remote con il token per autenticazione automatica."""
     token = cfg.get("token", "").strip()
     repo_url = cfg.get("repo_url", "").strip()
 
-    if not token:
-        logger.error("❌ Token GitHub mancante in config_github.json")
-        return False
-    if not repo_url:
-        logger.error("❌ repo_url mancante in config_github.json")
+    if not token or not repo_url:
+        logger.error("❌ Token o repo_url mancanti")
         return False
 
-    # Inserisci il token nell'URL per autenticazione automatica
+    # Inserisci il token nell'URL
     if "@" in repo_url:
         parts = repo_url.split("://", 1)
         if len(parts) == 2:
@@ -83,15 +90,29 @@ def _ensure_remote_url(cfg):
 
 
 def _is_repo_initialized():
-    """Verifica se il repo git è già inizializzato."""
-    git_dir = os.path.join(PROJECT_ROOT, ".git")
-    return os.path.isdir(git_dir)
+    return os.path.isdir(os.path.join(PROJECT_ROOT, ".git"))
+
+
+def _disable_credential_helper():
+    """Disabilita il credential helper locale per evitare prompt bloccanti."""
+    _run_git(["config", "--local", "credential.helper", ""])
+
+
+def _count_staged_or_modified():
+    """Ritorna il numero di file modificati/nuovi."""
+    code, out, _ = _run_git(["status", "--porcelain"])
+    if code != 0:
+        return 0
+    return len([l for l in out.split("\n") if l.strip()])
 
 
 def sync_to_github(force=False):
     """
     Sincronizza il progetto su GitHub.
-    Ritorna (success: bool, message: str).
+    Flusso robusto:
+    1. git add -A + commit locale (se ci sono modifiche)
+    2. git pull --rebase
+    3. git push
     """
     cfg = _load_github_config()
     if not cfg:
@@ -104,13 +125,19 @@ def sync_to_github(force=False):
     if not _is_repo_initialized():
         return False, "Repo Git non inizializzato (esegui setup una tantum)"
 
-    code, out, _ = _run_git(["--version"])
+    # 1. Verifica Git disponibile
+    code, _, _ = _run_git(["--version"])
     if code != 0:
         return False, "Git non disponibile"
 
+    # 2. Imposta identità locale
     _run_git(["config", "user.name", cfg.get("username", "Legambiente Bergamo")])
     _run_git(["config", "user.email", cfg.get("email", "info@legambientebergamo.it")])
 
+    # 3. Disabilita credential prompt (evita blocco con pythonw)
+    _disable_credential_helper()
+
+    # 4. Imposta URL con token
     if not _ensure_remote_url(cfg):
         send_alert(
             "github_sync_failed",
@@ -121,33 +148,43 @@ def sync_to_github(force=False):
         return False, "Errore configurazione remote"
 
     branch = cfg.get("branch", "main")
+
+    # 5. Assicura branch corretto
     _run_git(["checkout", branch])
 
-    code, out, err = _run_git(["pull", "--rebase", "origin", branch], timeout=60)
-    if code != 0 and "couldn't find remote ref" not in err.lower():
-        logger.warning(f"⚠️ git pull: {err}")
-
-    code, out, err = _run_git(["add", "-A"])
+    # 6. Aggiungi TUTTE le modifiche (config auto-arricchite incluse)
+    code, _, err = _run_git(["add", "-A"])
     if code != 0:
         return False, f"Errore git add: {err}"
 
-    code, out, _ = _run_git(["status", "--porcelain"])
-    if not out:
-        logger.info("ℹ️ Nessuna modifica da sincronizzare")
-        return True, "Nessuna modifica"
+    # 7. Conta modifiche
+    modified_count = _count_staged_or_modified()
 
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-    prefix = cfg.get("commit_prefix", "BGY Sync")
-    commit_msg = f"{prefix} - {timestamp}"
-    code, out, err = _run_git(["commit", "-m", commit_msg])
-    if code != 0:
-        return False, f"Errore git commit: {err}"
+    # 8. Se ci sono modifiche, committa PRIMA del pull
+    if modified_count > 0:
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+        prefix = cfg.get("commit_prefix", "BGY Sync")
+        commit_msg = f"{prefix} - {timestamp}"
+        code, _, err = _run_git(["commit", "-m", commit_msg])
+        if code != 0:
+            # Potrebbe essere che non ci siano davvero modifiche da committare
+            logger.warning(f"⚠️ git commit: {err}")
 
-    code, out, _ = _run_git(["diff", "--stat", "HEAD~1", "HEAD"])
-    changed_files = out.split("\n")[-1] if out else "?"
+    # 9. Pull con rebase (ora senza modifiche pendenti)
+    code, _, err = _run_git(["pull", "--rebase", "origin", branch],
+                             timeout=60, check_credential_prompt=True)
+    if code != 0 and "couldn't find remote ref" not in err.lower() \
+            and "already up to date" not in err.lower() \
+            and "already up-to-date" not in err.lower():
+        logger.warning(f"⚠️ git pull: {err}")
+        # Prova a abortire un eventuale rebase in corso
+        _run_git(["rebase", "--abort"])
 
-    timeout = cfg.get("push_timeout_seconds", 120)
-    code, out, err = _run_git(["push", "origin", branch], timeout=timeout)
+    # 10. Push con timeout aumentato (300s)
+    timeout = cfg.get("push_timeout_seconds", 300)
+    code, _, err = _run_git(["push", "origin", branch],
+                             timeout=timeout, check_credential_prompt=True)
+
     if code != 0:
         send_alert(
             "github_push_failed",
@@ -157,12 +194,16 @@ def sync_to_github(force=False):
             "- Token scaduto o revocato\n"
             "- Conflitto con modifiche remote\n"
             "- Problema di rete\n\n"
-            "Controlla config_github.json e riprova manualmente."
+            "Controlla config_github.json."
         )
         return False, f"Errore git push: {err}"
 
-    logger.info(f"✅ Sync GitHub completato: {changed_files}")
-    return True, f"Sync OK ({changed_files})"
+    if modified_count == 0:
+        logger.info("ℹ️ Nessuna modifica da sincronizzare")
+        return True, "Nessuna modifica"
+
+    logger.info(f"✅ Sync GitHub completato ({modified_count} file)")
+    return True, f"Sync OK ({modified_count} file)"
 
 
 if __name__ == "__main__":
