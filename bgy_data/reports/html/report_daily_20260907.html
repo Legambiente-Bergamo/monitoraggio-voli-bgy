@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Report Daily Voli BGY</title>
+    <style>
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f7fa;
+        }
+        .header {
+            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            text-align: center;
+            margin-bottom: 25px;
+        }
+        .header h1 { margin: 0; font-size: 28px; letter-spacing: 2px; }
+        .header .subtitle { font-size: 14px; opacity: 0.85; margin-top: 5px; }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .stat-card .value { font-size: 24px; font-weight: bold; color: #1a2a6c; }
+        .stat-card .label { font-size: 12px; color: #7f8c8d; margin-top: 5px; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        th {
+            background: #1a2a6c;
+            color: white;
+            padding: 12px;
+            text-align: left;
+        }
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #eee;
+        }
+        tr:hover { background: #f0f4f8; }
+        .footer {
+            text-align: center;
+            font-size: 12px;
+            color: #95a5a6;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>✈️ Report Daily Voli BGY</h1>
+        <div class="subtitle">Aeroporto di Bergamo - Orio al Serio (BGY)</div>
+        <div class="subtitle">Generato il 09/09/2026 19:30</div>
+    </div>
+    
+    <div class="stats-grid">
+
+        <div class="stat-card">
+            <div class="value">1</div>
+            <div class="label">Totale Voli</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="value">0</div>
+            <div class="label">Atterraggi</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="value">1</div>
+            <div class="label">Decolli</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="value">0</div>
+            <div class="label">Voli in Ritardo (>15m)</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="value">1</div>
+            <div class="label">Voli in Orario</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="value">0.0</div>
+            <div class="label">Ritardo Medio (min)</div>
+        </div>
+
+    </div>
+    
+    <h2>Dettaglio Voli</h2>
+    <table>
+        <thead>
+            <tr>
+<th>Volo</th><th>Tipo movimento</th><th>Compagnia aerea</th><th>Destinazione origine</th><th>Orario schedulato</th><th>Orario effettivo</th><th>Minuti ritardo</th><th>Stato ritardo</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td>N/D</td><td>Decollo (D)</td><td>Sconosciuta</td><td>N/D</td><td>N/D</td><td>08:10</td><td>0</td><td>N/D</td></tr>
+        </tbody>
+    </table>
+
+    <div class="footer">
+        <p>Report generato automaticamente da BGY Monitoring Suite</p>
+        <p>Dati elaborati da fonti pubbliche (SACBO e OpenSky Network)</p>
+    </div>
+</body>
+</html>

@@ -1,7 +1,7 @@
 """
 bgy_scheduler.py - Pianificatore ed Orchestratore automatico.
 Finestra notturna: 23:00 - 05:59
-v2.3.8: sync GitHub PRIMA dell'email + 5° check nella mail
+v2.5.0 - fix job_daily: report giornaliero su "ieri"
 """
 import os
 import sys
@@ -11,12 +11,13 @@ import pandas as pd
 from datetime import datetime, timedelta
 import schedule
 
-from core import get_logger, config_manager
-from core.bgy_paths import LOGS_DIR, RAW_DIR
-from core.bgy_github_sync import sync_to_github
-from bgy_utils.bgy_utils_mailer import send_daily_status
-from bgy_reports import generate_daily_report, generate_nightly_report, send_monthly_report
-from scanners import run_day_scan, run_night_scan
+from bgy_core import get_logger, config_manager
+from bgy_core.bgy_paths import LOGS_DIR, RAW_DIR
+from bgy_core.bgy_github_sync import sync_to_github
+from bgy_core.bgy_mailer import send_daily_status
+from bgy_reports import (generate_daily_report, generate_nightly_report,
+                         send_monthly_report)
+from bgy_scanners import run_day_scan, run_night_scan
 
 logger = get_logger("Scheduler")
 
@@ -26,83 +27,131 @@ _scheduler_lock = threading.Lock()
 _scheduler_started = False
 
 
-# -----------------------------------------------------------------------------
-# CHECK DI PROCESSO
-# -----------------------------------------------------------------------------
+def _get_scheduler_start_time(target_date_str):
+    target_date = datetime.strptime(target_date_str, "%Y-%m-%d")
+    for days_back in range(0, 8):
+        check_date = (target_date - timedelta(days=days_back)).strftime("%Y-%m-%d")
+        log_file = os.path.join(LOGS_DIR, f"bgy_app_{check_date}.log")
+        if not os.path.exists(log_file):
+            continue
+        try:
+            with open(log_file, "r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    if "SCHEDULER BGY - CONFIGURAZIONE" in line:
+                        ts = line.split(" - ")[0].strip()
+                        return datetime.strptime(ts, "%Y-%m-%d %H:%M:%S,%f")
+        except Exception:
+            continue
+    return None
+
+
+def _classifica_scansione(expected_time, scan_date, scheduler_start):
+    """
+    Cerca prima il nuovo naming (scan_YYYY-MM-DD_HH-MM.csv), poi il vecchio
+    (scan_YYYYMMDD_HHMM.csv) per compatibilità durante la transizione.
+    """
+    scan_date_norm = scan_date  # YYYY-MM-DD
+    scan_date_clean = scan_date.replace("-", "")  # YYYYMMDD
+    hhmm_old = expected_time.replace(":", "")
+    hhmm_new = expected_time.replace(":", "-")
+
+    candidates = [
+        os.path.join(RAW_DIR, f"scan_{scan_date_norm}_{hhmm_new}.csv"),
+        os.path.join(RAW_DIR, f"scan_{scan_date_clean}_{hhmm_old}.csv"),
+    ]
+    for fp in candidates:
+        if os.path.exists(fp):
+            return "eseguita", None
+
+    if scheduler_start is not None:
+        try:
+            exp_dt = datetime.strptime(f"{scan_date} {expected_time}", "%Y-%m-%d %H:%M")
+            if exp_dt < scheduler_start:
+                return "saltata", scheduler_start.strftime("%d/%m %H:%M")
+        except Exception:
+            pass
+    return "mancante", None
+
 
 def check_sacbo_acquisition(date_str):
-    """Verifica che le scansioni SACBO previste per la data siano state eseguite."""
-    date_clean = date_str.replace("-", "")
     config = config_manager.get_data_config()
     expected_times = config.get("scan_schedules", ["00:00", "06:00", "12:00", "18:00"])
-
-    now = datetime.now()
-    is_today = (date_str == now.strftime("%Y-%m-%d"))
-    now_minutes = now.hour * 60 + now.minute
-
-    due_times = []
+    scheduler_start = _get_scheduler_start_time(date_str)
+    eseguite, saltate, mancanti = [], [], []
     for t in expected_times:
-        try:
-            hh, mm = t.split(":")
-            exp_min = int(hh) * 60 + int(mm)
-        except Exception:
-            continue
-        if not is_today or exp_min <= now_minutes:
-            due_times.append(t)
+        stato, info = _classifica_scansione(t, date_str, scheduler_start)
+        if stato == "eseguita":
+            eseguite.append(t)
+        elif stato == "saltata":
+            saltate.append((t, info))
+        else:
+            mancanti.append(t)
+    totale = len(expected_times)
+    parti = [f"Eseguite {len(eseguite)}/{totale} scansioni diurne"]
+    if saltate:
+        dettagli = ", ".join([f"{t} (sistema spento fino a {avvio})" for t, avvio in saltate])
+        parti.append(f"saltate {len(saltate)}: {dettagli}")
+    if mancanti:
+        parti.append(f"MANCANTI {len(mancanti)}: {', '.join(mancanti)}")
+    msg = ". ".join(parti)
+    return (len(mancanti) == 0), msg
 
-    if not due_times:
-        return True, f"Nessuna scansione ancora dovuta (prossima: {expected_times[0]})"
 
-    scan_files = [f for f in os.listdir(RAW_DIR)
-                  if f.startswith(f"scan_{date_clean}_") and f.endswith(".csv")]
-
-    if not scan_files:
-        return False, f"Nessuna scansione SACBO trovata per il {date_str}"
-
-    actual_minutes = []
-    for f in scan_files:
-        try:
-            parts = f.replace(".csv", "").split("_")
-            hhmm = parts[2]
-            actual_minutes.append(int(hhmm[:2]) * 60 + int(hhmm[2:]))
-        except Exception:
-            continue
-
-    missing = []
-    for expected in due_times:
-        try:
-            hh, mm = expected.split(":")
-            exp_min = int(hh) * 60 + int(mm)
-        except Exception:
-            continue
-        if not any(abs(exp_min - am) <= 60 for am in actual_minutes):
-            missing.append(expected)
-
-    total = len(due_times)
-    found = total - len(missing)
-    if not missing:
-        return True, f"Tutte le {total} scansioni dovute eseguite ({found}/{total})"
-    return False, f"Eseguite {found}/{total} scansioni. Mancanti: {', '.join(missing)}"
+def _find_radar_file(date_str):
+    """Cerca il file radar con nuovo o vecchio naming. Ritorna path o None."""
+    for name in (f"radar_{date_str}.csv",
+                 f"bgy_night_flights_{date_str}.csv"):
+        p = os.path.join(RAW_DIR, name)
+        if os.path.exists(p):
+            return p
+    return None
 
 
 def check_night_acquisition(date_str):
-    """Verifica che esistano dati radar notturni per la data."""
-    filepath = os.path.join(RAW_DIR, f"bgy_night_flights_{date_str}.csv")
-    if not os.path.exists(filepath):
-        return False, f"Nessun file radar per la notte del {date_str}"
+    config = config_manager.get_data_config()
+    night_times = config.get("sacbo_night_scans", ["23:00", "02:00", "05:00"])
+    date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+    next_day = (date_obj + timedelta(days=1)).strftime("%Y-%m-%d")
+    scheduler_start = _get_scheduler_start_time(date_str)
+    eseguite, saltate, mancanti = [], [], []
+    for t in night_times:
+        hh = int(t.split(":")[0])
+        scan_date = date_str if hh >= 12 else next_day
+        stato, info = _classifica_scansione(t, scan_date, scheduler_start)
+        if stato == "eseguita":
+            eseguite.append(t)
+        elif stato == "saltata":
+            saltate.append((t, info))
+        else:
+            mancanti.append(t)
 
-    try:
-        df = pd.read_csv(filepath)
-        if len(df) == 0:
-            return False, "File radar presente ma vuoto"
-        return True, f"Trovati {len(df)} rilevamenti radar"
-    except Exception as e:
-        return False, f"Errore lettura file radar: {e}"
+    radar_file = _find_radar_file(date_str)
+    radar_ok = False
+    radar_msg = ""
+    if radar_file:
+        try:
+            df = pd.read_csv(radar_file)
+            if len(df) > 0:
+                radar_ok = True
+                radar_msg = f"radar OK ({len(df)} rilevamenti)"
+            else:
+                radar_msg = "file radar vuoto"
+        except Exception as e:
+            radar_msg = f"errore lettura radar: {e}"
+    else:
+        radar_msg = "file radar assente"
 
+    totale = len(night_times)
+    parti = [f"Scansioni SACBO notturne: {len(eseguite)}/{totale}"]
+    if saltate:
+        dettagli = ", ".join([f"{t} (sistema spento fino a {avvio})" for t, avvio in saltate])
+        parti.append(f"saltate {len(saltate)}: {dettagli}")
+    if mancanti:
+        parti.append(f"MANCANTI {len(mancanti)}: {', '.join(mancanti)}")
+    parti.append(radar_msg)
+    msg = ". ".join(parti)
+    return (len(mancanti) == 0 and radar_ok), msg
 
-# -----------------------------------------------------------------------------
-# JOB
-# -----------------------------------------------------------------------------
 
 def job_scan():
     logger.info("📡 Avvio scansione SACBO diurna...")
@@ -129,25 +178,21 @@ def job_daily():
 
     yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 
-    # 1. Verifica acquisizione SACBO
     sacbo_acq_ok, sacbo_acq_msg = check_sacbo_acquisition(yesterday)
-    logger.info(f"{'✅' if sacbo_acq_ok else '❌'} Acquisizione SACBO ({yesterday}): {sacbo_acq_msg}")
+    logger.info(f"{'✅' if sacbo_acq_ok else '❌'} Acquisizione SACBO diurna ({yesterday}): {sacbo_acq_msg}")
 
-    # 2. Elaborazione report giornaliero
-    daily_path, daily_msg = generate_daily_report()
+    # FIX blocco 7: passare "yesterday" al report giornaliero
+    daily_path, daily_msg = generate_daily_report(yesterday)
     daily_ok = daily_path is not None and os.path.exists(daily_path)
-    logger.info(f"{'✅' if daily_ok else '❌'} Elaborazione SACBO: {daily_msg}")
+    logger.info(f"{'✅' if daily_ok else '❌'} Elaborazione SACBO ({yesterday}): {daily_msg}")
 
-    # 3. Verifica acquisizione notturna
     night_acq_ok, night_acq_msg = check_night_acquisition(yesterday)
     logger.info(f"{'✅' if night_acq_ok else '❌'} Acquisizione notturna ({yesterday}): {night_acq_msg}")
 
-    # 4. Arricchimento report notturno
     nightly_path, nightly_msg = generate_nightly_report(yesterday)
     nightly_ok = nightly_path is not None and os.path.exists(nightly_path)
-    logger.info(f"{'✅' if nightly_ok else '❌'} Arricchimento notturno: {nightly_msg}")
+    logger.info(f"{'✅' if nightly_ok else '❌'} Arricchimento notturno ({yesterday}): {nightly_msg}")
 
-    # 5. SYNC GITHUB (PRIMA dell'email)
     logger.info("-" * 60)
     logger.info("📤 Avvio sincronizzazione GitHub...")
     try:
@@ -161,7 +206,6 @@ def job_daily():
         sync_msg = f"Eccezione: {e}"
         logger.error(f"❌ Errore sync GitHub: {e}")
 
-    # 6. Riepilogo check (5 check ora)
     checks = {
         'sacbo_acquisition': (sacbo_acq_ok, sacbo_acq_msg),
         'sacbo_processing': (daily_ok, daily_msg),
@@ -176,22 +220,15 @@ def job_daily():
     logger.info(f"📋 ESITO COMPLESSIVO: {'✅ TUTTO OK' if overall_success else '❌ PROBLEMI RILEVATI'}")
     logger.info("-" * 60)
 
-    # 7. Invio email di stato (con 5 check)
     send_daily_status(overall_success, "", checks=checks)
 
-    # 8. Report mensile (primo del mese)
     if datetime.now().day == 1:
         logger.info("📈 Primo del mese: generazione report mensile...")
         send_monthly_report()
 
 
-# -----------------------------------------------------------------------------
-# SCHEDULER
-# -----------------------------------------------------------------------------
-
 def setup_scheduler():
     global _scheduler_started
-
     with _scheduler_lock:
         if _scheduler_started:
             logger.warning("⚠️ Scheduler già avviato, ignoro richiesta duplicata.")
@@ -199,7 +236,6 @@ def setup_scheduler():
         _scheduler_started = True
 
     schedule.clear()
-
     config = config_manager.get_data_config()
 
     logger.info("=" * 50)
@@ -229,14 +265,11 @@ def setup_scheduler():
 
 
 def run_scheduler_loop():
-    """Loop principale dello scheduler (da eseguire in un thread)."""
     setup_scheduler()
-
     now = datetime.now()
     if now.hour >= 23 or now.hour < 6:
         logger.info("🌙 Avvio scansione radar immediata all'avvio...")
         job_radar_night_scan()
-
     while True:
         schedule.run_pending()
         time.sleep(1)

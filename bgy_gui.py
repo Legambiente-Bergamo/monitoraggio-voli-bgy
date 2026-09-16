@@ -1,6 +1,6 @@
 """
 BGY Monitoring Suite - Interfaccia Grafica di Controllo
-v2.3.4 - Watchdog integrato come subprocess + tab dedicato
+v2.5.0 - night_scan_schedules da config
 """
 import sys
 import subprocess
@@ -50,7 +50,8 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime, timedelta
 
-from core import get_logger, config_manager, ensure_directories
+from bgy_core import get_logger, config_manager, ensure_directories
+from bgy_core.bgy_version import __version__
 from bgy_gui import (
     DashboardTab, MailConfigTab, ScanConfigTab, ReportExportTab,
     WatchdogConfigTab,
@@ -60,13 +61,10 @@ logger = get_logger("GUI")
 
 
 def kill_orphan_instances():
-    """Termina tutte le altre istanze di bgy_gui.py, bgy_scheduler.py e bgy_watchdog.py."""
     if sys.platform != "win32":
         return 0
-
     current_pid = os.getpid()
     killed = []
-
     try:
         ps_command = (
             "Get-WmiObject Win32_Process -Filter \"Name='python.exe' OR Name='pythonw.exe'\" | "
@@ -79,7 +77,6 @@ def kill_orphan_instances():
             ["powershell", "-NoProfile", "-Command", ps_command],
             capture_output=True, text=True, timeout=15
         )
-
         for line in result.stdout.splitlines():
             line = line.strip()
             if "|" not in line:
@@ -104,12 +101,10 @@ def kill_orphan_instances():
                 pass
     except Exception as e:
         print(f"⚠️ Errore kill orphan: {e}")
-
     if killed:
         print(f"🗑️ Terminate {len(killed)} istanze precedenti:")
         for pid, kind in killed:
             print(f"   - PID {pid} ({kind})")
-
     return len(killed)
 
 
@@ -142,9 +137,12 @@ class BgyAppGUI:
         self.countdown_running = True
 
         self.config_data = config_manager.get_data_config()
-        self.scan_schedules = self.config_data.get("scan_schedules", ["00:00", "06:00", "12:00", "18:00"])
+        self.scan_schedules = self.config_data.get(
+            "scan_schedules", ["00:00", "06:00", "12:00", "18:00"])
         self.daily_report_time = self.config_data.get("daily_report_time", "06:30")
-        self.night_scan_schedules = ["23:00", "02:00", "05:00"]
+        # FIX blocco 7: night_scan_schedules da config
+        self.night_scan_schedules = self.config_data.get(
+            "sacbo_night_scans", ["23:00", "02:00", "05:00"])
 
         self.notebook = ttk.Notebook(root)
         self.notebook.pack(pady=10, fill="both", expand=True, padx=20)
@@ -166,7 +164,7 @@ class BgyAppGUI:
 
         footer_frame = ttk.Frame(root)
         footer_frame.pack(fill="x", padx=20, pady=5)
-        ttk.Label(footer_frame, text="BGY Monitoring Suite v2.3.4",
+        ttk.Label(footer_frame, text=f"BGY Monitoring Suite v{__version__}",
                   font=("Helvetica", 8), foreground="#95a5a6").pack(side="left")
         ttk.Label(footer_frame, text=f"© 2026 - Aggiornato: {datetime.now().strftime('%H:%M:%S')}",
                   font=("Helvetica", 8), foreground="#95a5a6").pack(side="right")
@@ -176,10 +174,6 @@ class BgyAppGUI:
         self.update_timer()
         self.update_clock()
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
-
-    # ------------------------------------------------------------------
-    # SCHEDULER
-    # ------------------------------------------------------------------
 
     def _is_scheduler_alive(self):
         if self.scheduler_process is None:
@@ -191,7 +185,6 @@ class BgyAppGUI:
             self.log_message("⚠️ Scheduler già in esecuzione, ignoro richiesta duplicata")
             self.dashboard.update_scheduler_status("✅ Scheduler già attivo", "#27ae60")
             return
-
         self.log_message("🔄 Avvio scheduler...")
         self.dashboard.update_scheduler_status("🔄 Avvio scheduler...", "#f39c12")
 
@@ -238,10 +231,6 @@ class BgyAppGUI:
         self.dashboard.update_scheduler_status("💤 Scheduler fermato", "#95a5a6")
         self.log_message("✅ Scheduler arrestato")
 
-    # ------------------------------------------------------------------
-    # WATCHDOG
-    # ------------------------------------------------------------------
-
     def _is_watchdog_alive(self):
         if self.watchdog_process is None:
             return False
@@ -251,7 +240,6 @@ class BgyAppGUI:
         if self.watchdog_running and self._is_watchdog_alive():
             self.log_message("⚠️ Watchdog già in esecuzione")
             return
-
         self.log_message("🐕 Avvio watchdog...")
 
         def start():
@@ -291,10 +279,6 @@ class BgyAppGUI:
         self.watchdog_running = False
         self.watchdog_process = None
         self.log_message("✅ Watchdog arrestato")
-
-    # ------------------------------------------------------------------
-    # TIMER / CLOCK
-    # ------------------------------------------------------------------
 
     def get_next_scan_time(self, schedules):
         now = datetime.now()
@@ -354,10 +338,6 @@ class BgyAppGUI:
             pass
         self.root.after(10000, self.update_clock)
 
-    # ------------------------------------------------------------------
-    # OPERAZIONI ASYNC
-    # ------------------------------------------------------------------
-
     def run_async(self, func, operation_name="Operazione"):
         if self.is_running:
             messagebox.showwarning("Attenzione", f"⚠️ Operazione in corso: {self.current_operation}")
@@ -405,29 +385,20 @@ class BgyAppGUI:
         self.dashboard.log_message(message)
         logger.info(message)
 
-    # ------------------------------------------------------------------
-    # EMAIL
-    # ------------------------------------------------------------------
-
     def check_mail_config(self):
-        config_path = os.path.join(os.path.dirname(__file__), "config", "config_mail.json")
-        if not os.path.exists(config_path):
-            return False, "File config_mail.json non trovato"
-        try:
-            with open(config_path, "r", encoding="utf-8") as f:
-                cfg = json.load(f)
-            if not cfg.get("sender_email"):
-                return False, "sender_email non configurato"
-            if not cfg.get("sender_password"):
-                return False, "sender_password non configurata"
-            if not (cfg.get("recipients_daily") or cfg.get("recipients")):
-                return False, "Nessun destinatario configurato"
-            return True, "Configurazione OK"
-        except Exception as e:
-            return False, f"Errore lettura config: {e}"
+        cfg = config_manager.get_mail_config()
+        if not cfg:
+            return False, "config_mail.json non trovato o vuoto"
+        if not cfg.get("sender_email"):
+            return False, "sender_email non configurato"
+        if not cfg.get("sender_password"):
+            return False, "sender_password non configurata"
+        if not (cfg.get("recipients_daily") or cfg.get("recipients")):
+            return False, "Nessun destinatario configurato"
+        return True, "Configurazione OK"
 
     def send_daily_status_email(self):
-        from bgy_utils.bgy_utils_mailer import send_daily_status
+        from bgy_core.bgy_mailer import send_daily_status
         from bgy_reports import generate_daily_report, generate_nightly_report
 
         self.log_message("📧 Invio email di stato...")
@@ -462,10 +433,6 @@ class BgyAppGUI:
         except Exception as e:
             self.log_message(f"❌ Errore invio email: {e}")
             return False
-
-    # ------------------------------------------------------------------
-    # CHIUSURA
-    # ------------------------------------------------------------------
 
     def on_closing(self):
         self.countdown_running = False

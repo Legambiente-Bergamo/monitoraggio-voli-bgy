@@ -3,7 +3,7 @@ import tkinter as tk
 from tkinter import ttk, scrolledtext
 from datetime import datetime
 
-from scanners import run_day_scan, run_night_scan
+from bgy_scanners import run_day_scan, run_night_scan
 
 
 class DashboardTab:

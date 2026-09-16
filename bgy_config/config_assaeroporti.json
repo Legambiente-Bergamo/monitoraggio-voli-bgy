@@ -1,0 +1,23 @@
+{
+    "source_url": "https://assaeroporti.com/statistiche/",
+    "airport_name": "Bergamo",
+    "airport_code": "BGY",
+    "cache_days": 7,
+    "http_timeout": 30,
+    "years": {
+        "2024": {
+            "passeggeri": 17300000,
+            "movimenti": 120000,
+            "cargo_ton": 23000,
+            "fonte": "manuale",
+            "data_aggiornamento": "2026-09-15"
+        },
+        "2025": {
+            "passeggeri": 16900000,
+            "movimenti": 115000,
+            "cargo_ton": 24531,
+            "fonte": "manuale",
+            "data_aggiornamento": "2026-09-15"
+        }
+    }
+}

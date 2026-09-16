@@ -4,7 +4,7 @@ bgy_gui_mail_config.py - Tab configurazione destinatari email.
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-from core import config_manager
+from bgy_core import config_manager
 
 
 class MailConfigTab:

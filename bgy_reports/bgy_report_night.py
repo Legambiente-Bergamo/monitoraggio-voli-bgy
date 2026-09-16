@@ -1,19 +1,26 @@
 """
 bgy_reports/bgy_report_night.py - Report notturno integrato (SACBO + OpenSky).
-Finestra notturna: 23:00 - 05:59
-v2.3.6: fix stima rumore (distanza derivata dalla fase se mancante).
+Versione 2.5.0
+- distanze per fase da config_data.json (report_night)
+- soglia matching da config
 """
 import os
 import math
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
 
-from core import (
+from bgy_core import (
     get_airline, get_country, get_aircraft_model,
     is_cargo_flight, load_rules, get_logger,
     estimate_passengers,
 )
-from core.bgy_paths import RAW_DIR, REPORTS_CSV_DIR
+from bgy_core.bgy_paths import RAW_DIR, OUTPUT_CSV_DIR
+from bgy_core.bgy_dates import (
+    normalize_date, radar_filename, report_nightly_filename,
+    night_session_date,
+)
+from bgy_core.bgy_config_manager import config_manager
+from bgy_utils.bgy_utils_meteo import save_night_weather
 
 logger = get_logger("ReportNight")
 
@@ -21,31 +28,15 @@ BGY_LAT = 45.6739
 BGY_LON = 9.7042
 
 
+def _cfg():
+    return config_manager.get_report_night_config()
+
+
 # -----------------------------------------------------------------------------
 # UTILITY
 # -----------------------------------------------------------------------------
 
-def _normalize_date(date_str):
-    if not date_str:
-        return datetime.now().strftime("%Y-%m-%d")
-    date_str = str(date_str).strip()
-    if "-" in date_str and len(date_str) == 10:
-        return date_str
-    if len(date_str) == 8 and date_str.isdigit():
-        return f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}"
-    for sep in ("/", "-"):
-        if sep in date_str:
-            parts = date_str.split(sep)
-            if len(parts) == 3:
-                if len(parts[2]) == 4:
-                    return f"{parts[2]}-{parts[1].zfill(2)}-{parts[0].zfill(2)}"
-                if len(parts[0]) == 4:
-                    return f"{parts[0]}-{parts[1].zfill(2)}-{parts[2].zfill(2)}"
-    return date_str
-
-
 def _safe_float(value, default=None):
-    """Converte in float, ritorna default se non possibile."""
     if value is None:
         return default
     try:
@@ -57,7 +48,6 @@ def _safe_float(value, default=None):
 
 
 def _safe_int(value, default=0):
-    """Converte in int, ritorna default se non possibile."""
     if value is None:
         return default
     try:
@@ -69,16 +59,20 @@ def _safe_int(value, default=0):
 
 
 def _distance_from_phase(fase):
-    """
-    Distanza approssimata da BGY (km) in base alla fase di volo.
-    Usata quando la colonna distanza_km non è disponibile.
-    """
-    if fase in ('Atterraggio', 'Decollo'):
-        return 2.0
-    if fase == 'Avvicinamento':
-        return 7.0
-    if fase == 'Sorvolo':
-        return 12.0
+    cfg = _cfg()
+    distances = cfg.get("distance_by_phase_km", {})
+    return distances.get(fase)
+
+
+def _find_scan_file_for_date(date_norm):
+    new_name = radar_filename(date_norm)
+    old_name = f"bgy_night_flights_{date_norm}.csv"
+    for name in (new_name, old_name):
+        if not name:
+            continue
+        p = os.path.join(RAW_DIR, name)
+        if os.path.exists(p):
+            return p
     return None
 
 
@@ -87,10 +81,19 @@ def _distance_from_phase(fase):
 # -----------------------------------------------------------------------------
 
 def load_scheduled_flights(date_str):
-    date_clean = _normalize_date(date_str).replace("-", "")
+    date_norm = normalize_date(date_str)
+    date_clean = date_norm.replace("-", "")
     scheduled = []
-    scan_files = [f for f in os.listdir(RAW_DIR)
-                  if f.startswith(f"scan_{date_clean}_") and f.endswith(".csv")]
+
+    scan_files = []
+    if os.path.isdir(RAW_DIR):
+        for f in os.listdir(RAW_DIR):
+            if not f.startswith("scan_") or not f.endswith(".csv"):
+                continue
+            if f.startswith(f"scan_{date_norm}_"):
+                scan_files.append(f)
+            elif f.startswith(f"scan_{date_clean}_"):
+                scan_files.append(f)
 
     for f in scan_files:
         filepath = os.path.join(RAW_DIR, f)
@@ -134,12 +137,12 @@ def normalize_scan_columns(df):
 
 
 def load_radar_data(date_str):
-    date_norm = _normalize_date(date_str)
-    filepath = os.path.join(RAW_DIR, f"bgy_night_flights_{date_norm}.csv")
-    if os.path.exists(filepath):
+    date_norm = normalize_date(date_str)
+    filepath = _find_scan_file_for_date(date_norm)
+    if filepath:
         try:
             df = pd.read_csv(filepath)
-            logger.info(f"📡 Caricati {len(df)} dati radar (colonne: {list(df.columns)})")
+            logger.info(f"📡 Caricati {len(df)} dati radar da {os.path.basename(filepath)}")
             return df
         except Exception as e:
             logger.warning(f"Errore lettura radar: {e}")
@@ -153,6 +156,9 @@ def load_radar_data(date_str):
 # -----------------------------------------------------------------------------
 
 def match_flights(scheduled_df, radar_df):
+    cfg = _cfg()
+    match_th = cfg.get("match_threshold_score", 50)
+
     if scheduled_df.empty and radar_df.empty:
         return pd.DataFrame()
 
@@ -208,7 +214,7 @@ def match_flights(scheduled_df, radar_df):
                 best_score = score
                 best_match = (idx_r, radar)
 
-        if best_match and best_score >= 50:
+        if best_match and best_score >= match_th:
             idx_r, radar = best_match
             used_radar.add(idx_r)
             combined = {**sched.to_dict(), **radar.to_dict()}
@@ -256,21 +262,15 @@ def _classify_unscheduled(df):
 
 
 def _enrich_final(df):
-    """
-    Arricchisce il DataFrame finale.
-    v2.3.6: stima rumore basata su fase_volo + quota_ft, con distanza derivata.
-    """
     if df.empty:
         return df
     df = df.copy()
 
-    # Compagnia, modello
     df['compagnia_aerea'] = df['callsign'].apply(
         lambda x: get_airline(x) if pd.notna(x) else 'N/D')
     df['modello_aereo'] = df['callsign'].apply(
         lambda x: get_aircraft_model(x) if pd.notna(x) else 'N/D')
 
-    # Destinazione
     if 'destinazione_origine' in df.columns:
         df['destinazione_finale'] = df.apply(
             lambda row: row['destinazione_origine']
@@ -290,7 +290,6 @@ def _enrich_final(df):
 
     df['stato_destinazione'] = df.apply(resolve_country, axis=1)
 
-    # --- Stima passeggeri ---
     def _pax(row):
         modello = row.get('modello_aereo', 'N/D')
         if not modello or modello == 'N/D':
@@ -305,44 +304,29 @@ def _enrich_final(df):
 
     df['stima_passeggeri'] = df.apply(_pax, axis=1)
 
-    # --- Stima rumore ---
     try:
         from bgy_utils.bgy_utils_noise import get_max_noise
-        from core import get_noise_stations, load_rules
+        from bgy_core import get_noise_stations
         if not get_noise_stations():
             load_rules()
 
         def _noise(row):
-            # Timestamp deve esistere (volo rilevato da radar)
             timestamp = row.get('timestamp', '')
             if not timestamp or pd.isna(timestamp) or str(timestamp).strip() == '':
                 return 0
-
-            # Fase deve essere valida
             fase = row.get('fase_volo', '')
             if not fase or fase in ('Non rilevato', 'N/D') or pd.isna(fase):
                 return 0
-
-            # Modello deve essere noto (per scegliere la curva NPD)
             modello = row.get('modello_aereo', 'N/D')
             if not modello or modello == 'N/D':
-                modello = None  # usa curva default
-
-            # Quota (opzionale, default 0)
+                modello = None
             quota = _safe_int(row.get('quota_ft'), 0)
-
-            # Distanza: dalla colonna o derivata dalla fase
             dist = _safe_float(row.get('distanza_km'), None)
             if dist is None or dist <= 0:
                 dist = _distance_from_phase(fase)
             if dist is None:
                 return 0
-
-            # Rotta (opzionale, default 0)
             rotta = _safe_float(row.get('rotta_deg'), 0)
-
-            # Ricostruisci la posizione approssimata dell'aereo
-            # partendo da BGY + offset basato su distanza e rotta
             try:
                 dlat = (dist / 111.0) * math.cos(math.radians(rotta))
                 dlon = (dist / (111.0 * math.cos(math.radians(BGY_LAT)))) * math.sin(math.radians(rotta))
@@ -350,8 +334,6 @@ def _enrich_final(df):
                 lon = BGY_LON + dlon
             except Exception:
                 return 0
-
-            # Stima il rumore massimo tra le 8 centraline
             try:
                 return get_max_noise(modello, fase, lat, lon, quota)
             except Exception as e:
@@ -372,8 +354,7 @@ def _enrich_final(df):
 
 def generate_nightly_report(date_str=None):
     load_rules()
-    date_norm = _normalize_date(date_str)
-    date_clean = date_norm.replace("-", "")
+    date_norm = normalize_date(date_str) if date_str else night_session_date()
     logger.info(f"🌙 Avvio report notturno per {date_norm} (23:00-05:59)")
 
     scheduled_df = load_scheduled_flights(date_norm)
@@ -384,8 +365,8 @@ def generate_nightly_report(date_str=None):
         logger.warning(f"⚠️ Nessun dato per {date_norm}")
         return None, f"Nessun dato per {date_norm}"
 
-    os.makedirs(REPORTS_CSV_DIR, exist_ok=True)
-    out_path = os.path.join(REPORTS_CSV_DIR, f"report_nightly_{date_clean}.csv")
+    os.makedirs(OUTPUT_CSV_DIR, exist_ok=True)
+    out_path = os.path.join(OUTPUT_CSV_DIR, report_nightly_filename(date_norm))
 
     final_columns = [
         'callsign', 'tipo_movimento', 'is_scheduled',
@@ -416,10 +397,23 @@ def generate_nightly_report(date_str=None):
         rumore_count = 0
         rumore_max = 0
 
+    meteo_path = None
+    meteo_msg = ""
+    try:
+        meteo_path = save_night_weather(date_norm)
+        if meteo_path:
+            meteo_msg = f", meteo salvato ({os.path.basename(meteo_path)})"
+        else:
+            meteo_msg = ", meteo non disponibile"
+    except Exception as e:
+        logger.warning(f"Errore salvataggio meteo: {e}")
+        meteo_msg = ", errore meteo"
+
     msg = (f"✅ Report notturno: {total} voli "
            f"(Passeggeri: {scheduled}, Cargo: {cargo}, Non id: {unknown}, "
            f"PAX stimati: {pax_tot}, "
-           f"Rumore su {rumore_count} voli, max {rumore_max} dB)")
+           f"Rumore su {rumore_count} voli, max {rumore_max} dB"
+           f"{meteo_msg})")
     logger.info(msg)
     return out_path, msg
 

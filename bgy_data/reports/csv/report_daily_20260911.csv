@@ -1,0 +1,77 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,scan_timestamp,volo,compagnia_aerea,stato_destinazione,minuti_ritardo,stato_ritardo
+FR 3300,Decollo (D),VITORIA,20:00,23:32,DECOLLATO,2026-09-11 00:00:23,FR 3300,Ryanair,Spagna,212,Ritardo (+212 min)
+FR 3893,Decollo (D),CAGLIARI,21:15,23:40,IMBARCO CHIUSO,2026-09-11 00:00:23,FR 3893,Ryanair,Italia,145,Ritardo (+145 min)
+FR 3164,Decollo (D),BUDAPEST,22:00,23:39,DECOLLATO,2026-09-11 00:00:23,FR 3164,Ryanair,Ungheria,99,Ritardo (+99 min)
+W4 3382,Decollo (D),CLUJ-NAPOCA,22:00,23:46,IMBARCO CHIUSO,2026-09-11 00:00:23,W4 3382,Wizz Air Malta,Romania,106,Ritardo (+106 min)
+FR 9372,Decollo (D),BRNO,22:05,23:35,DECOLLATO,2026-09-11 00:00:23,FR 9372,Ryanair,Repubblica Ceca,90,Ritardo (+90 min)
+FR 8479,Decollo (D),TIRANA,22:20,23:35,DECOLLATO,2026-09-11 00:00:23,FR 8479,Ryanair,Albania,75,Ritardo (+75 min)
+NP 224,Decollo (D),CAIRO,23:15,23:53,DECOLLATO,2026-09-11 00:00:23,NP 224,Compagnia NP ,Egitto,38,Ritardo (+38 min)
+FR 3413,Decollo (D),KATOWICE,23:25,00:08,IMBARCO ULTIMA CHIAMATA,2026-09-11 00:00:23,FR 3413,Ryanair,Polonia,43,Ritardo (+43 min)
+W6 4124,Decollo (D),BELGRADE,23:35,23:35,DECOL,2026-09-11 00:00:23,W6 4124,Wizz Air,Serbia,0,In Orario
+3O 454,Decollo (D),CASABLANCA,01:00,01:00,Operativo,2026-09-11 00:00:23,3O 454,Air Arabia Maroc,Marocco,0,In Orario
+FR 3593,Decollo (D),POZNAN,05:45,05:45,DECOLLATO,2026-09-11 06:00:22,FR 3593,Ryanair,Polonia,0,In Orario
+FR 2285,Decollo (D),NAPOLI,05:45,05:45,DECOLLATO,2026-09-11 06:00:22,FR 2285,Ryanair,Italia,0,In Orario
+FR 2697,Decollo (D),LONDON STANSTED,05:45,05:45,DECOLLATO,2026-09-11 06:00:22,FR 2697,Ryanair,Regno Unito,0,In Orario
+FR 5139,Decollo (D),FARO,05:50,05:50,DECOLLATO,2026-09-11 06:00:22,FR 5139,Ryanair,Portogallo,0,In Orario
+FR 4700,Decollo (D),BARI,05:50,05:50,DECOLLATO,2026-09-11 06:00:22,FR 4700,Ryanair,Italia,0,In Orario
+FR 2107,Decollo (D),BUDAPEST,06:00,06:00,DECOLLATO,2026-09-11 06:00:22,FR 2107,Ryanair,Ungheria,0,In Orario
+FR 7324,Decollo (D),MALTA,06:05,06:05,IMBARCO CHIUSO,2026-09-11 06:00:22,FR 7324,Ryanair,Malta,0,In Orario
+FR 2872,Decollo (D),VILNIUS,06:10,06:10,IMBARCO CHIUSO,2026-09-11 06:00:22,FR 2872,Ryanair,Lituania,0,In Orario
+FR 3528,Decollo (D),PRAGUE,06:15,06:15,IMBARCO ULTIMA CHIAMATA,2026-09-11 06:00:22,FR 3528,Ryanair,Repubblica Ceca,0,In Orario
+FR 1533,Decollo (D),VIENNA,06:25,06:25,IMBARCO ULTIMA CHIAMATA,2026-09-11 06:00:22,FR 1533,Ryanair,Austria,0,In Orario
+FR 4311,Decollo (D),ROVANIEMI,06:30,06:30,IMBARCO IN CORSO,2026-09-11 06:00:22,FR 4311,Ryanair,Estero/Italia,0,In Orario
+FR 3432,Decollo (D),PARIS BEAUVAIS,06:30,06:30,IMBARCO IN CORSO,2026-09-11 06:00:22,FR 3432,Ryanair,Francia,0,In Orario
+FR 259,Decollo (D),BUCHAREST OTOPENI,06:35,07:00,IN RITARDO,2026-09-11 06:00:22,FR 259,Ryanair,Romania,25,Ritardo (+25 min)
+FR 2261,Decollo (D),CATANIA,06:40,06:40,IMBARCO IN CORSO,2026-09-11 06:00:22,FR 2261,Ryanair,Italia,0,In Orario
+FR 3460,Decollo (D),EINDHOVEN,06:40,06:40,IMBARCO IN CORSO,2026-09-11 06:00:22,FR 3460,Ryanair,Paesi Bassi,0,In Orario
+FR 4993,Decollo (D),CEFALONIA,06:50,06:50,IMBARCO IN CORSO,2026-09-11 06:00:22,FR 4993,Ryanair,Estero/Italia,0,In Orario
+FR 4650,Decollo (D),TRAPANI,06:50,06:50,IMBARCO IN CORSO,2026-09-11 06:00:22,FR 4650,Ryanair,Italia,0,In Orario
+FR 6703,Decollo (D),SKIATHOS,07:00,07:00,Operativo,2026-09-11 06:00:22,FR 6703,Ryanair,Grecia,0,In Orario
+FR 076,Decollo (D),SEVILLA,07:15,07:15,OPERATO DA MALTA AIR,2026-09-11 06:00:22,FR 076,Ryanair,Spagna,0,In Orario
+FR 820,Decollo (D),LISBON,07:20,08:10,IN RITARDO,2026-09-11 06:00:22,FR 820,Ryanair,Portogallo,50,Ritardo (+50 min)
+FR 2293,Decollo (D),PESCARA,07:20,07:20,OPERATO DA MALTA AIR,2026-09-11 06:00:22,FR 2293,Ryanair,Estero/Italia,0,In Orario
+W4 3132,Decollo (D),BUCHAREST BANEASA,07:30,07:30,OPERATO DA WIZZAIR HUNGARY,2026-09-11 06:00:22,W4 3132,Wizz Air Malta,Romania,0,In Orario
+FR 3400,Decollo (D),SOFIA,07:30,07:30,OPERATO DA BUZZ,2026-09-11 06:00:22,FR 3400,Ryanair,Bulgaria,0,In Orario
+FR 8121,Decollo (D),TIRANA,07:35,07:35,Operativo,2026-09-11 06:00:22,FR 8121,Ryanair,Albania,0,In Orario
+FR 4706,Decollo (D),CAGLIARI,07:55,07:55,Operativo,2026-09-11 06:00:22,FR 4706,Ryanair,Italia,0,In Orario
+FR 1417,Decollo (D),LAMEZIA,08:00,09:00,IN RITARDO,2026-09-11 06:00:22,FR 1417,Ryanair,Italia,60,Ritardo (+60 min)
+W4 3672,Decollo (D),IASI,08:00,08:00,Operativo,2026-09-11 06:00:22,W4 3672,Wizz Air Malta,Romania,0,In Orario
+W6 4352,Decollo (D),SOFIA,08:10,08:10,Operativo,2026-09-11 06:00:22,W6 4352,Wizz Air,Bulgaria,0,In Orario
+FR 6149,Decollo (D),PALERMO,08:10,08:10,Operativo,2026-09-11 06:00:22,FR 6149,Ryanair,Italia,0,In Orario
+FR 4523,Decollo (D),BRUXELLES CHARLEROI,08:20,08:20,Operativo,2026-09-11 06:00:22,FR 4523,Ryanair,Belgio,0,In Orario
+FR 847,Decollo (D),BARCELONA EL PRAT,08:20,08:20,Operativo,2026-09-11 06:00:22,FR 847,Ryanair,Spagna,0,In Orario
+FR 3396,Decollo (D),CROTONE,08:20,09:00,IN RITARDO,2026-09-11 06:00:22,FR 3396,Ryanair,Italia,40,Ritardo (+40 min)
+W4 3382,Decollo (D),CLUJ-NAPOCA,08:25,08:25,Operativo,2026-09-11 06:00:22,W4 3382,Wizz Air Malta,Romania,0,In Orario
+V7 3511,Decollo (D),ASTURIAS,08:30,08:30,Operativo,2026-09-11 06:00:22,V7 3511,Compagnia V7 ,Estero/Italia,0,In Orario
+FR 2428,Decollo (D),SARAJEVO,08:35,09:35,IN RITARDO,2026-09-11 06:00:22,FR 2428,Ryanair,Estero/Italia,60,Ritardo (+60 min)
+W6 1432,Decollo (D),WARSAW,08:40,08:40,Operativo,2026-09-11 06:00:22,W6 1432,Wizz Air,Polonia,0,In Orario
+FR 9194,Decollo (D),WROCLAW - BRESLAVIA,08:40,08:40,OPERATO DA BUZZ,2026-09-11 06:00:22,FR 9194,Ryanair,Polonia,0,In Orario
+FR 1784,Decollo (D),COPENHAGEN,09:05,09:05,OPERATO DA MALTA AIR,2026-09-11 06:00:22,FR 1784,Ryanair,Danimarca,0,In Orario
+BQ 1989,Decollo (D),MOSTAR,09:10,09:10,Operativo,2026-09-11 06:00:22,BQ 1989,Compagnia BQ ,Bosnia ed Erzegovina,0,In Orario
+FR 4402,Decollo (D),ZAKINTHOS,09:25,09:25,Operativo,2026-09-11 06:00:22,FR 4402,Ryanair,Grecia,0,In Orario
+FR 2864,Decollo (D),BRINDISI,09:35,09:35,Operativo,2026-09-11 06:00:22,FR 2864,Ryanair,Italia,0,In Orario
+FR 3280,Decollo (D),GDANSK - DANZICA,09:40,09:40,Operativo,2026-09-11 06:00:22,FR 3280,Ryanair,Polonia,0,In Orario
+FR 888,Decollo (D),KRAKOW,09:55,09:55,Operativo,2026-09-11 06:00:22,FR 888,Ryanair,Polonia,0,In Orario
+FR 6860,Decollo (D),OSLO TORP,10:05,10:05,OPERATO DA MALTA AIR,2026-09-11 06:00:22,FR 6860,Ryanair,Norvegia,0,In Orario
+FR 3502,Decollo (D),ZARAGOZA,10:05,10:05,Operativo,2026-09-11 06:00:22,FR 3502,Ryanair,Spagna,0,In Orario
+FR 410,Decollo (D),LUXEMBOURG,10:10,10:10,Operativo,2026-09-11 06:00:22,FR 410,Ryanair,Lussemburgo,0,In Orario
+D8 3751,Decollo (D),COPENHAGEN,10:10,10:10,Operativo,2026-09-11 06:00:22,D8 3751,Norwegian Air International,Danimarca,0,In Orario
+FR 4037,Decollo (D),DUBLIN,10:25,10:25,OPERATO DA MALTA AIR,2026-09-11 06:00:22,FR 4037,Ryanair,Irlanda,0,In Orario
+FR 2878,Decollo (D),STOCKHOLM,10:30,10:30,Operativo,2026-09-11 06:00:22,FR 2878,Ryanair,Svezia,0,In Orario
+FR 4132,Decollo (D),BARI,10:40,10:40,Operativo,2026-09-11 06:00:22,FR 4132,Ryanair,Italia,0,In Orario
+FR 3217,Decollo (D),MANCHESTER,10:45,10:45,Operativo,2026-09-11 06:00:22,FR 3217,Ryanair,Regno Unito,0,In Orario
+FR 3319,Decollo (D),BARCELONA EL PRAT,10:45,10:45,OPERATO DA MALTA,2026-09-11 06:00:22,FR 3319,Ryanair,Spagna,0,In Orario
+3O 452,Decollo (D),CASABLANCA,10:50,10:50,Operativo,2026-09-11 06:00:22,3O 452,Air Arabia Maroc,Marocco,0,In Orario
+NO 5680,Decollo (D),KARPATHOS/KOS,11:00,11:00,Operativo,2026-09-11 06:00:22,NO 5680,Compagnia NO ,Grecia,0,In Orario
+FR 5102,Decollo (D),BIRMINGHAM,11:00,11:00,Operativo,2026-09-11 06:00:22,FR 5102,Ryanair,Regno Unito,0,In Orario
+FR 497,Decollo (D),VALENCIA,11:05,11:05,Operativo,2026-09-11 06:00:22,FR 497,Ryanair,Spagna,0,In Orario
+FR 9890,Decollo (D),LODZ,11:15,11:15,OPERATO DA MALTA AIR,2026-09-11 06:00:22,FR 9890,Ryanair,Polonia,0,In Orario
+FR 3645,Decollo (D),EDINBURGH,11:15,11:15,Operativo,2026-09-11 06:00:22,FR 3645,Ryanair,Regno Unito,0,In Orario
+FR 8334,Decollo (D),IBIZA,11:20,11:20,Operativo,2026-09-11 06:00:22,FR 8334,Ryanair,Spagna,0,In Orario
+PC 1212,Decollo (D),ISTANBUL S. GOKCEN,11:45,11:45,Operativo,2026-09-11 06:00:22,PC 1212,Pegasus Airlines,Turchia,0,In Orario
+FR 2254,Decollo (D),ALGHERO,11:55,12:20,IN RITARDO,2026-09-11 06:00:22,FR 2254,Ryanair,Italia,25,Ritardo (+25 min)
+E5 543,Decollo (D),CAIRO,12:20,12:55,IN RITARDO,2026-09-11 06:00:22,E5 543,Compagnia E5 ,Egitto,35,Ritardo (+35 min)
+FR 4196,Decollo (D),CORFU,12:40,13:20,IN RITARDO,2026-09-11 06:00:22,FR 4196,Ryanair,Grecia,40,Ritardo (+40 min)
+FR 4201,Decollo (D),RHODES,12:55,13:20,IN RITARDO,2026-09-11 06:00:22,FR 4201,Ryanair,Grecia,25,Ritardo (+25 min)
+FR 5655,Decollo (D),PALMA DE MALLORCA,16:30,17:10,IN RITARDO,2026-09-11 06:00:22,FR 5655,Ryanair,Spagna,40,Ritardo (+40 min)
+XZ 2824,Decollo (D),CATANIA,17:10,19:00,IN RITARDO Assistenza Milan Bergamo Airport SEDE LEGALE Via Orio al Serio 49/,2026-09-11 06:00:22,XZ 2824,SkyAlps,Italia,110,Ritardo (+110 min)

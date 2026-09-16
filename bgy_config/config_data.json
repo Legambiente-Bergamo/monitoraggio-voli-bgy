@@ -1,0 +1,115 @@
+{
+    "scan_schedules": ["00:00", "06:00", "12:00", "18:00"],
+    "night_scan_interval_minutes": 2,
+    "daily_report_time": "06:30",
+    "sacbo_night_scans": ["23:00", "02:00", "05:00"],
+    "sacbo_night_scan_enabled": true,
+    "notifications": {
+        "cooldown_minutes": 30,
+        "enabled": true
+    },
+    "weather": {
+        "latitude": 45.6739,
+        "longitude": 9.7042,
+        "start_hour": 20,
+        "end_hour": 6,
+        "timezone": "Europe/Rome",
+        "http_timeout": 10
+    },
+    "scanner_night": {
+        "bbox": {
+            "lamin": 45.545,
+            "lamax": 45.805,
+            "lomin": 9.520,
+            "lomax": 9.890
+        },
+        "bgy_lat": 45.6739,
+        "bgy_lon": 9.7042,
+        "max_distance_km": 15.0,
+        "adsb_lol_radius_nm": 10,
+        "adsb_fi_radius_nm": 10,
+        "night_start_hour": 23,
+        "night_end_hour": 6,
+        "http_timeout": 15,
+        "user_agent": "BGY-Monitoring-Suite/2.5 (info@legambientebergamo.it)",
+        "phase_thresholds": {
+            "landing_max_distance_km": 5,
+            "landing_max_altitude_ft": 3000,
+            "approach_max_distance_km": 10,
+            "approach_max_altitude_ft": 5000
+        },
+        "runway_bearings": {
+            "RWY 28": [250, 300],
+            "RWY 10": [70, 120],
+            "RWY 16": [160, 190],
+            "RWY 34": [340, 10]
+        }
+    },
+    "scanner_day": {
+        "urls": [
+            ["https://www.milanbergamoairport.it/it/voli-tempo-reale/#departure", "Decollo"],
+            ["https://www.milanbergamoairport.it/it/voli-tempo-reale/#arrivals", "Atterraggio"]
+        ],
+        "playwright_timeout_ms": 40000,
+        "wait_after_load_ms": 3000,
+        "wait_after_scroll_ms": 2000,
+        "scroll_pixels": 1500,
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    },
+    "report_day": {
+        "delay_threshold_min": 15,
+        "early_threshold_min": -5,
+        "midnight_wrap_min": 1200
+    },
+    "report_night": {
+        "distance_by_phase_km": {
+            "Atterraggio": 2.0,
+            "Decollo": 2.0,
+            "Avvicinamento": 7.0,
+            "Sorvolo": 12.0
+        },
+        "match_threshold_score": 50
+    },
+    "logging": {
+        "archive_days": 7,
+        "log_prefix": "bgy_app",
+        "level": "INFO"
+    },
+    "watchdog": {
+        "check_interval_sec": 300,
+        "radar_stale_min": 30,
+        "scheduler_log_stale_min": 15,
+        "scheduler_log_window_sec": 300,
+        "sacbo_max_age_hours": 7,
+        "opensky_error_threshold": 5,
+        "opensky_log_lines": 500
+    },
+    "export": {
+        "theme": {
+            "primary_color": "1a2a6c",
+            "text_color": "FFFFFF",
+            "border_color": "grey",
+            "alternate_row_color": "f0f4f8"
+        },
+        "columns": {
+            "daily": ["volo", "callsign", "tipo_movimento", "compagnia_aerea",
+                      "destinazione_origine", "orario_schedulato", "orario_effettivo",
+                      "minuti_ritardo", "stato_ritardo"],
+            "nightly": ["callsign", "tipo_movimento", "is_scheduled",
+                        "compagnia_aerea", "modello_aereo", "destinazione_finale",
+                        "orario_schedulato", "timestamp", "pista", "fase_volo",
+                        "quota_ft", "distanza_km", "stima_passeggeri", "stima_rumore_db"],
+            "monthly": ["volo", "callsign", "tipo_movimento", "compagnia_aerea",
+                        "destinazione_origine", "orario_schedulato", "minuti_ritardo"],
+            "yearly": ["volo", "callsign", "tipo_movimento", "compagnia_aerea",
+                       "destinazione_origine", "destinazione_finale",
+                       "orario_schedulato", "minuti_ritardo", "stato_ritardo"]
+        },
+        "max_rows": {
+            "xlsx": 0,
+            "pdf": 50,
+            "docx": 100,
+            "html": 100
+        }
+    }
+}

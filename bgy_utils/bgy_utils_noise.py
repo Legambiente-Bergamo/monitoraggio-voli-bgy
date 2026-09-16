@@ -4,8 +4,8 @@ Legge configurazione da core.bgy_update_rules (file unificato).
 """
 from math import radians, sin, cos, sqrt, atan2
 
-from core.bgy_logger import get_logger
-from core import get_noise_stations, get_noise_curves, load_rules
+from bgy_core.bgy_logger import get_logger
+from bgy_core import get_noise_stations, get_noise_curves, load_rules
 
 logger = get_logger("NoiseEstimator")
 

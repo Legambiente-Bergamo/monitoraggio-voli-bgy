@@ -1,0 +1,2 @@
+﻿flight_num,type,sched_time,actual_time,origin_dest,status,scan_timestamp,volo,orario_schedulato,orario_effettivo,destinazione_origine,tipo_movimento,compagnia_aerea,stato_destinazione,minuti_ritardo,stato_ritardo
+FR 6451,Decollo,08:10,08:10,PALERMO08:10 | 08:10,,2026-07-07 23:00:00,N/D,N/D,08:10,N/D,Decollo (D),Sconosciuta,Sconosciuto,0,N/D

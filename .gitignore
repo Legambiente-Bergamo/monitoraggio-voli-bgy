@@ -1,76 +1,33 @@
-# ============================================================
-# CREDENZIALI E DATI SENSIBILI (mai sincronizzare)
-# ============================================================
-config/config_mail.json
-config/config_opensky.json
-config/config_github.json
-config/*.bak
-config/*.local.json
-
-# ============================================================
-# REPORT E GRAFICI (rigenerabili dai dati raw)
-# ============================================================
-bgy_data/reports/
-bgy_data/bgy_reports/
-bgy_data/charts/
-
-# ============================================================
-# LOG E STATI (locali, non condivisibili)
-# ============================================================
-bgy_data/logs/
-*.log
-
-# ============================================================
-# CACHE PYTHON
-# ============================================================
+# Byte-compiled
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
 
-# ============================================================
-# AMBIENTI VIRTUALI
-# ============================================================
+# Virtual environments
 venv/
 env/
-ENV/
 .venv/
 
-# ============================================================
-# IDE E EDITOR
-# ============================================================
+# Credenziali (MAI sincronizzare)
+bgy_config/config_mail.json
+bgy_config/config_opensky.json
+bgy_config/config_github.json
+
+# Output generati
+bgy_data/bgy_output/
+bgy_data/bgy_charts/
+bgy_data/bgy_logs/
+
+# Backup locali
+backup_*/
+backup_scripts_*/
+
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# IDE
 .vscode/
 .idea/
 *.swp
-*.swo
-*~
-
-# ============================================================
-# SISTEMA OPERATIVO
-# ============================================================
-.DS_Store
-Thumbs.db
-desktop.ini
-
-# ============================================================
-# BACKUP
-# ============================================================
-*.bak
-*.tmp
-*.old

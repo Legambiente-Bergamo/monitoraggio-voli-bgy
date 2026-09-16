@@ -1,5 +1,6 @@
 """
 bgy_gui/bgy_watchdog_config.py - Tab GUI per il watchdog.
+Versione 2.5.0 - cooldown via config_manager (no scrittura diretta JSON)
 """
 import os
 import json
@@ -8,8 +9,9 @@ import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext
 from datetime import datetime
 
-from core.bgy_paths import LOGS_DIR, CONFIG_DATA
-from core import get_logger
+from bgy_core.bgy_paths import LOGS_DIR
+from bgy_core.bgy_config_manager import config_manager
+from bgy_core import get_logger
 
 logger = get_logger("WatchdogTab")
 
@@ -31,7 +33,6 @@ class WatchdogConfigTab:
         ttk.Label(tab, text="Watchdog - Controllo Anomalie",
                   font=("Helvetica", 14, "bold")).pack(pady=10)
 
-        # --- Stato watchdog ---
         status_frame = ttk.LabelFrame(tab, text="📊 Stato Watchdog", padding=10)
         status_frame.pack(fill="x", padx=20, pady=5)
 
@@ -47,7 +48,6 @@ class WatchdogConfigTab:
                                            font=("Helvetica", 10), foreground="#7f8c8d")
         self.last_check_label.pack(anchor="w", pady=2)
 
-        # --- Cooldown ---
         cd_frame = ttk.LabelFrame(tab, text="⚙️ Configurazione Cooldown Notifiche", padding=10)
         cd_frame.pack(fill="x", padx=20, pady=5)
 
@@ -66,7 +66,6 @@ class WatchdogConfigTab:
                                                 font=("Courier", 9))
         self.cooldown_active_label.pack(side="left", padx=5)
 
-        # --- Azioni ---
         action_frame = ttk.Frame(tab)
         action_frame.pack(pady=10)
         ttk.Button(action_frame, text="🔍 Esegui Check Ora",
@@ -74,7 +73,6 @@ class WatchdogConfigTab:
         ttk.Button(action_frame, text="🗑️ Reset Cooldown",
                    command=self._reset_cooldown, width=25).pack(side="left", padx=5)
 
-        # --- Log dettagliato ---
         log_frame = ttk.LabelFrame(tab, text="📋 Ultimi Check", padding=10)
         log_frame.pack(fill="both", expand=True, padx=20, pady=5)
 
@@ -85,14 +83,9 @@ class WatchdogConfigTab:
         self.log_text.pack(fill="both", expand=True)
         self.log_text.config(state="disabled")
 
-    # -------------------------------------------------------------------------
-    # AZIONI
-    # -------------------------------------------------------------------------
-
     def _load_cooldown(self):
         try:
-            with open(CONFIG_DATA, "r", encoding="utf-8") as f:
-                cfg = json.load(f)
+            cfg = config_manager.get_data_config()
             cd = cfg.get("notifications", {}).get("cooldown_minutes", 30)
             self.cooldown_var.set(str(cd))
         except Exception:
@@ -104,20 +97,19 @@ class WatchdogConfigTab:
             if cd < 1 or cd > 1440:
                 messagebox.showerror("Errore", "Cooldown deve essere tra 1 e 1440 minuti")
                 return
-            with open(CONFIG_DATA, "r", encoding="utf-8") as f:
-                cfg = json.load(f)
+            cfg = config_manager.get_data_config()
             cfg.setdefault("notifications", {})["cooldown_minutes"] = cd
-            with open(CONFIG_DATA, "w", encoding="utf-8") as f:
-                json.dump(cfg, f, indent=4, ensure_ascii=False)
-            self.app.log_message(f"✅ Cooldown salvato: {cd} minuti")
-            messagebox.showinfo("Salvato", f"Cooldown aggiornato a {cd} minuti")
+            if config_manager.save_data_config(cfg):
+                self.app.log_message(f"✅ Cooldown salvato: {cd} minuti")
+                messagebox.showinfo("Salvato", f"Cooldown aggiornato a {cd} minuti")
+            else:
+                messagebox.showerror("Errore", "Salvataggio fallito")
         except ValueError:
             messagebox.showerror("Errore", "Inserisci un numero valido")
         except Exception as e:
             messagebox.showerror("Errore", str(e))
 
     def _run_manual_check(self):
-        """Esegue un check manuale in un thread separato."""
         self.app.log_message("🔍 Check manuale richiesto...")
 
         def worker():
@@ -134,16 +126,12 @@ class WatchdogConfigTab:
 
     def _reset_cooldown(self):
         try:
-            from core.bgy_notifier import reset_cooldown
+            from bgy_core.bgy_mailer import reset_cooldown
             reset_cooldown()
             self.app.log_message("🗑️ Cooldown notifiche resettato")
             messagebox.showinfo("OK", "Cooldown resettato: le prossime notifiche saranno inviate subito")
         except Exception as e:
             messagebox.showerror("Errore", str(e))
-
-    # -------------------------------------------------------------------------
-    # REFRESH LOOP
-    # -------------------------------------------------------------------------
 
     def _update_loop(self):
         try:
@@ -158,14 +146,11 @@ class WatchdogConfigTab:
             self.status_label.config(text="⚠️ Watchdog non attivo", foreground="#e74c3c")
             self.next_check_label.config(text="Prossimo check: --:--")
             return
-
         try:
             with open(STATE_FILE, "r", encoding="utf-8") as f:
                 state = json.load(f)
-
             results = state.get("results", {})
             all_ok = all(r.get("ok", False) for r in results.values())
-
             if all_ok:
                 self.status_label.config(text="✅ Tutti i controlli OK", foreground="#27ae60")
             else:
@@ -174,7 +159,6 @@ class WatchdogConfigTab:
                     text=f"⚠️ Problemi: {', '.join(bad)}",
                     foreground="#e74c3c"
                 )
-
             last = state.get("last_check")
             if last:
                 try:
@@ -184,7 +168,6 @@ class WatchdogConfigTab:
                     )
                 except Exception:
                     pass
-
             nxt = state.get("next_check")
             if nxt:
                 try:
@@ -201,8 +184,6 @@ class WatchdogConfigTab:
                         self.next_check_label.config(text="Check in corso...")
                 except Exception:
                     pass
-
-            # Log dettagliato
             self.log_text.config(state="normal")
             self.log_text.delete("1.0", "end")
             self.log_text.insert("end", f"Ultimo check: {last}\n")
@@ -212,13 +193,12 @@ class WatchdogConfigTab:
                 icon = "✅" if r.get("ok") else "❌"
                 self.log_text.insert("end", f"{icon} {name}: {r.get('msg')}\n")
             self.log_text.config(state="disabled")
-
         except Exception as e:
             logger.error(f"Errore parsing state: {e}")
 
     def _refresh_cooldowns(self):
         try:
-            from core.bgy_notifier import get_active_cooldowns, get_cooldown_minutes
+            from bgy_core.bgy_mailer import get_active_cooldowns, get_cooldown_minutes
             data = get_active_cooldowns()
             if not data:
                 self.cooldown_active_label.config(text="Nessuno", foreground="#7f8c8d")

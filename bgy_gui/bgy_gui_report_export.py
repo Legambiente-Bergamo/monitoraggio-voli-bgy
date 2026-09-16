@@ -1,7 +1,8 @@
 """
-bgy_gui_report_export.py - Tab Report Personalizzati e Esportazione.
-v2.3.2 - Formato date DD/MM/YYYY, robustezza thread, log per ogni passo,
-         supporto daily/nightly nella generazione mensile.
+bgy_gui/bgy_gui_report_export.py - Tab Report Personalizzati e Esportazione.
+Versione 2.5.0
+- supporto report annuali daily e nightly
+- formati data GUI DD/MM/YYYY, MM/YYYY, YYYY
 """
 import os
 import tkinter as tk
@@ -14,14 +15,14 @@ import threading
 from bgy_reports import generate_daily_report, generate_nightly_report
 from bgy_reports.bgy_report_month import generate_month_report
 from bgy_reports.bgy_report_year import generate_yearly_report
-from core.bgy_paths import REPORTS_CSV_DIR
-from core import get_logger
+from bgy_core.bgy_paths import OUTPUT_CSV_DIR
+from bgy_core import get_logger
 
-from exporters import (
-    export_daily_xlsx, export_nightly_xlsx, export_monthly_xlsx,
-    export_daily_pdf, export_nightly_pdf, export_monthly_pdf,
-    export_daily_docx, export_nightly_docx, export_monthly_docx,
-    export_daily_html, export_nightly_html, export_monthly_html
+from bgy_exporters import (
+    export_daily_xlsx, export_nightly_xlsx, export_monthly_xlsx, export_yearly_xlsx,
+    export_daily_pdf, export_nightly_pdf, export_monthly_pdf, export_yearly_pdf,
+    export_daily_docx, export_nightly_docx, export_monthly_docx, export_yearly_docx,
+    export_daily_html, export_nightly_html, export_monthly_html, export_yearly_html,
 )
 
 logger = get_logger("ReportExport")
@@ -39,6 +40,10 @@ EXPORT_FUNCTIONS = {
         'csv': lambda df, d: (df, d), 'xlsx': export_monthly_xlsx,
         'pdf': export_monthly_pdf, 'docx': export_monthly_docx, 'html': export_monthly_html,
     },
+    'yearly': {
+        'csv': lambda df, d: (df, d), 'xlsx': export_yearly_xlsx,
+        'pdf': export_yearly_pdf, 'docx': export_yearly_docx, 'html': export_yearly_html,
+    },
 }
 
 FORMAT_NAMES = {
@@ -46,7 +51,6 @@ FORMAT_NAMES = {
     'docx': 'Word (.docx)', 'html': 'HTML',
 }
 
-# Formato date italiano
 DATE_FMT = "%d/%m/%Y"
 MONTH_FMT = "%m/%Y"
 YEAR_FMT = "%Y"
@@ -128,14 +132,13 @@ class ReportExportTab:
         self.parent = parent
         self.app = app
         self.tab = ttk.Frame(parent)
-        self.export_folder = REPORTS_CSV_DIR
+        self.export_folder = OUTPUT_CSV_DIR
 
         self.format_vars = {
             'csv': IntVar(value=1), 'xlsx': IntVar(value=0),
             'pdf': IntVar(value=0), 'docx': IntVar(value=0), 'html': IntVar(value=0),
         }
 
-        # Date in formato italiano DD/MM/YYYY
         today_it = datetime.now().strftime(DATE_FMT)
         self.daily_vars = {
             'daily_active': IntVar(value=1), 'nightly_active': IntVar(value=0),
@@ -143,14 +146,14 @@ class ReportExportTab:
             'end_date': tk.StringVar(value=today_it),
         }
 
-        current_month = datetime.now().strftime("%m/%Y")
+        current_month = datetime.now().strftime(MONTH_FMT)
         self.monthly_vars = {
             'daily_active': IntVar(value=0), 'nightly_active': IntVar(value=0),
             'start_month': tk.StringVar(value=current_month),
             'end_month': tk.StringVar(value=current_month),
         }
 
-        current_year = datetime.now().strftime("%Y")
+        current_year = datetime.now().strftime(YEAR_FMT)
         self.yearly_vars = {
             'daily_active': IntVar(value=0), 'nightly_active': IntVar(value=0),
             'start_year': tk.StringVar(value=current_year),
@@ -232,7 +235,7 @@ class ReportExportTab:
         # Cartella
         folder_frame = ttk.Frame(main_frame); folder_frame.pack(fill="x", pady=5)
         ttk.Label(folder_frame, text="📁 Cartella di destinazione:").pack(side="left", padx=5)
-        self.folder_label = ttk.Label(folder_frame, text=REPORTS_CSV_DIR,
+        self.folder_label = ttk.Label(folder_frame, text=OUTPUT_CSV_DIR,
                                        font=("Helvetica", 9), foreground="#2980b9")
         self.folder_label.pack(side="left", padx=5)
         ttk.Button(folder_frame, text="📁 Scegli", command=self.choose_folder).pack(side="left", padx=5)
@@ -409,7 +412,7 @@ class ReportExportTab:
         day_count = 0
         while current_date <= end_date:
             day_count += 1
-            date_str = current_date.strftime("%Y%m%d")
+            date_str = current_date.strftime("%Y-%m-%d")
             date_display = current_date.strftime(DATE_FMT)
 
             if self.progress_window.is_cancelled():
@@ -462,7 +465,7 @@ class ReportExportTab:
         today = datetime.now()
         while current <= end_month:
             month_count += 1
-            month_str = current.strftime("%Y%m")
+            month_str = current.strftime("%Y-%m")
             month_display = current.strftime(MONTH_FMT)
 
             if self.progress_window.is_cancelled():
@@ -477,11 +480,10 @@ class ReportExportTab:
             self.progress_window.log_message(f"  {report_label} {month_display}...")
 
             try:
-                # FIX: passa report_type a generate_month_report
                 result = generate_month_report(month_str, report_type=report_type)
                 csv_path = self._handle_result(result, 'monthly')
                 if csv_path and os.path.exists(csv_path):
-                    files = self._export_report(csv_path, 'monthly', formats, month_str)
+                    files = self._export_report(csv_path, 'monthly', formats, month_str.replace("-", ""))
                     if files:
                         all_files.extend(files)
                         self.progress_window.log_message(f"    ✅ Generati {len(files)} file")
@@ -524,9 +526,11 @@ class ReportExportTab:
             self.progress_window.update_progress(progress, f"📄 Elaborazione {year}...")
             self.progress_window.log_message(f"  {report_label} {year}...")
             try:
-                result = generate_yearly_report(str(year))
+                # FIX blocco 10: passa kind a generate_yearly_report
+                result = generate_yearly_report(str(year), kind=report_type)
                 csv_path = self._handle_result(result, 'yearly')
                 if csv_path and os.path.exists(csv_path):
+                    # Passa report_type in modo che l'export usi il kind corretto
                     files = self._export_report(csv_path, 'yearly', formats, str(year))
                     if files:
                         all_files.extend(files)

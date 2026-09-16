@@ -1,0 +1,621 @@
+﻿callsign,tipo_movimento,is_scheduled,destinazione_finale,compagnia_aerea,modello_aereo,orario_schedulato,timestamp,pista,fase_volo,direzione,quota_ft,rotta_deg,distanza_km,paese,matched_score
+,D,True,LIVERPOOL,N/D,N/D,23:40,,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0
+,D,True,CASABLANCA,N/D,N/D,01:05,,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0
+,D,True,DAKAR,N/D,N/D,02:10,,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0
+,D,True,PARIS BEAUVAIS,N/D,N/D,05:45,,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0
+,D,True,PRAGUE,N/D,N/D,05:45,,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0
+,D,True,ALICANTE,N/D,N/D,05:45,,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0
+,D,True,CATANIA,N/D,N/D,05:50,,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0
+,D,True,CAGLIARI,N/D,N/D,05:50,,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0
+,D,True,TENERIFE,N/D,N/D,05:50,,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0
+,D,True,PALMA DE MALLORCA,N/D,N/D,05:55,,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0
+,D,True,CAIRO,N/D,N/D,23:15,,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0
+,D,True,KATOWICE,N/D,N/D,23:25,,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0
+,D,True,BELGRADE,N/D,N/D,23:35,,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0
+,D,True,CASABLANCA,N/D,N/D,01:00,,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0
+,D,True,POZNAN,N/D,N/D,05:45,,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0
+,D,True,NAPOLI,N/D,N/D,05:45,,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0
+,D,True,LONDON STANSTED,N/D,N/D,05:45,,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0
+,D,True,FARO,N/D,N/D,05:50,,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0
+,D,True,BARI,N/D,N/D,05:50,,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0
+WZZ311,Cargo/Non Schedulato,False,Malta,Wizz Air,Airbus A320-200,,2026-09-10 00:41:18,N/D,Sorvolo,N/D,6873,68.29,14.81,Malta,0
+AEE5IN,Cargo/Non Schedulato,False,Greece,Compagnia AEE,N/D,,2026-09-10 23:01:20,N/D,Transito,N/D,6202,107.66,20.68,Greece,0
+FIN7052,Cargo/Non Schedulato,False,Finland,Compagnia FIN,N/D,,2026-09-10 23:01:20,RWY 10,Avvicinamento,Ovest -> Est,3558,70.52,5.81,Finland,0
+RYR9Z,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:01:20,N/D,Sorvolo,N/D,845,284.83,13.67,Poland,0
+BCS7515,Cargo/Non Schedulato,False,Austria,Compagnia BCS,N/D,,2026-09-10 23:01:20,N/D,Sorvolo,N/D,8275,292.9,11.33,Austria,0
+RYR58MU,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:01:20,N/D,Sorvolo,N/D,1790,166.09,11.88,Ireland,0
+RYR372Y,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:01:20,RWY 28,Atterraggio,Est -> Ovest,228,285.08,1.91,Malta,0
+AEE5IN,Cargo/Non Schedulato,False,Greece,Compagnia AEE,N/D,,2026-09-10 23:01:34,N/D,Sorvolo,N/D,6309,107.67,19.07,Greece,0
+FIN7052,Cargo/Non Schedulato,False,Finland,Compagnia FIN,N/D,,2026-09-10 23:01:34,RWY 10,Avvicinamento,Ovest -> Est,3718,70.58,4.16,Finland,0
+RYR9Z,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:01:34,N/D,Sorvolo,N/D,807,285.0,12.78,Poland,0
+BCS7515,Cargo/Non Schedulato,False,Austria,Compagnia BCS,N/D,,2026-09-10 23:01:34,N/D,Sorvolo,N/D,8397,292.79,13.14,Austria,0
+RYR58MU,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:01:34,N/D,Sorvolo,N/D,1935,142.08,12.31,Ireland,0
+AEE5IN,Cargo/Non Schedulato,False,Greece,Compagnia AEE,N/D,,2026-09-10 23:03:21,N/D,Sorvolo,N/D,7269,107.94,15.88,Greece,0
+FIN7052,Cargo/Non Schedulato,False,Finland,Compagnia FIN,N/D,,2026-09-10 23:03:21,N/D,Sorvolo,N/D,5044,70.98,17.15,Finland,0
+RYR9Z,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:03:21,RWY 28,Atterraggio,Est -> Ovest,312,284.78,3.58,Poland,0
+RYR58MU,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:03:21,N/D,Sorvolo,N/D,3215,79.29,10.05,Ireland,0
+AEE5IN,Cargo/Non Schedulato,False,Greece,Compagnia AEE,N/D,,2026-09-10 23:03:36,N/D,Sorvolo,N/D,7360,107.85,17.18,Greece,0
+FIN7052,Cargo/Non Schedulato,False,Finland,Compagnia FIN,N/D,,2026-09-10 23:03:36,N/D,Sorvolo,N/D,5189,70.89,19.25,Finland,0
+RYR9Z,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:03:36,RWY 28,Atterraggio,Est -> Ovest,274,284.78,2.74,Poland,0
+RYR23BM,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:03:36,N/D,Transito,N/D,6530,114.42,25.56,Ireland,0
+RYR58MU,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:03:36,N/D,Sorvolo,N/D,3268,79.29,10.97,Ireland,0
+RYR9Z,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:05:22,RWY 28,Atterraggio,Est -> Ovest,236,284.78,2.02,Poland,0
+RYR9Z,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:05:37,RWY 28,Atterraggio,Est -> Ovest,236,284.78,2.02,Poland,0
+RYR9Z,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:07:23,RWY 28,Atterraggio,Est -> Ovest,236,284.78,2.02,Poland,0
+RYR9Z,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:07:38,RWY 28,Atterraggio,Est -> Ovest,236,284.78,2.02,Poland,0
+UNKNOWN,Cargo/Non Schedulato,False,Denmark,Compagnia UNK,N/D,,2026-09-10 23:07:38,RWY 10,Decollo,Ovest -> Est,632,104.2,2.35,Denmark,0
+SRR6401,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-10 23:09:24,N/D,Avvicinamento,Rotta 232.7°,1821,232.7,9.5,Denmark,0
+SRR6401,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-10 23:09:39,N/D,Avvicinamento,Rotta 231.8°,2148,231.75,9.91,Denmark,0
+SRR6401,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-10 23:11:25,N/D,Avvicinamento,Rotta 1.5°,3710,1.47,3.14,Denmark,0
+BCS9LE,Cargo/Non Schedulato,False,Austria,Compagnia BCS,N/D,,2026-09-10 23:11:25,N/D,Transito,N/D,10972,35.93,20.08,Austria,0
+RYR45MZ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:11:25,RWY 10,Decollo,Ovest -> Est,708,105.23,4.89,Ireland,0
+RYR33PK,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:11:25,N/D,Sorvolo,N/D,10660,238.83,16.72,Malta,0
+SRR6401,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-10 23:11:40,N/D,Avvicinamento,Rotta 1.8°,3810,1.77,2.92,Denmark,0
+BCS9LE,Cargo/Non Schedulato,False,Austria,Compagnia BCS,N/D,,2026-09-10 23:11:40,N/D,Sorvolo,N/D,10972,36.17,19.04,Austria,0
+RYR45MZ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:11:40,RWY 10,Avvicinamento,Ovest -> Est,746,117.38,5.72,Ireland,0
+RYR33PK,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:11:40,N/D,Sorvolo,N/D,10660,238.65,14.99,Malta,0
+RYR8383,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:13:26,N/D,Avvicinamento,Rotta 133.6°,1013,133.6,6.36,Malta,0
+RYR45MZ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:13:26,N/D,Sorvolo,N/D,2042,133.63,12.76,Ireland,0
+RYR33PK,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:13:26,N/D,Sorvolo,N/D,10660,222.13,12.52,Malta,0
+RYR8383,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:13:41,N/D,Avvicinamento,Rotta 191.9°,1264,191.92,7.98,Malta,0
+RYR45MZ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:13:41,N/D,Sorvolo,N/D,2346,132.15,15.11,Ireland,0
+RYR33PK,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:13:41,N/D,Sorvolo,N/D,10660,222.51,16.55,Malta,0
+WMT2402,Cargo/Non Schedulato,False,Malta,Wizz Air Malta,Airbus A320-200,,2026-09-10 23:13:41,N/D,Transito,N/D,6035,255.42,24.42,Malta,0
+RYR15HE,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:15:27,N/D,Sorvolo,N/D,3535,217.08,11.92,Poland,0
+RYR8383,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:15:27,N/D,Sorvolo,N/D,2171,155.5,13.55,Malta,0
+RYR45MZ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:15:27,N/D,Transito,N/D,3566,58.21,24.64,Ireland,0
+WMT2402,Cargo/Non Schedulato,False,Malta,Wizz Air Malta,Airbus A320-200,,2026-09-10 23:15:27,N/D,Sorvolo,N/D,5074,255.24,15.34,Malta,0
+RYR15HE,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:15:42,N/D,Avvicinamento,Rotta 217.4°,3459,217.44,8.31,Poland,0
+RYR8383,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:15:42,N/D,Sorvolo,N/D,2407,152.89,17.02,Malta,0
+RYR45MZ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:15:42,N/D,Transito,N/D,3901,49.44,24.94,Ireland,0
+WMT2402,Cargo/Non Schedulato,False,Malta,Wizz Air Malta,Airbus A320-200,,2026-09-10 23:15:42,N/D,Sorvolo,N/D,4853,255.1,14.86,Malta,0
+RYR15HE,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:17:28,N/D,Avvicinamento,Rotta 155.8°,3017,155.83,7.0,Poland,0
+WMT2402,Cargo/Non Schedulato,False,Malta,Wizz Air Malta,Airbus A320-200,,2026-09-10 23:17:28,N/D,Transito,N/D,4030,254.83,23.09,Malta,0
+RYR15HE,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:17:43,N/D,Avvicinamento,Rotta 155.8°,3017,155.83,7.13,Poland,0
+WMT2402,Cargo/Non Schedulato,False,Malta,Wizz Air Malta,Airbus A320-200,,2026-09-10 23:17:43,N/D,Transito,N/D,4023,254.83,23.21,Malta,0
+RYR15HE,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:19:29,N/D,Transito,N/D,2735,171.16,20.68,Poland,0
+RYR3388,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:19:29,N/D,Transito,N/D,7612,93.92,20.2,Ireland,0
+RYR3388,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:19:44,N/D,Sorvolo,N/D,7840,93.88,15.62,Ireland,0
+RYR74UN,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:21:30,N/D,Sorvolo,N/D,3931,126.41,15.75,Malta,0
+RYR3388,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:21:30,N/D,Sorvolo,N/D,8450,94.07,7.56,Ireland,0
+RYR74UN,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:21:45,N/D,Sorvolo,N/D,3924,126.41,15.58,Malta,0
+RYR3388,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:21:45,N/D,Sorvolo,N/D,8458,94.07,7.77,Ireland,0
+RYR74UN,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:23:31,N/D,Avvicinamento,Rotta 145.2°,3078,145.2,1.15,Malta,0
+UNKNOWN,Cargo/Non Schedulato,False,Malta,Compagnia UNK,N/D,,2026-09-10 23:23:31,RWY 10,Decollo,Ovest -> Est,251,104.91,1.03,Malta,0
+BAW544K,Cargo/Non Schedulato,False,United Kingdom,British Airways,Airbus A319-100,,2026-09-10 23:23:31,N/D,Transito,N/D,9563,152.57,24.35,United Kingdom,0
+RYR74UN,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:23:46,N/D,Avvicinamento,Rotta 157.1°,3009,157.05,3.84,Malta,0
+WMT9SG,Cargo/Non Schedulato,False,Malta,Wizz Air Malta,Airbus A320-200,,2026-09-10 23:23:46,RWY 10,Decollo,Ovest -> Est,495,104.04,2.56,Malta,0
+BAW544K,Cargo/Non Schedulato,False,United Kingdom,British Airways,Airbus A319-100,,2026-09-10 23:23:46,N/D,Transito,N/D,9471,159.55,25.7,United Kingdom,0
+BCS4243,Cargo/Non Schedulato,False,Bulgaria,Compagnia BCS,N/D,,2026-09-10 23:25:32,N/D,Transito,N/D,6073,223.97,21.21,Bulgaria,0
+RYR74UN,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:25:32,N/D,Sorvolo,N/D,2865,156.83,16.2,Malta,0
+WMT9SG,Cargo/Non Schedulato,False,Malta,Wizz Air Malta,Airbus A320-200,,2026-09-10 23:25:32,N/D,Avvicinamento,Rotta 227.4°,1554,227.37,9.05,Malta,0
+UNKNOWN,Cargo/Non Schedulato,False,Malta,Compagnia UNK,N/D,,2026-09-10 23:25:32,RWY 10,Decollo,Ovest -> Est,266,104.29,1.58,Malta,0
+BCS4243,Cargo/Non Schedulato,False,Bulgaria,Compagnia BCS,N/D,,2026-09-10 23:25:47,N/D,Sorvolo,N/D,5615,223.97,20.0,Bulgaria,0
+RYR74UN,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:25:47,N/D,Sorvolo,N/D,2796,171.41,19.95,Malta,0
+WMT9SG,Cargo/Non Schedulato,False,Malta,Wizz Air Malta,Airbus A320-200,,2026-09-10 23:25:47,N/D,Sorvolo,N/D,2087,172.66,11.55,Malta,0
+RYR538B,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:25:47,RWY 10,Decollo,Ovest -> Est,716,104.91,4.27,Malta,0
+AIC2018,Cargo/Non Schedulato,False,India,Compagnia AIC,N/D,,2026-09-10 23:27:33,N/D,Sorvolo,N/D,10660,127.41,11.97,India,0
+RYR2UW,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:27:33,N/D,Sorvolo,N/D,3878,112.76,19.32,Ireland,0
+WMT9SG,Cargo/Non Schedulato,False,Malta,Wizz Air Malta,Airbus A320-200,,2026-09-10 23:27:33,N/D,Sorvolo,N/D,3322,63.95,18.5,Malta,0
+RYR538B,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:27:33,N/D,Avvicinamento,Rotta 232.4°,1333,232.4,9.76,Malta,0
+AIC2018,Cargo/Non Schedulato,False,India,Compagnia AIC,N/D,,2026-09-10 23:27:48,N/D,Sorvolo,N/D,10668,127.5,9.35,India,0
+RYR2UW,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:27:48,N/D,Sorvolo,N/D,3802,113.02,17.66,Ireland,0
+WMT9SG,Cargo/Non Schedulato,False,Malta,Wizz Air Malta,Airbus A320-200,,2026-09-10 23:27:48,N/D,Sorvolo,N/D,3390,64.01,19.3,Malta,0
+RYR538B,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:27:48,N/D,Sorvolo,N/D,1485,232.25,10.44,Malta,0
+AIC2018,Cargo/Non Schedulato,False,India,Compagnia AIC,N/D,,2026-09-10 23:29:34,N/D,Sorvolo,N/D,10660,127.68,18.35,India,0
+RYR15HE,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:29:34,N/D,Transito,N/D,1699,330.85,26.25,Poland,0
+RYR2UW,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:29:34,N/D,Avvicinamento,Rotta 121.2°,3345,121.16,2.75,Ireland,0
+AIC2018,Cargo/Non Schedulato,False,India,Compagnia AIC,N/D,,2026-09-10 23:29:49,N/D,Transito,N/D,10668,127.7,23.03,India,0
+RYR15HE,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:29:49,N/D,Transito,N/D,1569,328.9,24.38,Poland,0
+RYR2UW,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:29:49,N/D,Avvicinamento,Rotta 130.1°,3352,130.11,0.48,Ireland,0
+RYR15HE,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:31:35,N/D,Sorvolo,N/D,998,284.33,16.58,Poland,0
+RYR2UW,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:31:35,N/D,Sorvolo,N/D,2773,156.2,12.65,Ireland,0
+RYR15HE,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:31:50,N/D,Sorvolo,N/D,891,285.09,14.58,Poland,0
+RYR2UW,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:31:50,N/D,Sorvolo,N/D,2735,156.61,15.34,Ireland,0
+RYR74UN,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:31:50,N/D,Transito,N/D,1699,332.84,26.94,Malta,0
+RYR15HE,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:33:36,RWY 28,Avvicinamento,Est -> Ovest,434,284.69,5.8,Poland,0
+RYR74UN,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:33:36,N/D,Sorvolo,N/D,1059,282.44,17.77,Malta,0
+RYR15HE,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:33:51,RWY 28,Avvicinamento,Est -> Ovest,403,284.31,5.19,Poland,0
+RYR74UN,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:33:51,N/D,Sorvolo,N/D,1005,284.04,16.76,Malta,0
+RYR3KJ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:35:37,N/D,Sorvolo,N/D,1211,317.69,19.97,Ireland,0
+RYR15HE,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:35:37,RWY 28,Atterraggio,Est -> Ovest,228,284.98,1.91,Poland,0
+RYR74UN,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:35:37,RWY 28,Avvicinamento,Est -> Ovest,487,284.57,6.79,Malta,0
+RYR3KJ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:35:52,N/D,Sorvolo,N/D,1165,302.95,19.33,Ireland,0
+RYR15HE,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:35:52,RWY 28,Atterraggio,Est -> Ovest,228,284.98,1.91,Poland,0
+RYR74UN,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:35:52,RWY 28,Avvicinamento,Est -> Ovest,449,284.76,6.12,Malta,0
+RYR3KJ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:37:38,RWY 28,Avvicinamento,Est -> Ovest,594,284.43,8.83,Ireland,0
+RYR15HE,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:37:38,RWY 28,Atterraggio,Est -> Ovest,228,284.98,1.91,Poland,0
+RYR49HY,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:37:38,N/D,Transito,N/D,1386,357.55,21.45,Ireland,0
+RYR74UN,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:37:38,RWY 28,Atterraggio,Est -> Ovest,220,284.98,1.89,Malta,0
+RYR3KJ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:37:53,RWY 28,Avvicinamento,Est -> Ovest,495,285.43,7.08,Ireland,0
+RYR15HE,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:37:53,RWY 28,Atterraggio,Est -> Ovest,228,284.98,1.91,Poland,0
+RYR49HY,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:37:53,N/D,Transito,N/D,1257,322.17,20.13,Ireland,0
+RYR74UN,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:37:53,RWY 28,Atterraggio,Est -> Ovest,220,284.98,1.89,Malta,0
+BCS943,Cargo/Non Schedulato,False,Bulgaria,Compagnia BCS,N/D,,2026-09-10 23:37:53,N/D,Transito,N/D,6408,260.68,23.12,Bulgaria,0
+RYR3KJ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:39:39,RWY 28,Atterraggio,Est -> Ovest,220,285.63,1.85,Ireland,0
+RYR15HE,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:39:39,RWY 28,Atterraggio,Est -> Ovest,228,284.98,1.91,Poland,0
+RYR2UW,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:39:39,N/D,Transito,N/D,1638,358.04,25.33,Ireland,0
+RYR49HY,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:39:39,N/D,Sorvolo,N/D,678,284.81,10.41,Ireland,0
+RYR74UN,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:39:39,RWY 28,Atterraggio,Est -> Ovest,220,284.98,1.89,Malta,0
+BCS943,Cargo/Non Schedulato,False,Bulgaria,Compagnia BCS,N/D,,2026-09-10 23:39:39,N/D,Sorvolo,N/D,5471,261.28,8.85,Bulgaria,0
+RYR3KJ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:39:54,RWY 28,Atterraggio,Est -> Ovest,220,285.63,1.85,Ireland,0
+RYR2UW,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:39:54,N/D,Transito,N/D,1531,358.49,24.0,Ireland,0
+RYR49HY,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:39:54,RWY 28,Avvicinamento,Est -> Ovest,586,284.85,8.83,Ireland,0
+RYR74UN,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:39:54,RWY 28,Atterraggio,Est -> Ovest,220,284.98,1.89,Malta,0
+BCS943,Cargo/Non Schedulato,False,Bulgaria,Compagnia BCS,N/D,,2026-09-10 23:39:54,N/D,Sorvolo,N/D,5265,260.92,9.12,Bulgaria,0
+WMT5PL,Cargo/Non Schedulato,False,Hungary,Wizz Air Malta,Airbus A320-200,,2026-09-10 23:41:40,N/D,Transito,N/D,5478,243.86,27.32,Hungary,0
+RYR3KJ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:41:40,RWY 28,Atterraggio,Est -> Ovest,220,285.63,1.85,Ireland,0
+RYR2UW,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:41:40,N/D,Sorvolo,N/D,990,283.82,16.5,Ireland,0
+RYR49HY,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:41:40,RWY 28,Atterraggio,Est -> Ovest,228,285.1,1.96,Ireland,0
+RYR74UN,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:41:40,RWY 28,Atterraggio,Est -> Ovest,220,284.98,1.89,Malta,0
+BCS943,Cargo/Non Schedulato,False,Bulgaria,Compagnia BCS,N/D,,2026-09-10 23:41:40,N/D,Transito,N/D,4114,245.82,24.95,Bulgaria,0
+RYR3KJ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:41:55,RWY 28,Atterraggio,Est -> Ovest,220,285.63,1.85,Ireland,0
+RYR2UW,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:41:55,N/D,Sorvolo,N/D,899,285.36,14.71,Ireland,0
+RYR49HY,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:41:55,RWY 28,Atterraggio,Est -> Ovest,228,285.1,1.96,Ireland,0
+BCS943,Cargo/Non Schedulato,False,Bulgaria,Compagnia BCS,N/D,,2026-09-10 23:41:55,N/D,Transito,N/D,3901,246.88,28.3,Bulgaria,0
+RYR3KJ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:43:41,RWY 28,Atterraggio,Est -> Ovest,220,285.63,1.85,Ireland,0
+RYR2UW,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:43:41,RWY 28,Avvicinamento,Est -> Ovest,396,284.31,5.15,Ireland,0
+RYR49HY,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:43:41,RWY 28,Atterraggio,Est -> Ovest,228,285.1,1.96,Ireland,0
+RYR3KJ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:43:56,RWY 28,Atterraggio,Est -> Ovest,220,285.63,1.85,Ireland,0
+RYR2UW,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:43:56,RWY 28,Atterraggio,Est -> Ovest,358,285.05,4.49,Ireland,0
+RYR49HY,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:43:56,RWY 28,Atterraggio,Est -> Ovest,228,285.1,1.96,Ireland,0
+RYR2UW,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:45:42,RWY 28,Atterraggio,Est -> Ovest,220,284.8,1.87,Ireland,0
+RYR49HY,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:45:42,RWY 28,Atterraggio,Est -> Ovest,228,285.1,1.96,Ireland,0
+DHX752,Cargo/Non Schedulato,False,Bahrain,Compagnia DHX,N/D,,2026-09-10 23:45:42,N/D,Transito,N/D,6294,82.05,22.69,Bahrain,0
+RYR2UW,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:45:57,RWY 28,Atterraggio,Est -> Ovest,220,284.8,1.87,Ireland,0
+RYR49HY,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:45:57,RWY 28,Atterraggio,Est -> Ovest,228,285.1,1.96,Ireland,0
+DHX752,Cargo/Non Schedulato,False,Bahrain,Compagnia DHX,N/D,,2026-09-10 23:45:57,N/D,Transito,N/D,6507,81.93,20.66,Bahrain,0
+AIC130,Cargo/Non Schedulato,False,India,Compagnia AIC,N/D,,2026-09-10 23:47:43,N/D,Sorvolo,N/D,10668,130.66,16.28,India,0
+RYR8479,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:47:43,RWY 10,Decollo,Ovest -> Est,281,105.29,1.2,Poland,0
+RYR2UW,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:47:43,RWY 28,Atterraggio,Est -> Ovest,220,284.8,1.87,Ireland,0
+WZZ47RG,Cargo/Non Schedulato,False,Malta,Wizz Air,Airbus A320-200,,2026-09-10 23:47:43,N/D,Sorvolo,N/D,10972,39.54,14.8,Malta,0
+AIC130,Cargo/Non Schedulato,False,India,Compagnia AIC,N/D,,2026-09-10 23:47:58,N/D,Sorvolo,N/D,10668,130.83,16.13,India,0
+RYR8479,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:47:58,RWY 10,Decollo,Ovest -> Est,762,105.34,3.47,Poland,0
+RYR2UW,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:47:58,RWY 28,Atterraggio,Est -> Ovest,220,284.8,1.87,Ireland,0
+WZZ47RG,Cargo/Non Schedulato,False,Malta,Wizz Air,Airbus A320-200,,2026-09-10 23:47:58,N/D,Sorvolo,N/D,10972,39.63,11.66,Malta,0
+RYR52TC,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:49:44,N/D,Transito,N/D,4267,104.6,24.17,Ireland,0
+RYR8479,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:49:44,N/D,Avvicinamento,Rotta 220.6°,1424,220.57,9.04,Poland,0
+RYR2UW,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:49:44,RWY 28,Atterraggio,Est -> Ovest,220,284.8,1.87,Ireland,0
+RYR5556Y,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:49:44,RWY 10,Decollo,Ovest -> Est,487,102.3,2.68,Malta,0
+WZZ47RG,Cargo/Non Schedulato,False,Malta,Wizz Air,Airbus A320-200,,2026-09-10 23:49:44,N/D,Transito,N/D,10957,39.84,20.12,Malta,0
+RYR52TC,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:49:59,N/D,Transito,N/D,4122,104.88,20.36,Ireland,0
+RYR8479,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:49:59,N/D,Sorvolo,N/D,1973,165.36,11.72,Poland,0
+RYR5556Y,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:49:59,RWY 10,Avvicinamento,Ovest -> Est,739,103.81,5.09,Malta,0
+RYR52TC,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:51:45,RWY 10,Avvicinamento,Ovest -> Est,3611,117.84,7.12,Ireland,0
+RYR5RK,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:51:45,RWY 10,Decollo,Ovest -> Est,632,105.47,3.7,Ireland,0
+RYR556Y,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:51:45,N/D,Avvicinamento,Rotta 226.0°,1577,225.98,9.6,Malta,0
+RYR52TC,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:52:00,N/D,Avvicinamento,Rotta 121.0°,3520,121.0,5.03,Ireland,0
+EXS15Q,Cargo/Non Schedulato,False,United Kingdom,Jet2.com,Boeing 737-800,,2026-09-10 23:52:00,N/D,Transito,N/D,10980,335.86,26.43,United Kingdom,0
+RYR5RK,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:52:00,RWY 10,Avvicinamento,Ovest -> Est,739,106.61,5.19,Ireland,0
+RYR556Y,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-10 23:52:00,N/D,Sorvolo,N/D,1661,225.6,10.92,Malta,0
+ABY696,Cargo/Non Schedulato,False,United Arab Emirates,Air Berlin,Airbus A320-200,,2026-09-10 23:53:46,RWY 10,Decollo,Ovest -> Est,769,104.4,4.91,United Arab Emirates,0
+RYR52TC,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:53:46,N/D,Sorvolo,N/D,3352,156.24,10.13,Ireland,0
+RYR5RK,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:53:46,N/D,Sorvolo,N/D,2141,142.84,13.24,Ireland,0
+RYR5YD,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:53:46,N/D,Sorvolo,N/D,10469,316.56,5.63,Ireland,0
+ABY696,Cargo/Non Schedulato,False,United Arab Emirates,Air Berlin,Airbus A320-200,,2026-09-10 23:54:01,N/D,Avvicinamento,Rotta 121.7°,861,121.68,6.06,United Arab Emirates,0
+RYR52TC,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:54:01,N/D,Sorvolo,N/D,3352,156.24,11.59,Ireland,0
+RYR5RK,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:54:01,N/D,Sorvolo,N/D,2308,120.19,14.38,Ireland,0
+RYR5YD,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:54:01,N/D,Sorvolo,N/D,10561,316.65,3.0,Ireland,0
+ABY696,Cargo/Non Schedulato,False,United Arab Emirates,Air Berlin,Airbus A320-200,,2026-09-10 23:55:47,N/D,Sorvolo,N/D,2484,232.68,11.37,United Arab Emirates,0
+RYR5KU,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:55:47,N/D,Avvicinamento,Rotta 122.2°,731,122.21,5.89,Poland,0
+RYR5RK,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:55:47,N/D,Transito,N/D,3208,102.06,25.21,Ireland,0
+EWG6SQ,Cargo/Non Schedulato,False,Malta,Eurowings,Airbus A320-200,,2026-09-10 23:55:47,N/D,Sorvolo,N/D,10972,36.21,16.45,Malta,0
+RYR5YD,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:55:47,N/D,Transito,N/D,10972,316.31,21.51,Ireland,0
+ABY696,Cargo/Non Schedulato,False,United Arab Emirates,Air Berlin,Airbus A320-200,,2026-09-10 23:56:02,N/D,Sorvolo,N/D,2636,232.67,12.65,United Arab Emirates,0
+RYR5KU,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:56:02,RWY 16,Avvicinamento,Nord -> Sud,830,163.95,7.29,Poland,0
+RYR5RK,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:56:02,N/D,Transito,N/D,3345,99.21,27.4,Ireland,0
+EWG6SQ,Cargo/Non Schedulato,False,Malta,Eurowings,Airbus A320-200,,2026-09-10 23:56:02,N/D,Sorvolo,N/D,10972,36.31,17.04,Malta,0
+RYR5YD,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-10 23:56:02,N/D,Transito,N/D,10972,316.31,25.0,Ireland,0
+WZZ6579,Cargo/Non Schedulato,False,Hungary,Wizz Air,Airbus A320-200,,2026-09-10 23:57:48,RWY 10,Decollo,Ovest -> Est,419,105.58,2.24,Hungary,0
+RYR5KU,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:57:48,N/D,Sorvolo,N/D,2247,105.19,14.29,Poland,0
+WZZ6579,Cargo/Non Schedulato,False,Hungary,Wizz Air,Airbus A320-200,,2026-09-10 23:58:03,RWY 10,Decollo,Ovest -> Est,647,105.4,3.64,Hungary,0
+RYR5KU,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:58:03,N/D,Sorvolo,N/D,2491,103.12,15.55,Poland,0
+WZZ6579,Cargo/Non Schedulato,False,Hungary,Wizz Air,Airbus A320-200,,2026-09-10 23:59:49,N/D,Sorvolo,N/D,1577,158.37,10.72,Hungary,0
+RYR5KU,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-10 23:59:49,N/D,Transito,N/D,3558,54.5,23.69,Poland,0
+WZZ6579,Cargo/Non Schedulato,False,Hungary,Wizz Air,Airbus A320-200,,2026-09-11 00:00:24,N/D,Sorvolo,N/D,1844,157.22,14.13,Hungary,0
+RYR39BB,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:01:50,N/D,Transito,N/D,4594,217.41,21.9,Ireland,0
+RYR39BB,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:02:25,N/D,Sorvolo,N/D,4419,217.24,18.38,Ireland,0
+RYR8AD,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:02:25,N/D,Transito,N/D,1813,344.25,27.16,Ireland,0
+RYR39BB,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:03:51,N/D,Avvicinamento,Rotta 217.2°,3787,217.16,5.84,Ireland,0
+CCA750,Cargo/Non Schedulato,False,China,Compagnia CCA,N/D,,2026-09-11 00:03:51,N/D,Transito,N/D,4899,87.97,26.27,China,0
+RYR8AD,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:03:51,N/D,Transito,N/D,1272,354.85,21.21,Ireland,0
+RYR39BB,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:04:26,N/D,Avvicinamento,Rotta 205.6°,3627,205.59,1.42,Ireland,0
+CCA750,Cargo/Non Schedulato,False,China,Compagnia CCA,N/D,,2026-09-11 00:04:26,N/D,Transito,N/D,5242,88.13,21.1,China,0
+RYR8AD,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:04:26,N/D,Sorvolo,N/D,1097,285.15,18.36,Ireland,0
+RYR52TC,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:05:52,N/D,Transito,N/D,1485,358.6,22.6,Ireland,0
+RYR39BB,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:05:52,N/D,Sorvolo,N/D,3086,156.63,10.96,Ireland,0
+CCA750,Cargo/Non Schedulato,False,China,Compagnia CCA,N/D,,2026-09-11 00:05:52,N/D,Sorvolo,N/D,5943,88.21,12.98,China,0
+RYR8AD,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:05:52,N/D,Sorvolo,N/D,662,285.0,10.1,Ireland,0
+RYR52TC,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:06:27,N/D,Transito,N/D,1219,334.33,20.67,Ireland,0
+RYR39BB,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:06:27,N/D,Sorvolo,N/D,2865,156.68,16.13,Ireland,0
+CCA750,Cargo/Non Schedulato,False,China,Compagnia CCA,N/D,,2026-09-11 00:06:27,N/D,Sorvolo,N/D,6225,88.26,15.21,China,0
+RYR8AD,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:06:27,RWY 28,Avvicinamento,Est -> Ovest,495,284.8,6.97,Ireland,0
+RYR52TC,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:07:53,N/D,Sorvolo,N/D,784,285.2,12.35,Ireland,0
+RYR8AD,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:07:53,RWY 28,Atterraggio,Est -> Ovest,228,284.91,1.94,Ireland,0
+RYR52TC,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:08:28,RWY 28,Avvicinamento,Est -> Ovest,632,284.76,9.55,Ireland,0
+RYR8AD,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:08:28,RWY 28,Atterraggio,Est -> Ovest,228,284.91,1.94,Ireland,0
+RYR52TC,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:09:54,RWY 28,Atterraggio,Est -> Ovest,228,285.03,1.94,Ireland,0
+EJU3696,Cargo/Non Schedulato,False,Austria,EasyJet Europe,Airbus A319-100,,2026-09-11 00:09:54,N/D,Sorvolo,N/D,6408,249.72,13.08,Austria,0
+RYR8AD,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:09:54,RWY 28,Atterraggio,Est -> Ovest,228,284.91,1.94,Ireland,0
+RYR52TC,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:10:29,RWY 28,Atterraggio,Est -> Ovest,228,284.93,1.91,Ireland,0
+EJU3696,Cargo/Non Schedulato,False,Austria,EasyJet Europe,Airbus A319-100,,2026-09-11 00:10:29,N/D,Sorvolo,N/D,6042,249.62,10.06,Austria,0
+RYR8AD,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:10:29,RWY 28,Atterraggio,Est -> Ovest,228,284.91,1.94,Ireland,0
+RYR4YT,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 00:10:29,N/D,Transito,N/D,6621,270.31,20.47,Malta,0
+TAY7VC,Cargo/Non Schedulato,False,Austria,Compagnia TAY,N/D,,2026-09-11 00:11:55,N/D,Sorvolo,N/D,10363,281.49,19.28,Austria,0
+RYR52TC,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:11:55,RWY 28,Atterraggio,Est -> Ovest,228,284.93,1.91,Ireland,0
+EJU3696,Cargo/Non Schedulato,False,Austria,EasyJet Europe,Airbus A319-100,,2026-09-11 00:11:55,N/D,Sorvolo,N/D,4678,249.95,17.88,Austria,0
+RYR8AD,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:11:55,RWY 28,Atterraggio,Est -> Ovest,228,284.91,1.94,Ireland,0
+RYR4YT,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 00:11:55,N/D,Sorvolo,N/D,5242,270.15,2.65,Malta,0
+DLH9TL,Cargo/Non Schedulato,False,Italy,Lufthansa,Airbus A320-200,,2026-09-11 00:11:55,N/D,Transito,N/D,8839,210.91,28.75,Italy,0
+RYR52TC,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:12:30,RWY 28,Atterraggio,Est -> Ovest,228,284.93,1.91,Ireland,0
+EJU3696,Cargo/Non Schedulato,False,Austria,EasyJet Europe,Airbus A319-100,,2026-09-11 00:12:30,N/D,Transito,N/D,4305,249.73,23.41,Austria,0
+RYR8AD,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:12:30,RWY 28,Atterraggio,Est -> Ovest,228,284.91,1.94,Ireland,0
+RYR8931,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:12:30,N/D,Transito,N/D,10972,334.8,23.85,Ireland,0
+RYR4YT,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 00:12:30,RWY 28,Avvicinamento,Est -> Ovest,4930,255.15,5.48,Malta,0
+RYR52TC,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:13:57,RWY 28,Atterraggio,Est -> Ovest,228,284.93,1.91,Ireland,0
+NIA224,Cargo/Non Schedulato,False,Egypt,Compagnia NIA,N/D,,2026-09-11 00:13:57,N/D,Avvicinamento,Rotta 128.6°,922,128.55,5.72,Egypt,0
+RYR4YT,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 00:13:57,N/D,Transito,N/D,4114,254.21,21.75,Malta,0
+RYR52TC,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:14:31,RWY 28,Atterraggio,Est -> Ovest,228,284.93,1.91,Ireland,0
+NIA224,Cargo/Non Schedulato,False,Egypt,Compagnia NIA,N/D,,2026-09-11 00:14:31,N/D,Avvicinamento,Rotta 190.1°,1135,190.05,6.97,Egypt,0
+ETD2NP,Cargo/Non Schedulato,False,United Arab Emirates,Compagnia ETD,N/D,,2026-09-11 00:15:58,N/D,Transito,N/D,11277,138.44,28.49,United Arab Emirates,0
+RYR39BB,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:15:58,N/D,Transito,N/D,1554,358.25,23.31,Ireland,0
+NIA224,Cargo/Non Schedulato,False,Egypt,Compagnia NIA,N/D,,2026-09-11 00:15:58,N/D,Sorvolo,N/D,1836,161.09,14.13,Egypt,0
+RYR39BB,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:16:32,N/D,Transito,N/D,1287,354.88,21.12,Ireland,0
+NIA224,Cargo/Non Schedulato,False,Egypt,Compagnia NIA,N/D,,2026-09-11 00:16:32,N/D,Sorvolo,N/D,2430,106.58,19.09,Egypt,0
+MAC453W,Cargo/Non Schedulato,False,United Arab Emirates,Compagnia MAC,N/D,,2026-09-11 00:17:59,N/D,Transito,N/D,1805,3.54,24.99,United Arab Emirates,0
+RYR39BB,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:17:59,N/D,Sorvolo,N/D,777,284.88,12.29,Ireland,0
+MAC453W,Cargo/Non Schedulato,False,United Arab Emirates,Compagnia MAC,N/D,,2026-09-11 00:18:33,N/D,Transito,N/D,1577,358.73,23.03,United Arab Emirates,0
+RYR39BB,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:18:33,RWY 28,Avvicinamento,Est -> Ovest,617,285.28,9.28,Ireland,0
+AIC142,Cargo/Non Schedulato,False,India,Compagnia AIC,N/D,,2026-09-11 00:20:00,N/D,Sorvolo,N/D,11269,131.07,15.91,India,0
+MAC453W,Cargo/Non Schedulato,False,United Arab Emirates,Compagnia MAC,N/D,,2026-09-11 00:20:00,N/D,Sorvolo,N/D,1043,283.06,16.67,United Arab Emirates,0
+RYR39BB,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:20:00,RWY 28,Atterraggio,Est -> Ovest,236,284.98,2.14,Ireland,0
+AIC142,Cargo/Non Schedulato,False,India,Compagnia AIC,N/D,,2026-09-11 00:20:34,N/D,Sorvolo,N/D,11277,131.12,14.52,India,0
+MAC453W,Cargo/Non Schedulato,False,United Arab Emirates,Compagnia MAC,N/D,,2026-09-11 00:20:34,N/D,Sorvolo,N/D,838,285.54,13.47,United Arab Emirates,0
+RYR39BB,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:20:34,RWY 28,Atterraggio,Est -> Ovest,228,284.98,1.96,Ireland,0
+MAC453W,Cargo/Non Schedulato,False,United Arab Emirates,Compagnia MAC,N/D,,2026-09-11 00:22:01,RWY 28,Avvicinamento,Est -> Ovest,502,284.77,7.07,United Arab Emirates,0
+RYR39BB,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:22:01,RWY 28,Atterraggio,Est -> Ovest,228,284.98,1.96,Ireland,0
+MAC453W,Cargo/Non Schedulato,False,United Arab Emirates,Compagnia MAC,N/D,,2026-09-11 00:22:35,RWY 28,Atterraggio,Est -> Ovest,381,285.07,4.86,United Arab Emirates,0
+RYR39BB,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:22:35,RWY 28,Atterraggio,Est -> Ovest,228,284.98,1.96,Ireland,0
+MAC453W,Cargo/Non Schedulato,False,United Arab Emirates,Compagnia MAC,N/D,,2026-09-11 00:24:02,RWY 28,Atterraggio,Est -> Ovest,228,284.96,1.92,United Arab Emirates,0
+RYR39BB,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:24:02,RWY 28,Atterraggio,Est -> Ovest,228,284.98,1.96,Ireland,0
+MAC453W,Cargo/Non Schedulato,False,United Arab Emirates,Compagnia MAC,N/D,,2026-09-11 00:24:36,RWY 28,Atterraggio,Est -> Ovest,228,284.96,1.92,United Arab Emirates,0
+RYR39BB,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:24:36,RWY 28,Atterraggio,Est -> Ovest,228,284.98,1.96,Ireland,0
+MAC453W,Cargo/Non Schedulato,False,United Arab Emirates,Compagnia MAC,N/D,,2026-09-11 00:26:03,RWY 28,Atterraggio,Est -> Ovest,228,284.96,1.92,United Arab Emirates,0
+MAC453W,Cargo/Non Schedulato,False,United Arab Emirates,Compagnia MAC,N/D,,2026-09-11 00:26:37,RWY 28,Atterraggio,Est -> Ovest,228,284.96,1.92,United Arab Emirates,0
+RYR540G,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 00:26:37,RWY 10,Decollo,Ovest -> Est,487,104.93,2.95,Malta,0
+MAC453W,Cargo/Non Schedulato,False,United Arab Emirates,Compagnia MAC,N/D,,2026-09-11 00:28:04,RWY 28,Atterraggio,Est -> Ovest,228,284.96,1.92,United Arab Emirates,0
+RYR540G,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 00:28:04,N/D,Avvicinamento,Rotta 233.8°,1424,233.75,8.73,Malta,0
+RYR9ZN,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-11 00:28:38,RWY 10,Decollo,Ovest -> Est,624,105.77,4.0,Poland,0
+RYR540G,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 00:28:38,N/D,Sorvolo,N/D,1714,178.43,11.51,Malta,0
+RYR9ZN,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-11 00:30:05,N/D,Avvicinamento,Rotta 233.5°,1531,233.52,8.62,Poland,0
+RYR9ZN,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-11 00:30:39,N/D,Sorvolo,N/D,1965,233.56,10.43,Poland,0
+RYR9ZN,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-11 00:32:06,N/D,Avvicinamento,Rotta 42.1°,3284,42.15,7.8,Poland,0
+RYR84GY,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:32:06,N/D,Transito,N/D,1684,358.27,25.0,Ireland,0
+RYR9ZN,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-11 00:32:40,N/D,Avvicinamento,Rotta 67.5°,3566,67.45,4.88,Poland,0
+RYR84GY,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:32:40,N/D,Transito,N/D,1516,357.95,23.39,Ireland,0
+RYR9ZN,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-11 00:34:07,N/D,Sorvolo,N/D,4381,67.4,11.14,Poland,0
+RYR84GY,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:34:07,N/D,Sorvolo,N/D,1013,284.04,16.89,Ireland,0
+RYR9ZN,Cargo/Non Schedulato,False,Poland,Ryanair,Boeing 737-800,,2026-09-11 00:34:41,N/D,Sorvolo,N/D,4998,67.65,18.46,Poland,0
+RYR84GY,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:34:41,N/D,Sorvolo,N/D,822,285.2,13.22,Ireland,0
+RYR66DP,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 00:34:41,N/D,Transito,N/D,10309,155.26,22.65,Malta,0
+RYR84GY,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:36:08,RWY 28,Avvicinamento,Est -> Ovest,441,284.59,5.93,Ireland,0
+RYR84GY,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:36:42,RWY 28,Atterraggio,Est -> Ovest,304,284.83,3.38,Ireland,0
+RYR84GY,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:38:09,RWY 28,Atterraggio,Est -> Ovest,228,284.32,1.89,Ireland,0
+AIC2016,Cargo/Non Schedulato,False,India,Compagnia AIC,N/D,,2026-09-11 00:38:43,N/D,Transito,N/D,11887,131.18,23.65,India,0
+RYR84GY,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:38:43,RWY 28,Atterraggio,Est -> Ovest,228,284.32,1.89,Ireland,0
+AIC2016,Cargo/Non Schedulato,False,India,Compagnia AIC,N/D,,2026-09-11 00:40:10,N/D,Sorvolo,N/D,11887,131.26,15.12,India,0
+RYR7790,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:40:10,RWY 10,Decollo,Ovest -> Est,754,105.85,4.04,Ireland,0
+RYR84GY,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:40:10,RWY 28,Atterraggio,Est -> Ovest,228,284.32,1.89,Ireland,0
+AIC2016,Cargo/Non Schedulato,False,India,Compagnia AIC,N/D,,2026-09-11 00:40:44,N/D,Sorvolo,N/D,11887,131.41,18.54,India,0
+RYR7790,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:40:44,N/D,Avvicinamento,Rotta 131.7°,1059,131.69,5.95,Ireland,0
+RYR84GY,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:40:44,RWY 28,Atterraggio,Est -> Ovest,228,284.32,1.89,Ireland,0
+WMT3662,Cargo/Non Schedulato,False,Hungary,Wizz Air Malta,Airbus A320-200,,2026-09-11 00:42:11,N/D,Avvicinamento,Rotta 152.8°,1028,152.83,7.14,Hungary,0
+RYR7790,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:42:11,N/D,Sorvolo,N/D,2758,114.49,12.16,Ireland,0
+RYR84GY,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:42:11,RWY 28,Atterraggio,Est -> Ovest,228,284.32,1.89,Ireland,0
+WMT3662,Cargo/Non Schedulato,False,Hungary,Wizz Air Malta,Airbus A320-200,,2026-09-11 00:42:46,N/D,Avvicinamento,Rotta 228.7°,1386,228.7,8.8,Hungary,0
+RYR7790,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:42:46,N/D,Sorvolo,N/D,3383,102.56,14.76,Ireland,0
+RYR8989,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 00:42:46,RWY 10,Decollo,Ovest -> Est,274,104.84,1.16,Malta,0
+WMT3662,Cargo/Non Schedulato,False,Hungary,Wizz Air Malta,Airbus A320-200,,2026-09-11 00:44:13,N/D,Sorvolo,N/D,2476,158.01,14.99,Hungary,0
+RYR7790,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:44:13,N/D,Transito,N/D,4457,55.85,21.14,Ireland,0
+RYR8989,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 00:44:13,N/D,Avvicinamento,Rotta 198.5°,1318,198.53,7.2,Malta,0
+WMT3662,Cargo/Non Schedulato,False,Hungary,Wizz Air Malta,Airbus A320-200,,2026-09-11 00:44:47,N/D,Sorvolo,N/D,3078,80.08,18.06,Hungary,0
+RYR8989,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 00:44:47,N/D,Avvicinamento,Rotta 239.6°,1912,239.64,7.29,Malta,0
+WMT3662,Cargo/Non Schedulato,False,Hungary,Wizz Air Malta,Airbus A320-200,,2026-09-11 00:46:14,N/D,Transito,N/D,4175,72.24,22.05,Hungary,0
+RYR8989,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 00:46:14,N/D,Sorvolo,N/D,2788,248.57,13.3,Malta,0
+RYR8989,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 00:46:48,N/D,Sorvolo,N/D,2971,248.56,18.32,Malta,0
+RYR765L,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:52:17,N/D,Transito,N/D,1805,358.51,26.77,Ireland,0
+RYR765L,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:52:51,N/D,Transito,N/D,1539,358.44,23.55,Ireland,0
+RYR765L,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:54:18,N/D,Sorvolo,N/D,1059,285.39,17.78,Ireland,0
+RYR765L,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:54:52,N/D,Sorvolo,N/D,883,285.28,14.46,Ireland,0
+RYR765L,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:56:19,RWY 28,Avvicinamento,Est -> Ovest,495,284.76,6.97,Ireland,0
+RYR765L,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:56:53,RWY 28,Atterraggio,Est -> Ovest,381,285.01,4.76,Ireland,0
+RYR765L,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:58:20,RWY 28,Atterraggio,Est -> Ovest,220,285.11,1.88,Ireland,0
+RYR765L,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 00:58:54,RWY 28,Atterraggio,Est -> Ovest,220,285.11,1.88,Ireland,0
+RYR765L,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:00:21,RWY 28,Atterraggio,Est -> Ovest,220,285.11,1.88,Ireland,0
+RYR8SQ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:00:21,N/D,Transito,N/D,3131,107.75,23.59,Ireland,0
+ABR177,Cargo/Non Schedulato,False,Ireland,Air Berlin,Airbus A320-200,,2026-09-11 01:00:21,N/D,Transito,N/D,5814,328.31,26.86,Ireland,0
+RYR8512,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:00:21,N/D,Transito,N/D,1668,357.24,25.56,Malta,0
+RYR765L,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:00:55,RWY 28,Atterraggio,Est -> Ovest,220,285.11,1.88,Ireland,0
+RYR8SQ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:00:55,N/D,Sorvolo,N/D,3009,107.48,19.61,Ireland,0
+ABR177,Cargo/Non Schedulato,False,Ireland,Air Berlin,Airbus A320-200,,2026-09-11 01:00:55,N/D,Transito,N/D,5935,328.76,27.19,Ireland,0
+RYR8512,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:00:55,N/D,Transito,N/D,1508,359.22,23.63,Malta,0
+RYR765L,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:02:22,RWY 28,Atterraggio,Est -> Ovest,220,285.11,1.88,Ireland,0
+WUK6008,Cargo/Non Schedulato,False,United Kingdom,Wizz Air UK,Airbus A320-200,,2026-09-11 01:02:22,N/D,Sorvolo,N/D,10363,307.45,18.83,United Kingdom,0
+RYR8SQ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:02:22,N/D,Sorvolo,N/D,2636,108.5,12.21,Ireland,0
+RYR8512,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:02:22,N/D,Sorvolo,N/D,1021,284.85,17.15,Malta,0
+WUK6008,Cargo/Non Schedulato,False,United Kingdom,Wizz Air UK,Airbus A320-200,,2026-09-11 01:02:56,N/D,Sorvolo,N/D,10370,307.45,14.58,United Kingdom,0
+RYR8SQ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:02:56,N/D,Sorvolo,N/D,2499,108.24,12.39,Ireland,0
+RYR8512,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:02:56,N/D,Sorvolo,N/D,891,285.12,14.52,Malta,0
+WUK6008,Cargo/Non Schedulato,False,United Kingdom,Wizz Air UK,Airbus A320-200,,2026-09-11 01:04:23,N/D,Sorvolo,N/D,10363,307.58,17.34,United Kingdom,0
+RYR8SQ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:04:23,N/D,Sorvolo,N/D,1988,108.57,19.76,Ireland,0
+RYR8512,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:04:23,RWY 28,Avvicinamento,Est -> Ovest,464,285.69,6.38,Malta,0
+RYR8SQ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:04:57,N/D,Transito,N/D,1905,108.36,22.92,Ireland,0
+RYR8512,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:04:57,RWY 28,Atterraggio,Est -> Ovest,350,285.15,4.19,Malta,0
+RYR8SQ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:06:23,N/D,Transito,N/D,1485,358.16,22.99,Ireland,0
+RYR8512,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:06:23,RWY 28,Atterraggio,Est -> Ovest,220,284.78,1.87,Malta,0
+RYR8SQ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:06:58,N/D,Transito,N/D,1257,347.13,20.89,Ireland,0
+RYR8512,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:06:58,RWY 28,Atterraggio,Est -> Ovest,220,284.78,1.87,Malta,0
+RYR8SQ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:08:24,N/D,Sorvolo,N/D,845,284.95,13.54,Ireland,0
+IGT1201,Cargo/Non Schedulato,False,Georgia,Compagnia IGT,N/D,,2026-09-11 01:08:24,N/D,Transito,N/D,1638,356.15,26.31,Georgia,0
+RYR8512,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:08:24,RWY 28,Atterraggio,Est -> Ovest,220,284.78,1.87,Malta,0
+RYR8SQ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:08:59,N/D,Sorvolo,N/D,655,284.83,10.04,Ireland,0
+IGT1201,Cargo/Non Schedulato,False,Georgia,Compagnia IGT,N/D,,2026-09-11 01:08:59,N/D,Transito,N/D,1264,358.8,23.38,Georgia,0
+RYR8512,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:08:59,RWY 28,Atterraggio,Est -> Ovest,220,284.78,1.87,Malta,0
+WMT952,Cargo/Non Schedulato,False,Hungary,Wizz Air Malta,Airbus A320-200,,2026-09-11 01:10:25,N/D,Transito,N/D,6972,270.46,21.74,Hungary,0
+RYR8SQ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:10:25,RWY 28,Atterraggio,Est -> Ovest,312,284.78,3.5,Ireland,0
+IGT1201,Cargo/Non Schedulato,False,Georgia,Compagnia IGT,N/D,,2026-09-11 01:10:25,N/D,Sorvolo,N/D,1013,287.7,17.61,Georgia,0
+RYR8512,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:10:25,RWY 28,Atterraggio,Est -> Ovest,220,284.78,1.87,Malta,0
+WMT952,Cargo/Non Schedulato,False,Hungary,Wizz Air Malta,Airbus A320-200,,2026-09-11 01:11:00,N/D,Sorvolo,N/D,6591,270.0,14.23,Hungary,0
+RYR13PK,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:11:00,N/D,Transito,N/D,1699,359.72,26.29,Ireland,0
+RYR8SQ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:11:00,RWY 28,Atterraggio,Est -> Ovest,228,285.42,1.92,Ireland,0
+IGT1201,Cargo/Non Schedulato,False,Georgia,Compagnia IGT,N/D,,2026-09-11 01:11:00,N/D,Sorvolo,N/D,853,285.09,13.59,Georgia,0
+WMT952,Cargo/Non Schedulato,False,Hungary,Wizz Air Malta,Airbus A320-200,,2026-09-11 01:12:26,N/D,Sorvolo,N/D,5532,261.17,2.88,Hungary,0
+RYR13PK,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:12:26,N/D,Transito,N/D,1325,357.79,21.56,Ireland,0
+RYR8SQ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:12:26,RWY 28,Atterraggio,Est -> Ovest,228,285.42,1.92,Ireland,0
+IGT1201,Cargo/Non Schedulato,False,Georgia,Compagnia IGT,N/D,,2026-09-11 01:12:26,RWY 28,Avvicinamento,Est -> Ovest,502,284.78,6.94,Georgia,0
+WMT952,Cargo/Non Schedulato,False,Hungary,Wizz Air Malta,Airbus A320-200,,2026-09-11 01:13:01,N/D,Avvicinamento,Rotta 242.1°,4968,242.13,9.97,Hungary,0
+RYR13PK,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:13:01,N/D,Sorvolo,N/D,1150,291.37,19.15,Ireland,0
+RYR8SQ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:13:01,RWY 28,Atterraggio,Est -> Ovest,228,285.42,1.92,Ireland,0
+IGT1201,Cargo/Non Schedulato,False,Georgia,Compagnia IGT,N/D,,2026-09-11 01:13:01,RWY 28,Atterraggio,Est -> Ovest,335,284.69,3.93,Georgia,0
+WMT952,Cargo/Non Schedulato,False,Hungary,Wizz Air Malta,Airbus A320-200,,2026-09-11 01:14:28,N/D,Transito,N/D,4030,243.21,24.26,Hungary,0
+RYR13PK,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:14:28,N/D,Sorvolo,N/D,777,285.34,12.27,Ireland,0
+RYR8SQ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:14:28,RWY 28,Atterraggio,Est -> Ovest,228,285.42,1.92,Ireland,0
+IGT1201,Cargo/Non Schedulato,False,Georgia,Compagnia IGT,N/D,,2026-09-11 01:14:28,RWY 28,Atterraggio,Est -> Ovest,228,284.96,1.83,Georgia,0
+RYR15BQ,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:14:28,N/D,Transito,N/D,1645,357.35,24.79,Malta,0
+RYR13PK,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:15:02,RWY 28,Avvicinamento,Est -> Ovest,586,283.05,8.72,Ireland,0
+RYR8SQ,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:15:02,RWY 28,Atterraggio,Est -> Ovest,228,285.42,1.92,Ireland,0
+IGT1201,Cargo/Non Schedulato,False,Georgia,Compagnia IGT,N/D,,2026-09-11 01:15:02,RWY 28,Atterraggio,Est -> Ovest,228,284.96,1.83,Georgia,0
+RYR15BQ,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:15:02,N/D,Transito,N/D,1432,358.27,22.39,Malta,0
+RYR13PK,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:16:29,RWY 28,Atterraggio,Est -> Ovest,228,284.76,1.84,Ireland,0
+IGT1201,Cargo/Non Schedulato,False,Georgia,Compagnia IGT,N/D,,2026-09-11 01:16:29,RWY 28,Atterraggio,Est -> Ovest,228,284.96,1.83,Georgia,0
+RYR15BQ,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:16:29,N/D,Sorvolo,N/D,944,284.58,15.62,Malta,0
+RYR13PK,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:17:03,RWY 28,Atterraggio,Est -> Ovest,228,284.76,1.84,Ireland,0
+IGT1201,Cargo/Non Schedulato,False,Georgia,Compagnia IGT,N/D,,2026-09-11 01:17:03,RWY 28,Atterraggio,Est -> Ovest,228,284.96,1.83,Georgia,0
+RYR15BQ,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:17:03,N/D,Sorvolo,N/D,807,284.97,12.92,Malta,0
+RYR13PK,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:18:30,RWY 28,Atterraggio,Est -> Ovest,228,284.76,1.84,Ireland,0
+IGT1201,Cargo/Non Schedulato,False,Georgia,Compagnia IGT,N/D,,2026-09-11 01:18:30,RWY 28,Atterraggio,Est -> Ovest,228,284.96,1.83,Georgia,0
+RYR15BQ,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:18:30,RWY 28,Avvicinamento,Est -> Ovest,464,285.39,6.31,Malta,0
+RYR13PK,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:19:04,RWY 28,Atterraggio,Est -> Ovest,228,284.76,1.84,Ireland,0
+RYR15BQ,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:19:04,RWY 28,Atterraggio,Est -> Ovest,259,284.96,2.55,Malta,0
+RYR13PK,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:20:31,RWY 28,Atterraggio,Est -> Ovest,228,284.76,1.84,Ireland,0
+RYR15BQ,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:20:31,RWY 28,Atterraggio,Est -> Ovest,228,284.76,1.94,Malta,0
+RYR13PK,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:21:05,RWY 28,Atterraggio,Est -> Ovest,228,284.76,1.84,Ireland,0
+RYR15BQ,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:21:05,RWY 28,Atterraggio,Est -> Ovest,228,284.76,1.94,Malta,0
+RYR97ED,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:21:05,N/D,Transito,N/D,1775,358.78,26.22,Ireland,0
+RYR15BQ,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:22:32,RWY 28,Atterraggio,Est -> Ovest,228,284.76,1.94,Malta,0
+RYR97ED,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:22:32,N/D,Transito,N/D,1234,330.19,20.48,Ireland,0
+RYR15BQ,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:23:06,RWY 28,Atterraggio,Est -> Ovest,228,284.76,1.94,Malta,0
+RYR97ED,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:23:06,N/D,Sorvolo,N/D,1066,283.82,17.86,Ireland,0
+RYR97ED,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:24:33,RWY 28,Avvicinamento,Est -> Ovest,617,284.62,9.32,Ireland,0
+RYR97ED,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:25:07,RWY 28,Avvicinamento,Est -> Ovest,480,284.91,6.66,Ireland,0
+AIC4018,Cargo/Non Schedulato,False,India,Compagnia AIC,N/D,,2026-09-11 01:26:34,N/D,Sorvolo,N/D,12489,127.8,8.23,India,0
+RYR97ED,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:26:34,RWY 28,Atterraggio,Est -> Ovest,228,284.8,1.88,Ireland,0
+AIC4018,Cargo/Non Schedulato,False,India,Compagnia AIC,N/D,,2026-09-11 01:27:08,N/D,Sorvolo,N/D,12496,127.87,12.58,India,0
+RYR97ED,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:27:08,RWY 28,Atterraggio,Est -> Ovest,228,284.8,1.88,Ireland,0
+RYR97ED,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:28:35,RWY 28,Atterraggio,Est -> Ovest,228,284.8,1.88,Ireland,0
+MAC454,Cargo/Non Schedulato,False,United Arab Emirates,Compagnia MAC,N/D,,2026-09-11 01:29:09,RWY 10,Decollo,Ovest -> Est,655,104.87,3.27,United Arab Emirates,0
+RYR97ED,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:29:09,RWY 28,Atterraggio,Est -> Ovest,228,284.8,1.88,Ireland,0
+WMT7DH,Cargo/Non Schedulato,False,Malta,Wizz Air Malta,Airbus A320-200,,2026-09-11 01:29:09,N/D,Transito,N/D,9258,74.1,28.67,Malta,0
+MAC454,Cargo/Non Schedulato,False,United Arab Emirates,Compagnia MAC,N/D,,2026-09-11 01:30:36,N/D,Avvicinamento,Rotta 225.6°,1767,225.58,8.58,United Arab Emirates,0
+RYR97ED,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:30:36,RWY 28,Atterraggio,Est -> Ovest,228,284.8,1.88,Ireland,0
+WMT7DH,Cargo/Non Schedulato,False,Malta,Wizz Air Malta,Airbus A320-200,,2026-09-11 01:30:36,N/D,Sorvolo,N/D,9822,74.3,13.54,Malta,0
+MAC454,Cargo/Non Schedulato,False,United Arab Emirates,Compagnia MAC,N/D,,2026-09-11 01:31:10,N/D,Sorvolo,N/D,2247,227.54,10.36,United Arab Emirates,0
+RYR97ED,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:31:10,RWY 28,Atterraggio,Est -> Ovest,228,284.8,1.88,Ireland,0
+WMT7DH,Cargo/Non Schedulato,False,Malta,Wizz Air Malta,Airbus A320-200,,2026-09-11 01:31:10,N/D,Sorvolo,N/D,10088,74.33,12.23,Malta,0
+MAC454,Cargo/Non Schedulato,False,United Arab Emirates,Compagnia MAC,N/D,,2026-09-11 01:32:37,N/D,Transito,N/D,3520,226.7,20.03,United Arab Emirates,0
+RYR30DK,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:39:14,N/D,Sorvolo,N/D,3962,217.3,19.84,Malta,0
+RYR30DK,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:40:40,N/D,Avvicinamento,Rotta 217.3°,3162,217.34,4.83,Malta,0
+RYR30DK,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:41:15,N/D,Avvicinamento,Rotta 195.6°,3055,195.63,1.33,Malta,0
+RYR30DK,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:42:41,N/D,Sorvolo,N/D,2514,157.55,12.38,Malta,0
+RYR30DK,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:43:16,N/D,Sorvolo,N/D,2263,124.49,17.77,Malta,0
+RYR30DK,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:44:42,N/D,Transito,N/D,1836,71.33,25.61,Malta,0
+RYR30DK,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:45:16,N/D,Transito,N/D,1577,356.83,24.16,Malta,0
+RYR30DK,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:46:43,N/D,Sorvolo,N/D,1127,290.56,18.95,Malta,0
+RYR30DK,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:47:17,N/D,Sorvolo,N/D,952,284.89,15.66,Malta,0
+RYR30DK,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:48:44,RWY 28,Avvicinamento,Est -> Ovest,548,284.47,8.11,Malta,0
+RYR30DK,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:49:18,RWY 28,Avvicinamento,Est -> Ovest,403,285.4,5.15,Malta,0
+RYR30DK,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:50:45,RWY 28,Atterraggio,Est -> Ovest,228,284.7,1.86,Malta,0
+RYR90WG,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:51:19,N/D,Transito,N/D,3710,127.83,22.76,Ireland,0
+RYR30DK,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:51:19,RWY 28,Atterraggio,Est -> Ovest,228,284.7,1.86,Malta,0
+RYR90WG,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:52:46,N/D,Sorvolo,N/D,3116,127.54,11.37,Ireland,0
+RYR30DK,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:52:46,RWY 28,Atterraggio,Est -> Ovest,228,284.7,1.86,Malta,0
+RYR90WG,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:53:20,N/D,Avvicinamento,Rotta 127.6°,2948,127.64,8.29,Ireland,0
+RYR30DK,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:53:20,RWY 28,Atterraggio,Est -> Ovest,228,284.7,1.86,Malta,0
+RYR90WG,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:54:47,N/D,Sorvolo,N/D,2316,127.42,15.57,Ireland,0
+RYR30DK,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 01:54:47,RWY 28,Atterraggio,Est -> Ovest,228,284.7,1.86,Malta,0
+RYR90WG,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:55:21,N/D,Sorvolo,N/D,2202,105.57,18.69,Ireland,0
+RYR90WG,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:56:48,N/D,Transito,N/D,1767,39.08,25.71,Ireland,0
+RYR90WG,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:57:22,N/D,Transito,N/D,1638,358.88,24.77,Ireland,0
+RYR90WG,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:58:49,N/D,Sorvolo,N/D,1181,312.3,19.88,Ireland,0
+RYR90WG,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 01:59:23,N/D,Sorvolo,N/D,1028,285.73,17.04,Ireland,0
+RYR5GG,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:00:51,N/D,Transito,N/D,1798,357.47,26.38,Ireland,0
+RYR90WG,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:00:51,RWY 28,Avvicinamento,Est -> Ovest,563,284.85,8.26,Ireland,0
+RYR5GG,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:01:25,N/D,Transito,N/D,1584,358.94,24.15,Ireland,0
+RYR90WG,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:01:25,RWY 28,Avvicinamento,Est -> Ovest,434,284.7,5.72,Ireland,0
+RYR5GG,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:02:52,N/D,Sorvolo,N/D,1120,288.24,18.74,Ireland,0
+RYR90WG,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:02:52,RWY 28,Atterraggio,Est -> Ovest,228,284.6,1.91,Ireland,0
+RYR56HH,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 02:02:52,N/D,Sorvolo,N/D,6004,67.7,15.49,Malta,0
+RYR5GG,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:03:26,N/D,Sorvolo,N/D,952,284.97,15.75,Ireland,0
+RYR90WG,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:03:26,RWY 28,Atterraggio,Est -> Ovest,228,284.6,1.91,Ireland,0
+RYR56HH,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 02:03:26,N/D,Sorvolo,N/D,6316,67.79,10.02,Malta,0
+RYR5GG,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:04:53,RWY 28,Avvicinamento,Est -> Ovest,525,285.4,7.56,Ireland,0
+RYR90WG,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:04:53,RWY 28,Atterraggio,Est -> Ovest,228,284.6,1.91,Ireland,0
+RYR56HH,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 02:04:53,N/D,Sorvolo,N/D,7185,67.95,14.16,Malta,0
+RYR5GG,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:05:27,RWY 28,Avvicinamento,Est -> Ovest,426,284.59,5.67,Ireland,0
+RYR90WG,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:05:27,RWY 28,Atterraggio,Est -> Ovest,228,284.6,1.91,Ireland,0
+RYR56HH,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 02:05:27,N/D,Sorvolo,N/D,7414,67.93,18.75,Malta,0
+RYR5GG,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:06:54,RWY 28,Atterraggio,Est -> Ovest,228,285.19,1.94,Ireland,0
+RYR90WG,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:06:54,RWY 28,Atterraggio,Est -> Ovest,228,284.6,1.91,Ireland,0
+RYR5GG,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:07:28,RWY 28,Atterraggio,Est -> Ovest,228,285.19,1.94,Ireland,0
+EZY2614,Cargo/Non Schedulato,False,United Kingdom,EasyJet,Airbus A319-100,,2026-09-11 02:08:55,N/D,Transito,N/D,6065,293.05,22.12,United Kingdom,0
+RYR5GG,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:08:55,RWY 28,Atterraggio,Est -> Ovest,228,285.19,1.94,Ireland,0
+RYR61TF,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:08:55,N/D,Sorvolo,N/D,1173,284.8,19.66,Ireland,0
+EZY2614,Cargo/Non Schedulato,False,United Kingdom,EasyJet,Airbus A319-100,,2026-09-11 02:09:29,N/D,Sorvolo,N/D,5791,292.95,17.24,United Kingdom,0
+RYR5GG,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:09:29,RWY 28,Atterraggio,Est -> Ovest,228,285.19,1.94,Ireland,0
+RYR61TF,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:09:29,N/D,Sorvolo,N/D,1028,284.93,17.04,Ireland,0
+EZY2614,Cargo/Non Schedulato,False,United Kingdom,EasyJet,Airbus A319-100,,2026-09-11 02:10:56,N/D,Sorvolo,N/D,4625,261.3,10.76,United Kingdom,0
+RYR51YN,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:10:56,N/D,Transito,N/D,1623,358.23,24.63,Ireland,0
+RYR5GG,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:10:56,RWY 28,Atterraggio,Est -> Ovest,228,285.19,1.94,Ireland,0
+RYR61TF,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:10:56,RWY 28,Avvicinamento,Est -> Ovest,556,284.71,8.12,Ireland,0
+EZY2614,Cargo/Non Schedulato,False,United Kingdom,EasyJet,Airbus A319-100,,2026-09-11 02:11:30,N/D,Sorvolo,N/D,4267,261.53,14.08,United Kingdom,0
+RYR51YN,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:11:30,N/D,Transito,N/D,1470,357.89,22.72,Ireland,0
+RYR61TF,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:11:30,RWY 28,Avvicinamento,Est -> Ovest,426,284.8,5.72,Ireland,0
+RYR51YN,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:12:57,N/D,Sorvolo,N/D,952,284.97,15.59,Ireland,0
+RYR61TF,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:12:57,RWY 28,Atterraggio,Est -> Ovest,228,284.7,1.96,Ireland,0
+RYR51YN,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:13:31,N/D,Sorvolo,N/D,800,285.23,12.57,Ireland,0
+RYR61TF,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:13:31,RWY 28,Atterraggio,Est -> Ovest,228,284.7,1.96,Ireland,0
+RYR51YN,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:14:58,RWY 28,Atterraggio,Est -> Ovest,388,284.91,4.82,Ireland,0
+RYR61TF,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:14:58,RWY 28,Atterraggio,Est -> Ovest,228,284.7,1.96,Ireland,0
+RYR51YN,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:15:32,RWY 28,Atterraggio,Est -> Ovest,259,284.72,2.39,Ireland,0
+RYR61TF,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:15:32,RWY 28,Atterraggio,Est -> Ovest,228,284.7,1.96,Ireland,0
+RYR51YN,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:16:59,RWY 28,Atterraggio,Est -> Ovest,228,284.72,1.88,Ireland,0
+RYR61TF,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:16:59,RWY 28,Atterraggio,Est -> Ovest,228,284.7,1.96,Ireland,0
+RYR51YN,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:17:33,RWY 28,Atterraggio,Est -> Ovest,228,284.72,1.88,Ireland,0
+RYR61TF,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:17:33,RWY 28,Atterraggio,Est -> Ovest,228,284.7,1.96,Ireland,0
+RYR51YN,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:19:00,RWY 28,Atterraggio,Est -> Ovest,228,284.72,1.88,Ireland,0
+RYR51YN,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:19:34,RWY 28,Atterraggio,Est -> Ovest,228,284.72,1.88,Ireland,0
+WMT804,Cargo/Non Schedulato,False,Malta,Wizz Air Malta,Airbus A320-200,,2026-09-11 02:29:05,N/D,Sorvolo,N/D,6652,267.05,19.92,Malta,0
+WMT804,Cargo/Non Schedulato,False,Malta,Wizz Air Malta,Airbus A320-200,,2026-09-11 02:29:39,N/D,Sorvolo,N/D,6438,267.01,12.32,Malta,0
+RYR9373,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:31:06,N/D,Transito,N/D,3954,200.68,26.42,Ireland,0
+WMT804,Cargo/Non Schedulato,False,Malta,Wizz Air Malta,Airbus A320-200,,2026-09-11 02:31:06,N/D,Sorvolo,N/D,5806,266.78,3.2,Malta,0
+RYR9373,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:31:40,N/D,Transito,N/D,3954,200.63,21.43,Ireland,0
+WMT804,Cargo/Non Schedulato,False,Malta,Wizz Air Malta,Airbus A320-200,,2026-09-11 02:31:40,N/D,Sorvolo,N/D,5608,270.0,9.35,Malta,0
+RYR9373,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:33:07,N/D,Sorvolo,N/D,3048,200.79,13.14,Ireland,0
+RYR9373,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:33:41,N/D,Sorvolo,N/D,2849,200.63,12.34,Ireland,0
+RYR9373,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:35:08,N/D,Sorvolo,N/D,2133,142.01,18.45,Ireland,0
+RYR9373,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:35:42,N/D,Transito,N/D,1965,105.5,21.25,Ireland,0
+RYR9373,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:37:09,N/D,Transito,N/D,1562,358.22,23.99,Ireland,0
+RYR9373,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:37:43,N/D,Transito,N/D,1386,357.88,21.94,Ireland,0
+RYR9373,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:39:10,N/D,Sorvolo,N/D,906,285.17,14.83,Ireland,0
+RYR9373,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:39:44,N/D,Sorvolo,N/D,769,284.97,12.14,Ireland,0
+RYR9373,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:41:11,RWY 28,Atterraggio,Est -> Ovest,381,284.52,4.74,Ireland,0
+RYR9373,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:41:45,RWY 28,Atterraggio,Est -> Ovest,304,284.52,3.29,Ireland,0
+RYR9373,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:43:12,RWY 28,Atterraggio,Est -> Ovest,228,285.01,1.87,Ireland,0
+RYR94CD,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:43:12,N/D,Transito,N/D,10972,219.73,20.34,Ireland,0
+RYR9373,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:43:46,RWY 28,Atterraggio,Est -> Ovest,228,285.01,1.87,Ireland,0
+RYR94CD,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:43:46,N/D,Transito,N/D,10972,219.65,21.61,Ireland,0
+RYR9373,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:45:13,RWY 28,Atterraggio,Est -> Ovest,228,285.01,1.87,Ireland,0
+RYR9373,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 02:45:47,RWY 28,Atterraggio,Est -> Ovest,228,285.01,1.87,Ireland,0
+RYR7CE,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:23:31,N/D,Transito,N/D,1463,358.89,22.77,Malta,0
+RYR7CE,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:24:05,N/D,Transito,N/D,1303,358.01,21.35,Malta,0
+RYR5DN,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:25:32,N/D,Transito,N/D,1714,358.18,25.86,Malta,0
+RYR7CE,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:25:32,N/D,Sorvolo,N/D,830,285.37,13.36,Malta,0
+RYR5DN,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:26:06,N/D,Transito,N/D,1516,359.17,23.38,Malta,0
+RYR7CE,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:26:06,RWY 28,Avvicinamento,Est -> Ovest,655,285.49,9.95,Malta,0
+RYR5DN,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:27:33,N/D,Sorvolo,N/D,1097,283.65,18.32,Malta,0
+RYR7CE,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:27:33,RWY 28,Atterraggio,Est -> Ovest,342,284.52,4.11,Malta,0
+RYR5DN,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:28:07,N/D,Sorvolo,N/D,937,284.97,15.35,Malta,0
+RYR7CE,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:28:07,RWY 28,Atterraggio,Est -> Ovest,228,284.72,1.81,Malta,0
+RYR5DN,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:29:34,RWY 28,Avvicinamento,Est -> Ovest,510,284.71,7.3,Malta,0
+RYR7CE,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:29:34,RWY 28,Atterraggio,Est -> Ovest,228,284.72,1.81,Malta,0
+RYR5DN,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:30:08,RWY 28,Atterraggio,Est -> Ovest,350,284.86,4.31,Malta,0
+RYR7CE,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:30:08,RWY 28,Atterraggio,Est -> Ovest,228,284.72,1.81,Malta,0
+RYR5DN,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:31:35,RWY 28,Atterraggio,Est -> Ovest,228,285.22,1.89,Malta,0
+RYR7CE,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:31:35,RWY 28,Atterraggio,Est -> Ovest,228,284.72,1.81,Malta,0
+RYR5DN,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:32:09,RWY 28,Atterraggio,Est -> Ovest,228,285.22,1.89,Malta,0
+RYR7CE,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:32:09,RWY 28,Atterraggio,Est -> Ovest,228,284.72,1.81,Malta,0
+TVS4147,Cargo/Non Schedulato,False,Czech Republic,Compagnia TVS,N/D,,2026-09-11 03:33:36,N/D,Sorvolo,N/D,10972,38.74,14.83,Czech Republic,0
+RYR5DN,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:33:36,RWY 28,Atterraggio,Est -> Ovest,228,285.22,1.89,Malta,0
+TVS4147,Cargo/Non Schedulato,False,Czech Republic,Compagnia TVS,N/D,,2026-09-11 03:34:10,N/D,Transito,N/D,10972,38.95,20.32,Czech Republic,0
+RYR5DN,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:34:10,RWY 28,Atterraggio,Est -> Ovest,228,285.22,1.89,Malta,0
+SRR6402,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 03:35:37,N/D,Sorvolo,N/D,3787,163.73,17.76,Denmark,0
+RYR5DN,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:35:37,RWY 28,Atterraggio,Est -> Ovest,228,285.22,1.89,Malta,0
+SRR6402,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 03:36:11,N/D,Sorvolo,N/D,3520,164.0,11.59,Denmark,0
+RYR3301,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:36:11,N/D,Transito,N/D,1744,359.75,26.51,Malta,0
+SRR6402,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 03:37:38,N/D,Decollo,Rotta 141.1°,2941,141.07,2.38,Denmark,0
+RYR3301,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:37:38,N/D,Transito,N/D,1257,355.58,21.19,Malta,0
+SRR6402,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 03:38:12,N/D,Avvicinamento,Rotta 137.4°,2598,137.44,7.27,Denmark,0
+RYR3301,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:38:12,N/D,Sorvolo,N/D,1104,285.63,18.65,Malta,0
+SRR6402,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 03:39:39,N/D,Sorvolo,N/D,2011,128.89,17.83,Denmark,0
+RYR3301,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:39:39,N/D,Sorvolo,N/D,746,284.85,11.64,Malta,0
+SRR6402,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 03:40:13,N/D,Transito,N/D,1805,105.77,21.74,Denmark,0
+RYR3301,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:40:13,RWY 28,Avvicinamento,Est -> Ovest,571,284.82,8.45,Malta,0
+SRR6402,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 03:41:40,N/D,Transito,N/D,1386,16.73,25.0,Denmark,0
+RYR3301,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:41:40,RWY 28,Atterraggio,Est -> Ovest,266,284.83,2.61,Malta,0
+SRR6402,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 03:42:14,N/D,Transito,N/D,1165,307.43,23.14,Denmark,0
+RYR3301,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:42:14,RWY 28,Atterraggio,Est -> Ovest,228,285.15,1.89,Malta,0
+SRR6402,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 03:43:41,N/D,Sorvolo,N/D,998,283.96,16.29,Denmark,0
+RYR3301,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:43:41,RWY 28,Atterraggio,Est -> Ovest,228,285.15,1.89,Malta,0
+SRR6402,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 03:44:15,N/D,Sorvolo,N/D,815,285.23,12.75,Denmark,0
+RYR3301,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:44:15,RWY 28,Atterraggio,Est -> Ovest,228,285.15,1.89,Malta,0
+SRR6402,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 03:45:42,RWY 28,Avvicinamento,Est -> Ovest,480,285.55,6.55,Denmark,0
+RYR3301,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:45:42,RWY 28,Atterraggio,Est -> Ovest,228,285.15,1.89,Malta,0
+SRR6402,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 03:46:16,RWY 28,Atterraggio,Est -> Ovest,335,284.83,3.84,Denmark,0
+RYR3301,Cargo/Non Schedulato,False,Malta,Ryanair,Boeing 737-800,,2026-09-11 03:46:16,RWY 28,Atterraggio,Est -> Ovest,228,285.15,1.89,Malta,0
+SRR6402,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 03:47:43,RWY 28,Atterraggio,Est -> Ovest,228,284.83,1.86,Denmark,0
+SRR6402,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 03:48:17,RWY 28,Atterraggio,Est -> Ovest,228,284.83,1.86,Denmark,0
+SRR6402,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 03:49:44,RWY 28,Atterraggio,Est -> Ovest,228,284.83,1.86,Denmark,0
+UNKNOWN,Cargo/Non Schedulato,False,Georgia,Compagnia UNK,N/D,,2026-09-11 03:49:44,RWY 10,Decollo,Ovest -> Est,274,104.78,1.19,Georgia,0
+SRR6402,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 03:50:18,RWY 28,Atterraggio,Est -> Ovest,228,284.83,1.86,Denmark,0
+IGT1202,Cargo/Non Schedulato,False,Georgia,Compagnia IGT,N/D,,2026-09-11 03:50:18,RWY 10,Decollo,Ovest -> Est,838,104.28,3.76,Georgia,0
+SRR6402,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 03:51:45,RWY 28,Atterraggio,Est -> Ovest,228,284.83,1.86,Denmark,0
+IGT1202,Cargo/Non Schedulato,False,Georgia,Compagnia IGT,N/D,,2026-09-11 03:51:45,N/D,Sorvolo,N/D,1531,117.95,12.88,Georgia,0
+IGT1202,Cargo/Non Schedulato,False,Georgia,Compagnia IGT,N/D,,2026-09-11 03:52:19,N/D,Sorvolo,N/D,2141,72.61,17.42,Georgia,0
+RYR9898,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 03:55:47,N/D,Transito,N/D,1767,359.01,27.2,Ireland,0
+RYR9898,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 03:56:21,N/D,Transito,N/D,1562,358.4,24.32,Ireland,0
+RYR9898,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 03:57:48,N/D,Sorvolo,N/D,1158,304.76,19.73,Ireland,0
+RYR9898,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 03:58:22,N/D,Sorvolo,N/D,982,284.78,16.24,Ireland,0
+ICV782,Cargo/Non Schedulato,False,Luxembourg,Compagnia ICV,N/D,,2026-09-11 03:59:49,N/D,Transito,N/D,5737,252.58,21.26,Luxembourg,0
+RYR9898,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 03:59:49,RWY 28,Avvicinamento,Est -> Ovest,601,284.91,8.98,Ireland,0
+ICV782,Cargo/Non Schedulato,False,Luxembourg,Compagnia ICV,N/D,,2026-09-11 04:00:23,N/D,Sorvolo,N/D,5158,252.68,16.23,Luxembourg,0
+RYR9898,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 04:00:23,RWY 28,Avvicinamento,Est -> Ovest,480,284.34,6.64,Ireland,0
+ICV782,Cargo/Non Schedulato,False,Luxembourg,Compagnia ICV,N/D,,2026-09-11 04:01:50,N/D,Sorvolo,N/D,3977,252.75,14.86,Luxembourg,0
+RYR9898,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 04:01:50,RWY 28,Atterraggio,Est -> Ovest,228,284.79,1.87,Ireland,0
+ICV782,Cargo/Non Schedulato,False,Luxembourg,Compagnia ICV,N/D,,2026-09-11 04:02:24,N/D,Sorvolo,N/D,3604,252.41,19.06,Luxembourg,0
+RYR9898,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 04:02:24,RWY 28,Atterraggio,Est -> Ovest,228,284.79,1.87,Ireland,0
+RYR9898,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 04:03:51,RWY 28,Atterraggio,Est -> Ovest,228,284.79,1.87,Ireland,0
+RYR9898,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 04:04:25,RWY 28,Atterraggio,Est -> Ovest,228,284.79,1.87,Ireland,0
+RYR9898,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 04:05:52,RWY 28,Atterraggio,Est -> Ovest,228,284.79,1.87,Ireland,0
+RYR9898,Cargo/Non Schedulato,False,Ireland,Ryanair,Boeing 737-800,,2026-09-11 04:06:26,RWY 28,Atterraggio,Est -> Ovest,228,284.79,1.87,Ireland,0
+DHK528,Cargo/Non Schedulato,False,United Kingdom,Compagnia DHK,N/D,,2026-09-11 04:36:06,N/D,Sorvolo,N/D,5974,79.52,11.71,United Kingdom,0
+DHK528,Cargo/Non Schedulato,False,United Kingdom,Compagnia DHK,N/D,,2026-09-11 04:36:40,N/D,Sorvolo,N/D,6217,79.6,7.56,United Kingdom,0
+DHK528,Cargo/Non Schedulato,False,United Kingdom,Compagnia DHK,N/D,,2026-09-11 04:38:07,N/D,Sorvolo,N/D,7399,79.79,18.24,United Kingdom,0
+SRR6498,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 04:50:47,N/D,Transito,N/D,3810,121.3,22.68,Denmark,0
+SRR6498,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 04:52:14,N/D,Avvicinamento,Rotta 121.4°,3261,121.39,8.94,Denmark,0
+SRR6498,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 04:52:48,N/D,Avvicinamento,Rotta 121.4°,3063,121.37,2.84,Denmark,0
+SRR6498,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 04:54:15,N/D,Avvicinamento,Rotta 137.0°,2583,137.02,8.63,Denmark,0
+SRR6498,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 04:54:49,N/D,Sorvolo,N/D,2362,137.06,13.71,Denmark,0
+SRR6498,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 04:56:16,N/D,Transito,N/D,1836,104.43,23.37,Denmark,0
+SRR6498,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 04:56:50,N/D,Transito,N/D,1630,50.55,25.52,Denmark,0
+SRR6498,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 04:58:17,N/D,Transito,N/D,1234,298.26,22.59,Denmark,0
+SRR6498,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 04:58:51,N/D,Sorvolo,N/D,1150,285.34,19.43,Denmark,0
+SRR6498,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 05:00:23,N/D,Sorvolo,N/D,792,285.32,12.35,Denmark,0
+SRR6498,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 05:00:52,N/D,Sorvolo,N/D,685,284.74,10.39,Denmark,0
+SRR6498,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 05:02:24,RWY 28,Atterraggio,Est -> Ovest,320,284.85,3.5,Denmark,0
+SRR6498,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 05:02:53,RWY 28,Atterraggio,Est -> Ovest,236,285.04,1.89,Denmark,0
+SRR6498,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 05:04:25,RWY 28,Atterraggio,Est -> Ovest,236,285.04,1.89,Denmark,0
+SRR6498,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 05:04:54,RWY 28,Atterraggio,Est -> Ovest,236,285.04,1.89,Denmark,0
+SRR6498,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 05:06:26,RWY 28,Atterraggio,Est -> Ovest,236,285.04,1.89,Denmark,0
+SVA131,Cargo/Non Schedulato,False,Saudi Arabia,Saudia,Boeing 777-300ER,,2026-09-11 05:06:26,N/D,Sorvolo,N/D,11582,295.65,18.15,Saudi Arabia,0
+SRR6498,Cargo/Non Schedulato,False,Denmark,Compagnia SRR,N/D,,2026-09-11 05:06:55,RWY 28,Atterraggio,Est -> Ovest,236,285.04,1.89,Denmark,0
+SVA131,Cargo/Non Schedulato,False,Saudi Arabia,Saudia,Boeing 777-300ER,,2026-09-11 05:06:55,N/D,Sorvolo,N/D,11574,295.86,15.2,Saudi Arabia,0
+SVA131,Cargo/Non Schedulato,False,Saudi Arabia,Saudia,Boeing 777-300ER,,2026-09-11 05:08:27,N/D,Transito,N/D,11574,295.64,23.99,Saudi Arabia,0
+AFR673,Cargo/Non Schedulato,False,France,Air France,Airbus A319-100,,2026-09-11 05:16:31,N/D,Transito,N/D,10972,298.04,20.85,France,0
+AFR673,Cargo/Non Schedulato,False,France,Air France,Airbus A319-100,,2026-09-11 05:17:00,N/D,Transito,N/D,10972,297.87,22.91,France,0
+ETH734,Cargo/Non Schedulato,False,Ethiopia,Compagnia ETH,N/D,,2026-09-11 05:28:36,N/D,Sorvolo,N/D,12192,294.57,12.5,Ethiopia,0
+ETH734,Cargo/Non Schedulato,False,Ethiopia,Compagnia ETH,N/D,,2026-09-11 05:29:06,N/D,Sorvolo,N/D,12192,294.35,9.84,Ethiopia,0
+ETH734,Cargo/Non Schedulato,False,Ethiopia,Compagnia ETH,N/D,,2026-09-11 05:30:37,N/D,Transito,N/D,12192,294.51,23.39,Ethiopia,0
+AFR829,Cargo/Non Schedulato,False,France,Air France,Airbus A319-100,,2026-09-11 05:32:38,N/D,Transito,N/D,11582,299.65,27.43,France,0
+VND008E,Cargo/Non Schedulato,False,Italy,Compagnia VND,N/D,,2026-09-11 05:36:40,N/D,Avvicinamento,Rotta 216.5°,1257,216.5,8.0,Italy,0
+VND008E,Cargo/Non Schedulato,False,Italy,Compagnia VND,N/D,,2026-09-11 05:37:10,N/D,Avvicinamento,Rotta 239.1°,1592,239.07,8.39,Italy,0
+VND008E,Cargo/Non Schedulato,False,Italy,Compagnia VND,N/D,,2026-09-11 05:38:41,N/D,Sorvolo,N/D,2865,186.68,16.91,Italy,0

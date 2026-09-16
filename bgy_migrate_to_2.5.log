@@ -1,0 +1,77 @@
+============================================================
+MIGRAZIONE STRUTTURA BGY 2.5
+Avvio: 2026-09-15 16:23:54
+============================================================
+✅ Root: C:\Users\NicoSorint\Desktop\Monitoraggio BGY 2.5
+
+--- Rinomina cartelle principali ---
+✅ core → bgy_core
+✅ scanners → bgy_scanners
+✅ exporters → bgy_exporters
+✅ config → bgy_config
+✅ bgy_data/raw → bgy_data/bgy_raw
+✅ bgy_data/bgy_reports → bgy_data/bgy_output
+✅ bgy_data/charts → bgy_data/bgy_charts
+✅ bgy_data/logs → bgy_data/bgy_logs
+
+--- Rinomina sottocartelle di bgy_output ---
+✅ bgy_data/bgy_output/csv → bgy_data/bgy_output/bgy_csv
+✅ bgy_data/bgy_output/xlsx → bgy_data/bgy_output/bgy_xlsx
+✅ bgy_data/bgy_output/pdf → bgy_data/bgy_output/bgy_pdf
+✅ bgy_data/bgy_output/docx → bgy_data/bgy_output/bgy_docx
+✅ bgy_data/bgy_output/html → bgy_data/bgy_output/bgy_html
+
+--- Rinomina sottocartelle di bgy_logs ---
+✅ bgy_data/bgy_logs/archive → bgy_data/bgy_logs/bgy_archive
+
+--- Aggiornamento import ---
+✅ bgy_gui.py
+✅ bgy_scheduler.py
+✅ bgy_core/bgy_config_manager.py
+✅ bgy_core/bgy_github_sync.py
+✅ bgy_core/bgy_logger.py
+✅ bgy_core/bgy_notifier.py
+✅ bgy_core/bgy_retry.py
+✅ bgy_core/bgy_update_rules.py
+✅ bgy_core/__init__.py
+✅ bgy_scanners/bgy_scanner_day.py
+✅ bgy_scanners/bgy_scanner_night.py
+✅ bgy_exporters/bgy_export_docx.py
+✅ bgy_exporters/bgy_export_html.py
+✅ bgy_exporters/bgy_export_pdf.py
+✅ bgy_exporters/bgy_export_xlsx.py
+✅ bgy_reports/bgy_report_day.py
+✅ bgy_reports/bgy_report_month.py
+✅ bgy_reports/bgy_report_night.py
+✅ bgy_reports/bgy_report_year.py
+✅ bgy_gui/bgy_gui_dashboard.py
+✅ bgy_gui/bgy_gui_mail_config.py
+✅ bgy_gui/bgy_gui_report_export.py
+✅ bgy_gui/bgy_gui_scan_config.py
+✅ bgy_gui/bgy_watchdog_config.py
+✅ bgy_utils/bgy_utils_assaeroporti.py
+✅ bgy_utils/bgy_utils_mailer.py
+✅ bgy_utils/bgy_utils_meteo.py
+✅ bgy_utils/bgy_utils_noise.py
+📊 File aggiornati: 28
+
+--- Riscrittura bgy_paths.py ---
+✅ bgy_paths.py riscritto
+
+--- Riscrittura .gitignore ---
+✅ .gitignore riscritto
+
+============================================================
+MIGRAZIONE COMPLETATA
+============================================================
+
+Prossimi passi:
+1. Apri i file in bgy_core/, bgy_scanners/, bgy_exporters/
+   e verifica che gli import puntino a bgy_core., bgy_scanners., bgy_exporters.
+2. Avvia la GUI: py -3.12 bgy_gui.py
+3. Verifica un ciclo completo: scansione diurna, notturna, report, sync GitHub
+4. Solo dopo, su Produzione:
+   - chiudi la suite
+   - copia la cartella nuova (o fai la stessa migrazione)
+   - riavvia
+5. Quando tutto funziona, cancella bgy_migrate_to_2.5.py
