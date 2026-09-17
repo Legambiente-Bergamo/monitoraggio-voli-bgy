@@ -1,11 +1,13 @@
 """
 bgy_core/bgy_db_migrate.py - Migrazione dei CSV storici nel database PostgreSQL.
-Versione 2.5.2
+Versione 2.5.3
 
-- Gestione multi-formato per scan_*.csv: importa solo il formato attuale.
-  I file con formato vecchio (gennaio-luglio 2026) vengono saltati con un warning.
-- Idempotenza: file già importati completamente vengono saltati.
-- Recupero: record in 'scans' senza voli vengono rimossi e reimportati.
+- Supporta DUE formati di scan_*.csv:
+  - NUOVO: callsign_volo, tipo_movimento, destinazione_origine, ...
+  - VECCHIO: flight_num, type, sched_time, actual_time, origin_dest, status
+- Per il formato vecchio, estrae destinazione/orari/stato da origin_dest
+- Idempotenza: file già importati completamente vengono saltati
+- Recupero: record in 'scans' senza voli vengono rimossi e reimportati
 """
 import os
 import sys
@@ -24,10 +26,24 @@ logger = get_logger("DBMigrate")
 
 BATCH_SIZE = 500
 
-# Colonne attese nel formato attuale di scan_*.csv
-EXPECTED_SCAN_COLUMNS = {
+# Colonne attese nel formato nuovo
+EXPECTED_NEW_COLUMNS = {
     "callsign_volo", "tipo_movimento", "destinazione_origine",
     "orario_schedulato", "orario_effettivo", "stato_volo",
+}
+
+# Colonne attese nel formato vecchio
+EXPECTED_OLD_COLUMNS = {
+    "flight_num", "type", "sched_time", "actual_time",
+    "origin_dest", "status",
+}
+
+# Mappa tipo movimento formato vecchio -> nuovo
+OLD_MOVEMENT_MAP = {
+    "decollo": "D",
+    "atterraggio": "A",
+    "partenza": "D",
+    "arrivo": "A",
 }
 
 stats = {
@@ -35,6 +51,7 @@ stats = {
     "scans_skipped": 0,
     "scans_recovered": 0,
     "scans_old_format": 0,
+    "scans_unsupported": 0,
     "flights_imported": 0,
     "radar_imported": 0,
     "weather_imported": 0,
@@ -44,11 +61,13 @@ stats = {
 
 
 # =============================================================================
-# UTILITY PARSING
+# PARSING NOME FILE
 # =============================================================================
 
 def parse_date_from_scan_filename(filename):
+    """Estrae data di riferimento, orario e tipo da un file scan_*.csv."""
     base = filename.replace(".csv", "")
+    # Nuovo: scan_YYYY-MM-DD_HH-MM.csv
     m = re.match(r'^scan_(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2})$', base)
     if m:
         date_str = m.group(1)
@@ -56,6 +75,7 @@ def parse_date_from_scan_filename(filename):
         hh = int(hh_mm.split(":")[0])
         tipo = "notturno" if hh >= 23 or hh < 6 else "diurno"
         return date_str, hh_mm, tipo
+    # Vecchio: scan_YYYYMMDD_HHMM.csv
     m = re.match(r'^scan_(\d{8})_(\d{4})$', base)
     if m:
         ymd = m.group(1)
@@ -90,6 +110,10 @@ def parse_nightly_filename(filename):
     m = re.match(r'^report_nightly_(\d{4}-\d{2}-\d{2})$', base)
     return m.group(1) if m else None
 
+
+# =============================================================================
+# CONVERTITORI SICURI
+# =============================================================================
 
 def safe_int(value, default=None):
     if value is None:
@@ -169,15 +193,99 @@ def read_csv_rows(path):
     return rows
 
 
+# =============================================================================
+# RILEVAMENTO FORMATO
+# =============================================================================
+
 def detect_scan_format(rows):
     """
-    Verifica se le righe hanno le colonne attese.
-    Ritorna True se il formato è supportato.
+    Ritorna 'new', 'old', o None.
     """
     if not rows:
-        return False
+        return None
     keys = set(rows[0].keys())
-    return EXPECTED_SCAN_COLUMNS.issubset(keys)
+    if EXPECTED_NEW_COLUMNS.issubset(keys):
+        return "new"
+    if EXPECTED_OLD_COLUMNS.issubset(keys):
+        return "old"
+    return None
+
+
+# =============================================================================
+# PARSER FORMATO VECCHIO
+# =============================================================================
+
+# Pattern per estrarre da origin_dest:
+#   <DESTINAZIONE><HH:MM> | <HH:MM><STATO>
+# La destinazione può contenere spazi, trattini, slash, punti
+OLD_ORIGIN_DEST_PATTERN = re.compile(
+    r'^(?P<destinazione>.+?)'
+    r'(?P<ora_sched>\d{1,2}:\d{2})\s*\|\s*'
+    r'(?P<ora_eff>\d{1,2}:\d{2})'
+    r'(?P<stato>.*)$'
+)
+
+
+def parse_old_origin_dest(value):
+    """
+    Estrae (destinazione, orario_sched, orario_eff, stato) da origin_dest.
+    Ritorna tupla di stringhe. Se il parsing fallisce, ritorna (value, None, None, None).
+    """
+    if value is None:
+        return "", None, None, None
+    s = str(value).strip()
+    if not s:
+        return "", None, None, None
+    m = OLD_ORIGIN_DEST_PATTERN.match(s)
+    if not m:
+        # Fallback: trattiamo tutto come destinazione
+        return s, None, None, None
+    dest = m.group("destinazione").strip()
+    ora_sched = m.group("ora_sched").strip()
+    ora_eff = m.group("ora_eff").strip()
+    stato = m.group("stato").strip()
+    # Se lo stato è ',nan' o 'nan' o vuoto, normalizziamo a stringa vuota
+    if stato.lower() in ("nan", ",nan", ""):
+        stato = ""
+    return dest, ora_sched, ora_eff, stato
+
+
+def parse_old_scan_row(row):
+    """
+    Converte una riga del formato vecchio nel formato nuovo (dict).
+    Ritorna dict con le chiavi:
+      callsign_volo, tipo_movimento, destinazione_origine,
+      orario_schedulato, orario_effettivo, stato_volo
+    """
+    callsign = safe_str(row.get("flight_num"), "")
+    tipo_old = safe_str(row.get("type"), "").lower()
+    tipo_new = OLD_MOVEMENT_MAP.get(tipo_old, "")
+    sched_time = safe_str(row.get("sched_time"), "")
+    actual_time = safe_str(row.get("actual_time"), "")
+    status = safe_str(row.get("status"), "")
+
+    # Destinazione da origin_dest
+    dest, sched_from_dest, actual_from_dest, stato_from_dest = parse_old_origin_dest(
+        row.get("origin_dest"))
+
+    # Preferenza: le colonne dedicate sched_time/actual_time sono più affidabili
+    orario_schedulato = sched_time or sched_from_dest
+    orario_effettivo = actual_time or actual_from_dest
+
+    # Stato: preferisci la colonna 'status' se valorizzata, altrimenti da origin_dest
+    if status and status.lower() not in ("nan", ""):
+        stato_volo = status
+    else:
+        stato_volo = stato_from_dest
+
+    return {
+        "callsign_volo": callsign,
+        "tipo_movimento": tipo_new,
+        "destinazione_origine": dest,
+        "orario_schedulato": orario_schedulato,
+        "orario_effettivo": orario_effettivo,
+        "stato_volo": stato_volo,
+    }
 
 
 # =============================================================================
@@ -186,7 +294,7 @@ def detect_scan_format(rows):
 
 def import_scan_file(filepath):
     """
-    Importa un file scan_*.csv.
+    Importa un file scan_*.csv (nuovo o vecchio formato).
     Ritorna (True, n_flights) se importato, (False, None) se skip/errore.
     """
     filename = os.path.basename(filepath)
@@ -195,7 +303,7 @@ def import_scan_file(filepath):
         logger.warning(f"File scan non riconosciuto: {filename}")
         return False, None
 
-    # Controlla idempotenza (scan esistente + voli presenti)
+    # Idempotenza
     ok, rows = bgy_db.execute_query(
         "SELECT s.id, "
         "  (SELECT COUNT(1) FROM flights_sacbo f WHERE f.scan_id = s.id) AS n_flights "
@@ -222,11 +330,14 @@ def import_scan_file(filepath):
         logger.warning(f"File vuoto: {filename}")
         return False, None
 
-    # Verifica formato
-    if not detect_scan_format(csv_rows):
-        logger.warning(f"⚠️ Formato non supportato (colonne vecchie), salto: {filename}")
-        stats["scans_old_format"] += 1
+    # Rileva formato
+    fmt = detect_scan_format(csv_rows)
+    if fmt is None:
+        logger.warning(f"⚠️ Formato non riconosciuto, salto: {filename}")
+        stats["scans_unsupported"] += 1
         return False, None
+    if fmt == "old":
+        stats["scans_old_format"] += 1
 
     # Determina scan_timestamp
     scan_ts = None
@@ -258,14 +369,30 @@ def import_scan_file(filepath):
     # Prepara record per flights_sacbo
     flights_params = []
     for r in csv_rows:
+        if fmt == "new":
+            callsign = safe_str(r.get("callsign_volo"), "N/D")
+            tipo_mov = safe_str(r.get("tipo_movimento"), "")
+            dest = safe_str(r.get("destinazione_origine"), "")
+            sched = safe_time(r.get("orario_schedulato"))
+            eff = safe_time(r.get("orario_effettivo"))
+            stato = safe_str(r.get("stato_volo"), "")
+        else:  # old
+            parsed = parse_old_scan_row(r)
+            callsign = safe_str(parsed["callsign_volo"], "N/D")
+            tipo_mov = safe_str(parsed["tipo_movimento"], "")
+            dest = safe_str(parsed["destinazione_origine"], "")
+            sched = safe_time(parsed["orario_schedulato"])
+            eff = safe_time(parsed["orario_effettivo"])
+            stato = safe_str(parsed["stato_volo"], "")
+
         flights_params.append((
             scan_id,
-            safe_str(r.get("callsign_volo"), "N/D"),
-            safe_str(r.get("tipo_movimento"), ""),
-            safe_str(r.get("destinazione_origine"), ""),
-            safe_time(r.get("orario_schedulato")),
-            safe_time(r.get("orario_effettivo")),
-            safe_str(r.get("stato_volo"), ""),
+            callsign,
+            tipo_mov,
+            dest,
+            sched,
+            eff,
+            stato,
             scan_ts,
             date_str,
         ))
@@ -288,7 +415,7 @@ def import_scan_file(filepath):
             logger.error(f"Errore insert flights per {filename}: {result}")
             stats["errors"] += 1
 
-    logger.info(f"✅ Importato {filename}: scan_id={scan_id}, {total_inserted} voli")
+    logger.info(f"✅ Importato [{fmt}] {filename}: scan_id={scan_id}, {total_inserted} voli")
     stats["scans_imported"] += 1
     stats["flights_imported"] += total_inserted
     return True, total_inserted
@@ -617,6 +744,7 @@ def migrate_all(reset=False, dry_run=False):
     logger.info(f"Scansioni già presenti:   {stats['scans_skipped']}")
     logger.info(f"Scansioni recuperate:     {stats['scans_recovered']}")
     logger.info(f"Scansioni formato vecchio:{stats['scans_old_format']}")
+    logger.info(f"Scansioni non supportate: {stats['scans_unsupported']}")
     logger.info(f"Voli SACBO importati:     {stats['flights_imported']}")
     logger.info(f"Rilevamenti radar:        {stats['radar_imported']}")
     logger.info(f"Righe meteo:              {stats['weather_imported']}")
