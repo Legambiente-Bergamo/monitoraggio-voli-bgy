@@ -22,7 +22,7 @@ OUTPUT_PDF_DIR = os.path.join(OUTPUT_DIR, "bgy_pdf")
 OUTPUT_DOCX_DIR = os.path.join(OUTPUT_DIR, "bgy_docx")
 OUTPUT_HTML_DIR = os.path.join(OUTPUT_DIR, "bgy_html")
 
-# --- Alias retrocompatibili (da rimuovere in v2.6) ---
+# --- Alias retrocompatibili ---
 REPORTS_DIR = OUTPUT_DIR
 REPORTS_CSV_DIR = OUTPUT_CSV_DIR
 REPORTS_XLSX_DIR = OUTPUT_XLSX_DIR
@@ -38,6 +38,8 @@ CONFIG_MAIL = os.path.join(CONFIG_DIR, "config_mail.json")
 CONFIG_OPENSKY = os.path.join(CONFIG_DIR, "config_opensky.json")
 CONFIG_GITHUB = os.path.join(CONFIG_DIR, "config_github.json")
 CONFIG_ASSAEROPORTI = os.path.join(CONFIG_DIR, "config_assaeroporti.json")
+CONFIG_ALERT_MESSAGES = os.path.join(CONFIG_DIR, "config_alert_messages.json")
+CONFIG_DATABASE = os.path.join(CONFIG_DIR, "config_database.json")
 RULES_AIRLINES = os.path.join(CONFIG_DIR, "config_rules_airlines.json")
 RULES_COUNTRIES = os.path.join(CONFIG_DIR, "config_rules_countries.json")
 RULES_AIRCRAFT_MODELS = os.path.join(CONFIG_DIR, "config_rules_aircraft_models.json")
@@ -60,4 +62,5 @@ if __name__ == "__main__":
     ensure_directories()
     print("✅ Directory create.")
     print(f"PROJECT_ROOT: {PROJECT_ROOT}")
-    print(f"CONFIG_ASSAEROPORTI: {CONFIG_ASSAEROPORTI}")
+    print(f"CONFIG_DIR: {CONFIG_DIR}")
+    print(f"CONFIG_DATABASE: {CONFIG_DATABASE}")

@@ -1,19 +1,20 @@
 """
 bgy_scheduler.py - Pianificatore ed Orchestratore automatico.
-Versione 2.5.0
-- Radar notturno: SOLO tra le 23:00 e le 05:59, nessuna chiamata OpenSky fuori fascia
-- Check radar: doppio controllo (scheduler + job_radar_night_scan)
+Versione 2.5.2
+- Lock file per impedire doppio avvio
+- Radar notturno: SOLO tra le 23:00 e le 05:59
 """
 import os
 import sys
 import time
 import threading
+import subprocess as sp
 import pandas as pd
 from datetime import datetime, timedelta
 import schedule
 
 from bgy_core import get_logger, config_manager
-from bgy_core.bgy_paths import LOGS_DIR, RAW_DIR
+from bgy_core.bgy_paths import LOGS_DIR, RAW_DIR, PROJECT_ROOT
 from bgy_core.bgy_github_sync import sync_to_github
 from bgy_core.bgy_mailer import send_daily_status
 from bgy_reports import (generate_daily_report, generate_nightly_report,
@@ -27,13 +28,91 @@ os.makedirs(LOGS_DIR, exist_ok=True)
 _scheduler_lock = threading.Lock()
 _scheduler_started = False
 
+# --- Lock file di processo ---
+SCHEDULER_LOCK_FILE = os.path.join(LOGS_DIR, "scheduler.lock")
+
+
+# -----------------------------------------------------------------------------
+# LOCK FILE (anti doppio avvio)
+# -----------------------------------------------------------------------------
+
+def _is_pid_alive(pid):
+    """Verifica se un PID è ancora attivo. Solo Windows."""
+    if sys.platform != "win32":
+        # Su Linux/Mac: verifica con os.kill(pid, 0)
+        try:
+            os.kill(pid, 0)
+            return True
+        except (OSError, ProcessLookupError):
+            return False
+    try:
+        result = sp.run(
+            ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
+            capture_output=True, text=True, timeout=5
+        )
+        # tasklist ritorna "INFO: No tasks are running..." se il PID non esiste
+        output = (result.stdout or "").strip()
+        return str(pid) in output and "No tasks" not in output
+    except Exception:
+        return False
+
+
+def _read_lock_pid():
+    """Legge il PID dal lock file. Ritorna None se assente o illeggibile."""
+    if not os.path.exists(SCHEDULER_LOCK_FILE):
+        return None
+    try:
+        with open(SCHEDULER_LOCK_FILE, "r", encoding="utf-8") as f:
+            content = f.read().strip()
+        return int(content) if content else None
+    except (ValueError, IOError):
+        return None
+
+
+def _write_lock_pid(pid):
+    """Scrive il PID nel lock file."""
+    try:
+        with open(SCHEDULER_LOCK_FILE, "w", encoding="utf-8") as f:
+            f.write(str(pid))
+        return True
+    except Exception as e:
+        logger.error(f"Errore scrittura lock file: {e}")
+        return False
+
+
+def acquire_scheduler_lock():
+    """
+    Tenta di acquisire il lock dello scheduler.
+    Ritorna True se il lock è stato acquisito, False se un altro scheduler è attivo.
+    """
+    my_pid = os.getpid()
+    existing_pid = _read_lock_pid()
+
+    if existing_pid is not None:
+        if _is_pid_alive(existing_pid):
+            logger.warning(
+                f"⚠️ Un altro scheduler è già in esecuzione (PID {existing_pid}). "
+                f"Questo processo (PID {my_pid}) esce."
+            )
+            return False
+        else:
+            logger.info(
+                f"🔓 Lock stale trovato (PID {existing_pid} non più attivo). "
+                f"Lo sostituisco con il mio PID ({my_pid})."
+            )
+
+    if not _write_lock_pid(my_pid):
+        return False
+
+    logger.info(f"🔒 Lock scheduler acquisito (PID {my_pid})")
+    return True
+
 
 # -----------------------------------------------------------------------------
 # UTILITY
 # -----------------------------------------------------------------------------
 
 def _is_in_night_window(now=None):
-    """Ritorna True se now è tra le 23:00 e le 05:59."""
     if now is None:
         now = datetime.now()
     return now.hour >= 23 or now.hour < 6
@@ -178,14 +257,9 @@ def job_sacbo_night_scan():
 
 
 def job_radar_night_scan():
-    """
-    Esegue una scansione radar SOLO se siamo in fascia notturna.
-    Doppio controllo: lo scheduler non lo chiama fuori orario, e anche se
-    lo chiamasse, questa funzione esce subito.
-    """
+    """Esegue scansione radar SOLO in fascia notturna (23:00-05:59)."""
     now = datetime.now()
     if not _is_in_night_window(now):
-        # Silenzioso: nessun log, nessuna chiamata OpenSky
         return
     run_night_scan(check_night_window=True)
 
@@ -253,7 +327,7 @@ def setup_scheduler():
     global _scheduler_started
     with _scheduler_lock:
         if _scheduler_started:
-            logger.warning("⚠️ Scheduler già avviato, ignoro richiesta duplicata.")
+            logger.warning("⚠️ Scheduler già avviato in questo processo, ignoro richiesta duplicata.")
             return
         _scheduler_started = True
 
@@ -274,8 +348,6 @@ def setup_scheduler():
             logger.info(f"🌙 Scansione SACBO notturna alle {t}")
 
     interval = config.get("night_scan_interval_minutes", 2)
-    # Il job viene registrato ogni N minuti, ma la funzione esce subito fuori
-    # dalla fascia notturna (23:00-05:59). Nessuna chiamata OpenSky di giorno.
     schedule.every(interval).minutes.do(job_radar_night_scan)
     logger.info(f"📡 Scansione RADAR ogni {interval} minuti, SOLO 23:00-05:59")
 
@@ -289,6 +361,11 @@ def setup_scheduler():
 
 
 def run_scheduler_loop():
+    # 1. Acquisisci il lock (impedisce doppio avvio)
+    if not acquire_scheduler_lock():
+        logger.warning("🛑 Scheduler non avviato: un'altra istanza è già in esecuzione.")
+        sys.exit(0)
+
     setup_scheduler()
     now = datetime.now()
     if _is_in_night_window(now):

@@ -12,6 +12,7 @@ env/
 bgy_config/config_mail.json
 bgy_config/config_opensky.json
 bgy_config/config_github.json
+bgy_config/config_database.json
 
 # Output generati
 bgy_data/bgy_output/
@@ -34,3 +35,7 @@ desktop.ini
 
 # Backup
 *.zip
+
+
+
+bgy_config/config_database.json

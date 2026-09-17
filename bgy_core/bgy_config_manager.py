@@ -1,7 +1,7 @@
 """
 bgy_core/bgy_config_manager.py - Gestione centralizzata delle configurazioni JSON.
 Versione 2.5.0
-- aggiunto reload_mail() per ricaricare solo config_mail.json
+- aggiunto supporto per config_database.json
 """
 import os
 import json
@@ -11,7 +11,7 @@ import tempfile
 from bgy_core.bgy_logger import get_logger
 from bgy_core.bgy_paths import (
     CONFIG_DATA, CONFIG_MAIL, CONFIG_OPENSKY, CONFIG_GITHUB,
-    CONFIG_ASSAEROPORTI,
+    CONFIG_ASSAEROPORTI, CONFIG_ALERT_MESSAGES, CONFIG_DATABASE,
     RULES_AIRLINES, RULES_COUNTRIES, RULES_AIRCRAFT_MODELS, RULES_NOISE_IMPACT,
 )
 
@@ -65,6 +65,10 @@ class ConfigManager:
         self.configs['github'] = self._load_json(CONFIG_GITHUB, self._default_github())
         self.configs['assaeroporti'] = self._load_json(
             CONFIG_ASSAEROPORTI, self._default_assaeroporti())
+        self.configs['alert_messages'] = self._load_json(
+            CONFIG_ALERT_MESSAGES, self._default_alert_messages())
+        self.configs['database'] = self._load_json(
+            CONFIG_DATABASE, self._default_database())
         self.configs['airlines'] = self._load_json(RULES_AIRLINES, {})
         self.configs['countries'] = self._load_json(RULES_COUNTRIES, {})
         self.configs['aircraft_models'] = self._load_json(RULES_AIRCRAFT_MODELS, {})
@@ -75,7 +79,6 @@ class ConfigManager:
         logger.info("Configurazioni ricaricate")
 
     def reload_mail(self):
-        """Ricarica solo config_mail.json (utile dopo salvataggio dalla GUI)."""
         with self._lock:
             self.configs['mail'] = self._load_json(CONFIG_MAIL, self._default_mail())
         logger.info("Configurazione mail ricaricata")
@@ -213,6 +216,21 @@ class ConfigManager:
             "cache_days": 7, "http_timeout": 30, "years": {},
         }
 
+    def _default_alert_messages(self):
+        return {}
+
+    def _default_database(self):
+        return {
+            "enabled": False,
+            "host": "localhost",
+            "port": 5432,
+            "dbname": "bgy_monitoring",
+            "user": "bgy_user",
+            "password": "",
+            "connect_timeout": 10,
+            "application_name": "BGY Monitoring Suite",
+        }
+
     def get_data_config(self):
         return self.configs.get('data', self._default_data())
 
@@ -253,6 +271,19 @@ class ConfigManager:
 
     def get_export_config(self):
         return self._section("export")
+
+    def get_alert_messages(self):
+        return self.configs.get('alert_messages', {})
+
+    def get_database_config(self):
+        return self.configs.get('database', self._default_database())
+
+    def save_database_config(self, data):
+        with self._lock:
+            if self._save_json(CONFIG_DATABASE, data):
+                self.configs['database'] = data
+                return True
+            return False
 
     def get_mail_config(self):
         return self.configs.get('mail', self._default_mail())

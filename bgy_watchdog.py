@@ -1,9 +1,8 @@
 """
 bgy_watchdog.py - Watchdog per il controllo anomalie BGY Monitoring Suite.
-Versione 2.5.0
-- Soglie e intervalli da config_data.json (sezione "watchdog")
-- Check OpenSky: conta solo i 429 degli ultimi 15 min (non tutto il log)
-- Naming radar: radar_YYYY-MM-DD.csv (con fallback vecchio)
+Versione 2.5.2
+- Doppio check prima di riavviare lo scheduler (evita falsi positivi)
+- Messaggi di alert letti da bgy_config/config_alert_messages.json
 """
 import os
 import sys
@@ -26,9 +25,34 @@ logger = get_logger("Watchdog")
 STATE_FILE = os.path.join(LOGS_DIR, "watchdog_state.json")
 SCHEDULER_SCRIPT = os.path.join(PROJECT_ROOT, "bgy_scheduler.py")
 
+# Ritardo tra primo e secondo check scheduler
+SCHEDULER_DOUBLE_CHECK_DELAY_SEC = 3
+
 
 def _cfg():
     return config_manager.get_watchdog_config()
+
+
+def _msg(key, **kwargs):
+    messages = config_manager.get_alert_messages()
+    entry = messages.get(key)
+    if not entry:
+        return None, None
+    subject = entry.get("subject", "")
+    body = entry.get("body", "")
+    try:
+        body = body.format(**kwargs) if kwargs else body
+    except Exception as e:
+        logger.warning(f"Errore formattazione messaggio '{key}': {e}")
+    return subject, body
+
+
+def _send_alert(key, **kwargs):
+    subject, body = _msg(key, **kwargs)
+    if not subject:
+        subject = f"BGY - {key}"
+        body = kwargs.get("fallback_body", "")
+    return send_alert(key, subject, body)
 
 
 # =============================================================================
@@ -84,8 +108,7 @@ def check_sacbo():
         ]
         if not scan_files:
             msg = "Nessuna scansione SACBO trovata in RAW"
-            send_alert("sacbo_missing", "⚠️ BGY - Nessuna scansione SACBO",
-                       msg + "\nVerifica che lo scanner diurno stia girando.")
+            _send_alert("sacbo_missing")
             return False, msg
         latest = max(scan_files, key=os.path.getmtime)
         latest_dt = datetime.fromtimestamp(os.path.getmtime(latest))
@@ -93,8 +116,10 @@ def check_sacbo():
         if age_hours > max_age:
             msg = (f"Ultima scansione SACBO: {os.path.basename(latest)} "
                    f"({age_hours:.1f}h fa)")
-            send_alert("sacbo_stale", "⚠️ BGY - Scansione SACBO vecchia",
-                       msg + f"\nSoglia: {max_age}h.")
+            _send_alert("sacbo_stale",
+                        ultimo_file=os.path.basename(latest),
+                        eta_ore=f"{age_hours:.1f}",
+                        soglia_ore=max_age)
             return False, msg
         msg = (f"Ultima scansione: {os.path.basename(latest)} "
                f"({age_hours:.1f}h fa)")
@@ -127,19 +152,22 @@ def check_radar():
                     break
         if not radar_file:
             msg = f"File radar mancante per la sessione {session}"
-            send_alert("radar_missing", "⚠️ BGY - File radar notturno mancante",
-                       msg + "\nVerifica che lo scanner notturno stia girando.")
+            _send_alert("radar_missing",
+                        sessione=session,
+                        file_atteso=new_name or old_name)
             return False, msg
         mtime = datetime.fromtimestamp(os.path.getmtime(radar_file))
         elapsed_min = (now - mtime).total_seconds() / 60
         if elapsed_min <= radar_stale:
             return True, f"Radar aggiornato {int(elapsed_min)} min fa"
         if _scanner_night_is_active(now, log_window):
+            _send_alert("radar_stale_scanner_ok")
             return True, (f"Radar fermo da {int(elapsed_min)} min "
                           f"ma scanner attivo (nessun aereo nell'area)")
         msg = (f"Radar fermo da {int(elapsed_min)} min e scanner non attivo")
-        send_alert("radar_stale", "⚠️ BGY - Radar notturno fermo",
-                   msg + "\nVerifica OpenSky o il loop dello scheduler.")
+        _send_alert("radar_stale",
+                    minuti_fermo=int(elapsed_min),
+                    ultimo_aggiornamento=mtime.strftime("%Y-%m-%d %H:%M"))
         return False, msg
     except Exception as e:
         return False, f"Errore check radar: {e}"
@@ -168,18 +196,16 @@ def _scanner_night_is_active(now, window_sec=300, min_hits=2):
 
 
 # =============================================================================
-# CHECK 3 - OPENSKY (solo errori recenti)
+# CHECK 3 - OPENSKY
 # =============================================================================
 
 def check_opensky():
-    """
-    Conta gli errori 429 (rate limit) NEGLI ULTIMI N MINUTI (default 15).
-    Ignora errori vecchi accumulati nel log.
-    """
     cfg = _cfg()
     threshold = cfg.get("opensky_error_threshold", 5)
     log_lines = cfg.get("opensky_log_lines", 500)
     window_min = cfg.get("opensky_error_window_min", 15)
+    data_cfg = config_manager.get_data_config()
+    radar_interval = data_cfg.get("night_scan_interval_minutes", 2)
 
     try:
         log_file = os.path.join(
@@ -194,7 +220,6 @@ def check_opensky():
         now = datetime.now()
         cutoff = now - timedelta(minutes=window_min)
         errors_429 = 0
-        parsed_ok = 0
 
         for line in lines:
             if "429" not in line:
@@ -202,7 +227,6 @@ def check_opensky():
             try:
                 ts_str = line.split(" - ")[0].strip()
                 ts = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S,%f")
-                parsed_ok += 1
             except (ValueError, IndexError):
                 continue
             if ts >= cutoff:
@@ -211,11 +235,12 @@ def check_opensky():
         if errors_429 >= threshold:
             msg = (f"Rilevati {errors_429} errori 429 negli ultimi "
                    f"{window_min} min")
-            send_alert("opensky_429", "⚠️ BGY - Rate limit OpenSky",
-                       msg + f"\nSoglia: {threshold}. "
-                             "Verifica le credenziali o riduci la frequenza.")
+            _send_alert("opensky_429",
+                        finestra_min=window_min,
+                        errori=errors_429,
+                        soglia=threshold,
+                        intervallo=radar_interval)
             return False, msg
-
         return True, (f"Errori 429 recenti ({window_min}min): {errors_429} "
                       f"(sotto soglia)")
     except Exception as e:
@@ -223,40 +248,59 @@ def check_opensky():
 
 
 # =============================================================================
-# CHECK 4 - SCHEDULER
+# CHECK 4 - SCHEDULER (con doppio check)
 # =============================================================================
 
 def check_scheduler():
     cfg = _cfg()
     log_stale = cfg.get("scheduler_log_stale_min", 15)
     try:
+        # Primo check
         running = _is_scheduler_process_running()
+
+        # Doppio check: se il primo dice "non attivo", verifica di nuovo
         if not running:
-            logger.warning("Scheduler non attivo, tentativo di riavvio...")
+            logger.info(
+                f"Scheduler non attivo al primo check, "
+                f"verifica tra {SCHEDULER_DOUBLE_CHECK_DELAY_SEC}s..."
+            )
+            time.sleep(SCHEDULER_DOUBLE_CHECK_DELAY_SEC)
+            running = _is_scheduler_process_running()
+            if running:
+                logger.info("Scheduler rilevato al secondo check, nessun riavvio.")
+                return True, "Scheduler attivo (rilevato al secondo check)"
+
+        if not running:
+            logger.warning("Scheduler non attivo (doppio check), tentativo di riavvio...")
             restarted = _restart_scheduler()
             if restarted:
                 msg = "Scheduler non attivo: riavviato"
-                send_alert("scheduler_restart", "⚠️ BGY - Scheduler riavviato",
-                           msg + "\nIl processo scheduler non era attivo.")
+                _send_alert("scheduler_restart",
+                            ora_riavvio=datetime.now().strftime("%Y-%m-%d %H:%M"))
                 return False, msg
             msg = "Scheduler non attivo e riavvio fallito"
-            send_alert("scheduler_dead", "❌ BGY - Scheduler morto",
-                       msg + "\nRiavvio automatico fallito. Intervento manuale richiesto.")
+            _send_alert("scheduler_dead",
+                        ora=datetime.now().strftime("%Y-%m-%d %H:%M"))
             return False, msg
 
         if is_night_time():
             stale_min = _scheduler_log_age_min()
             if stale_min is not None and stale_min > log_stale:
-                logger.warning(f"Scheduler attivo ma log fermo da {int(stale_min)} min, riavvio...")
+                logger.warning(
+                    f"Scheduler attivo ma log fermo da {int(stale_min)} min, riavvio..."
+                )
                 restarted = _restart_scheduler(force=True)
                 if restarted:
                     msg = (f"Scheduler bloccato (log fermo da {int(stale_min)} min): riavviato")
-                    send_alert("scheduler_blocked", "⚠️ BGY - Scheduler bloccato", msg)
+                    _send_alert("scheduler_blocked",
+                                minuti_fermi=int(stale_min),
+                                soglia=log_stale)
                     return False, msg
                 msg = (f"Scheduler bloccato (log fermo da {int(stale_min)} min) "
                        f"e riavvio fallito")
-                send_alert("scheduler_blocked_fail",
-                           "❌ BGY - Scheduler bloccato, riavvio fallito", msg)
+                _send_alert("scheduler_blocked_fail",
+                            minuti_fermi=int(stale_min),
+                            soglia=log_stale)
                 return False, msg
 
         return True, "Scheduler attivo"
