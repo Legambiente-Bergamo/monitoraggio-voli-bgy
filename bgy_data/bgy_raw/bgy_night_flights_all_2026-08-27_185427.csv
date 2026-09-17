@@ -1,4 +1,0 @@
-﻿timestamp,sessione_notturna,callsign,icao24,modello_aereo,pista,fase_volo,direzione,quota_ft,rotta_deg,distanza_km,a_terra,paese
-2026-08-27 18:54:27,2026-08-27,RYR98ML,4cafd2,N/D,RWY 28,Atterraggio,Est -> Ovest,205,284.41,1.96,False,Ireland
-2026-08-27 18:54:27,2026-08-27,RYR64SP,4cadc4,N/D,N/D,Atterraggio,Rotta 317.2°,220,317.25,2.05,False,Ireland
-2026-08-27 18:54:27,2026-08-27,IORYO,30037b,N/D,RWY 28,Atterraggio,Est -> Ovest,304,298.81,2.14,False,Italy

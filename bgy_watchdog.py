@@ -2,6 +2,7 @@
 bgy_watchdog.py - Watchdog per il controllo anomalie BGY Monitoring Suite.
 Versione 2.5.0
 - Soglie e intervalli da config_data.json (sezione "watchdog")
+- Check OpenSky: conta solo i 429 degli ultimi 15 min (non tutto il log)
 - Naming radar: radar_YYYY-MM-DD.csv (con fallback vecchio)
 """
 import os
@@ -167,29 +168,56 @@ def _scanner_night_is_active(now, window_sec=300, min_hits=2):
 
 
 # =============================================================================
-# CHECK 3 - OPENSKY
+# CHECK 3 - OPENSKY (solo errori recenti)
 # =============================================================================
 
 def check_opensky():
+    """
+    Conta gli errori 429 (rate limit) NEGLI ULTIMI N MINUTI (default 15).
+    Ignora errori vecchi accumulati nel log.
+    """
     cfg = _cfg()
     threshold = cfg.get("opensky_error_threshold", 5)
     log_lines = cfg.get("opensky_log_lines", 500)
+    window_min = cfg.get("opensky_error_window_min", 15)
+
     try:
         log_file = os.path.join(
             LOGS_DIR, f"bgy_app_{datetime.now().strftime('%Y-%m-%d')}.log"
         )
         if not os.path.exists(log_file):
             return True, "Nessun log di oggi (nessun errore)"
+
         with open(log_file, "r", encoding="utf-8", errors="ignore") as f:
             lines = f.readlines()[-log_lines:]
-        errors_429 = sum(1 for line in lines if "429" in line)
+
+        now = datetime.now()
+        cutoff = now - timedelta(minutes=window_min)
+        errors_429 = 0
+        parsed_ok = 0
+
+        for line in lines:
+            if "429" not in line:
+                continue
+            try:
+                ts_str = line.split(" - ")[0].strip()
+                ts = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S,%f")
+                parsed_ok += 1
+            except (ValueError, IndexError):
+                continue
+            if ts >= cutoff:
+                errors_429 += 1
+
         if errors_429 >= threshold:
-            msg = f"Rilevati {errors_429} errori 429 nel log recente"
+            msg = (f"Rilevati {errors_429} errori 429 negli ultimi "
+                   f"{window_min} min")
             send_alert("opensky_429", "⚠️ BGY - Rate limit OpenSky",
                        msg + f"\nSoglia: {threshold}. "
                              "Verifica le credenziali o riduci la frequenza.")
             return False, msg
-        return True, f"Errori 429 recenti: {errors_429} (sotto soglia)"
+
+        return True, (f"Errori 429 recenti ({window_min}min): {errors_429} "
+                      f"(sotto soglia)")
     except Exception as e:
         return False, f"Errore check OpenSky: {e}"
 

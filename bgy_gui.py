@@ -1,6 +1,8 @@
 """
 BGY Monitoring Suite - Interfaccia Grafica di Controllo
-v2.5.0 - night_scan_schedules da config
+v2.5.0
+- kill orphan più selettivo (B7)
+- callback on_mail_config_saved (B5): ricarica config e riavvia subprocess
 """
 import sys
 import subprocess
@@ -59,18 +61,34 @@ from bgy_gui import (
 
 logger = get_logger("GUI")
 
+# Pattern di processo che identifichiamo come "nostri".
+# Usiamo pattern specifici per evitare di toccare altri script Python.
+OWN_PROCESS_PATTERNS = [
+    "bgy_gui.py",
+    "bgy_scheduler.py",
+    "bgy_watchdog.py",
+]
+
 
 def kill_orphan_instances():
+    """
+    Termina le altre istanze della nostra suite (GUI, scheduler, watchdog).
+    Usa pattern specifici per non toccare altri processi Python.
+    """
     if sys.platform != "win32":
         return 0
     current_pid = os.getpid()
     killed = []
+
     try:
+        # Costruiamo un filtro PowerShell che cerca i pattern specifici
+        patterns_ps = " -or ".join(
+            f"$_.CommandLine -like '*{p}*'" for p in OWN_PROCESS_PATTERNS
+        )
         ps_command = (
-            "Get-WmiObject Win32_Process -Filter \"Name='python.exe' OR Name='pythonw.exe'\" | "
-            "Where-Object { ($_.CommandLine -like '*bgy_gui*' "
-            "  -or $_.CommandLine -like '*bgy_scheduler*' "
-            "  -or $_.CommandLine -like '*bgy_watchdog*') } | "
+            "Get-WmiObject Win32_Process -Filter "
+            "\"Name='python.exe' OR Name='pythonw.exe'\" | "
+            f"Where-Object {{ {patterns_ps} }} | "
             "ForEach-Object { Write-Output ($_.ProcessId.ToString() + '|' + $_.CommandLine) }"
         )
         result = sp.run(
@@ -87,6 +105,9 @@ def kill_orphan_instances():
             pid = int(pid_str)
             if pid == current_pid:
                 continue
+            # Doppia verifica: la cmdline deve contenere almeno uno dei pattern
+            if not any(p in cmdline for p in OWN_PROCESS_PATTERNS):
+                continue
             try:
                 sp.run(["taskkill", "/F", "/T", "/PID", str(pid)],
                        capture_output=True, timeout=5)
@@ -94,8 +115,10 @@ def kill_orphan_instances():
                     kind = "GUI"
                 elif "bgy_scheduler" in cmdline:
                     kind = "Scheduler"
-                else:
+                elif "bgy_watchdog" in cmdline:
                     kind = "Watchdog"
+                else:
+                    kind = "?"
                 killed.append((pid, kind))
             except Exception:
                 pass
@@ -140,7 +163,6 @@ class BgyAppGUI:
         self.scan_schedules = self.config_data.get(
             "scan_schedules", ["00:00", "06:00", "12:00", "18:00"])
         self.daily_report_time = self.config_data.get("daily_report_time", "06:30")
-        # FIX blocco 7: night_scan_schedules da config
         self.night_scan_schedules = self.config_data.get(
             "sacbo_night_scans", ["23:00", "02:00", "05:00"])
 
@@ -175,6 +197,10 @@ class BgyAppGUI:
         self.update_clock()
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
+    # ------------------------------------------------------------------
+    # SCHEDULER
+    # ------------------------------------------------------------------
+
     def _is_scheduler_alive(self):
         if self.scheduler_process is None:
             return False
@@ -193,8 +219,7 @@ class BgyAppGUI:
                 scheduler_path = os.path.join(os.path.dirname(__file__), "bgy_scheduler.py")
                 self.scheduler_process = sp.Popen(
                     [sys.executable, scheduler_path],
-                    stdout=sp.DEVNULL,
-                    stderr=sp.DEVNULL,
+                    stdout=sp.DEVNULL, stderr=sp.DEVNULL,
                     creationflags=sp.CREATE_NO_WINDOW if sys.platform == "win32" else 0
                 )
                 self.scheduler_running = True
@@ -231,6 +256,10 @@ class BgyAppGUI:
         self.dashboard.update_scheduler_status("💤 Scheduler fermato", "#95a5a6")
         self.log_message("✅ Scheduler arrestato")
 
+    # ------------------------------------------------------------------
+    # WATCHDOG
+    # ------------------------------------------------------------------
+
     def _is_watchdog_alive(self):
         if self.watchdog_process is None:
             return False
@@ -247,8 +276,7 @@ class BgyAppGUI:
                 wd_path = os.path.join(os.path.dirname(__file__), "bgy_watchdog.py")
                 self.watchdog_process = sp.Popen(
                     [sys.executable, wd_path],
-                    stdout=sp.DEVNULL,
-                    stderr=sp.DEVNULL,
+                    stdout=sp.DEVNULL, stderr=sp.DEVNULL,
                     creationflags=sp.CREATE_NO_WINDOW if sys.platform == "win32" else 0
                 )
                 self.watchdog_running = True
@@ -279,6 +307,41 @@ class BgyAppGUI:
         self.watchdog_running = False
         self.watchdog_process = None
         self.log_message("✅ Watchdog arrestato")
+
+    # ------------------------------------------------------------------
+    # CALLBACK: configurazione mail salvata (B5)
+    # ------------------------------------------------------------------
+
+    def on_mail_config_saved(self):
+        """
+        Chiamata dal tab Configura Mail dopo un salvataggio.
+        Ricarica la config nel processo GUI e riavvia i subprocess in modo
+        che anch'essi rileggano il file da disco.
+        """
+        try:
+            config_manager.reload()
+            self.log_message("🔄 Configurazione mail ricaricata")
+        except Exception as e:
+            self.log_message(f"⚠️ Errore reload config: {e}")
+
+        # Riavvia i subprocess per fargli rileggere config_mail.json
+        try:
+            self.ferma_watchdog()
+        except Exception:
+            pass
+        try:
+            self.ferma_scheduler()
+        except Exception:
+            pass
+
+        # Ripartiamo dopo un breve ritardo
+        self.root.after(1000, self.avvia_scheduler)
+        self.root.after(1500, self.avvia_watchdog)
+        self.log_message("🔄 Scheduler e watchdog verranno riavviati con la nuova configurazione")
+
+    # ------------------------------------------------------------------
+    # TIMER / CLOCK
+    # ------------------------------------------------------------------
 
     def get_next_scan_time(self, schedules):
         now = datetime.now()
@@ -338,6 +401,10 @@ class BgyAppGUI:
             pass
         self.root.after(10000, self.update_clock)
 
+    # ------------------------------------------------------------------
+    # OPERAZIONI ASYNC
+    # ------------------------------------------------------------------
+
     def run_async(self, func, operation_name="Operazione"):
         if self.is_running:
             messagebox.showwarning("Attenzione", f"⚠️ Operazione in corso: {self.current_operation}")
@@ -384,6 +451,10 @@ class BgyAppGUI:
     def log_message(self, message):
         self.dashboard.log_message(message)
         logger.info(message)
+
+    # ------------------------------------------------------------------
+    # EMAIL
+    # ------------------------------------------------------------------
 
     def check_mail_config(self):
         cfg = config_manager.get_mail_config()

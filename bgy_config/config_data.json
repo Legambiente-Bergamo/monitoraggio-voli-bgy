@@ -1,3 +1,4 @@
+
 {
     "scan_schedules": ["00:00", "06:00", "12:00", "18:00"],
     "night_scan_interval_minutes": 2,
@@ -82,6 +83,7 @@
         "scheduler_log_window_sec": 300,
         "sacbo_max_age_hours": 7,
         "opensky_error_threshold": 5,
+        "opensky_error_window_min": 15,
         "opensky_log_lines": 500
     },
     "export": {

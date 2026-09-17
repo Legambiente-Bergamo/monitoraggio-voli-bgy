@@ -31,3 +31,6 @@ desktop.ini
 .vscode/
 .idea/
 *.swp
+
+# Backup
+*.zip

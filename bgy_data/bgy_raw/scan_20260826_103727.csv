@@ -1,3 +1,0 @@
-numero_volo,tipo,orario_schedulato,orario_effettivo,aeroporto_destinazione,stato_destinazione,status,scan_timestamp
-FR5507,Decollo/Atterraggio,16:00,16:00,London,Estero/Italia,Decollato,2026-08-26 10:37:27
-FR5507,Decollo/Atterraggio,16:10,16:00,Destination,Estero/Italia,Decollato,2026-08-26 10:37:27

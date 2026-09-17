@@ -1,15 +1,14 @@
 """
 bgy_core/bgy_update_rules.py - Arricchimento dati da regole JSON.
-Versione 2.5.0
-- Cache locale popolata da config_manager (fonte unica di verità).
-- Auto-add (compagnie, destinazioni) via config_manager, non più scritture dirette.
+Versione 2.5.1
+- get_airline() controlla anche i cargo prima di auto-aggiungere
+- evita duplicati tra _cargo_airlines e blocco passeggeri
 """
 from bgy_core.bgy_logger import get_logger
 from bgy_core.bgy_config_manager import config_manager
 
 logger = get_logger("UpdateRules")
 
-# Cache locale (per lookup veloci)
 _AIRLINES = {}
 _COUNTRIES = {}
 _AIRCRAFT_MODELS = {}
@@ -22,25 +21,18 @@ _NOISE_CURVES = {}
 _DEFAULT_NOISE_CURVES = {}
 
 
-# -----------------------------------------------------------------------------
-# LOAD / RELOAD
-# -----------------------------------------------------------------------------
-
 def load_rules():
     """Ricarica le regole da config_manager e ripopola le cache locali."""
     global _AIRLINES, _COUNTRIES, _AIRCRAFT_MODELS, _CARGO_AIRLINES
     global _SEATS, _LOAD_FACTORS, _DEFAULT_LOAD_FACTOR
     global _NOISE_STATIONS, _NOISE_CURVES, _DEFAULT_NOISE_CURVES
 
-    # --- Airlines ---
     raw_airlines = dict(config_manager.get_airlines())
     _CARGO_AIRLINES = raw_airlines.pop("_cargo_airlines", {})
     _AIRLINES = raw_airlines
 
-    # --- Countries ---
     _COUNTRIES = dict(config_manager.get_countries())
 
-    # --- Aircraft models (con _seats e _load_factors) ---
     raw_models = dict(config_manager.get_aircraft_models())
     _SEATS = raw_models.pop("_seats", {})
     lf_data = raw_models.pop("_load_factors", {})
@@ -48,7 +40,6 @@ def load_rules():
     _LOAD_FACTORS = lf_data
     _AIRCRAFT_MODELS = raw_models
 
-    # --- Noise (con _stations e _curves) ---
     raw_noise = dict(config_manager.get_noise_impact())
     _NOISE_STATIONS = raw_noise.pop("_stations", {})
     curves_data = raw_noise.pop("_curves", {})
@@ -67,7 +58,6 @@ def load_rules():
 
 
 def reload_rules():
-    """Forza il reload da disco tramite config_manager."""
     config_manager.reload_rules()
     load_rules()
     logger.info("🔄 Regole ricaricate")
@@ -83,10 +73,18 @@ def get_airline(callsign):
     cs = callsign.strip().upper()
     prefix3 = cs[:3]
     prefix2 = cs[:2]
+
+    # 1. Match nei passeggeri
     for prefix in (prefix3, prefix2):
         if prefix in _AIRLINES:
             return _AIRLINES[prefix]
-    # Auto-add (una volta sola per prefisso)
+
+    # 2. Match nei cargo (NON aggiungere ai passeggeri)
+    for prefix in (prefix3, prefix2):
+        if prefix in _CARGO_AIRLINES:
+            return _CARGO_AIRLINES[prefix]
+
+    # 3. Auto-add (solo se non è cargo e non è già presente)
     new_name = f"Compagnia {prefix3}"
     if config_manager.add_airline(prefix3, new_name):
         _AIRLINES[prefix3] = new_name
@@ -100,9 +98,11 @@ def get_airline(callsign):
 def is_cargo_flight(callsign):
     if not callsign or not isinstance(callsign, str):
         return False, None
-    prefix = callsign.strip().upper()[:3]
-    if prefix in _CARGO_AIRLINES:
-        return True, _CARGO_AIRLINES[prefix]
+    prefix3 = callsign.strip().upper()[:3]
+    prefix2 = callsign.strip().upper()[:2]
+    for prefix in (prefix3, prefix2):
+        if prefix in _CARGO_AIRLINES:
+            return True, _CARGO_AIRLINES[prefix]
     return False, None
 
 
@@ -126,7 +126,6 @@ def get_country(destination):
         if len(key) >= 4:
             if key in dest_upper or dest_upper in key.upper():
                 return val
-    # Auto-add
     if config_manager.add_destination(dest_upper, "DA CLASSIFICARE"):
         _COUNTRIES[dest_upper] = "DA CLASSIFICARE"
     return "DA CLASSIFICARE"
@@ -164,7 +163,6 @@ def get_load_factor(airline_code):
 
 
 def estimate_passengers(model, airline_code):
-    """Ritorna (stima_pax, posti_totali, load_factor)."""
     seats = get_seats(model)
     lf = get_load_factor(airline_code)
     pax = int(seats * lf)
@@ -176,17 +174,11 @@ def estimate_passengers(model, airline_code):
 # -----------------------------------------------------------------------------
 
 def get_noise_stations():
-    """Ritorna dict {nome: {lat, lon}} delle centraline."""
     return _NOISE_STATIONS
 
 
 def get_noise_curves(model):
-    """Ritorna le curve NPD per il modello (o default)."""
     return _NOISE_CURVES.get(model, _DEFAULT_NOISE_CURVES)
 
-
-# -----------------------------------------------------------------------------
-# INIT
-# -----------------------------------------------------------------------------
 
 load_rules()

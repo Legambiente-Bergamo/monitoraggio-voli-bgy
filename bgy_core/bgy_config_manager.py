@@ -1,10 +1,7 @@
 """
 bgy_core/bgy_config_manager.py - Gestione centralizzata delle configurazioni JSON.
 Versione 2.5.0
-
-- Unico punto di accesso a tutti i file di configurazione.
-- Scritture atomiche (file temp + os.replace) con lock per la concorrenza.
-- Getter per ogni sezione di config_data.json, con default applicati.
+- aggiunto reload_mail() per ricaricare solo config_mail.json
 """
 import os
 import json
@@ -76,6 +73,12 @@ class ConfigManager:
     def reload(self):
         self.load_all()
         logger.info("Configurazioni ricaricate")
+
+    def reload_mail(self):
+        """Ricarica solo config_mail.json (utile dopo salvataggio dalla GUI)."""
+        with self._lock:
+            self.configs['mail'] = self._load_json(CONFIG_MAIL, self._default_mail())
+        logger.info("Configurazione mail ricaricata")
 
     def reload_rules(self):
         with self._lock:
@@ -151,6 +154,7 @@ class ConfigManager:
                 "scheduler_log_window_sec": 300,
                 "sacbo_max_age_hours": 7,
                 "opensky_error_threshold": 5,
+                "opensky_error_window_min": 15,
                 "opensky_log_lines": 500,
             },
             "export": {
