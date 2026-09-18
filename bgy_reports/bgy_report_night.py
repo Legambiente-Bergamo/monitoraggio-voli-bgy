@@ -1,8 +1,9 @@
 """
 bgy_reports/bgy_report_night.py - Report notturno integrato (SACBO + OpenSky).
-Versione 2.5.0
-- distanze per fase da config_data.json (report_night)
-- soglia matching da config
+Versione 2.5.4
+- Fix matching: normalizzazione callsign SACBO con conversione IATA -> ICAO
+- Fix extract_callsign_prefix per prefissi misti (W4, W6, 3F, V7)
+- Distanze per fase da config
 """
 import os
 import math
@@ -20,6 +21,7 @@ from bgy_core.bgy_dates import (
     night_session_date,
 )
 from bgy_core.bgy_config_manager import config_manager
+from bgy_core.bgy_update_rules import iata_to_icao, extract_callsign_prefix
 from bgy_utils.bgy_utils_meteo import save_night_weather
 
 logger = get_logger("ReportNight")
@@ -74,6 +76,91 @@ def _find_scan_file_for_date(date_norm):
         if os.path.exists(p):
             return p
     return None
+
+
+# -----------------------------------------------------------------------------
+# NORMALIZZAZIONE CALLSIGN (fix matching)
+# -----------------------------------------------------------------------------
+
+def _normalize_callsign_sacbo(callsign):
+    """
+    Converte un callsign del tabellone SACBO in prefisso ICAO + numero volo.
+
+    Esempi:
+      'FR 3480'   -> ('RYR', '3480')
+      'W4 3136'   -> ('WMT', '3136')
+      'AZ 7048'   -> ('ITY', '7048')
+      'RYR3480'   -> ('RYR', '3480')
+      'XXX123'    -> ('', '')
+    """
+    if not callsign or not isinstance(callsign, str):
+        return "", ""
+
+    cs = callsign.strip().upper().replace(" ", "")
+
+    # 1. Prova prefisso IATA (2 caratteri, alfabetico o misto)
+    prefix2 = extract_callsign_prefix(cs, 2)
+    if prefix2:
+        icao_from_iata = iata_to_icao(prefix2)
+        if icao_from_iata:
+            numero = cs[len(prefix2):]
+            return icao_from_iata, numero
+
+    # 2. Prova prefisso ICAO (3 lettere)
+    prefix3 = extract_callsign_prefix(cs, 3)
+    if prefix3:
+        numero = cs[len(prefix3):]
+        return prefix3, numero
+
+    return "", ""
+
+
+def _normalize_callsign_radar(callsign):
+    """
+    Estrae prefisso ICAO (3 lettere) e numero volo da un callsign radar.
+    """
+    if not callsign or not isinstance(callsign, str):
+        return "", ""
+
+    cs = callsign.strip().upper().replace(" ", "")
+    prefix = extract_callsign_prefix(cs, 3)
+    if not prefix:
+        return "", ""
+    numero = cs[len(prefix):]
+    return prefix, numero
+
+
+def _callsigns_match(sacbo_callsign, radar_callsign):
+    """
+    Verifica se un callsign SACBO e uno radar corrispondono.
+    Ritorna uno score: 0 (no match), 50 (match parziale), 100 (match esatto).
+    """
+    # Caso 1: confronto diretto
+    sacbo_norm = sacbo_callsign.strip().upper().replace(" ", "")
+    radar_norm = radar_callsign.strip().upper().replace(" ", "")
+    if sacbo_norm == radar_norm:
+        return 100
+
+    # Caso 2: conversione IATA -> ICAO sul callsign SACBO
+    sacbo_prefix, sacbo_numero = _normalize_callsign_sacbo(sacbo_callsign)
+    radar_prefix, radar_numero = _normalize_callsign_radar(radar_callsign)
+
+    if not sacbo_prefix or not radar_prefix:
+        return 0
+
+    if sacbo_prefix != radar_prefix:
+        return 0
+
+    if not sacbo_numero or not radar_numero:
+        return 0
+
+    if sacbo_numero == radar_numero:
+        return 100
+
+    if sacbo_numero.endswith(radar_numero) or radar_numero.endswith(sacbo_numero):
+        return 50
+
+    return 0
 
 
 # -----------------------------------------------------------------------------
@@ -156,9 +243,6 @@ def load_radar_data(date_str):
 # -----------------------------------------------------------------------------
 
 def match_flights(scheduled_df, radar_df):
-    cfg = _cfg()
-    match_th = cfg.get("match_threshold_score", 50)
-
     if scheduled_df.empty and radar_df.empty:
         return pd.DataFrame()
 
@@ -189,32 +273,27 @@ def match_flights(scheduled_df, radar_df):
         scheduled_df['distanza_km'] = 0
         scheduled_df['paese'] = 'N/D'
         scheduled_df['tipo_movimento'] = 'Passeggeri (non rilevato)'
+        scheduled_df['matched_score'] = 0
         return _enrich_final(scheduled_df)
 
     matched = []
     used_radar = set()
+
     for idx_s, sched in scheduled_df.iterrows():
-        sched_cs = sched['callsign_norm']
+        sched_callsign = sched['callsign_volo']
         best_match = None
         best_score = -1
+
         for idx_r, radar in radar_df.iterrows():
             if idx_r in used_radar:
                 continue
-            r_cs = radar['callsign_norm']
-            score = 0
-            if sched_cs == r_cs:
-                score += 100
-            elif len(sched_cs) >= 3 and len(r_cs) >= 3:
-                if sched_cs[:2] == r_cs[:2]:
-                    sn = sched_cs[2:].replace(' ', '').replace('-', '')
-                    rn = r_cs[2:].replace(' ', '').replace('-', '')
-                    if sn == rn or rn.endswith(sn) or sn.endswith(rn):
-                        score += 50
+            radar_callsign = radar['callsign']
+            score = _callsigns_match(sched_callsign, radar_callsign)
             if score > best_score:
                 best_score = score
                 best_match = (idx_r, radar)
 
-        if best_match and best_score >= match_th:
+        if best_match and best_score >= 50:
             idx_r, radar = best_match
             used_radar.add(idx_r)
             combined = {**sched.to_dict(), **radar.to_dict()}
@@ -240,7 +319,9 @@ def match_flights(scheduled_df, radar_df):
     unmatched = radar_df[~radar_df.index.isin(used_radar)].copy()
     unmatched = _classify_unscheduled(unmatched)
     for _, row in unmatched.iterrows():
-        matched.append(row.to_dict())
+        row_dict = row.to_dict()
+        row_dict['matched_score'] = 0
+        matched.append(row_dict)
 
     return _enrich_final(pd.DataFrame(matched))
 

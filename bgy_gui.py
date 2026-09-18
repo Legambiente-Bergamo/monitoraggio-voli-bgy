@@ -1,8 +1,7 @@
 """
 BGY Monitoring Suite - Interfaccia Grafica di Controllo
 v2.5.0
-- kill orphan più selettivo (B7)
-- callback on_mail_config_saved (B5): ricarica config e riavvia subprocess
+- Aggiunto tab "📈 Grafici" (anteprima con dati dal DB)
 """
 import sys
 import subprocess
@@ -16,7 +15,7 @@ def ensure_dependencies():
         ("playwright", "playwright"), ("matplotlib", "matplotlib"),
         ("seaborn", "seaborn"), ("lxml", "lxml"),
         ("openpyxl", "openpyxl"), ("python-docx", "docx"),
-        ("reportlab", "reportlab"),
+        ("reportlab", "reportlab"), ("psycopg", "psycopg"),
     ]
     missing = []
     for pkg, imp in required:
@@ -58,11 +57,11 @@ from bgy_gui import (
     DashboardTab, MailConfigTab, ScanConfigTab, ReportExportTab,
     WatchdogConfigTab,
 )
+from bgy_gui.bgy_gui_charts import ChartsTab
 
 logger = get_logger("GUI")
 
-# Pattern di processo che identifichiamo come "nostri".
-# Usiamo pattern specifici per evitare di toccare altri script Python.
+# Pattern di processo che identifichiamo come "nostri"
 OWN_PROCESS_PATTERNS = [
     "bgy_gui.py",
     "bgy_scheduler.py",
@@ -71,17 +70,13 @@ OWN_PROCESS_PATTERNS = [
 
 
 def kill_orphan_instances():
-    """
-    Termina le altre istanze della nostra suite (GUI, scheduler, watchdog).
-    Usa pattern specifici per non toccare altri processi Python.
-    """
+    """Termina le altre istanze della nostra suite."""
     if sys.platform != "win32":
         return 0
     current_pid = os.getpid()
     killed = []
 
     try:
-        # Costruiamo un filtro PowerShell che cerca i pattern specifici
         patterns_ps = " -or ".join(
             f"$_.CommandLine -like '*{p}*'" for p in OWN_PROCESS_PATTERNS
         )
@@ -105,7 +100,6 @@ def kill_orphan_instances():
             pid = int(pid_str)
             if pid == current_pid:
                 continue
-            # Doppia verifica: la cmdline deve contenere almeno uno dei pattern
             if not any(p in cmdline for p in OWN_PROCESS_PATTERNS):
                 continue
             try:
@@ -180,6 +174,9 @@ class BgyAppGUI:
 
         self.report_export = ReportExportTab(self.notebook, self)
         self.notebook.add(self.report_export.tab, text="📄 Report Personalizzati")
+
+        self.charts_tab = ChartsTab(self.notebook, self)
+        self.notebook.add(self.charts_tab.tab, text="📈 Grafici")
 
         self.watchdog_tab = WatchdogConfigTab(self.notebook, self)
         self.notebook.add(self.watchdog_tab.tab, text="🐕 Watchdog")
@@ -309,22 +306,17 @@ class BgyAppGUI:
         self.log_message("✅ Watchdog arrestato")
 
     # ------------------------------------------------------------------
-    # CALLBACK: configurazione mail salvata (B5)
+    # CALLBACK
     # ------------------------------------------------------------------
 
     def on_mail_config_saved(self):
-        """
-        Chiamata dal tab Configura Mail dopo un salvataggio.
-        Ricarica la config nel processo GUI e riavvia i subprocess in modo
-        che anch'essi rileggano il file da disco.
-        """
+        """Chiamata dal tab Configura Mail dopo un salvataggio."""
         try:
             config_manager.reload()
             self.log_message("🔄 Configurazione mail ricaricata")
         except Exception as e:
             self.log_message(f"⚠️ Errore reload config: {e}")
 
-        # Riavvia i subprocess per fargli rileggere config_mail.json
         try:
             self.ferma_watchdog()
         except Exception:
@@ -334,7 +326,6 @@ class BgyAppGUI:
         except Exception:
             pass
 
-        # Ripartiamo dopo un breve ritardo
         self.root.after(1000, self.avvia_scheduler)
         self.root.after(1500, self.avvia_watchdog)
         self.log_message("🔄 Scheduler e watchdog verranno riavviati con la nuova configurazione")
@@ -476,7 +467,8 @@ class BgyAppGUI:
         ok, msg = self.check_mail_config()
         if not ok:
             self.log_message(f"❌ Config email incompleta: {msg}")
-            messagebox.showerror("Errore Configurazione", f"Configurazione email incompleta:\n\n{msg}")
+            messagebox.showerror("Errore Configurazione",
+                                  f"Configurazione email incompleta:\n\n{msg}")
             return False
 
         try:

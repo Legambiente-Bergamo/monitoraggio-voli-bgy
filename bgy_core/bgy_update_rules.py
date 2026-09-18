@@ -1,8 +1,10 @@
 """
 bgy_core/bgy_update_rules.py - Arricchimento dati da regole JSON.
-Versione 2.5.1
+Versione 2.5.3
+- Aggiunta mappa IATA -> ICAO caricata da config_rules_airlines.json
+- Nuova funzione iata_to_icao() per il matching notturno
+- extract_callsign_prefix gestisce prefissi misti lettera+numero (W4, W6, 3F, V7)
 - get_airline() controlla anche i cargo prima di auto-aggiungere
-- evita duplicati tra _cargo_airlines e blocco passeggeri
 """
 from bgy_core.bgy_logger import get_logger
 from bgy_core.bgy_config_manager import config_manager
@@ -13,6 +15,7 @@ _AIRLINES = {}
 _COUNTRIES = {}
 _AIRCRAFT_MODELS = {}
 _CARGO_AIRLINES = {}
+_IATA_TO_ICAO = {}
 _SEATS = {}
 _LOAD_FACTORS = {}
 _DEFAULT_LOAD_FACTOR = 0.85
@@ -23,11 +26,14 @@ _DEFAULT_NOISE_CURVES = {}
 
 def load_rules():
     """Ricarica le regole da config_manager e ripopola le cache locali."""
-    global _AIRLINES, _COUNTRIES, _AIRCRAFT_MODELS, _CARGO_AIRLINES
+    global _AIRLINES, _COUNTRIES, _AIRCRAFT_MODELS, _CARGO_AIRLINES, _IATA_TO_ICAO
     global _SEATS, _LOAD_FACTORS, _DEFAULT_LOAD_FACTOR
     global _NOISE_STATIONS, _NOISE_CURVES, _DEFAULT_NOISE_CURVES
 
     raw_airlines = dict(config_manager.get_airlines())
+
+    # Estrai le sezioni speciali
+    _IATA_TO_ICAO = raw_airlines.pop("_iata_to_icao", {})
     _CARGO_AIRLINES = raw_airlines.pop("_cargo_airlines", {})
     _AIRLINES = raw_airlines
 
@@ -50,6 +56,8 @@ def load_rules():
         f"📚 Regole caricate: {len(_AIRLINES)} compagnie, "
         f"{len(_COUNTRIES)} destinazioni, "
         f"{len(_AIRCRAFT_MODELS)} modelli, "
+        f"{len(_IATA_TO_ICAO)} conversioni IATA->ICAO, "
+        f"{len(_CARGO_AIRLINES)} cargo, "
         f"{len(_SEATS)} posti, "
         f"{len(_LOAD_FACTORS)} load factors, "
         f"{len(_NOISE_STATIONS)} centraline, "
@@ -61,6 +69,46 @@ def reload_rules():
     config_manager.reload_rules()
     load_rules()
     logger.info("🔄 Regole ricaricate")
+
+
+# -----------------------------------------------------------------------------
+# IATA / ICAO
+# -----------------------------------------------------------------------------
+
+def iata_to_icao(iata_code):
+    """
+    Converte un codice IATA (2 caratteri) in codice ICAO (3 lettere).
+    Ritorna None se la conversione non è disponibile.
+    """
+    if not iata_code or not isinstance(iata_code, str):
+        return None
+    code = iata_code.strip().upper()
+    return _IATA_TO_ICAO.get(code)
+
+
+def extract_callsign_prefix(callsign, length=2):
+    """
+    Estrae il prefisso di un callsign, gestendo sia prefissi alfabetici puri
+    (es. 'FR', 'RYR') che prefissi misti lettera+numero (es. 'W4', 'W6', '3F', 'V7').
+
+    Esempi:
+      extract_callsign_prefix('FR 3480', 2)   -> 'FR'
+      extract_callsign_prefix('W4 3136', 2)   -> 'W4'
+      extract_callsign_prefix('RYR115D', 3)   -> 'RYR'
+      extract_callsign_prefix('UNKNOWN', 3)   -> 'UNK'
+    """
+    if not callsign or not isinstance(callsign, str):
+        return ""
+    s = callsign.strip().upper().replace(" ", "")
+    if len(s) < length:
+        return ""
+    prefix = s[:length]
+    # Verifica: almeno una lettera e solo caratteri alfanumerici
+    if not any(c.isalpha() for c in prefix):
+        return ""
+    if not all(c.isalnum() for c in prefix):
+        return ""
+    return prefix
 
 
 # -----------------------------------------------------------------------------
@@ -84,7 +132,7 @@ def get_airline(callsign):
         if prefix in _CARGO_AIRLINES:
             return _CARGO_AIRLINES[prefix]
 
-    # 3. Auto-add (solo se non è cargo e non è già presente)
+    # 3. Auto-add
     new_name = f"Compagnia {prefix3}"
     if config_manager.add_airline(prefix3, new_name):
         _AIRLINES[prefix3] = new_name
@@ -146,7 +194,7 @@ def get_aircraft_model(callsign):
 
 
 # -----------------------------------------------------------------------------
-# PAX (posti + load factor)
+# PAX
 # -----------------------------------------------------------------------------
 
 def get_seats(model):
@@ -180,5 +228,9 @@ def get_noise_stations():
 def get_noise_curves(model):
     return _NOISE_CURVES.get(model, _DEFAULT_NOISE_CURVES)
 
+
+# -----------------------------------------------------------------------------
+# INIT
+# -----------------------------------------------------------------------------
 
 load_rules()
