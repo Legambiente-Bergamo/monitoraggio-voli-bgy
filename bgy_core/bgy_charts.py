@@ -1,6 +1,6 @@
 """
 bgy_core/bgy_charts.py - Generazione figure matplotlib per la GUI.
-Versione 2.5.1
+Versione 2.5.2
 
 Ogni funzione ritorna una matplotlib.figure.Figure (non salva su file).
 Accettano filtri opzionali:
@@ -38,7 +38,7 @@ COLOR_YELLOW = '#f39c12'
 
 
 # =============================================================================
-# APPLICAZIONE FILTRI
+# FILTRI
 # =============================================================================
 
 def apply_filters(df, report_type, movement_filter='all', flight_type_filter='all'):
@@ -51,7 +51,7 @@ def apply_filters(df, report_type, movement_filter='all', flight_type_filter='al
 
     # Filtro movimento
     if movement_filter == 'all':
-        pass  # nessun filtro aggiuntivo
+        pass
     elif movement_filter == 'departures':
         if report_type == 'daily':
             df = df[df['tipo_movimento'].astype(str).str.startswith('D')]
@@ -244,6 +244,14 @@ def chart_airlines(df, year_month="", report_type='daily',
             logger.warning("chart_airlines: dati insufficienti")
             return None
 
+        # Escludi compagnie non identificate
+        df = df[~df['compagnia_aerea'].astype(str).isin(['N/D', 'Compagnia UNK'])]
+        # Escludi "Compagnia XXX" generici
+        df = df[~df['compagnia_aerea'].astype(str).str.startswith('Compagnia ')]
+
+        if df.empty:
+            return None
+
         airline_counts = df['compagnia_aerea'].value_counts().head(10)
         if airline_counts.empty:
             return None
@@ -285,7 +293,11 @@ def chart_airlines(df, year_month="", report_type='daily',
 
 def chart_destinations(df, year_month="", report_type='daily',
                        movement_filter='all', flight_type_filter='all'):
-    """Bar chart orizzontale: top 10 destinazioni."""
+    """
+    Bar chart orizzontale: top 10 destinazioni.
+    Per il notturno mostra SOLO le destinazioni reali (voli schedulati),
+    escludendo sorvoli e non identificati (che hanno solo il paese dal radar).
+    """
     try:
         df = apply_default_night_filter(df, report_type)
         df = apply_filters(df, report_type, movement_filter, flight_type_filter)
@@ -293,6 +305,16 @@ def chart_destinations(df, year_month="", report_type='daily',
         if df is None or df.empty:
             return None
 
+        # Per il notturno: prendi solo i voli schedulati (destinazione reale)
+        if report_type == 'nightly':
+            if 'is_scheduled' not in df.columns:
+                return None
+            df = df[df['is_scheduled'] == True]
+
+        if df.empty:
+            return None
+
+        # Scegli la colonna destinazione
         if report_type == 'daily' and 'destinazione_origine' in df.columns:
             col = 'destinazione_origine'
         elif 'destinazione_finale' in df.columns:
@@ -301,6 +323,13 @@ def chart_destinations(df, year_month="", report_type='daily',
             col = 'destinazione_origine'
         else:
             logger.warning("chart_destinations: nessuna colonna destinazione")
+            return None
+
+        # Escludi valori vuoti o N/D
+        df = df[df[col].notna()]
+        df = df[~df[col].astype(str).isin(['', 'N/D', 'nan'])]
+
+        if df.empty:
             return None
 
         dest_counts = df[col].value_counts().head(10)

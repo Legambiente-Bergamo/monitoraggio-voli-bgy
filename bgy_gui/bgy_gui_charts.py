@@ -1,10 +1,12 @@
 """
 bgy_gui/bgy_gui_charts.py - Tab GUI per anteprima grafici.
-Versione 2.5.1
+Versione 2.5.2
 
 Legge i dati dal DB, applica filtri movimento/tipo volo, genera i grafici
 con bgy_core.bgy_charts e li mostra in un canvas Tkinter.
 Permette l'export PNG.
+
+Fix v2.5.2: la toolbar non viene più duplicata ad ogni generazione.
 """
 import os
 import tkinter as tk
@@ -34,6 +36,7 @@ class ChartsTab:
         self.app = app
         self.tab = ttk.Frame(parent)
         self.current_figure = None
+        self.current_toolbar = None
         self.canvas = None
         self._create_widgets()
         self._check_db()
@@ -177,7 +180,7 @@ class ChartsTab:
         self._on_report_type_change()
 
     # -------------------------------------------------------------------------
-    # CAMBIO TIPO PERIODO
+    # CAMBIO TIPO PERIODO / REPORT
     # -------------------------------------------------------------------------
 
     def _on_period_type_change(self):
@@ -196,7 +199,6 @@ class ChartsTab:
             self.period_entry.insert(0, format_gui_year(date.today()))
 
     def _on_report_type_change(self):
-        """Abilita/disabilita il filtro tipo volo in base al report."""
         is_nightly = self.report_type.get() == "nightly"
         state = "normal" if is_nightly else "disabled"
         self.rb_ft_all.config(state=state)
@@ -292,14 +294,14 @@ class ChartsTab:
                 f"SELECT data_riferimento, callsign, tipo_movimento, "
                 f"destinazione_finale, orario_schedulato, timestamp, "
                 f"pista, fase_volo, stima_passeggeri, stima_rumore_db, "
-                f"compagnia_aerea "
+                f"compagnia_aerea, is_scheduled "
                 f"FROM {table} "
                 f"WHERE data_riferimento BETWEEN %s AND %s"
             )
             cols = ["data_riferimento", "callsign", "tipo_movimento",
                     "destinazione_finale", "orario_schedulato", "timestamp",
                     "pista", "fase_volo", "stima_passeggeri",
-                    "stima_rumore_db", "compagnia_aerea"]
+                    "stima_rumore_db", "compagnia_aerea", "is_scheduled"]
 
         ok, rows = bgy_db.execute_query(sql, (date_start, date_end))
         if not ok:
@@ -312,7 +314,7 @@ class ChartsTab:
         df = pd.DataFrame(rows, columns=cols)
         df['data_report'] = pd.to_datetime(df['data_riferimento'])
 
-        # Arricchimento
+        # Arricchimento per daily (compagnia calcolata dal callsign)
         if report_type == "daily":
             df['compagnia_aerea'] = df['callsign_volo'].apply(
                 lambda x: get_airline(x) if x else "N/D")
@@ -375,21 +377,34 @@ class ChartsTab:
         self.canvas.draw()
         self.canvas.get_tk_widget().pack(fill="both", expand=True)
 
-        toolbar = NavigationToolbar2Tk(self.canvas, self.canvas_container)
-        toolbar.update()
-        toolbar.pack(side="bottom", fill="x")
+        self.current_toolbar = NavigationToolbar2Tk(self.canvas, self.canvas_container)
+        self.current_toolbar.update()
+        self.current_toolbar.pack(side="bottom", fill="x")
 
         self.current_figure = fig
         self._set_status(f"✅ Grafico generato ({len(df)} righe, periodo {label})",
                           "#27ae60")
 
     def _clear_canvas(self):
+        """Rimuove canvas, toolbar e figura precedenti."""
+        if self.current_toolbar is not None:
+            try:
+                self.current_toolbar.destroy()
+            except Exception:
+                pass
+            self.current_toolbar = None
         if self.canvas is not None:
-            self.canvas.get_tk_widget().destroy()
+            try:
+                self.canvas.get_tk_widget().destroy()
+            except Exception:
+                pass
             self.canvas = None
         if self.current_figure is not None:
-            import matplotlib.pyplot as plt
-            plt.close(self.current_figure)
+            try:
+                import matplotlib.pyplot as plt
+                plt.close(self.current_figure)
+            except Exception:
+                pass
             self.current_figure = None
         try:
             self.placeholder.pack_forget()

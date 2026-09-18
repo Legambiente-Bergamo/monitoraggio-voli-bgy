@@ -1,9 +1,9 @@
 """
 bgy_scheduler.py - Pianificatore ed Orchestratore automatico.
-Versione 2.5.4
+Versione 2.5.5
 - Lock file per impedire doppio avvio
 - Radar notturno: SOLO tra le 23:00 e le 05:59
-- Sync DB dopo il sync GitHub (6 check totali)
+- Sync DB: recupero automatico degli ultimi 8 giorni (oggi + 7 indietro)
 """
 import os
 import sys
@@ -297,26 +297,28 @@ def job_daily():
         sync_msg = f"Eccezione: {e}"
         logger.error(f"❌ Errore sync GitHub: {e}")
 
-    # --- Sync DB (nuovo) ---
+    # --- Sync DB: recupero ultimi 8 giorni ---
     logger.info("-" * 60)
-    logger.info("🗄️  Avvio sincronizzazione Database...")
+    logger.info("🗄️  Avvio sincronizzazione Database (ultimi 8 giorni)...")
     db_ok = False
     db_msg = "Non tentato"
     try:
         from bgy_core.bgy_db_migrate import sync_date
-        result = sync_date(yesterday)
-        if result is not None:
-            total_imported = sum(r["imported"] for r in result.values())
-            total_errors = sum(r["errors"] for r in result.values())
-            if total_errors == 0:
-                db_ok = True
-                db_msg = f"Sync DB OK ({total_imported} file importati)"
-            else:
-                db_msg = f"Sync DB con {total_errors} errori"
-            logger.info(f"{'✅' if db_ok else '⚠️'} {db_msg}")
+        oggi = datetime.now().date()
+        total_imported_all = 0
+        total_errors_all = 0
+        for i in range(0, 8):  # oggi + 7 giorni indietro
+            d = (oggi - timedelta(days=i)).strftime("%Y-%m-%d")
+            result = sync_date(d)
+            if result is not None:
+                total_imported_all += sum(r["imported"] for r in result.values())
+                total_errors_all += sum(r["errors"] for r in result.values())
+        if total_errors_all == 0:
+            db_ok = True
+            db_msg = f"Sync DB OK ({total_imported_all} file importati negli ultimi 8 giorni)"
         else:
-            db_msg = "Sync DB non eseguito (DB non disponibile)"
-            logger.warning(f"⚠️ {db_msg}")
+            db_msg = f"Sync DB con {total_errors_all} errori"
+        logger.info(f"{'✅' if db_ok else '⚠️'} {db_msg}")
     except Exception as e:
         db_msg = f"Eccezione: {e}"
         logger.error(f"❌ Errore sync DB: {e}")
@@ -386,7 +388,6 @@ def setup_scheduler():
 
 
 def run_scheduler_loop():
-    # 1. Acquisisci il lock (impedisce doppio avvio)
     if not acquire_scheduler_lock():
         logger.warning("🛑 Scheduler non avviato: un'altra istanza è già in esecuzione.")
         sys.exit(0)
