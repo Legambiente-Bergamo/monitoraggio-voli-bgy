@@ -1,20 +1,27 @@
 """
-bgy_core/bgy_db_migrate.py - Migrazione dei CSV storici nel database PostgreSQL.
-Versione 2.5.3
+bgy_core/bgy_db_migrate.py - Import e sincronizzazione CSV -> PostgreSQL.
+Versione 2.5.4
 
-- Supporta DUE formati di scan_*.csv:
-  - NUOVO: callsign_volo, tipo_movimento, destinazione_origine, ...
-  - VECCHIO: flight_num, type, sched_time, actual_time, origin_dest, status
-- Per il formato vecchio, estrae destinazione/orari/stato da origin_dest
-- Idempotenza: file già importati completamente vengono saltati
-- Recupero: record in 'scans' senza voli vengono rimossi e reimportati
+Modulo unificato che contiene:
+  - Funzioni di import per ogni tipo di file (scan, radar, meteo, nightly)
+  - Parser per il formato vecchio di scan_*.csv (gennaio-luglio 2026)
+  - Logica di migrazione storica completa (tutte le directory)
+  - Logica di sincronizzazione incrementale (per data, per ultimi N giorni)
+
+Uso:
+    py -3.12 -m bgy_core.bgy_db_migrate                      # sync di ieri
+    py -3.12 -m bgy_core.bgy_db_migrate --date 2026-09-17    # sync di una data
+    py -3.12 -m bgy_core.bgy_db_migrate --last-n-days 7      # ultimi 7 giorni
+    py -3.12 -m bgy_core.bgy_db_migrate --all                # migrazione completa
+    py -3.12 -m bgy_core.bgy_db_migrate --all --reset        # reset + reimport
+    py -3.12 -m bgy_core.bgy_db_migrate --all --dry-run      # analisi senza import
 """
 import os
 import sys
 import re
 import csv
 import argparse
-from datetime import datetime
+from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -46,6 +53,7 @@ OLD_MOVEMENT_MAP = {
     "arrivo": "A",
 }
 
+# Contatori globali (per la modalità --all)
 stats = {
     "scans_imported": 0,
     "scans_skipped": 0,
@@ -58,6 +66,11 @@ stats = {
     "nightly_imported": 0,
     "errors": 0,
 }
+
+
+def _reset_stats():
+    for k in stats:
+        stats[k] = 0
 
 
 # =============================================================================
@@ -198,9 +211,7 @@ def read_csv_rows(path):
 # =============================================================================
 
 def detect_scan_format(rows):
-    """
-    Ritorna 'new', 'old', o None.
-    """
+    """Ritorna 'new', 'old', o None."""
     if not rows:
         return None
     keys = set(rows[0].keys())
@@ -215,9 +226,6 @@ def detect_scan_format(rows):
 # PARSER FORMATO VECCHIO
 # =============================================================================
 
-# Pattern per estrarre da origin_dest:
-#   <DESTINAZIONE><HH:MM> | <HH:MM><STATO>
-# La destinazione può contenere spazi, trattini, slash, punti
 OLD_ORIGIN_DEST_PATTERN = re.compile(
     r'^(?P<destinazione>.+?)'
     r'(?P<ora_sched>\d{1,2}:\d{2})\s*\|\s*'
@@ -227,10 +235,7 @@ OLD_ORIGIN_DEST_PATTERN = re.compile(
 
 
 def parse_old_origin_dest(value):
-    """
-    Estrae (destinazione, orario_sched, orario_eff, stato) da origin_dest.
-    Ritorna tupla di stringhe. Se il parsing fallisce, ritorna (value, None, None, None).
-    """
+    """Estrae (destinazione, orario_sched, orario_eff, stato) da origin_dest."""
     if value is None:
         return "", None, None, None
     s = str(value).strip()
@@ -238,25 +243,18 @@ def parse_old_origin_dest(value):
         return "", None, None, None
     m = OLD_ORIGIN_DEST_PATTERN.match(s)
     if not m:
-        # Fallback: trattiamo tutto come destinazione
         return s, None, None, None
     dest = m.group("destinazione").strip()
     ora_sched = m.group("ora_sched").strip()
     ora_eff = m.group("ora_eff").strip()
     stato = m.group("stato").strip()
-    # Se lo stato è ',nan' o 'nan' o vuoto, normalizziamo a stringa vuota
     if stato.lower() in ("nan", ",nan", ""):
         stato = ""
     return dest, ora_sched, ora_eff, stato
 
 
 def parse_old_scan_row(row):
-    """
-    Converte una riga del formato vecchio nel formato nuovo (dict).
-    Ritorna dict con le chiavi:
-      callsign_volo, tipo_movimento, destinazione_origine,
-      orario_schedulato, orario_effettivo, stato_volo
-    """
+    """Converte una riga del formato vecchio nel formato nuovo (dict)."""
     callsign = safe_str(row.get("flight_num"), "")
     tipo_old = safe_str(row.get("type"), "").lower()
     tipo_new = OLD_MOVEMENT_MAP.get(tipo_old, "")
@@ -264,15 +262,12 @@ def parse_old_scan_row(row):
     actual_time = safe_str(row.get("actual_time"), "")
     status = safe_str(row.get("status"), "")
 
-    # Destinazione da origin_dest
     dest, sched_from_dest, actual_from_dest, stato_from_dest = parse_old_origin_dest(
         row.get("origin_dest"))
 
-    # Preferenza: le colonne dedicate sched_time/actual_time sono più affidabili
     orario_schedulato = sched_time or sched_from_dest
     orario_effettivo = actual_time or actual_from_dest
 
-    # Stato: preferisci la colonna 'status' se valorizzata, altrimenti da origin_dest
     if status and status.lower() not in ("nan", ""):
         stato_volo = status
     else:
@@ -289,21 +284,17 @@ def parse_old_scan_row(row):
 
 
 # =============================================================================
-# IMPORT: SCANS + FLIGHTS_SACBO
+# FUNZIONI DI IMPORT (singolo file)
 # =============================================================================
 
 def import_scan_file(filepath):
-    """
-    Importa un file scan_*.csv (nuovo o vecchio formato).
-    Ritorna (True, n_flights) se importato, (False, None) se skip/errore.
-    """
+    """Importa un file scan_*.csv (nuovo o vecchio formato)."""
     filename = os.path.basename(filepath)
     date_str, time_str, tipo = parse_date_from_scan_filename(filename)
     if not date_str:
         logger.warning(f"File scan non riconosciuto: {filename}")
         return False, None
 
-    # Idempotenza
     ok, rows = bgy_db.execute_query(
         "SELECT s.id, "
         "  (SELECT COUNT(1) FROM flights_sacbo f WHERE f.scan_id = s.id) AS n_flights "
@@ -324,13 +315,11 @@ def import_scan_file(filepath):
                                   (scan_id_existing,))
             stats["scans_recovered"] += 1
 
-    # Leggi CSV
     csv_rows = read_csv_rows(filepath)
     if not csv_rows:
         logger.warning(f"File vuoto: {filename}")
         return False, None
 
-    # Rileva formato
     fmt = detect_scan_format(csv_rows)
     if fmt is None:
         logger.warning(f"⚠️ Formato non riconosciuto, salto: {filename}")
@@ -339,7 +328,6 @@ def import_scan_file(filepath):
     if fmt == "old":
         stats["scans_old_format"] += 1
 
-    # Determina scan_timestamp
     scan_ts = None
     for r in csv_rows:
         ts = safe_timestamp(r.get("scan_timestamp"))
@@ -349,7 +337,6 @@ def import_scan_file(filepath):
     if not scan_ts:
         scan_ts = f"{date_str} {time_str}:00"
 
-    # INSERT in scans
     ok, result = bgy_db.execute_query(
         """INSERT INTO scans (scan_timestamp, file_name, data_riferimento, tipo, righe_importate)
            VALUES (%s, %s, %s, %s, %s) RETURNING id""",
@@ -366,7 +353,6 @@ def import_scan_file(filepath):
         stats["errors"] += 1
         return False, None
 
-    # Prepara record per flights_sacbo
     flights_params = []
     for r in csv_rows:
         if fmt == "new":
@@ -376,7 +362,7 @@ def import_scan_file(filepath):
             sched = safe_time(r.get("orario_schedulato"))
             eff = safe_time(r.get("orario_effettivo"))
             stato = safe_str(r.get("stato_volo"), "")
-        else:  # old
+        else:
             parsed = parse_old_scan_row(r)
             callsign = safe_str(parsed["callsign_volo"], "N/D")
             tipo_mov = safe_str(parsed["tipo_movimento"], "")
@@ -386,18 +372,10 @@ def import_scan_file(filepath):
             stato = safe_str(parsed["stato_volo"], "")
 
         flights_params.append((
-            scan_id,
-            callsign,
-            tipo_mov,
-            dest,
-            sched,
-            eff,
-            stato,
-            scan_ts,
-            date_str,
+            scan_id, callsign, tipo_mov, dest, sched, eff, stato,
+            scan_ts, date_str,
         ))
 
-    # INSERT in flights_sacbo (batch)
     total_inserted = 0
     for i in range(0, len(flights_params), BATCH_SIZE):
         batch = flights_params[i:i+BATCH_SIZE]
@@ -420,10 +398,6 @@ def import_scan_file(filepath):
     stats["flights_imported"] += total_inserted
     return True, total_inserted
 
-
-# =============================================================================
-# IMPORT: RADAR
-# =============================================================================
 
 def import_radar_file(filepath):
     filename = os.path.basename(filepath)
@@ -489,10 +463,6 @@ def import_radar_file(filepath):
     return True, total
 
 
-# =============================================================================
-# IMPORT: METEO
-# =============================================================================
-
 def import_meteo_file(filepath):
     filename = os.path.basename(filepath)
     date_str = parse_meteo_filename(filename)
@@ -548,10 +518,6 @@ def import_meteo_file(filepath):
     stats["weather_imported"] += len(params)
     return True, len(params)
 
-
-# =============================================================================
-# IMPORT: NIGHTLY REPORTS
-# =============================================================================
 
 def import_nightly_file(filepath):
     filename = os.path.basename(filepath)
@@ -627,10 +593,147 @@ def import_nightly_file(filepath):
 
 
 # =============================================================================
-# ORCHESTRAZIONE
+# SINCRONIZZAZIONE INCREMENTALE (per data)
+# =============================================================================
+
+def _date_matches(filename, date_str):
+    """Verifica se il nome file contiene la data specificata."""
+    compact = date_str.replace("-", "")
+    return date_str in filename or compact in filename
+
+
+def list_files_for_date(date_str):
+    """Ritorna i path dei file CSV da sincronizzare per una data specifica."""
+    scan_files = []
+    radar_files = []
+
+    if os.path.isdir(RAW_DIR):
+        for f in sorted(os.listdir(RAW_DIR)):
+            full = os.path.join(RAW_DIR, f)
+            if not os.path.isfile(full):
+                continue
+            if not f.endswith(".csv"):
+                continue
+            if f.startswith("scan_") and _date_matches(f, date_str):
+                scan_files.append(full)
+            elif (f.startswith("radar_") or f.startswith("bgy_night_flights_")) \
+                    and _date_matches(f, date_str):
+                radar_files.append(full)
+
+    meteo_files = []
+    nightly_files = []
+
+    if os.path.isdir(OUTPUT_CSV_DIR):
+        for f in sorted(os.listdir(OUTPUT_CSV_DIR)):
+            full = os.path.join(OUTPUT_CSV_DIR, f)
+            if not os.path.isfile(full):
+                continue
+            if not f.endswith(".csv"):
+                continue
+            if f.startswith("meteo_") and _date_matches(f, date_str):
+                meteo_files.append(full)
+            elif f.startswith("report_nightly_") and _date_matches(f, date_str):
+                nightly_files.append(full)
+
+    return {
+        "scans": scan_files,
+        "radar": radar_files,
+        "meteo": meteo_files,
+        "nightly": nightly_files,
+    }
+
+
+def sync_date(date_str):
+    """Sincronizza tutti i CSV relativi alla data specificata."""
+    if not bgy_db.is_enabled():
+        logger.warning("⚠️ DB non abilitato in config_database.json, sync saltato")
+        return None
+
+    ok, msg = bgy_db.test_connection()
+    if not ok:
+        logger.error(f"❌ Connessione DB fallita: {msg}")
+        return None
+
+    logger.info("=" * 60)
+    logger.info(f"SYNC DB per la data: {date_str}")
+    logger.info("=" * 60)
+
+    files = list_files_for_date(date_str)
+    total_files = sum(len(v) for v in files.values())
+
+    if total_files == 0:
+        logger.info(f"Nessun file trovato per la data {date_str}")
+        return {
+            "scans": {"imported": 0, "skipped": 0, "errors": 0},
+            "radar": {"imported": 0, "skipped": 0, "errors": 0},
+            "meteo": {"imported": 0, "skipped": 0, "errors": 0},
+            "nightly": {"imported": 0, "skipped": 0, "errors": 0},
+        }
+
+    logger.info(f"File trovati per {date_str}:")
+    logger.info(f"  Scansioni SACBO: {len(files['scans'])}")
+    logger.info(f"  Radar:           {len(files['radar'])}")
+    logger.info(f"  Meteo:           {len(files['meteo'])}")
+    logger.info(f"  Report notturni: {len(files['nightly'])}")
+    logger.info(f"  TOTALE:          {total_files}")
+
+    result = {}
+
+    for categoria, files_list, import_fn in (
+        ("scans", files["scans"], import_scan_file),
+        ("radar", files["radar"], import_radar_file),
+        ("meteo", files["meteo"], import_meteo_file),
+        ("nightly", files["nightly"], import_nightly_file),
+    ):
+        imported = skipped = errors = 0
+        for fp in files_list:
+            try:
+                ok, n = import_fn(fp)
+                if ok:
+                    imported += 1
+                else:
+                    skipped += 1
+            except Exception as e:
+                logger.error(f"Errore su {os.path.basename(fp)}: {e}")
+                errors += 1
+        result[categoria] = {"imported": imported, "skipped": skipped, "errors": errors}
+
+    logger.info("-" * 60)
+    logger.info("Riepilogo sync:")
+    for categoria, s in result.items():
+        logger.info(f"  {categoria:10s}: importati {s['imported']}, "
+                    f"saltati {s['skipped']}, errori {s['errors']}")
+    logger.info("=" * 60)
+
+    return result
+
+
+def sync_yesterday():
+    """Sincronizza i file di ieri (default per il job giornaliero)."""
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    return sync_date(yesterday)
+
+
+def sync_last_n_days(n):
+    """Sincronizza i file degli ultimi n giorni (incluso oggi)."""
+    today = datetime.now().date()
+    results = {}
+    for i in range(n):
+        d = today - timedelta(days=i)
+        date_str = d.strftime("%Y-%m-%d")
+        logger.info(f"\n--- Sincronizzazione {date_str} ---")
+        r = sync_date(date_str)
+        if r:
+            results[date_str] = r
+    return results
+
+
+# =============================================================================
+# MIGRAZIONE STORICA COMPLETA (--all)
 # =============================================================================
 
 def reset_tables():
+    """Svuota le tabelle (TRUNCATE) per ricominciare da zero."""
     logger.warning("⚠️ RESET: svuoto tutte le tabelle...")
     tables = ["nightly_reports", "weather_hourly", "radar_detections",
               "flights_sacbo", "scans"]
@@ -646,6 +749,7 @@ def reset_tables():
 
 
 def migrate_all(reset=False, dry_run=False):
+    """Migrazione storica completa: scansiona tutte le directory e importa."""
     if not bgy_db.is_enabled():
         logger.error("❌ DB non abilitato in config_database.json")
         return False
@@ -673,7 +777,8 @@ def migrate_all(reset=False, dry_run=False):
                 continue
             if f.startswith("scan_") and f.endswith(".csv"):
                 scan_files.append(full)
-            elif (f.startswith("radar_") or f.startswith("bgy_night_flights_")) and f.endswith(".csv"):
+            elif (f.startswith("radar_") or f.startswith("bgy_night_flights_")) \
+                    and f.endswith(".csv"):
                 radar_files.append(full)
 
     if os.path.isdir(OUTPUT_CSV_DIR):
@@ -687,7 +792,7 @@ def migrate_all(reset=False, dry_run=False):
                 nightly_files.append(full)
 
     logger.info("=" * 60)
-    logger.info("MIGRAZIONE CSV → PostgreSQL")
+    logger.info("MIGRAZIONE COMPLETA CSV → PostgreSQL")
     logger.info("=" * 60)
     logger.info(f"File trovati:")
     logger.info(f"  Scansioni SACBO:      {len(scan_files)}")
@@ -760,15 +865,45 @@ def migrate_all(reset=False, dry_run=False):
     return True
 
 
+# =============================================================================
+# MAIN
+# =============================================================================
+
 def main():
-    parser = argparse.ArgumentParser(description="Migrazione CSV → PostgreSQL")
+    parser = argparse.ArgumentParser(
+        description="Import e sincronizzazione CSV -> PostgreSQL")
+    parser.add_argument("--all", action="store_true",
+                        help="Migrazione storica completa (tutte le directory)")
+    parser.add_argument("--date", type=str,
+                        help="Sync di una data specifica (YYYY-MM-DD)")
+    parser.add_argument("--last-n-days", type=int,
+                        help="Sync degli ultimi N giorni (incluso oggi)")
     parser.add_argument("--reset", action="store_true",
-                        help="Svuota le tabelle prima di importare")
+                        help="Svuota le tabelle prima (solo con --all)")
     parser.add_argument("--dry-run", action="store_true",
-                        help="Analizza i file senza importare")
+                        help="Analizza senza importare (solo con --all)")
     args = parser.parse_args()
 
-    success = migrate_all(reset=args.reset, dry_run=args.dry_run)
+    if not bgy_db.is_enabled():
+        logger.error("❌ DB non abilitato. Modifica config_database.json")
+        sys.exit(1)
+
+    success = True
+
+    if args.all:
+        success = migrate_all(reset=args.reset, dry_run=args.dry_run)
+    elif args.date:
+        result = sync_date(args.date)
+        success = result is not None
+    elif args.last_n_days:
+        result = sync_last_n_days(args.last_n_days)
+        success = result is not None
+    else:
+        # Default: sincronizza ieri
+        logger.info("Nessun argomento specificato, sincronizzo ieri")
+        result = sync_yesterday()
+        success = result is not None
+
     sys.exit(0 if success else 1)
 
 

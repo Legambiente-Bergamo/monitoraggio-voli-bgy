@@ -1,8 +1,9 @@
 """
 bgy_scheduler.py - Pianificatore ed Orchestratore automatico.
-Versione 2.5.2
+Versione 2.5.4
 - Lock file per impedire doppio avvio
 - Radar notturno: SOLO tra le 23:00 e le 05:59
+- Sync DB dopo il sync GitHub (6 check totali)
 """
 import os
 import sys
@@ -39,7 +40,6 @@ SCHEDULER_LOCK_FILE = os.path.join(LOGS_DIR, "scheduler.lock")
 def _is_pid_alive(pid):
     """Verifica se un PID è ancora attivo. Solo Windows."""
     if sys.platform != "win32":
-        # Su Linux/Mac: verifica con os.kill(pid, 0)
         try:
             os.kill(pid, 0)
             return True
@@ -50,7 +50,6 @@ def _is_pid_alive(pid):
             ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
             capture_output=True, text=True, timeout=5
         )
-        # tasklist ritorna "INFO: No tasks are running..." se il PID non esiste
         output = (result.stdout or "").strip()
         return str(pid) in output and "No tasks" not in output
     except Exception:
@@ -298,12 +297,38 @@ def job_daily():
         sync_msg = f"Eccezione: {e}"
         logger.error(f"❌ Errore sync GitHub: {e}")
 
+    # --- Sync DB (nuovo) ---
+    logger.info("-" * 60)
+    logger.info("🗄️  Avvio sincronizzazione Database...")
+    db_ok = False
+    db_msg = "Non tentato"
+    try:
+        from bgy_core.bgy_db_migrate import sync_date
+        result = sync_date(yesterday)
+        if result is not None:
+            total_imported = sum(r["imported"] for r in result.values())
+            total_errors = sum(r["errors"] for r in result.values())
+            if total_errors == 0:
+                db_ok = True
+                db_msg = f"Sync DB OK ({total_imported} file importati)"
+            else:
+                db_msg = f"Sync DB con {total_errors} errori"
+            logger.info(f"{'✅' if db_ok else '⚠️'} {db_msg}")
+        else:
+            db_msg = "Sync DB non eseguito (DB non disponibile)"
+            logger.warning(f"⚠️ {db_msg}")
+    except Exception as e:
+        db_msg = f"Eccezione: {e}"
+        logger.error(f"❌ Errore sync DB: {e}")
+
+    # Riepilogo check (6 check)
     checks = {
         'sacbo_acquisition': (sacbo_acq_ok, sacbo_acq_msg),
         'sacbo_processing': (daily_ok, daily_msg),
         'night_acquisition': (night_acq_ok, night_acq_msg),
         'night_enrichment': (nightly_ok, nightly_msg),
         'github_sync': (sync_ok, sync_msg),
+        'db_sync': (db_ok, db_msg),
     }
 
     overall_success = all(ok for ok, _ in checks.values())
@@ -353,7 +378,7 @@ def setup_scheduler():
 
     report_time = config.get("daily_report_time", "06:30")
     schedule.every().day.at(report_time).do(job_daily)
-    logger.info(f"📊 Report + sync GitHub + email alle {report_time}")
+    logger.info(f"📊 Report + sync GitHub + sync DB + email alle {report_time}")
 
     logger.info("=" * 50)
     logger.info("✅ Scheduler configurato e in esecuzione...")
