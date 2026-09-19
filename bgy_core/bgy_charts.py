@@ -1,6 +1,6 @@
 """
 bgy_core/bgy_charts.py - Generazione figure matplotlib per la GUI.
-Versione 2.5.2
+Versione 2.5.3
 
 Ogni funzione ritorna una matplotlib.figure.Figure (non salva su file).
 Accettano filtri opzionali:
@@ -8,6 +8,14 @@ Accettano filtri opzionali:
   - flight_type_filter: 'all' | 'pax' | 'cargo'
 
 I filtri agiscono sul DataFrame in ingresso (già arricchito dalla GUI).
+
+Fix v2.5.3:
+  - apply_default_night_filter non esclude più i voli "solo schedulato"
+    quando movement_filter='all'. Prima escludeva tutti i voli con
+    fase_volo NULL (cioè i 45 voli schedulati senza match radar),
+    causando grafici incompleti (es. Top 10 Compagnie mostrava solo 2 voci).
+  - chart_airlines non esclude più le compagnie "Compagnia XXX"/"Compagnia UNK":
+    sono voli reali e vanno mostrati. Si escludono solo valori vuoti/N/D.
 """
 import matplotlib
 matplotlib.use('Agg')
@@ -74,13 +82,23 @@ def apply_filters(df, report_type, movement_filter='all', flight_type_filter='al
     return df
 
 
-def apply_default_night_filter(df, report_type):
+def apply_default_night_filter(df, report_type, movement_filter='all'):
     """
-    Per il notturno, esclude sorvoli/transiti anche quando movement_filter='all'.
-    Tiene solo: Atterraggio, Decollo, Avvicinamento.
+    Per il notturno, esclude sorvoli/transiti SOLO se l'utente ha
+    esplicitamente chiesto decolli o atterraggi. Se l'utente vuole
+    'Totali' (movement_filter='all'), tiene TUTTI i voli, inclusi
+    quelli schedulati senza match radar (fase_volo NULL).
+
+    Fix v2.5.3: prima questa funzione escludeva i voli con fase_volo NULL
+    anche quando movement_filter='all', causando grafici incompleti.
     """
     if report_type != 'nightly' or df is None or df.empty:
         return df
+
+    # Se l'utente vuole "Totali", non filtrare per fase
+    if movement_filter == 'all':
+        return df
+
     if 'fase_volo' not in df.columns:
         return df
     return df[df['fase_volo'].astype(str).isin(
@@ -95,7 +113,7 @@ def chart_daily_flights(df, year_month="", report_type='daily',
                         movement_filter='all', flight_type_filter='all'):
     """Bar chart: numero di voli per giorno nel periodo."""
     try:
-        df = apply_default_night_filter(df, report_type)
+        df = apply_default_night_filter(df, report_type, movement_filter)
         df = apply_filters(df, report_type, movement_filter, flight_type_filter)
 
         if df is None or df.empty or 'data_report' not in df.columns:
@@ -150,7 +168,7 @@ def chart_daily_delays(df, year_month="", report_type='daily',
                        movement_filter='all', flight_type_filter='all'):
     """Ritardo medio giornaliero (daily) o distribuzione fasi (nightly)."""
     try:
-        df = apply_default_night_filter(df, report_type)
+        df = apply_default_night_filter(df, report_type, movement_filter)
         df = apply_filters(df, report_type, movement_filter, flight_type_filter)
 
         if df is None or df.empty:
@@ -189,7 +207,12 @@ def chart_daily_delays(df, year_month="", report_type='daily',
             # Notturno: distribuzione fasi di volo
             if 'fase_volo' not in df.columns:
                 return None
-            pivot = df.groupby(['data_report', 'fase_volo']).size().unstack(fill_value=0)
+
+            # Sostituisci NULL con 'Non rilevato' per la visualizzazione
+            df_viz = df.copy()
+            df_viz['fase_volo'] = df_viz['fase_volo'].fillna('Non rilevato')
+
+            pivot = df_viz.groupby(['data_report', 'fase_volo']).size().unstack(fill_value=0)
             if pivot.empty:
                 return None
 
@@ -237,17 +260,17 @@ def chart_airlines(df, year_month="", report_type='daily',
                    movement_filter='all', flight_type_filter='all'):
     """Bar chart orizzontale: top 10 compagnie aeree."""
     try:
-        df = apply_default_night_filter(df, report_type)
+        df = apply_default_night_filter(df, report_type, movement_filter)
         df = apply_filters(df, report_type, movement_filter, flight_type_filter)
 
         if df is None or df.empty or 'compagnia_aerea' not in df.columns:
             logger.warning("chart_airlines: dati insufficienti")
             return None
 
-        # Escludi compagnie non identificate
-        df = df[~df['compagnia_aerea'].astype(str).isin(['N/D', 'Compagnia UNK'])]
-        # Escludi "Compagnia XXX" generici
-        df = df[~df['compagnia_aerea'].astype(str).str.startswith('Compagnia ')]
+        # Fix v2.5.3: escludi SOLO i valori vuoti/N/D espliciti.
+        # Le "Compagnia XXX" e "Compagnia UNK" sono voli reali e vanno mostrati.
+        df = df[df['compagnia_aerea'].notna()]
+        df = df[~df['compagnia_aerea'].astype(str).isin(['', 'nan', 'None', 'N/D'])]
 
         if df.empty:
             return None
@@ -299,7 +322,7 @@ def chart_destinations(df, year_month="", report_type='daily',
     escludendo sorvoli e non identificati (che hanno solo il paese dal radar).
     """
     try:
-        df = apply_default_night_filter(df, report_type)
+        df = apply_default_night_filter(df, report_type, movement_filter)
         df = apply_filters(df, report_type, movement_filter, flight_type_filter)
 
         if df is None or df.empty:
@@ -327,7 +350,7 @@ def chart_destinations(df, year_month="", report_type='daily',
 
         # Escludi valori vuoti o N/D
         df = df[df[col].notna()]
-        df = df[~df[col].astype(str).isin(['', 'N/D', 'nan'])]
+        df = df[~df[col].astype(str).isin(['', 'N/D', 'nan', 'None'])]
 
         if df.empty:
             return None

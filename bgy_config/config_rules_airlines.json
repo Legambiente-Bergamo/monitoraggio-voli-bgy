@@ -51,7 +51,6 @@
         "E5": "RBG",
         "C3": "TDR"
     },
-
     "_cargo_airlines": {
         "GEC": "Lufthansa Cargo",
         "CLX": "Cargolux",
@@ -205,5 +204,18 @@
     "CSH": "Shanghai Airlines",
     "CFG": "Condor",
     "FJO": "Flexjet Operations Malta",
-    "IBR": "Ibertour Servicios Aereos"
+    "IBR": "Ibertour Servicios Aereos",
+    "ZZZ": "Zabaykalskii Airlines",
+    "NP ": "Compagnia NP ",
+    "RK ": "Compagnia RK ",
+    "NO ": "Compagnia NO ",
+    "V7 ": "Compagnia V7 ",
+    "BQ ": "Compagnia BQ ",
+    "AP ": "Compagnia AP ",
+    "E5 ": "Compagnia E5 ",
+    "A9 ": "Compagnia A9 ",
+    "BZ ": "Compagnia BZ ",
+    "MT ": "Compagnia MT ",
+    "3F ": "Compagnia 3F ",
+    "H7 ": "Compagnia H7 "
 }

@@ -1,13 +1,18 @@
 """
 bgy_core/bgy_update_rules.py - Arricchimento dati da regole JSON.
-Versione 2.5.3
-- Aggiunta mappa IATA -> ICAO caricata da config_rules_airlines.json
-- Nuova funzione iata_to_icao() per il matching notturno
-- extract_callsign_prefix gestisce prefissi misti lettera+numero (W4, W6, 3F, V7)
-- get_airline() controlla anche i cargo prima di auto-aggiungere
+Versione 2.6.0
+- Aggiunto supporto OpenFlights per lookup compagnie aeree
+- Mappa IATA -> ICAO caricata da config_rules_airlines.json
+- extract_callsign_prefix gestisce prefissi misti (W4, W6, 3F, V7)
+- get_airline() controlla OpenFlights prima di auto-aggiungere
 """
+import os
+import requests
+from datetime import datetime, timedelta
+
 from bgy_core.bgy_logger import get_logger
 from bgy_core.bgy_config_manager import config_manager
+from bgy_core.bgy_paths import DATA_DIR
 
 logger = get_logger("UpdateRules")
 
@@ -23,6 +28,10 @@ _NOISE_STATIONS = {}
 _NOISE_CURVES = {}
 _DEFAULT_NOISE_CURVES = {}
 
+# Cache OpenFlights
+_OPENFLIGHTS_DATA = {}
+_OPENFLIGHTS_LOADED = False
+
 
 def load_rules():
     """Ricarica le regole da config_manager e ripopola le cache locali."""
@@ -32,7 +41,6 @@ def load_rules():
 
     raw_airlines = dict(config_manager.get_airlines())
 
-    # Estrai le sezioni speciali
     _IATA_TO_ICAO = raw_airlines.pop("_iata_to_icao", {})
     _CARGO_AIRLINES = raw_airlines.pop("_cargo_airlines", {})
     _AIRLINES = raw_airlines
@@ -72,14 +80,111 @@ def reload_rules():
 
 
 # -----------------------------------------------------------------------------
+# OPENFLIGHTS
+# -----------------------------------------------------------------------------
+
+def _get_openflights_config():
+    cfg = config_manager.get_data_config()
+    of_cfg = cfg.get("openflights", {})
+    return {
+        "enabled": of_cfg.get("enabled", True),
+        "url": of_cfg.get("url",
+                          "https://raw.githubusercontent.com/jpatokal/openflights/master/data/airlines.dat"),
+        "cache_file": of_cfg.get("cache_file", "airlines.dat"),
+        "update_interval_days": int(of_cfg.get("update_interval_days", 7)),
+        "http_timeout": int(of_cfg.get("http_timeout", 30)),
+    }
+
+
+def _get_openflights_path():
+    cfg = _get_openflights_config()
+    assets_dir = os.path.join(DATA_DIR, "bgy_assets")
+    os.makedirs(assets_dir, exist_ok=True)
+    return os.path.join(assets_dir, cfg["cache_file"])
+
+
+def _download_openflights():
+    cfg = _get_openflights_config()
+    if not cfg["enabled"]:
+        return False
+
+    path = _get_openflights_path()
+
+    if os.path.exists(path):
+        mtime = datetime.fromtimestamp(os.path.getmtime(path))
+        age_days = (datetime.now() - mtime).days
+        if age_days < cfg["update_interval_days"]:
+            logger.info(f"📦 OpenFlights cache aggiornata ({age_days} giorni)")
+            return True
+
+    try:
+        logger.info("📥 Download OpenFlights airlines.dat...")
+        resp = requests.get(cfg["url"], timeout=cfg["http_timeout"])
+        if resp.status_code != 200:
+            logger.error(f"❌ OpenFlights HTTP {resp.status_code}")
+            return False
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(resp.text)
+        logger.info(f"💾 OpenFlights salvato: {path}")
+        return True
+    except Exception as e:
+        logger.error(f"❌ Errore download OpenFlights: {e}")
+        return False
+
+
+def _load_openflights():
+    global _OPENFLIGHTS_DATA, _OPENFLIGHTS_LOADED
+
+    if _OPENFLIGHTS_LOADED:
+        return
+
+    path = _get_openflights_path()
+    if not os.path.exists(path):
+        if not _download_openflights():
+            _OPENFLIGHTS_LOADED = True
+            return
+
+    try:
+        import csv
+        with open(path, "r", encoding="utf-8") as f:
+            reader = csv.reader(f)
+            for row in reader:
+                if len(row) < 6:
+                    continue
+                name = row[1].strip()
+                icao = row[4].strip().upper()
+                if icao and icao != "\\N" and name:
+                    _OPENFLIGHTS_DATA[icao] = name
+        logger.info(f"📚 OpenFlights: {len(_OPENFLIGHTS_DATA)} compagnie caricate")
+    except Exception as e:
+        logger.error(f"❌ Errore parsing OpenFlights: {e}")
+
+    _OPENFLIGHTS_LOADED = True
+
+
+def lookup_openflights(icao_code):
+    if not icao_code or not isinstance(icao_code, str):
+        return None
+    _load_openflights()
+    code = icao_code.strip().upper()
+    return _OPENFLIGHTS_DATA.get(code)
+
+
+def refresh_openflights():
+    global _OPENFLIGHTS_LOADED, _OPENFLIGHTS_DATA
+    _OPENFLIGHTS_LOADED = False
+    _OPENFLIGHTS_DATA = {}
+    ok = _download_openflights()
+    if ok:
+        _load_openflights()
+    return ok
+
+
+# -----------------------------------------------------------------------------
 # IATA / ICAO
 # -----------------------------------------------------------------------------
 
 def iata_to_icao(iata_code):
-    """
-    Converte un codice IATA (2 caratteri) in codice ICAO (3 lettere).
-    Ritorna None se la conversione non è disponibile.
-    """
     if not iata_code or not isinstance(iata_code, str):
         return None
     code = iata_code.strip().upper()
@@ -87,23 +192,12 @@ def iata_to_icao(iata_code):
 
 
 def extract_callsign_prefix(callsign, length=2):
-    """
-    Estrae il prefisso di un callsign, gestendo sia prefissi alfabetici puri
-    (es. 'FR', 'RYR') che prefissi misti lettera+numero (es. 'W4', 'W6', '3F', 'V7').
-
-    Esempi:
-      extract_callsign_prefix('FR 3480', 2)   -> 'FR'
-      extract_callsign_prefix('W4 3136', 2)   -> 'W4'
-      extract_callsign_prefix('RYR115D', 3)   -> 'RYR'
-      extract_callsign_prefix('UNKNOWN', 3)   -> 'UNK'
-    """
     if not callsign or not isinstance(callsign, str):
         return ""
     s = callsign.strip().upper().replace(" ", "")
     if len(s) < length:
         return ""
     prefix = s[:length]
-    # Verifica: almeno una lettera e solo caratteri alfanumerici
     if not any(c.isalpha() for c in prefix):
         return ""
     if not all(c.isalnum() for c in prefix):
@@ -127,12 +221,20 @@ def get_airline(callsign):
         if prefix in _AIRLINES:
             return _AIRLINES[prefix]
 
-    # 2. Match nei cargo (NON aggiungere ai passeggeri)
+    # 2. Match nei cargo
     for prefix in (prefix3, prefix2):
         if prefix in _CARGO_AIRLINES:
             return _CARGO_AIRLINES[prefix]
 
-    # 3. Auto-add
+    # 3. Match in OpenFlights
+    openflights_name = lookup_openflights(prefix3)
+    if openflights_name:
+        logger.info(f"🌐 OpenFlights: {prefix3} -> {openflights_name}")
+        if config_manager.add_airline(prefix3, openflights_name):
+            _AIRLINES[prefix3] = openflights_name
+        return openflights_name
+
+    # 4. Auto-add (fallback)
     new_name = f"Compagnia {prefix3}"
     if config_manager.add_airline(prefix3, new_name):
         _AIRLINES[prefix3] = new_name

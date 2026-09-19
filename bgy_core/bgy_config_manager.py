@@ -1,7 +1,7 @@
 """
 bgy_core/bgy_config_manager.py - Gestione centralizzata delle configurazioni JSON.
-Versione 2.5.0
-- aggiunto supporto per config_database.json
+Versione 2.6.0
+- Aggiunta sezione openflights in _default_data
 """
 import os
 import json
@@ -112,7 +112,7 @@ class ConfigManager:
                 "adsb_lol_radius_nm": 10, "adsb_fi_radius_nm": 10,
                 "night_start_hour": 23, "night_end_hour": 6,
                 "http_timeout": 15,
-                "user_agent": "BGY-Monitoring-Suite/2.5 (info@legambientebergamo.it)",
+                "user_agent": "BGY-Monitoring-Suite/2.6 (info@legambientebergamo.it)",
                 "phase_thresholds": {
                     "landing_max_distance_km": 5,
                     "landing_max_altitude_ft": 3000,
@@ -159,6 +159,13 @@ class ConfigManager:
                 "opensky_error_threshold": 5,
                 "opensky_error_window_min": 15,
                 "opensky_log_lines": 500,
+            },
+            "openflights": {
+                "enabled": True,
+                "url": "https://raw.githubusercontent.com/jpatokal/openflights/master/data/airlines.dat",
+                "cache_file": "airlines.dat",
+                "update_interval_days": 7,
+                "http_timeout": 30,
             },
             "export": {
                 "theme": {
@@ -268,6 +275,9 @@ class ConfigManager:
 
     def get_watchdog_config(self):
         return self._section("watchdog")
+
+    def get_openflights_config(self):
+        return self._section("openflights")
 
     def get_export_config(self):
         return self._section("export")

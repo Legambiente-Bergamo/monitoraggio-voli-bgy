@@ -1,14 +1,24 @@
 """
 bgy_reports/bgy_report_night.py - Report notturno integrato (SACBO + OpenSky).
-Versione 2.5.4
-- Fix matching: normalizzazione callsign SACBO con conversione IATA -> ICAO
-- Fix extract_callsign_prefix per prefissi misti (W4, W6, 3F, V7)
-- Distanze per fase da config
+Versione 2.7.1
+- Matching basato su finestra temporale + tipo movimento (callsign SACBO e radar
+  hanno formati numerici diversi, non confrontabili direttamente)
+- Il report contiene solo: voli passeggeri schedulati (con o senza radar)
+  + cargo identificati. I sorvoli/transiti/non identificati sono esclusi.
+- Arricchimento con fase, pista, quota, distanza, rumore.
+
+Fix v2.7.1:
+- DEDUPLICA in load_scheduled_flights(): i voli notturni vengono letti da
+  TUTTE le scansioni SACBO della giornata (23:00, 02:00, 05:00). Senza
+  deduplica, ogni volo compariva N volte (una per scansione), gonfiando
+  il conteggio (es. 53 voli invece di 30). Ora si tiene una sola riga per
+  coppia (callsign_volo, orario_schedulato), preferendo la scansione più
+  recente (scan_files ordinati reverse).
 """
 import os
 import math
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from bgy_core import (
     get_airline, get_country, get_aircraft_model,
@@ -21,13 +31,16 @@ from bgy_core.bgy_dates import (
     night_session_date,
 )
 from bgy_core.bgy_config_manager import config_manager
-from bgy_core.bgy_update_rules import iata_to_icao, extract_callsign_prefix
 from bgy_utils.bgy_utils_meteo import save_night_weather
 
 logger = get_logger("ReportNight")
 
 BGY_LAT = 45.6739
 BGY_LON = 9.7042
+
+# Finestra temporale per il matching (minuti)
+MATCH_WINDOW_BEFORE_MIN = 30      # 30 min prima dell'orario schedulato
+MATCH_WINDOW_AFTER_MIN = 180      # 3 ore dopo l'orario schedulato
 
 
 def _cfg():
@@ -78,89 +91,60 @@ def _find_scan_file_for_date(date_norm):
     return None
 
 
-# -----------------------------------------------------------------------------
-# NORMALIZZAZIONE CALLSIGN (fix matching)
-# -----------------------------------------------------------------------------
+def _time_to_minutes(hhmm):
+    """Converte 'HH:MM' in minuti dalla mezzanotte. Ritorna None se invalido."""
+    if not hhmm:
+        return None
+    try:
+        s = str(hhmm).strip()
+        parts = s.split(":")
+        if len(parts) < 2:
+            return None
+        hh = int(parts[0])
+        mm = int(parts[1])
+        return hh * 60 + mm
+    except (ValueError, AttributeError):
+        return None
 
-def _normalize_callsign_sacbo(callsign):
+
+def _timestamp_to_minutes_session(ts, session_date):
     """
-    Converte un callsign del tabellone SACBO in prefisso ICAO + numero volo.
-
-    Esempi:
-      'FR 3480'   -> ('RYR', '3480')
-      'W4 3136'   -> ('WMT', '3136')
-      'AZ 7048'   -> ('ITY', '7048')
-      'RYR3480'   -> ('RYR', '3480')
-      'XXX123'    -> ('', '')
+    Converte un timestamp in minuti relativi alla sessione notturna.
+    La sessione inizia alle 23:00 di session_date.
+    Le 23:00-23:59 sono minuti 0-59.
+    Le 00:00-05:59 sono minuti 60-419.
     """
-    if not callsign or not isinstance(callsign, str):
-        return "", ""
-
-    cs = callsign.strip().upper().replace(" ", "")
-
-    # 1. Prova prefisso IATA (2 caratteri, alfabetico o misto)
-    prefix2 = extract_callsign_prefix(cs, 2)
-    if prefix2:
-        icao_from_iata = iata_to_icao(prefix2)
-        if icao_from_iata:
-            numero = cs[len(prefix2):]
-            return icao_from_iata, numero
-
-    # 2. Prova prefisso ICAO (3 lettere)
-    prefix3 = extract_callsign_prefix(cs, 3)
-    if prefix3:
-        numero = cs[len(prefix3):]
-        return prefix3, numero
-
-    return "", ""
+    if not ts:
+        return None
+    try:
+        dt = pd.to_datetime(ts)
+    except Exception:
+        return None
+    # Calcola minuti dalla mezzanotte del giorno di sessione
+    base = pd.to_datetime(f"{session_date} 23:00:00")
+    diff = (dt - base).total_seconds() / 60
+    # Se negativo, timestamp prima dell'inizio sessione (raro)
+    if diff < -30:
+        return None
+    return int(diff)
 
 
-def _normalize_callsign_radar(callsign):
+def _scheduled_minutes_from_session(hhmm, session_date):
     """
-    Estrae prefisso ICAO (3 lettere) e numero volo da un callsign radar.
+    Converte un orario schedulato 'HH:MM' in minuti relativi alla sessione.
+    Se l'orario è >= 23:00, appartiene al giorno di sessione.
+    Se l'orario è < 06:00, appartiene al giorno successivo (minuti >= 60).
     """
-    if not callsign or not isinstance(callsign, str):
-        return "", ""
-
-    cs = callsign.strip().upper().replace(" ", "")
-    prefix = extract_callsign_prefix(cs, 3)
-    if not prefix:
-        return "", ""
-    numero = cs[len(prefix):]
-    return prefix, numero
-
-
-def _callsigns_match(sacbo_callsign, radar_callsign):
-    """
-    Verifica se un callsign SACBO e uno radar corrispondono.
-    Ritorna uno score: 0 (no match), 50 (match parziale), 100 (match esatto).
-    """
-    # Caso 1: confronto diretto
-    sacbo_norm = sacbo_callsign.strip().upper().replace(" ", "")
-    radar_norm = radar_callsign.strip().upper().replace(" ", "")
-    if sacbo_norm == radar_norm:
-        return 100
-
-    # Caso 2: conversione IATA -> ICAO sul callsign SACBO
-    sacbo_prefix, sacbo_numero = _normalize_callsign_sacbo(sacbo_callsign)
-    radar_prefix, radar_numero = _normalize_callsign_radar(radar_callsign)
-
-    if not sacbo_prefix or not radar_prefix:
-        return 0
-
-    if sacbo_prefix != radar_prefix:
-        return 0
-
-    if not sacbo_numero or not radar_numero:
-        return 0
-
-    if sacbo_numero == radar_numero:
-        return 100
-
-    if sacbo_numero.endswith(radar_numero) or radar_numero.endswith(sacbo_numero):
-        return 50
-
-    return 0
+    mins = _time_to_minutes(hhmm)
+    if mins is None:
+        return None
+    if mins >= 23 * 60:
+        # 23:00-23:59 -> 0-59
+        return mins - 23 * 60
+    if mins < 6 * 60:
+        # 00:00-05:59 -> 60-419
+        return mins + 60
+    return None  # fuori fascia notturna
 
 
 # -----------------------------------------------------------------------------
@@ -168,9 +152,17 @@ def _callsigns_match(sacbo_callsign, radar_callsign):
 # -----------------------------------------------------------------------------
 
 def load_scheduled_flights(date_str):
+    """
+    Carica i voli schedulati notturni da tutte le scansioni SACBO della data.
+
+    Fix v2.7.1: deduplica per (callsign_volo, orario_schedulato).
+    Le scansioni sono ordinate in ordine decrescente (più recente prima),
+    così in caso di duplicato si tiene la versione più aggiornata.
+    """
     date_norm = normalize_date(date_str)
     date_clean = date_norm.replace("-", "")
     scheduled = []
+    seen = set()  # chiavi (callsign, orario) già viste
 
     scan_files = []
     if os.path.isdir(RAW_DIR):
@@ -181,6 +173,13 @@ def load_scheduled_flights(date_str):
                 scan_files.append(f)
             elif f.startswith(f"scan_{date_clean}_"):
                 scan_files.append(f)
+
+    # Ordina per nome file decrescente: le scansioni più recenti
+    # (es. scan_2026-09-15_05-00.csv) vengono processate per prime.
+    # In caso di duplicato, si tiene la prima occorrenza (= la più recente).
+    scan_files.sort(reverse=True)
+
+    duplicates_skipped = 0
 
     for f in scan_files:
         filepath = os.path.join(RAW_DIR, f)
@@ -194,6 +193,14 @@ def load_scheduled_flights(date_str):
                 try:
                     hour = int(str(sched_time).strip().split(':')[0])
                     if hour >= 23 or hour < 6:
+                        # Deduplica per (callsign, orario_schedulato)
+                        callsign = str(row.get('callsign_volo', '')).strip()
+                        orario = str(sched_time).strip()
+                        key = (callsign, orario)
+                        if key in seen:
+                            duplicates_skipped += 1
+                            continue
+                        seen.add(key)
                         scheduled.append(row.to_dict())
                 except Exception:
                     continue
@@ -202,7 +209,11 @@ def load_scheduled_flights(date_str):
 
     if scheduled:
         df_sched = pd.DataFrame(scheduled)
-        logger.info(f"📋 Caricati {len(df_sched)} voli schedulati notturni")
+        logger.info(
+            f"📋 Caricati {len(df_sched)} voli schedulati notturni "
+            f"(da {len(scan_files)} scansioni, "
+            f"{duplicates_skipped} duplicati scartati)"
+        )
         return df_sched
     logger.info("📋 Nessun volo schedulato notturno trovato")
     return pd.DataFrame()
@@ -239,30 +250,56 @@ def load_radar_data(date_str):
 
 
 # -----------------------------------------------------------------------------
-# MATCHING
+# MATCHING (finestra temporale + tipo movimento)
 # -----------------------------------------------------------------------------
 
-def match_flights(scheduled_df, radar_df):
+def _is_phase_compatible(tipo_movimento, fase_volo):
+    """
+    Verifica se la fase radar è compatibile col tipo movimento SACBO.
+    tipo_movimento: 'A' o 'D'
+    fase_volo: 'Atterraggio', 'Decollo', 'Avvicinamento', 'Sorvolo', ...
+    """
+    if tipo_movimento == 'D':
+        return fase_volo == 'Decollo'
+    if tipo_movimento == 'A':
+        return fase_volo in ('Atterraggio', 'Avvicinamento')
+    return False
+
+
+def match_flights(scheduled_df, radar_df, session_date):
+    """
+    Esegue il matching tra voli schedulati (SACBO) e rilevamenti radar.
+    Criteri:
+      - tipo movimento compatibile con fase_volo
+      - timestamp radar dentro finestra [sched-30min, sched+180min]
+      - unicità: ogni radar può matchare al massimo un volo schedulato
+      - tra i candidati, sceglie quello col timestamp più vicino
+    """
     if scheduled_df.empty and radar_df.empty:
         return pd.DataFrame()
 
-    if not scheduled_df.empty:
-        scheduled_df = scheduled_df.copy()
-        scheduled_df['callsign_norm'] = scheduled_df['callsign_volo'].apply(
-            lambda x: str(x).replace(' ', '').upper().strip())
-
-    if not radar_df.empty:
-        radar_df = radar_df.copy()
-        radar_df['callsign_norm'] = radar_df['callsign'].apply(
-            lambda x: str(x).replace(' ', '').upper().strip())
-
+    # --- Nessun schedulato: solo cargo identificati ---
     if scheduled_df.empty:
+        if radar_df.empty:
+            return pd.DataFrame()
+        radar_df = radar_df.copy()
         radar_df['is_scheduled'] = False
         radar_df['orario_schedulato'] = ''
         radar_df['destinazione_origine'] = ''
-        return _enrich_final(_classify_unscheduled(radar_df))
+        radar_df['matched_score'] = 0
+        # Escludi i non-cargo
+        cargo_mask = radar_df['callsign'].apply(
+            lambda x: is_cargo_flight(str(x))[0] if pd.notna(x) else False)
+        radar_df = radar_df[cargo_mask]
+        if radar_df.empty:
+            return pd.DataFrame()
+        radar_df['tipo_movimento'] = radar_df['callsign'].apply(
+            lambda x: f'Cargo ({is_cargo_flight(str(x))[1]})' if pd.notna(x) else 'Cargo')
+        return _enrich_final(radar_df)
 
+    # --- Nessun radar: schedulati tutti Non rilevato ---
     if radar_df.empty:
+        scheduled_df = scheduled_df.copy()
         scheduled_df['is_scheduled'] = True
         scheduled_df['timestamp'] = ''
         scheduled_df['pista'] = 'N/D'
@@ -272,37 +309,37 @@ def match_flights(scheduled_df, radar_df):
         scheduled_df['rotta_deg'] = 0
         scheduled_df['distanza_km'] = 0
         scheduled_df['paese'] = 'N/D'
-        scheduled_df['tipo_movimento'] = 'Passeggeri (non rilevato)'
         scheduled_df['matched_score'] = 0
+        scheduled_df['callsign'] = scheduled_df['callsign_volo']
+        # tipo_movimento: 'Passeggeri (non rilevato)' per tutti
+        scheduled_df['tipo_movimento'] = 'Passeggeri (non rilevato)'
         return _enrich_final(scheduled_df)
 
+    # --- Match ---
+    sched = scheduled_df.copy()
+    radar = radar_df.copy()
+
+    # Calcola minuti sessione per ogni record
+    sched['_sched_min'] = sched.apply(
+        lambda r: _scheduled_minutes_from_session(
+            r.get('orario_schedulato'),
+            session_date),
+        axis=1)
+    radar['_radar_min'] = radar['timestamp'].apply(
+        lambda t: _timestamp_to_minutes_session(t, session_date))
+
+    # Filtra radar con timestamp valido e fase utile
+    radar = radar[radar['_radar_min'].notna()].copy()
+
     matched = []
-    used_radar = set()
+    used_radar_idx = set()
 
-    for idx_s, sched in scheduled_df.iterrows():
-        sched_callsign = sched['callsign_volo']
-        best_match = None
-        best_score = -1
-
-        for idx_r, radar in radar_df.iterrows():
-            if idx_r in used_radar:
-                continue
-            radar_callsign = radar['callsign']
-            score = _callsigns_match(sched_callsign, radar_callsign)
-            if score > best_score:
-                best_score = score
-                best_match = (idx_r, radar)
-
-        if best_match and best_score >= 50:
-            idx_r, radar = best_match
-            used_radar.add(idx_r)
-            combined = {**sched.to_dict(), **radar.to_dict()}
-            combined['is_scheduled'] = True
-            combined['matched_score'] = best_score
-            combined['tipo_movimento'] = 'Passeggeri (schedulato + radar)'
-            matched.append(combined)
-        else:
-            combined = {**sched.to_dict()}
+    for _, s in sched.iterrows():
+        sched_min = s['_sched_min']
+        tipo_mov = s.get('tipo_movimento', '')
+        if sched_min is None:
+            # Non schedulato valido: passa avanti (sarà Non rilevato)
+            combined = dict(s)
             combined['is_scheduled'] = True
             combined['timestamp'] = ''
             combined['pista'] = 'N/D'
@@ -313,39 +350,95 @@ def match_flights(scheduled_df, radar_df):
             combined['distanza_km'] = 0
             combined['paese'] = 'N/D'
             combined['matched_score'] = 0
+            combined['callsign'] = combined.get('callsign_volo', '')
+            combined['tipo_movimento'] = 'Passeggeri (non rilevato)'
+            matched.append(combined)
+            continue
+
+        # Finestra
+        low = sched_min - MATCH_WINDOW_BEFORE_MIN
+        high = sched_min + MATCH_WINDOW_AFTER_MIN
+
+        best_idx = None
+        best_delta = None
+
+        for idx, r in radar.iterrows():
+            if idx in used_radar_idx:
+                continue
+            r_min = r['_radar_min']
+            if r_min is None or r_min < low or r_min > high:
+                continue
+            fase = str(r.get('fase_volo', '') or '')
+            if not _is_phase_compatible(tipo_mov, fase):
+                continue
+            delta = abs(r_min - sched_min)
+            if best_delta is None or delta < best_delta:
+                best_delta = delta
+                best_idx = idx
+
+        if best_idx is not None:
+            used_radar_idx.add(best_idx)
+            r = radar.loc[best_idx]
+            combined = {**s.to_dict(), **r.to_dict()}
+            combined['is_scheduled'] = True
+            combined['matched_score'] = 100
+            combined['tipo_movimento'] = 'Passeggeri (schedulato + radar)'
+            matched.append(combined)
+        else:
+            combined = dict(s)
+            combined['is_scheduled'] = True
+            combined['timestamp'] = ''
+            combined['pista'] = 'N/D'
+            combined['fase_volo'] = 'Non rilevato'
+            combined['direzione'] = 'N/D'
+            combined['quota_ft'] = 0
+            combined['rotta_deg'] = 0
+            combined['distanza_km'] = 0
+            combined['paese'] = 'N/D'
+            combined['matched_score'] = 0
+            combined['callsign'] = combined.get('callsign_volo', '')
             combined['tipo_movimento'] = 'Passeggeri (solo schedulato)'
             matched.append(combined)
 
-    unmatched = radar_df[~radar_df.index.isin(used_radar)].copy()
-    unmatched = _classify_unscheduled(unmatched)
+    # --- Radar non matchati: tieni solo i cargo ---
+    unmatched = radar[~radar.index.isin(used_radar_idx)].copy()
     for _, row in unmatched.iterrows():
-        row_dict = row.to_dict()
-        row_dict['matched_score'] = 0
-        matched.append(row_dict)
-
-    return _enrich_final(pd.DataFrame(matched))
-
-
-def _classify_unscheduled(df):
-    if df.empty:
-        return df
-
-    def classify(row):
         cs = str(row.get('callsign', '') or '')
         cargo, cargo_airline = is_cargo_flight(cs)
-        if cargo:
-            return f'Cargo ({cargo_airline})'
-        return 'Non identificato / Sorvolo'
+        if not cargo:
+            # Sorvolo / transito / non identificato: escludi
+            continue
+        row_dict = row.to_dict()
+        row_dict['is_scheduled'] = False
+        row_dict['orario_schedulato'] = ''
+        row_dict['destinazione_origine'] = ''
+        row_dict['matched_score'] = 0
+        row_dict['tipo_movimento'] = f'Cargo ({cargo_airline})'
+        matched.append(row_dict)
 
-    df = df.copy()
-    df['tipo_movimento'] = df.apply(classify, axis=1)
-    return df
+    # Rimuovi colonne temporanee
+    result = pd.DataFrame(matched)
+    for col in ('_sched_min', '_radar_min'):
+        if col in result.columns:
+            result = result.drop(columns=[col])
 
+    return _enrich_final(result)
+
+
+# -----------------------------------------------------------------------------
+# ARRICCHIMENTO
+# -----------------------------------------------------------------------------
 
 def _enrich_final(df):
     if df.empty:
         return df
     df = df.copy()
+
+    # Se manca 'callsign', usa callsign_volo
+    if 'callsign' not in df.columns:
+        df['callsign'] = df.get('callsign_volo', 'N/D')
+    else:
+        df['callsign'] = df['callsign'].fillna(df.get('callsign_volo', 'N/D'))
 
     df['compagnia_aerea'] = df['callsign'].apply(
         lambda x: get_airline(x) if pd.notna(x) else 'N/D')
@@ -440,7 +533,7 @@ def generate_nightly_report(date_str=None):
 
     scheduled_df = load_scheduled_flights(date_norm)
     radar_df = load_radar_data(date_norm)
-    result_df = match_flights(scheduled_df, radar_df)
+    result_df = match_flights(scheduled_df, radar_df, date_norm)
 
     if result_df.empty:
         logger.warning(f"⚠️ Nessun dato per {date_norm}")

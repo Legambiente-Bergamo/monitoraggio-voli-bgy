@@ -1,8 +1,17 @@
 """
 bgy_watchdog.py - Watchdog per il controllo anomalie BGY Monitoring Suite.
-Versione 2.5.2
+Versione 2.5.3
 - Doppio check prima di riavviare lo scheduler (evita falsi positivi)
 - Messaggi di alert letti da bgy_config/config_alert_messages.json
+
+Fix v2.5.3:
+- check_opensky(): prima contava QUALSIASI riga contenente "429" nel log,
+  incluse le righe di allarme generate dal watchdog stesso (❌ OPENSKY:
+  Rilevati N errori 429...). Questo causava un ciclo di auto-alimentazione:
+  ogni check trovava le righe dei check precedenti e le contava come nuovi
+  errori, generando notifiche continue anche fuori dalla fascia notturna.
+  Ora il check ignora le righe di [Watchdog] e [Mailer], e considera solo
+  gli errori 429 generati dallo scanner OpenSky ([ScannerNight] o OpenSky).
 """
 import os
 import sys
@@ -200,6 +209,17 @@ def _scanner_night_is_active(now, window_sec=300, min_hits=2):
 # =============================================================================
 
 def check_opensky():
+    """
+    Conta gli errori 429 recenti nel log, MA:
+    - Ignora le righe generate dal Watchdog stesso ([Watchdog])
+    - Ignora le righe generate dal Mailer ([Mailer])
+    - Considera solo gli errori 429 reali dello scanner OpenSky
+      ([ScannerNight] o righe che menzionano OpenSky)
+
+    Fix v2.5.3: senza questo filtro, il watchdog contava le proprie righe
+    di allarme ("❌ OPENSKY: Rilevati N errori 429...") come se fossero
+    nuovi errori, causando un ciclo infinito di notifiche.
+    """
     cfg = _cfg()
     threshold = cfg.get("opensky_error_threshold", 5)
     log_lines = cfg.get("opensky_log_lines", 500)
@@ -222,8 +242,20 @@ def check_opensky():
         errors_429 = 0
 
         for line in lines:
+            # ✅ Ignora le righe generate dal Watchdog o dal Mailer
+            #    (altrimenti il check si auto-alimenta contando i propri allarmi)
+            if "[Watchdog]" in line or "[Mailer]" in line:
+                continue
+            # ✅ Considera solo le righe che menzionano OpenSky o ScannerNight
+            if "OpenSky" not in line and "[ScannerNight]" not in line:
+                continue
+            # ✅ Cerca la presenza di "429"
             if "429" not in line:
                 continue
+            # ✅ Ignora eventuali righe di riepilogo (difensivo)
+            if "Rilevati" in line and "errori 429" in line:
+                continue
+            # ✅ Verifica timestamp
             try:
                 ts_str = line.split(" - ")[0].strip()
                 ts = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S,%f")
