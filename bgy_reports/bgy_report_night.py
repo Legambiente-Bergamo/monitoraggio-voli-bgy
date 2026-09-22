@@ -1,26 +1,33 @@
 """
 bgy_reports/bgy_report_night.py - Report notturno integrato (SACBO + OpenSky).
-Versione 2.7.2
+Versione 2.8.3
 
 Modello logico:
-- Il TABELLONE SACBO è la fonte primaria per i voli PASSEGGERI.
-  Ogni volo passeggeri del tabellone viene incluso, con o senza match radar.
-- Il RADAR ha due ruoli:
-  1. Arricchire i passeggeri con fase, pista, quota, distanza, rumore.
-  2. Identificare i voli CARGO (che non compaiono sul tabellone passeggeri).
+- TABELLONE SACBO: fonte primaria per i voli PASSEGGERI (arrivi + partenze).
+- RADAR: arricchisce i passeggeri + identifica Cargo e Charter.
 
-Fix v2.7.2:
-- Deduplica dei radar non matchati per (callsign, finestra di 15 minuti).
-  Il radar registra lo stesso aereo ogni ~15-30 secondi durante il passaggio;
-  senza deduplica, lo stesso cargo veniva contato N volte (es. il 10/09/2026
-  BCS943 appariva 5 volte, ICV782 4 volte, DHK528 3 volte).
-- Rimosso NIA (Nile Air) dalla lista cargo in config_rules_airlines.json:
-  Nile Air è una compagnia passeggeri, non cargo.
+Categorie finali:
+  1. Passeggeri        — dal tabellone (con o senza match radar)
+  2. Cargo (Nome)      — radar + _cargo_airlines
+  3. Charter (Nome)    — radar + _charter_airlines
+  4. Passeggeri (radar) — radar + compagnia di linea fuori tabellone
+  5. Non identificato  — radar + callsign ignoto
 
-Fix v2.7.1:
-- DEDUPLICA in load_scheduled_flights(): i voli notturni vengono letti da
-  TUTTE le scansioni SACBO della giornata. Senza deduplica, ogni volo compariva
-  N volte (una per scansione), gonfiando il conteggio (es. 53 voli invece di 30).
+Visibilità:
+  - Visibili di default: Passeggeri, Cargo, Charter
+  - Opt-in (checkbox GUI): Passeggeri (radar), Non identificato
+
+Novità v2.8.3:
+- PAX stimati e rumore calcolati SOLO sui voli Visibili
+  (Passeggeri + Cargo + Charter). I voli opt-in (Passeggeri radar,
+  Non identificato) restano nel CSV/DB ma non contribuiscono alle
+  statistiche principali del report.
+
+Novità v2.8.2:
+- Categoria "Passeggeri" unificata.
+- Aggiunte "Charter (Nome)" e "Passeggeri (radar)".
+- Rimosso match callsign-based (non affidabile).
+- SRR (Star Air) spostata in _cargo_airlines.
 """
 import os
 import math
@@ -29,7 +36,7 @@ from datetime import datetime, timedelta
 
 from bgy_core import (
     get_airline, get_country, get_aircraft_model,
-    is_cargo_flight, load_rules, get_logger,
+    is_cargo_flight, is_charter_flight, load_rules, get_logger,
     estimate_passengers,
 )
 from bgy_core.bgy_paths import RAW_DIR, OUTPUT_CSV_DIR
@@ -45,12 +52,14 @@ logger = get_logger("ReportNight")
 BGY_LAT = 45.6739
 BGY_LON = 9.7042
 
-# Finestra temporale per il matching (minuti)
-MATCH_WINDOW_BEFORE_MIN = 30      # 30 min prima dell'orario schedulato
-MATCH_WINDOW_AFTER_MIN = 180      # 3 ore dopo l'orario schedulato
-
-# Finestra per la deduplica dei radar non matchati (minuti)
+MATCH_WINDOW_BEFORE_MIN = 30
+MATCH_WINDOW_AFTER_MIN = 180
 RADAR_DEDUP_WINDOW_MIN = 15
+
+BGY_PHASES = ('Atterraggio', 'Decollo', 'Avvicinamento')
+
+PLACEHOLDER_PREFIX = 'Compagnia '
+PLACEHOLDER_VALUES = {'N/D', 'Non identificato', ''}
 
 
 def _cfg():
@@ -102,7 +111,6 @@ def _find_scan_file_for_date(date_norm):
 
 
 def _time_to_minutes(hhmm):
-    """Converte 'HH:MM' in minuti dalla mezzanotte. Ritorna None se invalido."""
     if not hhmm:
         return None
     try:
@@ -118,12 +126,6 @@ def _time_to_minutes(hhmm):
 
 
 def _timestamp_to_minutes_session(ts, session_date):
-    """
-    Converte un timestamp in minuti relativi alla sessione notturna.
-    La sessione inizia alle 23:00 di session_date.
-    Le 23:00-23:59 sono minuti 0-59.
-    Le 00:00-05:59 sono minuti 60-419.
-    """
     if not ts:
         return None
     try:
@@ -138,11 +140,6 @@ def _timestamp_to_minutes_session(ts, session_date):
 
 
 def _scheduled_minutes_from_session(hhmm, session_date):
-    """
-    Converte un orario schedulato 'HH:MM' in minuti relativi alla sessione.
-    Se l'orario è >= 23:00, appartiene al giorno di sessione.
-    Se l'orario è < 06:00, appartiene al giorno successivo (minuti >= 60).
-    """
     mins = _time_to_minutes(hhmm)
     if mins is None:
         return None
@@ -150,7 +147,32 @@ def _scheduled_minutes_from_session(hhmm, session_date):
         return mins - 23 * 60
     if mins < 6 * 60:
         return mins + 60
-    return None  # fuori fascia notturna
+    return None
+
+
+def _is_valid_airline_name(name):
+    if not name:
+        return False
+    if not isinstance(name, str):
+        return False
+    if name in PLACEHOLDER_VALUES:
+        return False
+    if name.startswith(PLACEHOLDER_PREFIX):
+        return False
+    return True
+
+
+def _is_visible_row(tipo_movimento):
+    """Ritorna True se la riga è visibile di default nei report."""
+    if not isinstance(tipo_movimento, str):
+        return False
+    if tipo_movimento == 'Passeggeri':
+        return True
+    if tipo_movimento.startswith('Cargo'):
+        return True
+    if tipo_movimento.startswith('Charter'):
+        return True
+    return False
 
 
 # -----------------------------------------------------------------------------
@@ -158,13 +180,6 @@ def _scheduled_minutes_from_session(hhmm, session_date):
 # -----------------------------------------------------------------------------
 
 def load_scheduled_flights(date_str):
-    """
-    Carica i voli schedulati notturni da tutte le scansioni SACBO della data.
-
-    Deduplica per (callsign_volo, orario_schedulato). Le scansioni sono
-    ordinate in ordine decrescente (più recente prima), così in caso di
-    duplicato si tiene la versione più aggiornata.
-    """
     date_norm = normalize_date(date_str)
     date_clean = date_norm.replace("-", "")
     scheduled = []
@@ -251,7 +266,7 @@ def load_radar_data(date_str):
 
 
 # -----------------------------------------------------------------------------
-# MATCHING (finestra temporale + tipo movimento)
+# MATCHING
 # -----------------------------------------------------------------------------
 
 def _is_phase_compatible(tipo_movimento, fase_volo):
@@ -263,14 +278,11 @@ def _is_phase_compatible(tipo_movimento, fase_volo):
 
 
 def match_flights(scheduled_df, radar_df, session_date):
-    """
-    Esegue il matching tra voli schedulati (SACBO) e rilevamenti radar.
-    Per i radar non matchati (cargo), applica deduplica per (callsign, finestra 15 min).
-    """
+    """Matching tra voli schedulati e radar."""
     if scheduled_df.empty and radar_df.empty:
         return pd.DataFrame()
 
-    # --- Nessun schedulato: solo cargo identificati ---
+    # --- Nessun schedulato: solo radar ---
     if scheduled_df.empty:
         if radar_df.empty:
             return pd.DataFrame()
@@ -279,18 +291,13 @@ def match_flights(scheduled_df, radar_df, session_date):
         radar_df['orario_schedulato'] = ''
         radar_df['destinazione_origine'] = ''
         radar_df['matched_score'] = 0
-        cargo_mask = radar_df['callsign'].apply(
-            lambda x: is_cargo_flight(str(x))[0] if pd.notna(x) else False)
-        radar_df = radar_df[cargo_mask]
-        if radar_df.empty:
-            return pd.DataFrame()
-        radar_df['tipo_movimento'] = radar_df['callsign'].apply(
-            lambda x: f'Cargo ({is_cargo_flight(str(x))[1]})' if pd.notna(x) else 'Cargo')
-        # Deduplica anche in questo ramo
         radar_df = _dedup_radar_by_callsign(radar_df)
-        return _enrich_final(radar_df)
+        classified = _classify_unmatched_radar(radar_df)
+        if classified.empty:
+            return pd.DataFrame()
+        return _enrich_final(classified)
 
-    # --- Nessun radar: schedulati tutti Non rilevato ---
+    # --- Nessun radar: tutti Passeggeri ---
     if radar_df.empty:
         scheduled_df = scheduled_df.copy()
         scheduled_df['is_scheduled'] = True
@@ -304,7 +311,7 @@ def match_flights(scheduled_df, radar_df, session_date):
         scheduled_df['paese'] = 'N/D'
         scheduled_df['matched_score'] = 0
         scheduled_df['callsign'] = scheduled_df['callsign_volo']
-        scheduled_df['tipo_movimento'] = 'Passeggeri (non rilevato)'
+        scheduled_df['tipo_movimento'] = 'Passeggeri'
         return _enrich_final(scheduled_df)
 
     # --- Match ---
@@ -313,8 +320,7 @@ def match_flights(scheduled_df, radar_df, session_date):
 
     sched['_sched_min'] = sched.apply(
         lambda r: _scheduled_minutes_from_session(
-            r.get('orario_schedulato'),
-            session_date),
+            r.get('orario_schedulato'), session_date),
         axis=1)
     radar['_radar_min'] = radar['timestamp'].apply(
         lambda t: _timestamp_to_minutes_session(t, session_date))
@@ -327,6 +333,7 @@ def match_flights(scheduled_df, radar_df, session_date):
     for _, s in sched.iterrows():
         sched_min = s['_sched_min']
         tipo_mov = s.get('tipo_movimento', '')
+
         if sched_min is None:
             combined = dict(s)
             combined['is_scheduled'] = True
@@ -340,7 +347,7 @@ def match_flights(scheduled_df, radar_df, session_date):
             combined['paese'] = 'N/D'
             combined['matched_score'] = 0
             combined['callsign'] = combined.get('callsign_volo', '')
-            combined['tipo_movimento'] = 'Passeggeri (non rilevato)'
+            combined['tipo_movimento'] = 'Passeggeri'
             matched.append(combined)
             continue
 
@@ -370,7 +377,7 @@ def match_flights(scheduled_df, radar_df, session_date):
             combined = {**s.to_dict(), **r.to_dict()}
             combined['is_scheduled'] = True
             combined['matched_score'] = 100
-            combined['tipo_movimento'] = 'Passeggeri (schedulato + radar)'
+            combined['tipo_movimento'] = 'Passeggeri'
             matched.append(combined)
         else:
             combined = dict(s)
@@ -385,28 +392,17 @@ def match_flights(scheduled_df, radar_df, session_date):
             combined['paese'] = 'N/D'
             combined['matched_score'] = 0
             combined['callsign'] = combined.get('callsign_volo', '')
-            combined['tipo_movimento'] = 'Passeggeri (solo schedulato)'
+            combined['tipo_movimento'] = 'Passeggeri'
             matched.append(combined)
 
-    # --- Radar non matchati: deduplica per (callsign, finestra 15 min), poi cargo ---
+    # --- Radar non matchati ---
     unmatched = radar[~radar.index.isin(used_radar_idx)].copy()
     unmatched = _dedup_radar_by_callsign(unmatched)
+    classified = _classify_unmatched_radar(unmatched)
 
-    for _, row in unmatched.iterrows():
-        cs = str(row.get('callsign', '') or '')
-        cargo, cargo_airline = is_cargo_flight(cs)
-        if not cargo:
-            # Sorvolo / transito / non identificato / passeggero non matchato: escludi
-            continue
-        row_dict = row.to_dict()
-        row_dict['is_scheduled'] = False
-        row_dict['orario_schedulato'] = ''
-        row_dict['destinazione_origine'] = ''
-        row_dict['matched_score'] = 0
-        row_dict['tipo_movimento'] = f'Cargo ({cargo_airline})'
-        matched.append(row_dict)
+    for _, row in classified.iterrows():
+        matched.append(row.to_dict())
 
-    # Rimuovi colonne temporanee
     result = pd.DataFrame(matched)
     for col in ('_sched_min', '_radar_min'):
         if col in result.columns:
@@ -415,33 +411,83 @@ def match_flights(scheduled_df, radar_df, session_date):
     return _enrich_final(result)
 
 
+def _classify_unmatched_radar(radar_df):
+    """Classifica radar non matchati in Cargo / Charter / Passeggeri radar / Non id."""
+    if radar_df.empty:
+        return radar_df
+
+    classified = []
+    skipped_phase = 0
+    counts = {'cargo': 0, 'charter': 0, 'pax_radar': 0, 'non_id': 0}
+
+    for _, row in radar_df.iterrows():
+        cs = str(row.get('callsign', '') or '').strip()
+        fase = str(row.get('fase_volo', '') or '').strip()
+
+        if fase not in BGY_PHASES:
+            skipped_phase += 1
+            continue
+
+        row_dict = row.to_dict()
+        row_dict['is_scheduled'] = False
+        row_dict['orario_schedulato'] = ''
+        row_dict['destinazione_origine'] = ''
+        row_dict['matched_score'] = 0
+
+        cargo, cargo_airline = is_cargo_flight(cs)
+        if cargo:
+            row_dict['tipo_movimento'] = f'Cargo ({cargo_airline})'
+            counts['cargo'] += 1
+            classified.append(row_dict)
+            continue
+
+        charter, charter_airline = is_charter_flight(cs)
+        if charter:
+            row_dict['tipo_movimento'] = f'Charter ({charter_airline})'
+            counts['charter'] += 1
+            classified.append(row_dict)
+            continue
+
+        airline_name = get_airline(cs) if cs else 'N/D'
+        if _is_valid_airline_name(airline_name):
+            row_dict['tipo_movimento'] = 'Passeggeri (radar)'
+            counts['pax_radar'] += 1
+        else:
+            row_dict['tipo_movimento'] = 'Non identificato'
+            counts['non_id'] += 1
+
+        classified.append(row_dict)
+
+    if skipped_phase > 0:
+        logger.info(f"⏭️  Esclusi {skipped_phase} radar non-BGY (sorvolo/transito)")
+    if any(counts.values()):
+        logger.info(
+            f"📊 Radar non matchati: Cargo={counts['cargo']}, "
+            f"Charter={counts['charter']}, "
+            f"Passeggeri radar={counts['pax_radar']}, "
+            f"Non id={counts['non_id']}"
+        )
+
+    if not classified:
+        return pd.DataFrame()
+    return pd.DataFrame(classified)
+
+
 def _dedup_radar_by_callsign(radar_df):
-    """
-    Deduplica i radar per (callsign, finestra di RADAR_DEDUP_WINDOW_MIN minuti).
-
-    Il radar rileva lo stesso aereo ogni ~15-30 secondi durante il passaggio.
-    Raggruppando in finestre di 15 minuti, si tiene una sola riga per passaggio.
-
-    Fix v2.7.2: senza questa deduplica, un singolo cargo veniva contato
-    N volte (una per ogni rilevazione radar).
-    """
     if radar_df.empty or 'callsign' not in radar_df.columns:
         return radar_df
 
     before = len(radar_df)
     df = radar_df.copy()
 
-    # Converti timestamp in minuti epoch per calcolare la finestra
     try:
         ts_series = pd.to_datetime(df['timestamp'])
-        # minuti epoch
         ts_min = (ts_series.astype('int64') // 60_000_000_000)
         df['_window'] = ts_min // RADAR_DEDUP_WINDOW_MIN
     except Exception as e:
         logger.warning(f"Deduplica radar: impossibile calcolare la finestra: {e}")
         return radar_df
 
-    # Ordina per timestamp e tieni la prima riga per (callsign, finestra)
     df = df.sort_values('timestamp').drop_duplicates(
         subset=['callsign', '_window'], keep='first'
     )
@@ -451,8 +497,7 @@ def _dedup_radar_by_callsign(radar_df):
     if before != after:
         logger.info(
             f"🧹 Radar non matchati deduplicati: {before} → {after} "
-            f"({before - after} rilevazioni ripetute scartate, "
-            f"finestra {RADAR_DEDUP_WINDOW_MIN} min)"
+            f"({before - after} rilevazioni ripetute scartate)"
         )
     return df
 
@@ -588,14 +633,24 @@ def generate_nightly_report(date_str=None):
 
     result_df[final_columns].to_csv(out_path, index=False, encoding='utf-8-sig')
 
+    # --- Conteggi per categoria ---
     total = len(result_df)
-    scheduled = len(result_df[result_df['is_scheduled'] == True]) if 'is_scheduled' in result_df.columns else 0
+    pax = len(result_df[result_df['tipo_movimento'] == 'Passeggeri']) if 'tipo_movimento' in result_df.columns else 0
     cargo = len(result_df[result_df['tipo_movimento'].str.startswith('Cargo', na=False)]) if 'tipo_movimento' in result_df.columns else 0
-    unknown = total - scheduled - cargo
-    pax_tot = int(result_df['stima_passeggeri'].sum()) if 'stima_passeggeri' in result_df.columns else 0
+    charter = len(result_df[result_df['tipo_movimento'].str.startswith('Charter', na=False)]) if 'tipo_movimento' in result_df.columns else 0
+    pax_radar = len(result_df[result_df['tipo_movimento'] == 'Passeggeri (radar)']) if 'tipo_movimento' in result_df.columns else 0
+    non_id = len(result_df[result_df['tipo_movimento'] == 'Non identificato']) if 'tipo_movimento' in result_df.columns else 0
 
-    if 'stima_rumore_db' in result_df.columns:
-        rumore_df = result_df[result_df['stima_rumore_db'] > 0]
+    visibili = pax + cargo + charter
+
+    # --- Statistiche SOLO sui Visibili (v2.8.3) ---
+    visibili_mask = result_df['tipo_movimento'].apply(_is_visible_row) if 'tipo_movimento' in result_df.columns else pd.Series(False, index=result_df.index)
+    visibili_df = result_df[visibili_mask]
+
+    pax_tot = int(visibili_df['stima_passeggeri'].sum()) if 'stima_passeggeri' in visibili_df.columns else 0
+
+    if 'stima_rumore_db' in visibili_df.columns:
+        rumore_df = visibili_df[visibili_df['stima_rumore_db'] > 0]
         rumore_count = len(rumore_df)
         rumore_max = int(rumore_df['stima_rumore_db'].max()) if rumore_count > 0 else 0
     else:
@@ -615,7 +670,10 @@ def generate_nightly_report(date_str=None):
         meteo_msg = ", errore meteo"
 
     msg = (f"✅ Report notturno: {total} voli "
-           f"(Passeggeri: {scheduled}, Cargo: {cargo}, Non id: {unknown}, "
+           f"(Visibili: {visibili} = Passeggeri {pax} + Cargo {cargo} "
+           f"+ Charter {charter} | "
+           f"Opt-in: {pax_radar + non_id} = Passeggeri radar {pax_radar} "
+           f"+ Non id {non_id} | "
            f"PAX stimati: {pax_tot}, "
            f"Rumore su {rumore_count} voli, max {rumore_max} dB"
            f"{meteo_msg})")

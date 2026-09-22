@@ -113,7 +113,7 @@ def main():
     print("=" * 60)
     ok, rows = bgy_db.execute_query(
         "SELECT DISTINCT compagnia_aerea FROM nightly_reports "
-        "WHERE compagnia_aerea LIKE 'Compagnia%' ORDER BY 1"
+        "WHERE compagnia_aerea LIKE 'Compagnia%%' ORDER BY 1"
     )
     if ok:
         print(f"Placeholder rimasti: {len(rows)}")

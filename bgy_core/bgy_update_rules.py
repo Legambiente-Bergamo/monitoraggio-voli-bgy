@@ -1,10 +1,11 @@
 """
 bgy_core/bgy_update_rules.py - Arricchimento dati da regole JSON.
-Versione 2.6.0
+Versione 2.6.1
 - Aggiunto supporto OpenFlights per lookup compagnie aeree
 - Mappa IATA -> ICAO caricata da config_rules_airlines.json
 - extract_callsign_prefix gestisce prefissi misti (W4, W6, 3F, V7)
 - get_airline() controlla OpenFlights prima di auto-aggiungere
+- Aggiunta _charter_airlines e is_charter_flight()
 """
 import os
 import requests
@@ -20,6 +21,7 @@ _AIRLINES = {}
 _COUNTRIES = {}
 _AIRCRAFT_MODELS = {}
 _CARGO_AIRLINES = {}
+_CHARTER_AIRLINES = {}
 _IATA_TO_ICAO = {}
 _SEATS = {}
 _LOAD_FACTORS = {}
@@ -28,14 +30,13 @@ _NOISE_STATIONS = {}
 _NOISE_CURVES = {}
 _DEFAULT_NOISE_CURVES = {}
 
-# Cache OpenFlights
 _OPENFLIGHTS_DATA = {}
 _OPENFLIGHTS_LOADED = False
 
 
 def load_rules():
     """Ricarica le regole da config_manager e ripopola le cache locali."""
-    global _AIRLINES, _COUNTRIES, _AIRCRAFT_MODELS, _CARGO_AIRLINES, _IATA_TO_ICAO
+    global _AIRLINES, _COUNTRIES, _AIRCRAFT_MODELS, _CARGO_AIRLINES, _CHARTER_AIRLINES, _IATA_TO_ICAO
     global _SEATS, _LOAD_FACTORS, _DEFAULT_LOAD_FACTOR
     global _NOISE_STATIONS, _NOISE_CURVES, _DEFAULT_NOISE_CURVES
 
@@ -43,6 +44,7 @@ def load_rules():
 
     _IATA_TO_ICAO = raw_airlines.pop("_iata_to_icao", {})
     _CARGO_AIRLINES = raw_airlines.pop("_cargo_airlines", {})
+    _CHARTER_AIRLINES = raw_airlines.pop("_charter_airlines", {})
     _AIRLINES = raw_airlines
 
     _COUNTRIES = dict(config_manager.get_countries())
@@ -66,6 +68,7 @@ def load_rules():
         f"{len(_AIRCRAFT_MODELS)} modelli, "
         f"{len(_IATA_TO_ICAO)} conversioni IATA->ICAO, "
         f"{len(_CARGO_AIRLINES)} cargo, "
+        f"{len(_CHARTER_AIRLINES)} charter, "
         f"{len(_SEATS)} posti, "
         f"{len(_LOAD_FACTORS)} load factors, "
         f"{len(_NOISE_STATIONS)} centraline, "
@@ -216,17 +219,18 @@ def get_airline(callsign):
     prefix3 = cs[:3]
     prefix2 = cs[:2]
 
-    # 1. Match nei passeggeri
     for prefix in (prefix3, prefix2):
         if prefix in _AIRLINES:
             return _AIRLINES[prefix]
 
-    # 2. Match nei cargo
     for prefix in (prefix3, prefix2):
         if prefix in _CARGO_AIRLINES:
             return _CARGO_AIRLINES[prefix]
 
-    # 3. Match in OpenFlights
+    for prefix in (prefix3, prefix2):
+        if prefix in _CHARTER_AIRLINES:
+            return _CHARTER_AIRLINES[prefix]
+
     openflights_name = lookup_openflights(prefix3)
     if openflights_name:
         logger.info(f"🌐 OpenFlights: {prefix3} -> {openflights_name}")
@@ -234,7 +238,6 @@ def get_airline(callsign):
             _AIRLINES[prefix3] = openflights_name
         return openflights_name
 
-    # 4. Auto-add (fallback)
     new_name = f"Compagnia {prefix3}"
     if config_manager.add_airline(prefix3, new_name):
         _AIRLINES[prefix3] = new_name
@@ -242,7 +245,7 @@ def get_airline(callsign):
 
 
 # -----------------------------------------------------------------------------
-# CARGO
+# CARGO / CHARTER
 # -----------------------------------------------------------------------------
 
 def is_cargo_flight(callsign):
@@ -253,6 +256,18 @@ def is_cargo_flight(callsign):
     for prefix in (prefix3, prefix2):
         if prefix in _CARGO_AIRLINES:
             return True, _CARGO_AIRLINES[prefix]
+    return False, None
+
+
+def is_charter_flight(callsign):
+    """Ritorna (bool, nome_charter) se il callsign è di una compagnia charter nota."""
+    if not callsign or not isinstance(callsign, str):
+        return False, None
+    prefix3 = callsign.strip().upper()[:3]
+    prefix2 = callsign.strip().upper()[:2]
+    for prefix in (prefix3, prefix2):
+        if prefix in _CHARTER_AIRLINES:
+            return True, _CHARTER_AIRLINES[prefix]
     return False, None
 
 

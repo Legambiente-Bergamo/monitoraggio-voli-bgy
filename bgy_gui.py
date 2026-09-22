@@ -1,7 +1,8 @@
 """
 BGY Monitoring Suite - Interfaccia Grafica di Controllo
-v2.5.0
+v2.5.1
 - Aggiunto tab "📈 Grafici" (anteprima con dati dal DB)
+- Pulizia periodica processi orfani (fix zombie scheduler)
 """
 import sys
 import subprocess
@@ -68,12 +69,40 @@ OWN_PROCESS_PATTERNS = [
     "bgy_watchdog.py",
 ]
 
+# Intervallo (ms) per la pulizia periodica dei processi orfani
+ORPHAN_CHECK_INTERVAL_MS = 5 * 60 * 1000  # 5 minuti
 
-def kill_orphan_instances():
-    """Termina le altre istanze della nostra suite."""
+
+def _kill_pid(pid):
+    """Tenta di terminare un processo per PID. Ritorna True se ok."""
+    try:
+        sp.run(["taskkill", "/F", "/T", "/PID", str(pid)],
+               capture_output=True, timeout=10)
+        return True
+    except Exception as e:
+        logger.warning(f"taskkill PID {pid} fallito: {e}")
+        return False
+
+
+def kill_orphan_instances(exclude_pids=None, verbose=True):
+    """
+    Termina i processi orfani della suite (GUI, scheduler, watchdog).
+
+    Args:
+        exclude_pids: set di PID da NON terminare (es. i processi figli
+                      tracciati dalla GUI). Se None, termina tutti tranne
+                      il processo corrente.
+        verbose: se True, stampa/logga l'elenco dei processi trovati.
+
+    Returns:
+        int: numero di processi terminati
+    """
     if sys.platform != "win32":
         return 0
+
     current_pid = os.getpid()
+    exclude_pids = set(exclude_pids or [])
+    exclude_pids.add(current_pid)
     killed = []
 
     try:
@@ -88,8 +117,9 @@ def kill_orphan_instances():
         )
         result = sp.run(
             ["powershell", "-NoProfile", "-Command", ps_command],
-            capture_output=True, text=True, timeout=15
+            capture_output=True, text=True, timeout=30
         )
+        found = 0
         for line in result.stdout.splitlines():
             line = line.strip()
             if "|" not in line:
@@ -98,13 +128,12 @@ def kill_orphan_instances():
             if not pid_str.isdigit():
                 continue
             pid = int(pid_str)
-            if pid == current_pid:
+            if pid in exclude_pids:
                 continue
             if not any(p in cmdline for p in OWN_PROCESS_PATTERNS):
                 continue
-            try:
-                sp.run(["taskkill", "/F", "/T", "/PID", str(pid)],
-                       capture_output=True, timeout=5)
+            found += 1
+            if _kill_pid(pid):
                 if "bgy_gui" in cmdline:
                     kind = "GUI"
                 elif "bgy_scheduler" in cmdline:
@@ -114,19 +143,25 @@ def kill_orphan_instances():
                 else:
                     kind = "?"
                 killed.append((pid, kind))
-            except Exception:
-                pass
+
+        if verbose and found > 0 and len(killed) < found:
+            logger.warning(
+                f"⚠️ {found - len(killed)} processi non terminati (kill fallito)"
+            )
+
     except Exception as e:
-        print(f"⚠️ Errore kill orphan: {e}")
-    if killed:
-        print(f"🗑️ Terminate {len(killed)} istanze precedenti:")
+        logger.error(f"⚠️ Errore kill orphan: {e}")
+
+    if killed and verbose:
+        print(f"🗑️ Terminate {len(killed)} istanze:")
         for pid, kind in killed:
             print(f"   - PID {pid} ({kind})")
+
     return len(killed)
 
 
 print("🔍 Ricerca istanze precedenti...")
-killed_count = kill_orphan_instances()
+killed_count = kill_orphan_instances(verbose=True)
 if killed_count == 0:
     print("✅ Nessuna istanza precedente trovata.")
 else:
@@ -190,9 +225,46 @@ class BgyAppGUI:
 
         self.root.after(100, self.avvia_scheduler)
         self.root.after(500, self.avvia_watchdog)
+        self.root.after(ORPHAN_CHECK_INTERVAL_MS, self._periodic_orphan_check)
         self.update_timer()
         self.update_clock()
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+    # ------------------------------------------------------------------
+    # PULIZIA ORFANI PERIODICA
+    # ------------------------------------------------------------------
+
+    def _get_tracked_pids(self):
+        """Ritorna i PID dei processi figli tracciati dalla GUI."""
+        pids = set()
+        if self.scheduler_process is not None:
+            try:
+                pids.add(self.scheduler_process.pid)
+            except Exception:
+                pass
+        if self.watchdog_process is not None:
+            try:
+                pids.add(self.watchdog_process.pid)
+            except Exception:
+                pass
+        return pids
+
+    def _periodic_orphan_check(self):
+        """Ogni 5 minuti, verifica e termina processi orfani."""
+        if not self.countdown_running:
+            return
+        try:
+            excluded = self._get_tracked_pids()
+            killed = kill_orphan_instances(
+                exclude_pids=excluded, verbose=False
+            )
+            if killed > 0:
+                msg = f"🧹 Pulizia periodica: {killed} processi orfani terminati"
+                self.log_message(msg)
+        except Exception as e:
+            logger.warning(f"Errore pulizia periodica: {e}")
+        # Riprogramma
+        self.root.after(ORPHAN_CHECK_INTERVAL_MS, self._periodic_orphan_check)
 
     # ------------------------------------------------------------------
     # SCHEDULER
@@ -242,12 +314,7 @@ class BgyAppGUI:
                     self.scheduler_process.kill()
             except Exception:
                 pass
-            if sys.platform == "win32":
-                try:
-                    sp.run(["taskkill", "/F", "/T", "/PID", str(pid)],
-                           capture_output=True, timeout=5)
-                except Exception:
-                    pass
+            _kill_pid(pid)
         self.scheduler_running = False
         self.scheduler_process = None
         self.dashboard.update_scheduler_status("💤 Scheduler fermato", "#95a5a6")
@@ -295,12 +362,7 @@ class BgyAppGUI:
                     self.watchdog_process.kill()
             except Exception:
                 pass
-            if sys.platform == "win32":
-                try:
-                    sp.run(["taskkill", "/F", "/T", "/PID", str(pid)],
-                           capture_output=True, timeout=5)
-                except Exception:
-                    pass
+            _kill_pid(pid)
         self.watchdog_running = False
         self.watchdog_process = None
         self.log_message("✅ Watchdog arrestato")
@@ -498,9 +560,23 @@ class BgyAppGUI:
             return False
 
     def on_closing(self):
+        """Chiusura pulita: ferma subprocess e rimuove eventuali orfani."""
         self.countdown_running = False
+        self.log_message("🛑 Chiusura GUI in corso...")
+
+        # 1. Ferma i processi figli tracciati
         self.ferma_scheduler()
         self.ferma_watchdog()
+
+        # 2. Pulizia finale: rimuove eventuali processi rimasti
+        #    (es. scheduler riavviati dal watchdog)
+        try:
+            killed = kill_orphan_instances(verbose=False)
+            if killed > 0:
+                logger.info(f"🧹 Pulizia finale: {killed} processi terminati")
+        except Exception as e:
+            logger.warning(f"Errore pulizia finale: {e}")
+
         self.root.destroy()
 
 
