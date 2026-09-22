@@ -1,26 +1,19 @@
 """
 bgy_reports/bgy_report_night.py - Report notturno integrato (SACBO + OpenSky).
-Versione 2.7.2
-
-Modello logico:
-- Il TABELLONE SACBO è la fonte primaria per i voli PASSEGGERI.
-  Ogni volo passeggeri del tabellone viene incluso, con o senza match radar.
-- Il RADAR ha due ruoli:
-  1. Arricchire i passeggeri con fase, pista, quota, distanza, rumore.
-  2. Identificare i voli CARGO (che non compaiono sul tabellone passeggeri).
-
-Fix v2.7.2:
-- Deduplica dei radar non matchati per (callsign, finestra di 15 minuti).
-  Il radar registra lo stesso aereo ogni ~15-30 secondi durante il passaggio;
-  senza deduplica, lo stesso cargo veniva contato N volte (es. il 10/09/2026
-  BCS943 appariva 5 volte, ICV782 4 volte, DHK528 3 volte).
-- Rimosso NIA (Nile Air) dalla lista cargo in config_rules_airlines.json:
-  Nile Air è una compagnia passeggeri, non cargo.
+Versione 2.7.1
+- Matching basato su finestra temporale + tipo movimento (callsign SACBO e radar
+  hanno formati numerici diversi, non confrontabili direttamente)
+- Il report contiene solo: voli passeggeri schedulati (con o senza radar)
+  + cargo identificati. I sorvoli/transiti/non identificati sono esclusi.
+- Arricchimento con fase, pista, quota, distanza, rumore.
 
 Fix v2.7.1:
 - DEDUPLICA in load_scheduled_flights(): i voli notturni vengono letti da
-  TUTTE le scansioni SACBO della giornata. Senza deduplica, ogni volo compariva
-  N volte (una per scansione), gonfiando il conteggio (es. 53 voli invece di 30).
+  TUTTE le scansioni SACBO della giornata (23:00, 02:00, 05:00). Senza
+  deduplica, ogni volo compariva N volte (una per scansione), gonfiando
+  il conteggio (es. 53 voli invece di 30). Ora si tiene una sola riga per
+  coppia (callsign_volo, orario_schedulato), preferendo la scansione più
+  recente (scan_files ordinati reverse).
 """
 import os
 import math
@@ -48,9 +41,6 @@ BGY_LON = 9.7042
 # Finestra temporale per il matching (minuti)
 MATCH_WINDOW_BEFORE_MIN = 30      # 30 min prima dell'orario schedulato
 MATCH_WINDOW_AFTER_MIN = 180      # 3 ore dopo l'orario schedulato
-
-# Finestra per la deduplica dei radar non matchati (minuti)
-RADAR_DEDUP_WINDOW_MIN = 15
 
 
 def _cfg():
@@ -130,8 +120,10 @@ def _timestamp_to_minutes_session(ts, session_date):
         dt = pd.to_datetime(ts)
     except Exception:
         return None
+    # Calcola minuti dalla mezzanotte del giorno di sessione
     base = pd.to_datetime(f"{session_date} 23:00:00")
     diff = (dt - base).total_seconds() / 60
+    # Se negativo, timestamp prima dell'inizio sessione (raro)
     if diff < -30:
         return None
     return int(diff)
@@ -147,8 +139,10 @@ def _scheduled_minutes_from_session(hhmm, session_date):
     if mins is None:
         return None
     if mins >= 23 * 60:
+        # 23:00-23:59 -> 0-59
         return mins - 23 * 60
     if mins < 6 * 60:
+        # 00:00-05:59 -> 60-419
         return mins + 60
     return None  # fuori fascia notturna
 
@@ -161,14 +155,14 @@ def load_scheduled_flights(date_str):
     """
     Carica i voli schedulati notturni da tutte le scansioni SACBO della data.
 
-    Deduplica per (callsign_volo, orario_schedulato). Le scansioni sono
-    ordinate in ordine decrescente (più recente prima), così in caso di
-    duplicato si tiene la versione più aggiornata.
+    Fix v2.7.1: deduplica per (callsign_volo, orario_schedulato).
+    Le scansioni sono ordinate in ordine decrescente (più recente prima),
+    così in caso di duplicato si tiene la versione più aggiornata.
     """
     date_norm = normalize_date(date_str)
     date_clean = date_norm.replace("-", "")
     scheduled = []
-    seen = set()
+    seen = set()  # chiavi (callsign, orario) già viste
 
     scan_files = []
     if os.path.isdir(RAW_DIR):
@@ -180,7 +174,11 @@ def load_scheduled_flights(date_str):
             elif f.startswith(f"scan_{date_clean}_"):
                 scan_files.append(f)
 
+    # Ordina per nome file decrescente: le scansioni più recenti
+    # (es. scan_2026-09-15_05-00.csv) vengono processate per prime.
+    # In caso di duplicato, si tiene la prima occorrenza (= la più recente).
     scan_files.sort(reverse=True)
+
     duplicates_skipped = 0
 
     for f in scan_files:
@@ -195,6 +193,7 @@ def load_scheduled_flights(date_str):
                 try:
                     hour = int(str(sched_time).strip().split(':')[0])
                     if hour >= 23 or hour < 6:
+                        # Deduplica per (callsign, orario_schedulato)
                         callsign = str(row.get('callsign_volo', '')).strip()
                         orario = str(sched_time).strip()
                         key = (callsign, orario)
@@ -255,6 +254,11 @@ def load_radar_data(date_str):
 # -----------------------------------------------------------------------------
 
 def _is_phase_compatible(tipo_movimento, fase_volo):
+    """
+    Verifica se la fase radar è compatibile col tipo movimento SACBO.
+    tipo_movimento: 'A' o 'D'
+    fase_volo: 'Atterraggio', 'Decollo', 'Avvicinamento', 'Sorvolo', ...
+    """
     if tipo_movimento == 'D':
         return fase_volo == 'Decollo'
     if tipo_movimento == 'A':
@@ -265,7 +269,11 @@ def _is_phase_compatible(tipo_movimento, fase_volo):
 def match_flights(scheduled_df, radar_df, session_date):
     """
     Esegue il matching tra voli schedulati (SACBO) e rilevamenti radar.
-    Per i radar non matchati (cargo), applica deduplica per (callsign, finestra 15 min).
+    Criteri:
+      - tipo movimento compatibile con fase_volo
+      - timestamp radar dentro finestra [sched-30min, sched+180min]
+      - unicità: ogni radar può matchare al massimo un volo schedulato
+      - tra i candidati, sceglie quello col timestamp più vicino
     """
     if scheduled_df.empty and radar_df.empty:
         return pd.DataFrame()
@@ -279,6 +287,7 @@ def match_flights(scheduled_df, radar_df, session_date):
         radar_df['orario_schedulato'] = ''
         radar_df['destinazione_origine'] = ''
         radar_df['matched_score'] = 0
+        # Escludi i non-cargo
         cargo_mask = radar_df['callsign'].apply(
             lambda x: is_cargo_flight(str(x))[0] if pd.notna(x) else False)
         radar_df = radar_df[cargo_mask]
@@ -286,8 +295,6 @@ def match_flights(scheduled_df, radar_df, session_date):
             return pd.DataFrame()
         radar_df['tipo_movimento'] = radar_df['callsign'].apply(
             lambda x: f'Cargo ({is_cargo_flight(str(x))[1]})' if pd.notna(x) else 'Cargo')
-        # Deduplica anche in questo ramo
-        radar_df = _dedup_radar_by_callsign(radar_df)
         return _enrich_final(radar_df)
 
     # --- Nessun radar: schedulati tutti Non rilevato ---
@@ -304,6 +311,7 @@ def match_flights(scheduled_df, radar_df, session_date):
         scheduled_df['paese'] = 'N/D'
         scheduled_df['matched_score'] = 0
         scheduled_df['callsign'] = scheduled_df['callsign_volo']
+        # tipo_movimento: 'Passeggeri (non rilevato)' per tutti
         scheduled_df['tipo_movimento'] = 'Passeggeri (non rilevato)'
         return _enrich_final(scheduled_df)
 
@@ -311,6 +319,7 @@ def match_flights(scheduled_df, radar_df, session_date):
     sched = scheduled_df.copy()
     radar = radar_df.copy()
 
+    # Calcola minuti sessione per ogni record
     sched['_sched_min'] = sched.apply(
         lambda r: _scheduled_minutes_from_session(
             r.get('orario_schedulato'),
@@ -319,6 +328,7 @@ def match_flights(scheduled_df, radar_df, session_date):
     radar['_radar_min'] = radar['timestamp'].apply(
         lambda t: _timestamp_to_minutes_session(t, session_date))
 
+    # Filtra radar con timestamp valido e fase utile
     radar = radar[radar['_radar_min'].notna()].copy()
 
     matched = []
@@ -328,6 +338,7 @@ def match_flights(scheduled_df, radar_df, session_date):
         sched_min = s['_sched_min']
         tipo_mov = s.get('tipo_movimento', '')
         if sched_min is None:
+            # Non schedulato valido: passa avanti (sarà Non rilevato)
             combined = dict(s)
             combined['is_scheduled'] = True
             combined['timestamp'] = ''
@@ -344,6 +355,7 @@ def match_flights(scheduled_df, radar_df, session_date):
             matched.append(combined)
             continue
 
+        # Finestra
         low = sched_min - MATCH_WINDOW_BEFORE_MIN
         high = sched_min + MATCH_WINDOW_AFTER_MIN
 
@@ -388,15 +400,13 @@ def match_flights(scheduled_df, radar_df, session_date):
             combined['tipo_movimento'] = 'Passeggeri (solo schedulato)'
             matched.append(combined)
 
-    # --- Radar non matchati: deduplica per (callsign, finestra 15 min), poi cargo ---
+    # --- Radar non matchati: tieni solo i cargo ---
     unmatched = radar[~radar.index.isin(used_radar_idx)].copy()
-    unmatched = _dedup_radar_by_callsign(unmatched)
-
     for _, row in unmatched.iterrows():
         cs = str(row.get('callsign', '') or '')
         cargo, cargo_airline = is_cargo_flight(cs)
         if not cargo:
-            # Sorvolo / transito / non identificato / passeggero non matchato: escludi
+            # Sorvolo / transito / non identificato: escludi
             continue
         row_dict = row.to_dict()
         row_dict['is_scheduled'] = False
@@ -415,48 +425,6 @@ def match_flights(scheduled_df, radar_df, session_date):
     return _enrich_final(result)
 
 
-def _dedup_radar_by_callsign(radar_df):
-    """
-    Deduplica i radar per (callsign, finestra di RADAR_DEDUP_WINDOW_MIN minuti).
-
-    Il radar rileva lo stesso aereo ogni ~15-30 secondi durante il passaggio.
-    Raggruppando in finestre di 15 minuti, si tiene una sola riga per passaggio.
-
-    Fix v2.7.2: senza questa deduplica, un singolo cargo veniva contato
-    N volte (una per ogni rilevazione radar).
-    """
-    if radar_df.empty or 'callsign' not in radar_df.columns:
-        return radar_df
-
-    before = len(radar_df)
-    df = radar_df.copy()
-
-    # Converti timestamp in minuti epoch per calcolare la finestra
-    try:
-        ts_series = pd.to_datetime(df['timestamp'])
-        # minuti epoch
-        ts_min = (ts_series.astype('int64') // 60_000_000_000)
-        df['_window'] = ts_min // RADAR_DEDUP_WINDOW_MIN
-    except Exception as e:
-        logger.warning(f"Deduplica radar: impossibile calcolare la finestra: {e}")
-        return radar_df
-
-    # Ordina per timestamp e tieni la prima riga per (callsign, finestra)
-    df = df.sort_values('timestamp').drop_duplicates(
-        subset=['callsign', '_window'], keep='first'
-    )
-    df = df.drop(columns=['_window'])
-
-    after = len(df)
-    if before != after:
-        logger.info(
-            f"🧹 Radar non matchati deduplicati: {before} → {after} "
-            f"({before - after} rilevazioni ripetute scartate, "
-            f"finestra {RADAR_DEDUP_WINDOW_MIN} min)"
-        )
-    return df
-
-
 # -----------------------------------------------------------------------------
 # ARRICCHIMENTO
 # -----------------------------------------------------------------------------
@@ -466,6 +434,7 @@ def _enrich_final(df):
         return df
     df = df.copy()
 
+    # Se manca 'callsign', usa callsign_volo
     if 'callsign' not in df.columns:
         df['callsign'] = df.get('callsign_volo', 'N/D')
     else:
