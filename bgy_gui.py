@@ -1,7 +1,8 @@
 """
 BGY Monitoring Suite - Interfaccia Grafica di Controllo
-v2.5.1
+v2.5.2
 - Aggiunto tab "📈 Grafici" (anteprima con dati dal DB)
+- Aggiunto tab "🔔 Notifiche" (silenzia/attiva email)
 - Pulizia periodica processi orfani (fix zombie scheduler)
 """
 import sys
@@ -56,7 +57,7 @@ from bgy_core import get_logger, config_manager, ensure_directories
 from bgy_core.bgy_version import __version__
 from bgy_gui import (
     DashboardTab, MailConfigTab, ScanConfigTab, ReportExportTab,
-    WatchdogConfigTab,
+    WatchdogConfigTab, NotificationsTab,
 )
 from bgy_gui.bgy_gui_charts import ChartsTab
 
@@ -212,6 +213,9 @@ class BgyAppGUI:
 
         self.charts_tab = ChartsTab(self.notebook, self)
         self.notebook.add(self.charts_tab.tab, text="📈 Grafici")
+
+        self.notifications_tab = NotificationsTab(self.notebook, self)
+        self.notebook.add(self.notifications_tab.tab, text="🔔 Notifiche")
 
         self.watchdog_tab = WatchdogConfigTab(self.notebook, self)
         self.notebook.add(self.watchdog_tab.tab, text="🐕 Watchdog")
@@ -569,7 +573,6 @@ class BgyAppGUI:
         self.ferma_watchdog()
 
         # 2. Pulizia finale: rimuove eventuali processi rimasti
-        #    (es. scheduler riavviati dal watchdog)
         try:
             killed = kill_orphan_instances(verbose=False)
             if killed > 0:

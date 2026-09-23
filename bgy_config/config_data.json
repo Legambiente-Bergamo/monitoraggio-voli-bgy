@@ -6,7 +6,9 @@
     "sacbo_night_scan_enabled": true,
     "notifications": {
         "cooldown_minutes": 30,
-        "enabled": true
+        "enabled": true,
+        "alerts_enabled": true,
+        "daily_status_enabled": true
     },
     "weather": {
         "latitude": 45.6739,

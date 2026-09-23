@@ -1,6 +1,11 @@
 """
 bgy_core/bgy_mailer.py - Modulo unificato di invio email.
-Versione 2.5.0 - legge config via config_manager
+Versione 2.5.1
+- Legge config via config_manager
+- Rispetta i flag di silenziamento:
+  * notifications.enabled             → master ON/OFF
+  * notifications.alerts_enabled      → allarmi watchdog
+  * notifications.daily_status_enabled → email stato 06:30
 """
 import os
 import json
@@ -20,6 +25,49 @@ logger = get_logger("Mailer")
 
 COOLDOWN_FILE = os.path.join(LOGS_DIR, "notifier_cooldown.json")
 DEFAULT_COOLDOWN_MIN = 30
+
+
+# =============================================================================
+# FLAG DI SILENZIAMENTO (v2.5.1)
+# =============================================================================
+
+def _notifications_config():
+    """Ritorna la sezione notifications di config_data (dict, mai None)."""
+    try:
+        cfg = config_manager.get_data_config()
+        return cfg.get("notifications", {}) or {}
+    except Exception:
+        return {}
+
+
+def is_master_enabled():
+    """Master switch globale."""
+    return bool(_notifications_config().get("enabled", True))
+
+
+def are_alerts_enabled():
+    """Allarmi watchdog (radar mancante, opensky, scheduler, ecc.)."""
+    if not is_master_enabled():
+        return False
+    return bool(_notifications_config().get("alerts_enabled", True))
+
+
+def is_daily_status_enabled():
+    """Email di stato giornaliero 06:30."""
+    if not is_master_enabled():
+        return False
+    return bool(_notifications_config().get("daily_status_enabled", True))
+
+
+def get_notifications_state():
+    """Ritorna lo stato dei 3 flag (utile per la GUI)."""
+    cfg = _notifications_config()
+    return {
+        "enabled": bool(cfg.get("enabled", True)),
+        "alerts_enabled": bool(cfg.get("alerts_enabled", True)),
+        "daily_status_enabled": bool(cfg.get("daily_status_enabled", True)),
+        "cooldown_minutes": int(cfg.get("cooldown_minutes", DEFAULT_COOLDOWN_MIN)),
+    }
 
 
 # =============================================================================
@@ -171,10 +219,20 @@ def _send_smtp(cfg, subject, plain_text, html_body=None, attachment_paths=None,
 
 
 # =============================================================================
-# ALERT (con cooldown)
+# ALERT (con cooldown + flag silenziamento)
 # =============================================================================
 
 def send_alert(key, subject, body, force=False):
+    """
+    Invia un'email di allarme.
+    Rispetta notifications.enabled e notifications.alerts_enabled.
+    Con force=True ignora il flag alerts_enabled ma non il master.
+    """
+    # Master switch: se disabilitato, blocca tutto tranne force
+    if not force and not are_alerts_enabled():
+        logger.info(f"🔕 Allarme '{key}' silenziato (notifications.alerts_enabled=False)")
+        return True  # considerato "gestito", non è un errore
+
     if not force and not can_send(key):
         return True
 
@@ -236,7 +294,21 @@ body {{ font-family: Arial; line-height: 1.6; color: #333; max-width: 700px; mar
 
 
 def send_status_email(subject, body, is_success=True,
-                      attachment_paths=None, recipient_type="generic"):
+                      attachment_paths=None, recipient_type="generic",
+                      force=False):
+    """
+    Invia email di stato (con HTML).
+    Rispetta il flag daily_status_enabled solo se recipient_type='daily'.
+    """
+    if not force and recipient_type == "daily":
+        if not is_daily_status_enabled():
+            logger.info("🔕 Email di stato giornaliero silenziata "
+                        "(notifications.daily_status_enabled=False)")
+            return True
+    elif not force and not is_master_enabled():
+        logger.info("🔕 Email silenziata (notifications.enabled=False)")
+        return True
+
     cfg = _load_mail_config()
     if not cfg:
         return False
@@ -271,7 +343,15 @@ def _get_today_log_path():
     return path if os.path.exists(path) else None
 
 
-def send_daily_status(success=True, details="", checks=None):
+def send_daily_status(success=True, details="", checks=None, force=False):
+    """
+    Email di stato giornaliero (06:30).
+    Rispetta notifications.enabled e notifications.daily_status_enabled.
+    """
+    if not force and not is_daily_status_enabled():
+        logger.info("🔕 Email di stato giornaliero silenziata")
+        return True
+
     if checks:
         all_ok = all(ok for ok, _ in checks.values())
     else:
@@ -323,12 +403,13 @@ def send_daily_status(success=True, details="", checks=None):
 
     return send_status_email(subject, body, all_ok,
                              attachment_paths=attachments,
-                             recipient_type="daily")
+                             recipient_type="daily",
+                             force=force)
 
 
 def send_email_with_attachments(attachment_paths, subject=None,
                                 recipient_type="monthly",
-                                is_success=True, body=None):
+                                is_success=True, body=None, force=False):
     if not subject:
         subject = f"📊 Report BGY - {datetime.now().strftime('%d/%m/%Y')}"
     if body is None:
@@ -337,5 +418,25 @@ def send_email_with_attachments(attachment_paths, subject=None,
     return send_status_email(
         subject, body, is_success,
         attachment_paths=attachment_paths,
-        recipient_type=recipient_type
+        recipient_type=recipient_type,
+        force=force,
     )
+
+
+def send_test_email():
+    """Invia un'email di test (ignora tutti i flag). Ritorna (bool, msg)."""
+    now = datetime.now()
+    subject = f"🧪 Email di test BGY - {now.strftime('%d/%m/%Y %H:%M')}"
+    body = (
+        "Questa è un'email di test inviata manualmente dalla GUI.\n\n"
+        "Se la ricevi, la configurazione SMTP è corretta.\n\n"
+        f"Stato flag notifiche:\n"
+        f"  • enabled: {is_master_enabled()}\n"
+        f"  • alerts_enabled: {are_alerts_enabled()}\n"
+        f"  • daily_status_enabled: {is_daily_status_enabled()}"
+    )
+    ok = send_status_email(subject, body, is_success=True,
+                            recipient_type="daily", force=True)
+    if ok:
+        return True, "Email di test inviata"
+    return False, "Invio email di test fallito (controlla i log)"

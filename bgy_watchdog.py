@@ -1,17 +1,21 @@
 """
 bgy_watchdog.py - Watchdog per il controllo anomalie BGY Monitoring Suite.
-Versione 2.5.3
+Versione 2.5.4
 - Doppio check prima di riavviare lo scheduler (evita falsi positivi)
 - Messaggi di alert letti da bgy_config/config_alert_messages.json
 
+Fix v2.5.4:
+- check_radar(): grace period di 30 minuti dall'inizio della sessione notturna.
+  Prima alle 23:00 scattava subito l'allarme "radar_missing" perché il file
+  non era ancora stato creato (viene creato alla prima rilevazione, non
+  all'inizio della fascia).
+- check_radar(): l'alert "radar_stale_scanner_ok" (radar fermo ma scanner
+  attivo) non invia più email ma solo log. È un caso normale (nessun aereo
+  nell'area). Il caso "radar_stale" (scanner inattivo) continua a inviare email.
+
 Fix v2.5.3:
-- check_opensky(): prima contava QUALSIASI riga contenente "429" nel log,
-  incluse le righe di allarme generate dal watchdog stesso (❌ OPENSKY:
-  Rilevati N errori 429...). Questo causava un ciclo di auto-alimentazione:
-  ogni check trovava le righe dei check precedenti e le contava come nuovi
-  errori, generando notifiche continue anche fuori dalla fascia notturna.
-  Ora il check ignora le righe di [Watchdog] e [Mailer], e considera solo
-  gli errori 429 generati dallo scanner OpenSky ([ScannerNight] o OpenSky).
+- check_opensky(): filtra le righe di [Watchdog] e [Mailer] per evitare
+  l'auto-conteggio degli errori 429.
 """
 import os
 import sys
@@ -36,6 +40,10 @@ SCHEDULER_SCRIPT = os.path.join(PROJECT_ROOT, "bgy_scheduler.py")
 
 # Ritardo tra primo e secondo check scheduler
 SCHEDULER_DOUBLE_CHECK_DELAY_SEC = 3
+
+# Grace period (minuti) dall'inizio della sessione notturna durante il quale
+# non si allarma se il file radar non esiste ancora.
+RADAR_MISSING_GRACE_MIN = 30
 
 
 def _cfg():
@@ -141,6 +149,23 @@ def check_sacbo():
 # CHECK 2 - RADAR
 # =============================================================================
 
+def _minutes_since_night_start(now):
+    """
+    Ritorna i minuti trascorsi dall'inizio della sessione notturna corrente.
+    Se non siamo in fascia notturna, ritorna None.
+    """
+    if not is_night_time(now):
+        return None
+    # La sessione inizia alle 23:00
+    if now.hour >= 23:
+        night_start = now.replace(hour=23, minute=0, second=0, microsecond=0)
+    else:
+        # Siamo dopo mezzanotte: la sessione è iniziata ieri alle 23:00
+        night_start = (now - timedelta(days=1)).replace(
+            hour=23, minute=0, second=0, microsecond=0)
+    return int((now - night_start).total_seconds() / 60)
+
+
 def check_radar():
     cfg = _cfg()
     radar_stale = cfg.get("radar_stale_min", 30)
@@ -149,6 +174,7 @@ def check_radar():
         now = datetime.now()
         if not is_night_time(now):
             return True, "Fuori dalla finestra notturna"
+
         session = night_session_date(now)
         new_name = radar_filename(session)
         old_name = f"bgy_night_flights_{session}.csv"
@@ -159,25 +185,47 @@ def check_radar():
                 if os.path.exists(p):
                     radar_file = p
                     break
+
+        # ---- File radar mancante ----
         if not radar_file:
+            # Grace period a inizio sessione: il file viene creato solo alla
+            # prima rilevazione, non all'inizio della fascia.
+            minuti_da_inizio = _minutes_since_night_start(now)
+            if minuti_da_inizio is not None and minuti_da_inizio < RADAR_MISSING_GRACE_MIN:
+                return True, (f"Radar non ancora creato "
+                              f"({minuti_da_inizio} min dall'inizio sessione, "
+                              f"grace period {RADAR_MISSING_GRACE_MIN} min)")
+
             msg = f"File radar mancante per la sessione {session}"
             _send_alert("radar_missing",
                         sessione=session,
                         file_atteso=new_name or old_name)
             return False, msg
+
+        # ---- File radar presente: controlla freschezza ----
         mtime = datetime.fromtimestamp(os.path.getmtime(radar_file))
         elapsed_min = (now - mtime).total_seconds() / 60
+
         if elapsed_min <= radar_stale:
             return True, f"Radar aggiornato {int(elapsed_min)} min fa"
+
+        # Radar fermo: verifica se lo scanner è attivo
         if _scanner_night_is_active(now, log_window):
-            _send_alert("radar_stale_scanner_ok")
+            # Caso normale: nessun aereo nell'area. Log ma NIENTE email.
+            logger.info(
+                f"ℹ️  Radar fermo da {int(elapsed_min)} min ma scanner attivo "
+                f"(nessun aereo nell'area) — nessuna notifica inviata"
+            )
             return True, (f"Radar fermo da {int(elapsed_min)} min "
                           f"ma scanner attivo (nessun aereo nell'area)")
+
+        # Scanner NON attivo → vero problema, manda email
         msg = (f"Radar fermo da {int(elapsed_min)} min e scanner non attivo")
         _send_alert("radar_stale",
                     minuti_fermo=int(elapsed_min),
                     ultimo_aggiornamento=mtime.strftime("%Y-%m-%d %H:%M"))
         return False, msg
+
     except Exception as e:
         return False, f"Errore check radar: {e}"
 
@@ -214,11 +262,6 @@ def check_opensky():
     - Ignora le righe generate dal Watchdog stesso ([Watchdog])
     - Ignora le righe generate dal Mailer ([Mailer])
     - Considera solo gli errori 429 reali dello scanner OpenSky
-      ([ScannerNight] o righe che menzionano OpenSky)
-
-    Fix v2.5.3: senza questo filtro, il watchdog contava le proprie righe
-    di allarme ("❌ OPENSKY: Rilevati N errori 429...") come se fossero
-    nuovi errori, causando un ciclo infinito di notifiche.
     """
     cfg = _cfg()
     threshold = cfg.get("opensky_error_threshold", 5)
@@ -242,20 +285,14 @@ def check_opensky():
         errors_429 = 0
 
         for line in lines:
-            # ✅ Ignora le righe generate dal Watchdog o dal Mailer
-            #    (altrimenti il check si auto-alimenta contando i propri allarmi)
             if "[Watchdog]" in line or "[Mailer]" in line:
                 continue
-            # ✅ Considera solo le righe che menzionano OpenSky o ScannerNight
             if "OpenSky" not in line and "[ScannerNight]" not in line:
                 continue
-            # ✅ Cerca la presenza di "429"
             if "429" not in line:
                 continue
-            # ✅ Ignora eventuali righe di riepilogo (difensivo)
             if "Rilevati" in line and "errori 429" in line:
                 continue
-            # ✅ Verifica timestamp
             try:
                 ts_str = line.split(" - ")[0].strip()
                 ts = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S,%f")
@@ -287,10 +324,8 @@ def check_scheduler():
     cfg = _cfg()
     log_stale = cfg.get("scheduler_log_stale_min", 15)
     try:
-        # Primo check
         running = _is_scheduler_process_running()
 
-        # Doppio check: se il primo dice "non attivo", verifica di nuovo
         if not running:
             logger.info(
                 f"Scheduler non attivo al primo check, "
@@ -472,6 +507,7 @@ def watchdog_loop():
     logger.info("=" * 50)
     logger.info("🐕 WATCHDOG BGY - AVVIO")
     logger.info(f"Intervallo: {interval}s")
+    logger.info(f"Grace period radar: {RADAR_MISSING_GRACE_MIN} min")
     logger.info("=" * 50)
     try:
         run_check(manual=False)

@@ -1,12 +1,20 @@
 """
 bgy_gui/bgy_gui_charts.py - Tab GUI per anteprima grafici.
-Versione 2.5.2
+Versione 2.5.4
 
-Legge i dati dal DB, applica filtri movimento/tipo volo, genera i grafici
-con bgy_core.bgy_charts e li mostra in un canvas Tkinter.
-Permette l'export PNG.
+Novità v2.5.4:
+- Sostituito il radio "Tipo volo" (Tutti/Passeggeri/Cargo) con
+  checkbox multi-selezione per le 5 categorie del modello v2.8.x:
+  * Passeggeri (default ON)
+  * Cargo (default ON)
+  * Charter (default ON)
+  * Passeggeri (radar) (default OFF → opt-in)
+  * Non identificato (default OFF → opt-in)
+- Pulsanti rapidi: [Solo visibili] [Tutti] [Nessuno]
+- Retrocompatibile con il vecchio filtro stringa.
 
-Fix v2.5.2: la toolbar non viene più duplicata ad ogni generazione.
+Fix v2.5.2:
+- La toolbar non viene più duplicata ad ogni generazione.
 """
 import os
 import tkinter as tk
@@ -26,6 +34,18 @@ from bgy_core.bgy_dates import (
 )
 
 logger = get_logger("GUI_Charts")
+
+
+# Categorie disponibili (v2.8.x)
+CATEGORIE_VISIBILI = [
+    ("Passeggeri",           True),
+    ("Cargo",                True),
+    ("Charter",              True),
+]
+CATEGORIE_OPTIN = [
+    ("Passeggeri (radar)",   False),
+    ("Non identificato",     False),
+]
 
 
 class ChartsTab:
@@ -55,7 +75,7 @@ class ChartsTab:
         controls = ttk.LabelFrame(tab, text="🔍 Selezione dati", padding=10)
         controls.pack(fill="x", padx=20, pady=5)
 
-        # Riga 1: tipo periodo + periodo
+        # Riga 1: tipo periodo
         row1 = ttk.Frame(controls)
         row1.pack(fill="x", pady=2)
 
@@ -117,31 +137,48 @@ class ChartsTab:
         ttk.Radiobutton(row4, text="Atterraggi", variable=self.movement_filter,
                         value="arrivals").pack(side="left", padx=5)
 
-        # Riga 5: tipo volo (solo notturno)
+        # Riga 5: tipo volo (checkbox multiple, solo notturno)
         row5 = ttk.Frame(controls)
-        row5.pack(fill="x", pady=2)
+        row5.pack(fill="x", pady=4)
 
         self.flight_type_label = ttk.Label(row5, text="Tipo volo:")
         self.flight_type_label.pack(side="left", padx=5)
 
-        self.flight_type_filter = tk.StringVar(value="all")
-        self.rb_ft_all = ttk.Radiobutton(row5, text="Tutti",
-                                          variable=self.flight_type_filter,
-                                          value="all")
-        self.rb_ft_all.pack(side="left", padx=5)
-        self.rb_ft_pax = ttk.Radiobutton(row5, text="Passeggeri",
-                                          variable=self.flight_type_filter,
-                                          value="pax")
-        self.rb_ft_pax.pack(side="left", padx=5)
-        self.rb_ft_cargo = ttk.Radiobutton(row5, text="Cargo",
-                                            variable=self.flight_type_filter,
-                                            value="cargo")
-        self.rb_ft_cargo.pack(side="left", padx=5)
+        # Frame interno con le checkbox
+        self.flight_type_frame = ttk.Frame(row5)
+        self.flight_type_frame.pack(side="left", padx=5)
 
-        self.flight_type_hint = ttk.Label(
-            row5, text="(disponibile solo per notturno)",
-            font=("Helvetica", 8), foreground="#7f8c8d")
-        self.flight_type_hint.pack(side="left", padx=5)
+        self.flight_vars = {}
+
+        # Categorie visibili (riga 1)
+        sub_row1 = ttk.Frame(self.flight_type_frame)
+        sub_row1.pack(anchor="w")
+        for cat, default in CATEGORIE_VISIBILI:
+            var = tk.BooleanVar(value=default)
+            self.flight_vars[cat] = var
+            cb = ttk.Checkbutton(sub_row1, text=cat, variable=var)
+            cb.pack(side="left", padx=4)
+
+        # Categorie opt-in (riga 2)
+        sub_row2 = ttk.Frame(self.flight_type_frame)
+        sub_row2.pack(anchor="w")
+        ttk.Label(sub_row2, text="Opt-in:",
+                  font=("Helvetica", 8), foreground="#7f8c8d").pack(side="left", padx=4)
+        for cat, default in CATEGORIE_OPTIN:
+            var = tk.BooleanVar(value=default)
+            self.flight_vars[cat] = var
+            cb = ttk.Checkbutton(sub_row2, text=cat, variable=var)
+            cb.pack(side="left", padx=4)
+
+        # Pulsanti rapidi (riga 3)
+        sub_row3 = ttk.Frame(self.flight_type_frame)
+        sub_row3.pack(anchor="w", pady=2)
+        ttk.Button(sub_row3, text="Solo visibili",
+                   command=self._set_only_visible).pack(side="left", padx=2)
+        ttk.Button(sub_row3, text="Tutti",
+                   command=self._set_all_categories).pack(side="left", padx=2)
+        ttk.Button(sub_row3, text="Nessuno",
+                   command=self._set_no_categories).pack(side="left", padx=2)
 
         # Riga 6: pulsanti
         row6 = ttk.Frame(controls)
@@ -180,6 +217,34 @@ class ChartsTab:
         self._on_report_type_change()
 
     # -------------------------------------------------------------------------
+    # GESTIONE CATEGORIE
+    # -------------------------------------------------------------------------
+
+    def _set_only_visible(self):
+        """Attiva solo le categorie visibili di default."""
+        for cat, _ in CATEGORIE_VISIBILI:
+            self.flight_vars[cat].set(True)
+        for cat, _ in CATEGORIE_OPTIN:
+            self.flight_vars[cat].set(False)
+
+    def _set_all_categories(self):
+        for var in self.flight_vars.values():
+            var.set(True)
+
+    def _set_no_categories(self):
+        for var in self.flight_vars.values():
+            var.set(False)
+
+    def _get_selected_categories(self):
+        """Ritorna la lista delle categorie selezionate, o None se tutte."""
+        selected = [cat for cat, var in self.flight_vars.items() if var.get()]
+        # Se tutte selezionate → None (equivale a "tutte")
+        all_cats = [c for c, _ in CATEGORIE_VISIBILI] + [c for c, _ in CATEGORIE_OPTIN]
+        if set(selected) == set(all_cats):
+            return None
+        return selected
+
+    # -------------------------------------------------------------------------
     # CAMBIO TIPO PERIODO / REPORT
     # -------------------------------------------------------------------------
 
@@ -201,11 +266,15 @@ class ChartsTab:
     def _on_report_type_change(self):
         is_nightly = self.report_type.get() == "nightly"
         state = "normal" if is_nightly else "disabled"
-        self.rb_ft_all.config(state=state)
-        self.rb_ft_pax.config(state=state)
-        self.rb_ft_cargo.config(state=state)
-        if not is_nightly:
-            self.flight_type_filter.set("all")
+        # Abilita/disabilita le checkbox
+        for child in self.flight_type_frame.winfo_children():
+            for sub in child.winfo_children():
+                if isinstance(sub, ttk.Checkbutton):
+                    sub.config(state=state)
+                elif isinstance(sub, ttk.Button):
+                    sub.config(state=state)
+                elif isinstance(sub, ttk.Label):
+                    pass
 
     def _set_today(self):
         self.period_type.set("day")
@@ -314,7 +383,6 @@ class ChartsTab:
         df = pd.DataFrame(rows, columns=cols)
         df['data_report'] = pd.to_datetime(df['data_riferimento'])
 
-        # Arricchimento per daily (compagnia calcolata dal callsign)
         if report_type == "daily":
             df['compagnia_aerea'] = df['callsign_volo'].apply(
                 lambda x: get_airline(x) if x else "N/D")
@@ -339,7 +407,13 @@ class ChartsTab:
 
         report_type = self.report_type.get()
         movement_filter = self.movement_filter.get()
-        flight_type_filter = self.flight_type_filter.get()
+        flight_type_filter = self._get_selected_categories()
+
+        # Se nessuna categoria selezionata e report nightly → avvisa
+        if report_type == 'nightly' and flight_type_filter is not None and len(flight_type_filter) == 0:
+            messagebox.showwarning("Attenzione",
+                                    "Seleziona almeno una categoria di volo.")
+            return
 
         self._set_status("⏳ Caricamento dati dal DB...", "#f39c12")
         self.tab.update_idletasks()
@@ -386,7 +460,6 @@ class ChartsTab:
                           "#27ae60")
 
     def _clear_canvas(self):
-        """Rimuove canvas, toolbar e figura precedenti."""
         if self.current_toolbar is not None:
             try:
                 self.current_toolbar.destroy()
