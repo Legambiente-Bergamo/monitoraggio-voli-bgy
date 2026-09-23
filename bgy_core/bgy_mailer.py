@@ -1,11 +1,12 @@
 """
 bgy_core/bgy_mailer.py - Modulo unificato di invio email.
-Versione 2.5.1
+Versione 2.5.2
 - Legge config via config_manager
 - Rispetta i flag di silenziamento:
   * notifications.enabled             → master ON/OFF
   * notifications.alerts_enabled      → allarmi watchdog
   * notifications.daily_status_enabled → email stato 06:30
+- send_daily_status() mostra 7 check (aggiunto db_sync e quality_check)
 """
 import os
 import json
@@ -28,11 +29,10 @@ DEFAULT_COOLDOWN_MIN = 30
 
 
 # =============================================================================
-# FLAG DI SILENZIAMENTO (v2.5.1)
+# FLAG DI SILENZIAMENTO
 # =============================================================================
 
 def _notifications_config():
-    """Ritorna la sezione notifications di config_data (dict, mai None)."""
     try:
         cfg = config_manager.get_data_config()
         return cfg.get("notifications", {}) or {}
@@ -41,26 +41,22 @@ def _notifications_config():
 
 
 def is_master_enabled():
-    """Master switch globale."""
     return bool(_notifications_config().get("enabled", True))
 
 
 def are_alerts_enabled():
-    """Allarmi watchdog (radar mancante, opensky, scheduler, ecc.)."""
     if not is_master_enabled():
         return False
     return bool(_notifications_config().get("alerts_enabled", True))
 
 
 def is_daily_status_enabled():
-    """Email di stato giornaliero 06:30."""
     if not is_master_enabled():
         return False
     return bool(_notifications_config().get("daily_status_enabled", True))
 
 
 def get_notifications_state():
-    """Ritorna lo stato dei 3 flag (utile per la GUI)."""
     cfg = _notifications_config()
     return {
         "enabled": bool(cfg.get("enabled", True)),
@@ -75,7 +71,6 @@ def get_notifications_state():
 # =============================================================================
 
 def _load_mail_config():
-    """Legge config mail via config_manager. Ritorna dict o None se incompleta."""
     cfg = config_manager.get_mail_config()
     if not cfg:
         logger.error("Configurazione mail vuota")
@@ -105,7 +100,6 @@ def _save_cooldown(data):
 
 
 def get_cooldown_minutes():
-    """Legge il cooldown da config_data via config_manager (default 30 min)."""
     try:
         cfg = config_manager.get_data_config()
         return int(cfg.get("notifications", {}).get("cooldown_minutes", DEFAULT_COOLDOWN_MIN))
@@ -114,7 +108,6 @@ def get_cooldown_minutes():
 
 
 def can_send(key):
-    """Verifica se è passato abbastanza tempo dall'ultima notifica per questa key."""
     cooldown_min = get_cooldown_minutes()
     data = _load_cooldown()
     if key in data:
@@ -131,7 +124,6 @@ def can_send(key):
 
 
 def reset_cooldown():
-    """Cancella tutti i cooldown (usato dal tab GUI)."""
     try:
         if os.path.exists(COOLDOWN_FILE):
             os.remove(COOLDOWN_FILE)
@@ -143,7 +135,6 @@ def reset_cooldown():
 
 
 def get_active_cooldowns():
-    """Restituisce i cooldown attivi (per il tab GUI)."""
     return _load_cooldown()
 
 
@@ -223,15 +214,9 @@ def _send_smtp(cfg, subject, plain_text, html_body=None, attachment_paths=None,
 # =============================================================================
 
 def send_alert(key, subject, body, force=False):
-    """
-    Invia un'email di allarme.
-    Rispetta notifications.enabled e notifications.alerts_enabled.
-    Con force=True ignora il flag alerts_enabled ma non il master.
-    """
-    # Master switch: se disabilitato, blocca tutto tranne force
     if not force and not are_alerts_enabled():
         logger.info(f"🔕 Allarme '{key}' silenziato (notifications.alerts_enabled=False)")
-        return True  # considerato "gestito", non è un errore
+        return True
 
     if not force and not can_send(key):
         return True
@@ -296,10 +281,6 @@ body {{ font-family: Arial; line-height: 1.6; color: #333; max-width: 700px; mar
 def send_status_email(subject, body, is_success=True,
                       attachment_paths=None, recipient_type="generic",
                       force=False):
-    """
-    Invia email di stato (con HTML).
-    Rispetta il flag daily_status_enabled solo se recipient_type='daily'.
-    """
     if not force and recipient_type == "daily":
         if not is_daily_status_enabled():
             logger.info("🔕 Email di stato giornaliero silenziata "
@@ -344,10 +325,6 @@ def _get_today_log_path():
 
 
 def send_daily_status(success=True, details="", checks=None, force=False):
-    """
-    Email di stato giornaliero (06:30).
-    Rispetta notifications.enabled e notifications.daily_status_enabled.
-    """
     if not force and not is_daily_status_enabled():
         logger.info("🔕 Email di stato giornaliero silenziata")
         return True
@@ -370,6 +347,8 @@ def send_daily_status(success=True, details="", checks=None, force=False):
             ('night_acquisition', '3) Acquisizione dati notturni (23:00-05:59)'),
             ('night_enrichment', '4) Arricchimento dati notturni'),
             ('github_sync', '5) Sincronizzazione GitHub'),
+            ('db_sync', '6) Sincronizzazione Database'),
+            ('quality_check', '7) Verifica qualità dati'),
         ]
         for key, label in labels:
             if key in checks:
@@ -378,7 +357,11 @@ def send_daily_status(success=True, details="", checks=None, force=False):
                 stato = 'OK' if ok else 'KO'
                 lines.append(f"{icon} {label}: {stato}")
                 if msg:
-                    lines.append(f"      → {msg}")
+                    # Per quality_check il msg è multi-riga: indentazione diversa
+                    if key == 'quality_check':
+                        lines.append(msg)
+                    else:
+                        lines.append(f"      → {msg}")
                 lines.append("")
         body = "\n".join(lines)
         if details:
@@ -392,7 +375,8 @@ def send_daily_status(success=True, details="", checks=None, force=False):
             checks and
             'github_sync' in checks and
             not checks['github_sync'][0] and
-            all(ok for k, (ok, _) in checks.items() if k != 'github_sync')
+            all(ok for k, (ok, _) in checks.items()
+                if k not in ('github_sync', 'quality_check'))
         )
         if not only_sync_error:
             log_path = _get_today_log_path()

@@ -1,9 +1,10 @@
 """
 bgy_scheduler.py - Pianificatore ed Orchestratore automatico.
-Versione 2.5.5
+Versione 2.5.6
 - Lock file per impedire doppio avvio
 - Radar notturno: SOLO tra le 23:00 e le 05:59
 - Sync DB: recupero automatico degli ultimi 8 giorni (oggi + 7 indietro)
+- Quality check (F11e) integrato nel job giornaliero
 """
 import os
 import sys
@@ -29,16 +30,14 @@ os.makedirs(LOGS_DIR, exist_ok=True)
 _scheduler_lock = threading.Lock()
 _scheduler_started = False
 
-# --- Lock file di processo ---
 SCHEDULER_LOCK_FILE = os.path.join(LOGS_DIR, "scheduler.lock")
 
 
 # -----------------------------------------------------------------------------
-# LOCK FILE (anti doppio avvio)
+# LOCK FILE
 # -----------------------------------------------------------------------------
 
 def _is_pid_alive(pid):
-    """Verifica se un PID è ancora attivo. Solo Windows."""
     if sys.platform != "win32":
         try:
             os.kill(pid, 0)
@@ -57,7 +56,6 @@ def _is_pid_alive(pid):
 
 
 def _read_lock_pid():
-    """Legge il PID dal lock file. Ritorna None se assente o illeggibile."""
     if not os.path.exists(SCHEDULER_LOCK_FILE):
         return None
     try:
@@ -69,7 +67,6 @@ def _read_lock_pid():
 
 
 def _write_lock_pid(pid):
-    """Scrive il PID nel lock file."""
     try:
         with open(SCHEDULER_LOCK_FILE, "w", encoding="utf-8") as f:
             f.write(str(pid))
@@ -80,10 +77,6 @@ def _write_lock_pid(pid):
 
 
 def acquire_scheduler_lock():
-    """
-    Tenta di acquisire il lock dello scheduler.
-    Ritorna True se il lock è stato acquisito, False se un altro scheduler è attivo.
-    """
     my_pid = os.getpid()
     existing_pid = _read_lock_pid()
 
@@ -256,7 +249,6 @@ def job_sacbo_night_scan():
 
 
 def job_radar_night_scan():
-    """Esegue scansione radar SOLO in fascia notturna (23:00-05:59)."""
     now = datetime.now()
     if not _is_in_night_window(now):
         return
@@ -307,7 +299,7 @@ def job_daily():
         oggi = datetime.now().date()
         total_imported_all = 0
         total_errors_all = 0
-        for i in range(0, 8):  # oggi + 7 giorni indietro
+        for i in range(0, 8):
             d = (oggi - timedelta(days=i)).strftime("%Y-%m-%d")
             result = sync_date(d)
             if result is not None:
@@ -323,7 +315,26 @@ def job_daily():
         db_msg = f"Eccezione: {e}"
         logger.error(f"❌ Errore sync DB: {e}")
 
-    # Riepilogo check (6 check)
+    # --- Quality check (F11e) ---
+    logger.info("-" * 60)
+    logger.info("🔍 Avvio quality check (ultimi 7 giorni)...")
+    qc_ok = False
+    qc_msg = "Non tentato"
+    try:
+        from bgy_core.bgy_db_migrate import run_quality_check
+        qc_result = run_quality_check(days=7)
+        qc_errori = qc_result["riepilogo"]["errori"]
+        qc_warnings = qc_result["riepilogo"]["warning"]
+        qc_ok = qc_errori == 0
+        qc_msg = qc_result["testo_email"]
+        logger.info(f"{'✅' if qc_ok else '⚠️'} Quality check: "
+                    f"{qc_result['riepilogo']['ok']} OK, "
+                    f"{qc_warnings} warning, {qc_errori} errori")
+    except Exception as e:
+        qc_msg = f"Errore quality check: {e}"
+        logger.error(f"❌ {qc_msg}")
+
+    # Riepilogo check
     checks = {
         'sacbo_acquisition': (sacbo_acq_ok, sacbo_acq_msg),
         'sacbo_processing': (daily_ok, daily_msg),
@@ -331,6 +342,7 @@ def job_daily():
         'night_enrichment': (nightly_ok, nightly_msg),
         'github_sync': (sync_ok, sync_msg),
         'db_sync': (db_ok, db_msg),
+        'quality_check': (qc_ok, qc_msg),
     }
 
     overall_success = all(ok for ok, _ in checks.values())
@@ -380,7 +392,7 @@ def setup_scheduler():
 
     report_time = config.get("daily_report_time", "06:30")
     schedule.every().day.at(report_time).do(job_daily)
-    logger.info(f"📊 Report + sync GitHub + sync DB + email alle {report_time}")
+    logger.info(f"📊 Report + sync GitHub + sync DB + quality check + email alle {report_time}")
 
     logger.info("=" * 50)
     logger.info("✅ Scheduler configurato e in esecuzione...")

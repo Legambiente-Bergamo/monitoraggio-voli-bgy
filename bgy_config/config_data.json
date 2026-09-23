@@ -87,6 +87,18 @@
         "opensky_error_window_min": 15,
         "opensky_log_lines": 500
     },
+    "quality_check": {
+        "enabled": true,
+        "thresholds": {
+            "max_flights_per_night": 40,
+            "min_flights_per_night": 3,
+            "max_cargo_per_night": 15,
+            "max_pax_zero_pct": 10,
+            "max_pax_per_flight": 500,
+            "max_quota_ft": 50000,
+            "max_gap_days": 3
+        }
+    },
     "openflights": {
         "enabled": true,
         "url": "https://raw.githubusercontent.com/jpatokal/openflights/master/data/airlines.dat",

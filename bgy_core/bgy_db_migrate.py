@@ -1,12 +1,13 @@
 """
 bgy_core/bgy_db_migrate.py - Import e sincronizzazione CSV -> PostgreSQL.
-Versione 2.5.4
+Versione 2.5.5
 
 Modulo unificato che contiene:
   - Funzioni di import per ogni tipo di file (scan, radar, meteo, nightly)
   - Parser per il formato vecchio di scan_*.csv (gennaio-luglio 2026)
   - Logica di migrazione storica completa (tutte le directory)
   - Logica di sincronizzazione incrementale (per data, per ultimi N giorni)
+  - Quality check (F11e) sui dati degli ultimi N giorni
 
 Uso:
     py -3.12 -m bgy_core.bgy_db_migrate                      # sync di ieri
@@ -15,6 +16,8 @@ Uso:
     py -3.12 -m bgy_core.bgy_db_migrate --all                # migrazione completa
     py -3.12 -m bgy_core.bgy_db_migrate --all --reset        # reset + reimport
     py -3.12 -m bgy_core.bgy_db_migrate --all --dry-run      # analisi senza import
+    py -3.12 -m bgy_core.bgy_db_migrate --quality-check      # quality check (7 gg)
+    py -3.12 -m bgy_core.bgy_db_migrate --quality-check --days 30
 """
 import os
 import sys
@@ -33,19 +36,16 @@ logger = get_logger("DBMigrate")
 
 BATCH_SIZE = 500
 
-# Colonne attese nel formato nuovo
 EXPECTED_NEW_COLUMNS = {
     "callsign_volo", "tipo_movimento", "destinazione_origine",
     "orario_schedulato", "orario_effettivo", "stato_volo",
 }
 
-# Colonne attese nel formato vecchio
 EXPECTED_OLD_COLUMNS = {
     "flight_num", "type", "sched_time", "actual_time",
     "origin_dest", "status",
 }
 
-# Mappa tipo movimento formato vecchio -> nuovo
 OLD_MOVEMENT_MAP = {
     "decollo": "D",
     "atterraggio": "A",
@@ -53,7 +53,6 @@ OLD_MOVEMENT_MAP = {
     "arrivo": "A",
 }
 
-# Contatori globali (per la modalità --all)
 stats = {
     "scans_imported": 0,
     "scans_skipped": 0,
@@ -78,9 +77,7 @@ def _reset_stats():
 # =============================================================================
 
 def parse_date_from_scan_filename(filename):
-    """Estrae data di riferimento, orario e tipo da un file scan_*.csv."""
     base = filename.replace(".csv", "")
-    # Nuovo: scan_YYYY-MM-DD_HH-MM.csv
     m = re.match(r'^scan_(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2})$', base)
     if m:
         date_str = m.group(1)
@@ -88,7 +85,6 @@ def parse_date_from_scan_filename(filename):
         hh = int(hh_mm.split(":")[0])
         tipo = "notturno" if hh >= 23 or hh < 6 else "diurno"
         return date_str, hh_mm, tipo
-    # Vecchio: scan_YYYYMMDD_HHMM.csv
     m = re.match(r'^scan_(\d{8})_(\d{4})$', base)
     if m:
         ymd = m.group(1)
@@ -211,7 +207,6 @@ def read_csv_rows(path):
 # =============================================================================
 
 def detect_scan_format(rows):
-    """Ritorna 'new', 'old', o None."""
     if not rows:
         return None
     keys = set(rows[0].keys())
@@ -235,7 +230,6 @@ OLD_ORIGIN_DEST_PATTERN = re.compile(
 
 
 def parse_old_origin_dest(value):
-    """Estrae (destinazione, orario_sched, orario_eff, stato) da origin_dest."""
     if value is None:
         return "", None, None, None
     s = str(value).strip()
@@ -254,7 +248,6 @@ def parse_old_origin_dest(value):
 
 
 def parse_old_scan_row(row):
-    """Converte una riga del formato vecchio nel formato nuovo (dict)."""
     callsign = safe_str(row.get("flight_num"), "")
     tipo_old = safe_str(row.get("type"), "").lower()
     tipo_new = OLD_MOVEMENT_MAP.get(tipo_old, "")
@@ -288,7 +281,6 @@ def parse_old_scan_row(row):
 # =============================================================================
 
 def import_scan_file(filepath):
-    """Importa un file scan_*.csv (nuovo o vecchio formato)."""
     filename = os.path.basename(filepath)
     date_str, time_str, tipo = parse_date_from_scan_filename(filename)
     if not date_str:
@@ -597,13 +589,11 @@ def import_nightly_file(filepath):
 # =============================================================================
 
 def _date_matches(filename, date_str):
-    """Verifica se il nome file contiene la data specificata."""
     compact = date_str.replace("-", "")
     return date_str in filename or compact in filename
 
 
 def list_files_for_date(date_str):
-    """Ritorna i path dei file CSV da sincronizzare per una data specifica."""
     scan_files = []
     radar_files = []
 
@@ -644,7 +634,6 @@ def list_files_for_date(date_str):
 
 
 def sync_date(date_str):
-    """Sincronizza tutti i CSV relativi alla data specificata."""
     if not bgy_db.is_enabled():
         logger.warning("⚠️ DB non abilitato in config_database.json, sync saltato")
         return None
@@ -709,13 +698,11 @@ def sync_date(date_str):
 
 
 def sync_yesterday():
-    """Sincronizza i file di ieri (default per il job giornaliero)."""
     yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     return sync_date(yesterday)
 
 
 def sync_last_n_days(n):
-    """Sincronizza i file degli ultimi n giorni (incluso oggi)."""
     today = datetime.now().date()
     results = {}
     for i in range(n):
@@ -733,7 +720,6 @@ def sync_last_n_days(n):
 # =============================================================================
 
 def reset_tables():
-    """Svuota le tabelle (TRUNCATE) per ricominciare da zero."""
     logger.warning("⚠️ RESET: svuoto tutte le tabelle...")
     tables = ["nightly_reports", "weather_hourly", "radar_detections",
               "flights_sacbo", "scans"]
@@ -749,7 +735,6 @@ def reset_tables():
 
 
 def migrate_all(reset=False, dry_run=False):
-    """Migrazione storica completa: scansiona tutte le directory e importa."""
     if not bgy_db.is_enabled():
         logger.error("❌ DB non abilitato in config_database.json")
         return False
@@ -866,6 +851,401 @@ def migrate_all(reset=False, dry_run=False):
 
 
 # =============================================================================
+# QUALITY CHECK (F11e)
+# =============================================================================
+
+DEFAULT_THRESHOLDS = {
+    "max_flights_per_night": 40,
+    "min_flights_per_night": 3,
+    "max_cargo_per_night": 15,
+    "max_pax_zero_pct": 10,
+    "max_pax_per_flight": 500,
+    "max_quota_ft": 50000,
+    "max_gap_days": 3,
+}
+
+
+def _get_quality_thresholds():
+    """Legge le soglie da config_data, con fallback ai default."""
+    try:
+        from bgy_core.bgy_config_manager import config_manager
+        cfg = config_manager.get_data_config()
+        qc = cfg.get("quality_check", {}).get("thresholds", {})
+        result = dict(DEFAULT_THRESHOLDS)
+        result.update(qc)
+        return result
+    except Exception:
+        return dict(DEFAULT_THRESHOLDS)
+
+
+def _qc_compagnie_placeholder(date_from, date_to):
+    """CHECK 1: compagnie placeholder 'Compagnia XXX'."""
+    ok, rows = bgy_db.execute_query(
+        """SELECT compagnia_aerea, COUNT(*) AS n
+           FROM nightly_reports
+           WHERE data_riferimento BETWEEN %s AND %s
+             AND compagnia_aerea LIKE 'Compagnia%%'
+           GROUP BY compagnia_aerea
+           ORDER BY n DESC""",
+        (date_from, date_to)
+    )
+    if not ok:
+        return True, False, 0, 0, [f"Errore query: {rows}"]
+    totale = sum(r[1] for r in rows)
+    dettagli = [f"{r[0]} ({r[1]} voli)" for r in rows[:5]]
+    return totale == 0, False, totale, 0, dettagli
+
+
+def _qc_compagnie_null(date_from, date_to):
+    """CHECK 2: compagnie NULL o 'N/D'."""
+    ok, rows = bgy_db.execute_query(
+        """SELECT compagnia_aerea, COUNT(*) AS n
+           FROM nightly_reports
+           WHERE data_riferimento BETWEEN %s AND %s
+             AND (compagnia_aerea IS NULL
+                  OR compagnia_aerea = ''
+                  OR compagnia_aerea = 'N/D')
+           GROUP BY compagnia_aerea
+           ORDER BY n DESC""",
+        (date_from, date_to)
+    )
+    if not ok:
+        return True, False, 0, 0, [f"Errore query: {rows}"]
+    totale = sum(r[1] for r in rows)
+    dettagli = [f"{r[0] or 'NULL'} ({r[1]} voli)" for r in rows[:5]]
+    return totale == 0, False, totale, 0, dettagli
+
+
+def _qc_nomi_anomali(date_from, date_to):
+    """CHECK 3: nomi compagnia troppo corti o simbolici."""
+    ok, rows = bgy_db.execute_query(
+        """SELECT compagnia_aerea, COUNT(*) AS n
+           FROM nightly_reports
+           WHERE data_riferimento BETWEEN %s AND %s
+             AND compagnia_aerea IS NOT NULL
+             AND LENGTH(compagnia_aerea) < 4
+           GROUP BY compagnia_aerea
+           ORDER BY n DESC""",
+        (date_from, date_to)
+    )
+    if not ok:
+        return True, False, 0, 0, [f"Errore query: {rows}"]
+    totale = sum(r[1] for r in rows)
+    dettagli = [f"{r[0]} ({r[1]} voli)" for r in rows[:5]]
+    return totale == 0, False, totale, 0, dettagli
+
+
+def _qc_notti_troppi_voli(date_from, date_to, thresholds):
+    """CHECK 4: notti con troppi voli (possibili duplicati)."""
+    soglia = thresholds["max_flights_per_night"]
+    ok, rows = bgy_db.execute_query(
+        """SELECT data_riferimento, COUNT(*) AS n
+           FROM nightly_reports
+           WHERE data_riferimento BETWEEN %s AND %s
+           GROUP BY data_riferimento
+           HAVING COUNT(*) >= %s
+           ORDER BY n DESC""",
+        (date_from, date_to, soglia - 10)  # warning a soglia-10
+    )
+    if not ok:
+        return True, False, 0, soglia, [f"Errore query: {rows}"]
+    errori = [r for r in rows if r[1] >= soglia]
+    warnings = [r for r in rows if r[1] < soglia]
+    dettagli = [f"{r[0]}: {r[1]} voli" for r in errori[:5]]
+    return len(errori) == 0, len(warnings) > 0, len(rows), soglia, dettagli
+
+
+def _qc_notti_pochi_voli(date_from, date_to, thresholds):
+    """CHECK 5: notti con pochissimi voli (possibile perdita dati)."""
+    soglia = thresholds["min_flights_per_night"]
+    ok, rows = bgy_db.execute_query(
+        """SELECT data_riferimento, COUNT(*) AS n
+           FROM nightly_reports
+           WHERE data_riferimento BETWEEN %s AND %s
+           GROUP BY data_riferimento
+           HAVING COUNT(*) <= %s
+           ORDER BY n ASC""",
+        (date_from, date_to, soglia + 2)  # warning a soglia+2
+    )
+    if not ok:
+        return True, False, 0, soglia, [f"Errore query: {rows}"]
+    errori = [r for r in rows if r[1] <= soglia]
+    warnings = [r for r in rows if r[1] > soglia]
+    dettagli = [f"{r[0]}: {r[1]} voli" for r in errori[:5]]
+    return len(errori) == 0, len(warnings) > 0, len(rows), soglia, dettagli
+
+
+def _qc_cargo_eccessivi(date_from, date_to, thresholds):
+    """CHECK 6: notti con troppi cargo (falsi positivi)."""
+    soglia = thresholds["max_cargo_per_night"]
+    ok, rows = bgy_db.execute_query(
+        """SELECT data_riferimento, COUNT(*) AS n
+           FROM nightly_reports
+           WHERE data_riferimento BETWEEN %s AND %s
+             AND tipo_movimento LIKE 'Cargo%%'
+           GROUP BY data_riferimento
+           HAVING COUNT(*) >= %s
+           ORDER BY n DESC""",
+        (date_from, date_to, soglia - 5)  # warning a soglia-5
+    )
+    if not ok:
+        return True, False, 0, soglia, [f"Errore query: {rows}"]
+    errori = [r for r in rows if r[1] >= soglia]
+    warnings = [r for r in rows if r[1] < soglia]
+    dettagli = [f"{r[0]}: {r[1]} cargo" for r in errori[:5]]
+    return len(errori) == 0, len(warnings) > 0, len(rows), soglia, dettagli
+
+
+def _qc_gap_notti(date_from, date_to, thresholds):
+    """CHECK 7: gap di più giorni senza report notturno."""
+    ok, rows = bgy_db.execute_query(
+        """SELECT DISTINCT data_riferimento
+           FROM nightly_reports
+           WHERE data_riferimento BETWEEN %s AND %s
+           ORDER BY data_riferimento""",
+        (date_from, date_to)
+    )
+    if not ok:
+        return True, False, 0, thresholds["max_gap_days"], [f"Errore query: {rows}"]
+
+    date_presenti = set()
+    for r in rows:
+        if hasattr(r[0], 'strftime'):
+            date_presenti.add(r[0].strftime("%Y-%m-%d"))
+        else:
+            date_presenti.add(str(r[0]))
+
+    start = datetime.strptime(date_from, "%Y-%m-%d").date()
+    end = datetime.strptime(date_to, "%Y-%m-%d").date()
+
+    gaps = []
+    current_gap_start = None
+    current_gap_len = 0
+    d = start
+    while d <= end:
+        ds = d.strftime("%Y-%m-%d")
+        if ds in date_presenti:
+            if current_gap_len >= thresholds["max_gap_days"]:
+                gaps.append((current_gap_start, current_gap_len))
+            current_gap_start = None
+            current_gap_len = 0
+        else:
+            if current_gap_start is None:
+                current_gap_start = ds
+            current_gap_len += 1
+        d += timedelta(days=1)
+
+    if current_gap_len >= thresholds["max_gap_days"]:
+        gaps.append((current_gap_start, current_gap_len))
+
+    dettagli = [f"{g[0]}: {g[1]} giorni senza report" for g in gaps[:5]]
+    return len(gaps) == 0, False, len(gaps), thresholds["max_gap_days"], dettagli
+
+
+def _qc_pax_zero(date_from, date_to, thresholds):
+    """CHECK 8: percentuale di voli passeggeri con stima_passeggeri=0."""
+    ok, rows = bgy_db.execute_query(
+        """SELECT
+              COUNT(*) FILTER (WHERE stima_passeggeri = 0 OR stima_passeggeri IS NULL) AS zero,
+              COUNT(*) AS tot
+           FROM nightly_reports
+           WHERE data_riferimento BETWEEN %s AND %s
+             AND tipo_movimento = 'Passeggeri'""",
+        (date_from, date_to)
+    )
+    if not ok or not rows:
+        return True, False, 0, thresholds["max_pax_zero_pct"], [f"Errore query: {rows}"]
+    zero, tot = rows[0][0], rows[0][1]
+    if tot == 0:
+        return True, False, 0, thresholds["max_pax_zero_pct"], []
+    pct = round(100.0 * zero / tot, 1)
+    soglia = thresholds["max_pax_zero_pct"]
+    warning_soglia = soglia / 2
+    dettagli = [f"{zero}/{tot} voli passeggeri con PAX=0"]
+    return pct < soglia, pct >= warning_soglia, pct, soglia, dettagli
+
+
+def _qc_valori_assurdi(date_from, date_to, thresholds):
+    """CHECK 9: valori fuori range (PAX, quota)."""
+    max_pax = thresholds["max_pax_per_flight"]
+    max_quota = thresholds["max_quota_ft"]
+    ok, rows = bgy_db.execute_query(
+        """SELECT callsign, data_riferimento, stima_passeggeri, quota_ft
+           FROM nightly_reports
+           WHERE data_riferimento BETWEEN %s AND %s
+             AND (
+               stima_passeggeri > %s
+               OR quota_ft > %s
+               OR stima_passeggeri < 0
+               OR quota_ft < 0
+             )
+           ORDER BY data_riferimento DESC
+           LIMIT 10""",
+        (date_from, date_to, max_pax, max_quota)
+    )
+    if not ok:
+        return True, False, 0, 0, [f"Errore query: {rows}"]
+    dettagli = []
+    for r in rows[:5]:
+        callsign, data, pax, quota = r
+        dettagli.append(f"{data} {callsign}: PAX={pax}, quota={quota}")
+    return len(rows) == 0, False, len(rows), 0, dettagli
+
+
+def _qc_csv_vs_db(date_from, date_to):
+    """CHECK 10: confronta righe CSV report_nightly con righe nel DB."""
+    mismatches = []
+    start = datetime.strptime(date_from, "%Y-%m-%d").date()
+    end = datetime.strptime(date_to, "%Y-%m-%d").date()
+    d = start
+    while d <= end:
+        ds = d.strftime("%Y-%m-%d")
+        csv_path = os.path.join(OUTPUT_CSV_DIR, f"report_nightly_{ds}.csv")
+        if os.path.exists(csv_path):
+            csv_rows = read_csv_rows(csv_path)
+            n_csv = len(csv_rows)
+            ok, rows = bgy_db.execute_query(
+                "SELECT COUNT(*) FROM nightly_reports WHERE data_riferimento = %s",
+                (ds,)
+            )
+            if ok and rows:
+                n_db = rows[0][0]
+                if n_csv != n_db:
+                    mismatches.append(f"{ds}: CSV={n_csv}, DB={n_db}")
+        d += timedelta(days=1)
+    return len(mismatches) == 0, False, len(mismatches), 0, mismatches[:5]
+
+
+def run_quality_check(days=7):
+    """
+    Esegue i 10 check di qualità sui dati degli ultimi N giorni.
+
+    Ritorna:
+    {
+        "periodo": {"da": "...", "a": "...", "giorni": N},
+        "checks": [
+            {"id": 1, "nome": "...", "ok": True, "warning": False,
+             "valore": 0, "soglia": 0, "dettagli": []},
+            ...
+        ],
+        "riepilogo": {"ok": N, "warning": M, "errori": K},
+        "testo_email": "..."  # già formattato per l'email
+    }
+    """
+    end_date = datetime.now().date() - timedelta(days=1)  # ieri
+    start_date = end_date - timedelta(days=days - 1)
+    date_from = start_date.strftime("%Y-%m-%d")
+    date_to = end_date.strftime("%Y-%m-%d")
+
+    logger.info(f"🔍 Quality check: {date_from} → {date_to} ({days} giorni)")
+
+    thresholds = _get_quality_thresholds()
+
+    checks_def = [
+        (1, "Compagnie placeholder", lambda: _qc_compagnie_placeholder(date_from, date_to)),
+        (2, "Compagnie NULL/N/D", lambda: _qc_compagnie_null(date_from, date_to)),
+        (3, "Nomi compagnia anomali", lambda: _qc_nomi_anomali(date_from, date_to)),
+        (4, "Notti con molti voli", lambda: _qc_notti_troppi_voli(date_from, date_to, thresholds)),
+        (5, "Notti con pochi voli", lambda: _qc_notti_pochi_voli(date_from, date_to, thresholds)),
+        (6, "Cargo eccessivi", lambda: _qc_cargo_eccessivi(date_from, date_to, thresholds)),
+        (7, "Gap notti senza report", lambda: _qc_gap_notti(date_from, date_to, thresholds)),
+        (8, "PAX=0 nei passeggeri", lambda: _qc_pax_zero(date_from, date_to, thresholds)),
+        (9, "Valori fuori range", lambda: _qc_valori_assurdi(date_from, date_to, thresholds)),
+        (10, "Coerenza CSV vs DB", lambda: _qc_csv_vs_db(date_from, date_to)),
+    ]
+
+    results = []
+    ok_count = warn_count = err_count = 0
+
+    for cid, nome, fn in checks_def:
+        try:
+            ok, warning, valore, soglia, dettagli = fn()
+        except Exception as e:
+            ok, warning = False, False
+            valore, soglia = 0, 0
+            dettagli = [f"Eccezione: {e}"]
+            logger.error(f"Errore check {cid} '{nome}': {e}")
+
+        if ok and not warning:
+            ok_count += 1
+        elif ok and warning:
+            warn_count += 1
+        else:
+            err_count += 1
+
+        results.append({
+            "id": cid,
+            "nome": nome,
+            "ok": ok,
+            "warning": warning,
+            "valore": valore,
+            "soglia": soglia,
+            "dettagli": dettagli,
+        })
+
+    qc_result = {
+        "periodo": {"da": date_from, "a": date_to, "giorni": days},
+        "checks": results,
+        "riepilogo": {"ok": ok_count, "warning": warn_count, "errori": err_count},
+    }
+    qc_result["testo_email"] = format_quality_text(qc_result)
+
+    logger.info(
+        f"✅ Quality check completato: "
+        f"{ok_count} OK, {warn_count} warning, {err_count} errori"
+    )
+    return qc_result
+
+
+def format_quality_text(qc_result):
+    """Formatta il risultato del quality check per l'email."""
+    p = qc_result["periodo"]
+    lines = [f"─── Qualità dati (ultimi {p['giorni']} giorni) ───"]
+
+    for c in qc_result["checks"]:
+        if not c["ok"]:
+            icon = "❌"
+        elif c["warning"]:
+            icon = "⚠️ "
+        else:
+            icon = "✅"
+
+        # Composizione linea
+        valore = c["valore"]
+        soglia = c["soglia"]
+        nome = c["nome"]
+
+        if c["ok"] and not c["warning"]:
+            # Caso OK: mostra valore
+            if isinstance(valore, float):
+                line = f"{icon} {nome}: {valore}% (soglia {soglia}%)"
+            elif soglia > 0:
+                line = f"{icon} {nome}: {valore} (soglia {soglia})"
+            else:
+                line = f"{icon} {nome}: {valore}"
+        else:
+            # Caso warning/errore: mostra valore + soglia
+            if isinstance(valore, float):
+                line = f"{icon} {nome}: {valore}% (soglia {soglia}%)"
+            elif soglia > 0:
+                line = f"{icon} {nome}: {valore} (soglia {soglia})"
+            else:
+                line = f"{icon} {nome}: {valore}"
+
+        lines.append(line)
+
+        # Dettagli (max 3)
+        for d in c["dettagli"][:3]:
+            lines.append(f"    → {d}")
+
+    r = qc_result["riepilogo"]
+    lines.append("─" * 37)
+    lines.append(f"Riepilogo: {r['ok']} OK, {r['warning']} warning, {r['errori']} errori")
+
+    return "\n".join(lines)
+
+
+# =============================================================================
 # MAIN
 # =============================================================================
 
@@ -882,6 +1262,10 @@ def main():
                         help="Svuota le tabelle prima (solo con --all)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Analizza senza importare (solo con --all)")
+    parser.add_argument("--quality-check", action="store_true",
+                        help="Esegui solo il quality check (default: ultimi 7 giorni)")
+    parser.add_argument("--days", type=int, default=7,
+                        help="Numero di giorni per il quality check (default: 7)")
     args = parser.parse_args()
 
     if not bgy_db.is_enabled():
@@ -890,7 +1274,13 @@ def main():
 
     success = True
 
-    if args.all:
+    if args.quality_check:
+        result = run_quality_check(days=args.days)
+        print()
+        print(result["testo_email"])
+        print()
+        success = result["riepilogo"]["errori"] == 0
+    elif args.all:
         success = migrate_all(reset=args.reset, dry_run=args.dry_run)
     elif args.date:
         result = sync_date(args.date)
@@ -899,7 +1289,6 @@ def main():
         result = sync_last_n_days(args.last_n_days)
         success = result is not None
     else:
-        # Default: sincronizza ieri
         logger.info("Nessun argomento specificato, sincronizzo ieri")
         result = sync_yesterday()
         success = result is not None
