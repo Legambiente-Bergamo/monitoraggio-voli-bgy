@@ -1,6 +1,6 @@
 """
 bgy_core/bgy_db_migrate.py - Import e sincronizzazione CSV -> PostgreSQL.
-Versione 2.5.5
+Versione 2.5.6
 
 Modulo unificato che contiene:
   - Funzioni di import per ogni tipo di file (scan, radar, meteo, nightly)
@@ -18,6 +18,13 @@ Uso:
     py -3.12 -m bgy_core.bgy_db_migrate --all --dry-run      # analisi senza import
     py -3.12 -m bgy_core.bgy_db_migrate --quality-check      # quality check (7 gg)
     py -3.12 -m bgy_core.bgy_db_migrate --quality-check --days 30
+
+Fix v2.5.6:
+- CHECK 4 (Notti con molti voli): considera solo i voli VISIBILI
+  (Passeggeri + Cargo + Charter), non le categorie opt-in.
+- CHECK 8 (PAX=0): considera solo i voli passeggeri CON modello aereo
+  noto (dove la stima è possibile). I voli senza match radar o senza
+  modello sono esclusi dal calcolo.
 """
 import os
 import sys
@@ -864,9 +871,15 @@ DEFAULT_THRESHOLDS = {
     "max_gap_days": 3,
 }
 
+# Filtro SQL per i soli voli VISIBILI (Passeggeri + Cargo + Charter)
+VISIBLE_FILTER_SQL = (
+    "(tipo_movimento = 'Passeggeri' "
+    " OR tipo_movimento LIKE 'Cargo%%' "
+    " OR tipo_movimento LIKE 'Charter%%')"
+)
+
 
 def _get_quality_thresholds():
-    """Legge le soglie da config_data, con fallback ai default."""
     try:
         from bgy_core.bgy_config_manager import config_manager
         cfg = config_manager.get_data_config()
@@ -879,7 +892,6 @@ def _get_quality_thresholds():
 
 
 def _qc_compagnie_placeholder(date_from, date_to):
-    """CHECK 1: compagnie placeholder 'Compagnia XXX'."""
     ok, rows = bgy_db.execute_query(
         """SELECT compagnia_aerea, COUNT(*) AS n
            FROM nightly_reports
@@ -897,7 +909,6 @@ def _qc_compagnie_placeholder(date_from, date_to):
 
 
 def _qc_compagnie_null(date_from, date_to):
-    """CHECK 2: compagnie NULL o 'N/D'."""
     ok, rows = bgy_db.execute_query(
         """SELECT compagnia_aerea, COUNT(*) AS n
            FROM nightly_reports
@@ -917,7 +928,6 @@ def _qc_compagnie_null(date_from, date_to):
 
 
 def _qc_nomi_anomali(date_from, date_to):
-    """CHECK 3: nomi compagnia troppo corti o simbolici."""
     ok, rows = bgy_db.execute_query(
         """SELECT compagnia_aerea, COUNT(*) AS n
            FROM nightly_reports
@@ -936,47 +946,51 @@ def _qc_nomi_anomali(date_from, date_to):
 
 
 def _qc_notti_troppi_voli(date_from, date_to, thresholds):
-    """CHECK 4: notti con troppi voli (possibili duplicati)."""
+    """
+    CHECK 4: notti con troppi voli VISIBILI (soglia 40).
+    Fix v2.5.6: considera solo i voli Visibili di default
+    (Passeggeri + Cargo + Charter), non le categorie opt-in.
+    """
     soglia = thresholds["max_flights_per_night"]
     ok, rows = bgy_db.execute_query(
-        """SELECT data_riferimento, COUNT(*) AS n
-           FROM nightly_reports
-           WHERE data_riferimento BETWEEN %s AND %s
-           GROUP BY data_riferimento
-           HAVING COUNT(*) >= %s
-           ORDER BY n DESC""",
-        (date_from, date_to, soglia - 10)  # warning a soglia-10
+        f"""SELECT data_riferimento, COUNT(*) AS n
+            FROM nightly_reports
+            WHERE data_riferimento BETWEEN %s AND %s
+              AND {VISIBLE_FILTER_SQL}
+            GROUP BY data_riferimento
+            HAVING COUNT(*) >= %s
+            ORDER BY n DESC""",
+        (date_from, date_to, soglia - 10)
     )
     if not ok:
         return True, False, 0, soglia, [f"Errore query: {rows}"]
     errori = [r for r in rows if r[1] >= soglia]
     warnings = [r for r in rows if r[1] < soglia]
-    dettagli = [f"{r[0]}: {r[1]} voli" for r in errori[:5]]
+    dettagli = [f"{r[0]}: {r[1]} voli visibili" for r in errori[:5]]
     return len(errori) == 0, len(warnings) > 0, len(rows), soglia, dettagli
 
 
 def _qc_notti_pochi_voli(date_from, date_to, thresholds):
-    """CHECK 5: notti con pochissimi voli (possibile perdita dati)."""
     soglia = thresholds["min_flights_per_night"]
     ok, rows = bgy_db.execute_query(
-        """SELECT data_riferimento, COUNT(*) AS n
-           FROM nightly_reports
-           WHERE data_riferimento BETWEEN %s AND %s
-           GROUP BY data_riferimento
-           HAVING COUNT(*) <= %s
-           ORDER BY n ASC""",
-        (date_from, date_to, soglia + 2)  # warning a soglia+2
+        f"""SELECT data_riferimento, COUNT(*) AS n
+            FROM nightly_reports
+            WHERE data_riferimento BETWEEN %s AND %s
+              AND {VISIBLE_FILTER_SQL}
+            GROUP BY data_riferimento
+            HAVING COUNT(*) <= %s
+            ORDER BY n ASC""",
+        (date_from, date_to, soglia + 2)
     )
     if not ok:
         return True, False, 0, soglia, [f"Errore query: {rows}"]
     errori = [r for r in rows if r[1] <= soglia]
     warnings = [r for r in rows if r[1] > soglia]
-    dettagli = [f"{r[0]}: {r[1]} voli" for r in errori[:5]]
+    dettagli = [f"{r[0]}: {r[1]} voli visibili" for r in errori[:5]]
     return len(errori) == 0, len(warnings) > 0, len(rows), soglia, dettagli
 
 
 def _qc_cargo_eccessivi(date_from, date_to, thresholds):
-    """CHECK 6: notti con troppi cargo (falsi positivi)."""
     soglia = thresholds["max_cargo_per_night"]
     ok, rows = bgy_db.execute_query(
         """SELECT data_riferimento, COUNT(*) AS n
@@ -986,7 +1000,7 @@ def _qc_cargo_eccessivi(date_from, date_to, thresholds):
            GROUP BY data_riferimento
            HAVING COUNT(*) >= %s
            ORDER BY n DESC""",
-        (date_from, date_to, soglia - 5)  # warning a soglia-5
+        (date_from, date_to, soglia - 5)
     )
     if not ok:
         return True, False, 0, soglia, [f"Errore query: {rows}"]
@@ -997,7 +1011,6 @@ def _qc_cargo_eccessivi(date_from, date_to, thresholds):
 
 
 def _qc_gap_notti(date_from, date_to, thresholds):
-    """CHECK 7: gap di più giorni senza report notturno."""
     ok, rows = bgy_db.execute_query(
         """SELECT DISTINCT data_riferimento
            FROM nightly_reports
@@ -1043,30 +1056,39 @@ def _qc_gap_notti(date_from, date_to, thresholds):
 
 
 def _qc_pax_zero(date_from, date_to, thresholds):
-    """CHECK 8: percentuale di voli passeggeri con stima_passeggeri=0."""
+    """
+    CHECK 8: percentuale di voli passeggeri con stima_passeggeri=0,
+    MA solo sui voli CON modello aereo noto (dove la stima è possibile).
+
+    Fix v2.5.6: esclude i voli senza modello (che per definizione hanno
+    stima_passeggeri=0 perché non stimabile).
+    """
     ok, rows = bgy_db.execute_query(
         """SELECT
               COUNT(*) FILTER (WHERE stima_passeggeri = 0 OR stima_passeggeri IS NULL) AS zero,
               COUNT(*) AS tot
            FROM nightly_reports
            WHERE data_riferimento BETWEEN %s AND %s
-             AND tipo_movimento = 'Passeggeri'""",
+             AND tipo_movimento = 'Passeggeri'
+             AND modello_aereo IS NOT NULL
+             AND modello_aereo != ''
+             AND modello_aereo != 'N/D'""",
         (date_from, date_to)
     )
     if not ok or not rows:
         return True, False, 0, thresholds["max_pax_zero_pct"], [f"Errore query: {rows}"]
     zero, tot = rows[0][0], rows[0][1]
     if tot == 0:
-        return True, False, 0, thresholds["max_pax_zero_pct"], []
+        # Nessun volo con modello noto → check non applicabile
+        return True, False, 0, thresholds["max_pax_zero_pct"], ["Nessun volo con modello noto nel periodo"]
     pct = round(100.0 * zero / tot, 1)
     soglia = thresholds["max_pax_zero_pct"]
     warning_soglia = soglia / 2
-    dettagli = [f"{zero}/{tot} voli passeggeri con PAX=0"]
+    dettagli = [f"{zero}/{tot} voli (con modello noto) con PAX=0"]
     return pct < soglia, pct >= warning_soglia, pct, soglia, dettagli
 
 
 def _qc_valori_assurdi(date_from, date_to, thresholds):
-    """CHECK 9: valori fuori range (PAX, quota)."""
     max_pax = thresholds["max_pax_per_flight"]
     max_quota = thresholds["max_quota_ft"]
     ok, rows = bgy_db.execute_query(
@@ -1093,7 +1115,6 @@ def _qc_valori_assurdi(date_from, date_to, thresholds):
 
 
 def _qc_csv_vs_db(date_from, date_to):
-    """CHECK 10: confronta righe CSV report_nightly con righe nel DB."""
     mismatches = []
     start = datetime.strptime(date_from, "%Y-%m-%d").date()
     end = datetime.strptime(date_to, "%Y-%m-%d").date()
@@ -1132,7 +1153,7 @@ def run_quality_check(days=7):
         "testo_email": "..."  # già formattato per l'email
     }
     """
-    end_date = datetime.now().date() - timedelta(days=1)  # ieri
+    end_date = datetime.now().date() - timedelta(days=1)
     start_date = end_date - timedelta(days=days - 1)
     date_from = start_date.strftime("%Y-%m-%d")
     date_to = end_date.strftime("%Y-%m-%d")
@@ -1210,13 +1231,11 @@ def format_quality_text(qc_result):
         else:
             icon = "✅"
 
-        # Composizione linea
         valore = c["valore"]
         soglia = c["soglia"]
         nome = c["nome"]
 
         if c["ok"] and not c["warning"]:
-            # Caso OK: mostra valore
             if isinstance(valore, float):
                 line = f"{icon} {nome}: {valore}% (soglia {soglia}%)"
             elif soglia > 0:
@@ -1224,7 +1243,6 @@ def format_quality_text(qc_result):
             else:
                 line = f"{icon} {nome}: {valore}"
         else:
-            # Caso warning/errore: mostra valore + soglia
             if isinstance(valore, float):
                 line = f"{icon} {nome}: {valore}% (soglia {soglia}%)"
             elif soglia > 0:
@@ -1234,7 +1252,6 @@ def format_quality_text(qc_result):
 
         lines.append(line)
 
-        # Dettagli (max 3)
         for d in c["dettagli"][:3]:
             lines.append(f"    → {d}")
 
