@@ -77,8 +77,7 @@
         "GTI": "Atlas Air",
         "CKS": "Kalitta Air",
         "NCR": "National Airlines",
-        "SOO": "Southern Air",
-        "SRR": "Star Air"
+        "SOO": "Southern Air"
     },
     "RYR": "Ryanair",
     "WZZ": "Wizz Air",
@@ -202,6 +201,7 @@
     "NO": "Neos",
     "NP": "Nile Air",
     "RK": "Ryanair UK",
+    "SRR": "Star Air",
     "V7": "Volotea",
     "BQ": "Sky Alps",
     "AP": "Albastar",
@@ -214,18 +214,5 @@
     "MT": "Malta Air",
     "UNK": "Non identificato",
     "NIA": "Nile Air",
-    "P4O": "Compagnia P4O",
-    "_charter_airlines": {
-        "ENT": "Enter Air",
-        "FIA": "Fly One",
-        "GAV": "Global Reach Aviation",
-        "BQ": "Sky Alps",
-        "AP": "Albastar",
-        "E5": "Air Arabia Egypt",
-        "3F": "FlyOne"
-    },
-    "AEH": "Aviaexpress",
-    "BOH": "Compagnia BOH",
-    "IVL": "Compagnia IVL",
-    "VND": "Compagnia VND"
+    "JU ": "Compagnia JU "
 }
