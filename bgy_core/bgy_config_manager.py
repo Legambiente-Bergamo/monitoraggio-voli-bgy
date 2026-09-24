@@ -1,7 +1,16 @@
 """
-bgy_core/bgy_config_manager.py - Gestione centralizzata delle configurazioni JSON.
-Versione 2.6.0
-- Aggiunta sezione openflights in _default_data
+bgy_core/bgy_config_manager.py - Gestione centralizzata delle configurazioni.
+Versione 3.0.0
+
+Cambio architetturale (F12a):
+- I JSON anagrafici (airlines, countries, aircraft_models, noise_impact,
+  alert_messages, assaeroporti) NON sono più letti dal filesystem.
+  Vengono letti da PostgreSQL tramite bgy_db (lazy import per evitare
+  dipendenza circolare).
+- I 5 JSON residui (data, mail, opensky, github, database) continuano a
+  essere letti/scritti come prima.
+- Cache in memoria per evitare query ripetute: la cache viene invalidata
+  da reload_rules() o dalle operazioni di scrittura (add_*).
 """
 import os
 import json
@@ -11,8 +20,7 @@ import tempfile
 from bgy_core.bgy_logger import get_logger
 from bgy_core.bgy_paths import (
     CONFIG_DATA, CONFIG_MAIL, CONFIG_OPENSKY, CONFIG_GITHUB,
-    CONFIG_ASSAEROPORTI, CONFIG_ALERT_MESSAGES, CONFIG_DATABASE,
-    RULES_AIRLINES, RULES_COUNTRIES, RULES_AIRCRAFT_MODELS, RULES_NOISE_IMPACT,
+    CONFIG_DATABASE,
 )
 
 logger = get_logger("ConfigManager")
@@ -23,8 +31,13 @@ class ConfigManager:
 
     def __init__(self):
         self.configs = {}
+        self._cache = {}  # Cache anagrafiche lette dal DB
         self._lock = threading.Lock()
         self.load_all()
+
+    # ------------------------------------------------------------------
+    # I/O JSON (solo per i 5 file residui)
+    # ------------------------------------------------------------------
 
     def _load_json(self, path, default):
         if os.path.exists(path):
@@ -58,21 +71,20 @@ class ConfigManager:
             logger.error(f"Errore salvataggio {path}: {e}")
             return False
 
+    # ------------------------------------------------------------------
+    # LOAD / RELOAD
+    # ------------------------------------------------------------------
+
     def load_all(self):
+        # 5 JSON residui
         self.configs['data'] = self._load_json(CONFIG_DATA, self._default_data())
         self.configs['mail'] = self._load_json(CONFIG_MAIL, self._default_mail())
         self.configs['opensky'] = self._load_json(CONFIG_OPENSKY, self._default_opensky())
         self.configs['github'] = self._load_json(CONFIG_GITHUB, self._default_github())
-        self.configs['assaeroporti'] = self._load_json(
-            CONFIG_ASSAEROPORTI, self._default_assaeroporti())
-        self.configs['alert_messages'] = self._load_json(
-            CONFIG_ALERT_MESSAGES, self._default_alert_messages())
-        self.configs['database'] = self._load_json(
-            CONFIG_DATABASE, self._default_database())
-        self.configs['airlines'] = self._load_json(RULES_AIRLINES, {})
-        self.configs['countries'] = self._load_json(RULES_COUNTRIES, {})
-        self.configs['aircraft_models'] = self._load_json(RULES_AIRCRAFT_MODELS, {})
-        self.configs['noise_impact'] = self._load_json(RULES_NOISE_IMPACT, {})
+        self.configs['database'] = self._load_json(CONFIG_DATABASE, self._default_database())
+
+        # Anagrafiche: la cache viene invalidata
+        self._cache = {}
 
     def reload(self):
         self.load_all()
@@ -84,12 +96,14 @@ class ConfigManager:
         logger.info("Configurazione mail ricaricata")
 
     def reload_rules(self):
+        """Invalida la cache delle anagrafiche. La prossima lettura rilegge dal DB."""
         with self._lock:
-            self.configs['airlines'] = self._load_json(RULES_AIRLINES, {})
-            self.configs['countries'] = self._load_json(RULES_COUNTRIES, {})
-            self.configs['aircraft_models'] = self._load_json(RULES_AIRCRAFT_MODELS, {})
-            self.configs['noise_impact'] = self._load_json(RULES_NOISE_IMPACT, {})
-        logger.info("Regole ricaricate")
+            self._cache = {}
+        logger.info("Cache anagrafiche invalidata (lettura dal DB alla prossima richiesta)")
+
+    # ------------------------------------------------------------------
+    # DEFAULT DEI 5 JSON RESIDUI
+    # ------------------------------------------------------------------
 
     def _default_data(self):
         return {
@@ -98,7 +112,12 @@ class ConfigManager:
             "daily_report_time": "06:30",
             "sacbo_night_scans": ["23:00", "02:00", "05:00"],
             "sacbo_night_scan_enabled": True,
-            "notifications": {"cooldown_minutes": 30, "enabled": True},
+            "notifications": {
+                "cooldown_minutes": 30,
+                "enabled": True,
+                "alerts_enabled": True,
+                "daily_status_enabled": True,
+            },
             "weather": {
                 "latitude": 45.6739, "longitude": 9.7042,
                 "start_hour": 20, "end_hour": 6,
@@ -160,6 +179,18 @@ class ConfigManager:
                 "opensky_error_window_min": 15,
                 "opensky_log_lines": 500,
             },
+            "quality_check": {
+                "enabled": True,
+                "thresholds": {
+                    "max_flights_per_night": 40,
+                    "min_flights_per_night": 3,
+                    "max_cargo_per_night": 15,
+                    "max_pax_zero_pct": 10,
+                    "max_pax_per_flight": 500,
+                    "max_quota_ft": 50000,
+                    "max_gap_days": 3,
+                },
+            },
             "openflights": {
                 "enabled": True,
                 "url": "https://raw.githubusercontent.com/jpatokal/openflights/master/data/airlines.dat",
@@ -216,16 +247,6 @@ class ConfigManager:
             "push_timeout_seconds": 300, "pull_timeout_seconds": 60,
         }
 
-    def _default_assaeroporti(self):
-        return {
-            "source_url": "https://assaeroporti.com/statistiche/",
-            "airport_name": "Bergamo", "airport_code": "BGY",
-            "cache_days": 7, "http_timeout": 30, "years": {},
-        }
-
-    def _default_alert_messages(self):
-        return {}
-
     def _default_database(self):
         return {
             "enabled": False,
@@ -237,6 +258,325 @@ class ConfigManager:
             "connect_timeout": 10,
             "application_name": "BGY Monitoring Suite",
         }
+
+    def _default_assaeroporti(self):
+        """Parte fissa della config Assaeroporti (la parte 'years' arriva dal DB)."""
+        return {
+            "source_url": "https://assaeroporti.com/statistiche/",
+            "airport_name": "Bergamo", "airport_code": "BGY",
+            "cache_days": 7, "http_timeout": 30,
+            "years": {},
+        }
+
+    # ------------------------------------------------------------------
+    # ANAGRAFICHE DAL DB (F12a)
+    # ------------------------------------------------------------------
+
+    def _db(self):
+        """Lazy import di bgy_db per evitare dipendenza circolare."""
+        from bgy_core import bgy_db
+        return bgy_db
+
+    def get_airlines(self):
+        """
+        Ritorna un dict con:
+          - _iata_to_icao: {iata: icao}
+          - _cargo_airlines: {code: name}
+          - _charter_airlines: {code: name}
+          - altre chiavi piatte: {code: name} (passeggeri)
+        """
+        if 'airlines' in self._cache:
+            return self._cache['airlines']
+
+        result = {"_iata_to_icao": {}, "_cargo_airlines": {}, "_charter_airlines": {}}
+        try:
+            db = self._db()
+
+            # IATA -> ICAO
+            ok, rows = db.execute_query("SELECT iata, icao FROM iata_to_icao")
+            if ok and rows:
+                result["_iata_to_icao"] = {r[0]: r[1] for r in rows}
+            else:
+                logger.warning(f"⚠️ get_airlines: iata_to_icao vuoto o errore ({rows})")
+
+            # Compagnie (con flag)
+            ok, rows = db.execute_query(
+                "SELECT code, name, is_cargo, is_charter FROM airlines"
+            )
+            if ok and rows:
+                for code, name, is_cargo, is_charter in rows:
+                    if is_cargo:
+                        result["_cargo_airlines"][code] = name
+                    elif is_charter:
+                        result["_charter_airlines"][code] = name
+                    else:
+                        result[code] = name
+            else:
+                logger.warning(f"⚠️ get_airlines: airlines vuoto o errore ({rows})")
+
+        except Exception as e:
+            logger.error(f"❌ get_airlines: {e}")
+
+        self._cache['airlines'] = result
+        return result
+
+    def get_countries(self):
+        """Ritorna {destination: country}."""
+        if 'countries' in self._cache:
+            return self._cache['countries']
+
+        result = {}
+        try:
+            db = self._db()
+            ok, rows = db.execute_query("SELECT destination, country FROM countries")
+            if ok and rows:
+                result = {r[0]: r[1] for r in rows}
+            else:
+                logger.warning(f"⚠️ get_countries: vuoto o errore ({rows})")
+        except Exception as e:
+            logger.error(f"❌ get_countries: {e}")
+
+        self._cache['countries'] = result
+        return result
+
+    def get_aircraft_models(self):
+        """
+        Ritorna un dict con:
+          - _seats: {model: {posti_2classi, posti_max, posti_default}}
+          - _load_factors: {_default: 0.85, code: value, ...}
+          - altre chiavi piatte: {code: model}
+        """
+        if 'aircraft_models' in self._cache:
+            return self._cache['aircraft_models']
+
+        result = {"_seats": {}, "_load_factors": {"_default": 0.85}}
+        try:
+            db = self._db()
+
+            # Modelli con capienza
+            ok, rows = db.execute_query(
+                "SELECT model, seats_2class, seats_max, seats_default FROM aircraft_models"
+            )
+            if ok and rows:
+                for model, s2, smax, sdef in rows:
+                    if s2 is not None or smax is not None or sdef is not None:
+                        result["_seats"][model] = {
+                            "posti_2classi": s2,
+                            "posti_max": smax,
+                            "posti_default": sdef,
+                        }
+
+            # Load factor default
+            ok, rows = db.execute_query(
+                "SELECT value FROM config_settings WHERE key = 'load_factor_default'"
+            )
+            if ok and rows:
+                try:
+                    result["_load_factors"]["_default"] = float(rows[0][0])
+                except (ValueError, TypeError):
+                    pass
+
+            # Load factors per compagnia
+            ok, rows = db.execute_query("SELECT code, load_factor FROM load_factors")
+            if ok and rows:
+                for code, value in rows:
+                    try:
+                        result["_load_factors"][code] = float(value)
+                    except (ValueError, TypeError):
+                        pass
+
+            # Mapping codice -> modello
+            ok, rows = db.execute_query("SELECT code, model FROM aircraft_by_code")
+            if ok and rows:
+                for code, model in rows:
+                    if model:
+                        result[code] = model
+
+        except Exception as e:
+            logger.error(f"❌ get_aircraft_models: {e}")
+
+        self._cache['aircraft_models'] = result
+        return result
+
+    def get_noise_impact(self):
+        """
+        Ritorna un dict con:
+          - _stations: {name: {lat, lon}}
+          - _curves: {model: {phase: {distanze: [...], valori: [...]}}}
+        """
+        if 'noise_impact' in self._cache:
+            return self._cache['noise_impact']
+
+        result = {"_stations": {}, "_curves": {}}
+        try:
+            db = self._db()
+
+            # Centraline
+            ok, rows = db.execute_query("SELECT name, lat, lon FROM noise_stations")
+            if ok and rows:
+                for name, lat, lon in rows:
+                    result["_stations"][name] = {
+                        "lat": float(lat) if lat is not None else None,
+                        "lon": float(lon) if lon is not None else None,
+                    }
+
+            # Curve NPD
+            ok, rows = db.execute_query(
+                "SELECT aircraft_model, phase, distance_m, noise_db "
+                "FROM noise_curves "
+                "ORDER BY aircraft_model, phase, distance_m"
+            )
+            if ok and rows:
+                for model, phase, dist, db_val in rows:
+                    if model not in result["_curves"]:
+                        result["_curves"][model] = {}
+                    if phase not in result["_curves"][model]:
+                        result["_curves"][model][phase] = {"distanze": [], "valori": []}
+                    result["_curves"][model][phase]["distanze"].append(int(dist))
+                    result["_curves"][model][phase]["valori"].append(float(db_val))
+
+        except Exception as e:
+            logger.error(f"❌ get_noise_impact: {e}")
+
+        self._cache['noise_impact'] = result
+        return result
+
+    def get_alert_messages(self):
+        """Ritorna {key: {subject, body}}."""
+        if 'alert_messages' in self._cache:
+            return self._cache['alert_messages']
+
+        result = {}
+        try:
+            db = self._db()
+            ok, rows = db.execute_query(
+                "SELECT key, subject, body FROM alert_messages"
+            )
+            if ok and rows:
+                for key, subject, body in rows:
+                    result[key] = {
+                        "subject": subject or "",
+                        "body": body or "",
+                    }
+        except Exception as e:
+            logger.error(f"❌ get_alert_messages: {e}")
+
+        self._cache['alert_messages'] = result
+        return result
+
+    def get_assaeroporti_config(self):
+        """
+        Ritorna la struttura originale:
+        { source_url, airport_name, airport_code, cache_days, http_timeout, years: {...} }
+        La parte 'years' arriva dal DB.
+        """
+        if 'assaeroporti' in self._cache:
+            return self._cache['assaeroporti']
+
+        result = dict(self._default_assaeroporti())
+        try:
+            db = self._db()
+            ok, rows = db.execute_query(
+                "SELECT year, passengers, movements, cargo_ton, source "
+                "FROM assaeroporti_stats ORDER BY year"
+            )
+            years = {}
+            if ok and rows:
+                for year, pax, mov, cargo, source in rows:
+                    years[str(year)] = {
+                        "passeggeri": pax,
+                        "movimenti": mov,
+                        "cargo_ton": cargo,
+                        "fonte": source or "manuale",
+                    }
+            result["years"] = years
+        except Exception as e:
+            logger.error(f"❌ get_assaeroporti_config: {e}")
+
+        self._cache['assaeroporti'] = result
+        return result
+
+    # ------------------------------------------------------------------
+    # SCRITTURA SUL DB (F12a)
+    # ------------------------------------------------------------------
+
+    def add_airline(self, prefix, name):
+        """
+        Aggiunge una compagnia alla tabella airlines.
+        Se il codice esiste già, non sovrascrive (come faceva il vecchio JSON).
+        """
+        if not prefix or len(prefix) < 2:
+            return False
+        try:
+            db = self._db()
+            ok, _ = db.execute_query(
+                """INSERT INTO airlines (code, name, source)
+                   VALUES (%s, %s, 'auto')
+                   ON CONFLICT (code) DO NOTHING""",
+                (prefix, name),
+                fetch=False,
+            )
+            if ok:
+                self._cache.pop('airlines', None)
+                logger.info(f"📝 Compagnia aggiunta al DB: {prefix} = {name}")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"❌ add_airline({prefix}, {name}): {e}")
+            return False
+
+    def add_destination(self, destination, country):
+        """Aggiunge una destinazione alla tabella countries."""
+        if not destination or len(destination) < 2:
+            return False
+        key = destination.strip().upper()
+        try:
+            db = self._db()
+            ok, _ = db.execute_query(
+                """INSERT INTO countries (destination, country)
+                   VALUES (%s, %s)
+                   ON CONFLICT (destination) DO NOTHING""",
+                (key, country),
+                fetch=False,
+            )
+            if ok:
+                self._cache.pop('countries', None)
+                logger.info(f"📝 Destinazione aggiunta al DB: {key} = {country}")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"❌ add_destination({key}, {country}): {e}")
+            return False
+
+    # ------------------------------------------------------------------
+    # SAVE DEPRECATI (i JSON anagrafici non esistono più)
+    # ------------------------------------------------------------------
+
+    def save_airlines(self, data):
+        logger.warning("⚠️ save_airlines() deprecato: le compagnie sono nel DB. "
+                       "Modifica direttamente la tabella airlines.")
+        return False
+
+    def save_countries(self, data):
+        logger.warning("⚠️ save_countries() deprecato: le destinazioni sono nel DB. "
+                       "Modifica direttamente la tabella countries.")
+        return False
+
+    def save_aircraft_models(self, data):
+        logger.warning("⚠️ save_aircraft_models() deprecato: i modelli sono nel DB.")
+        return False
+
+    def save_noise_impact(self, data):
+        logger.warning("⚠️ save_noise_impact() deprecato: le centraline/curve sono nel DB.")
+        return False
+
+    def save_assaeroporti_config(self, data):
+        logger.warning("⚠️ save_assaeroporti_config() deprecato: le stats sono nel DB.")
+        return False
+
+    # ------------------------------------------------------------------
+    # SEZIONI DI config_data.json (invariate)
+    # ------------------------------------------------------------------
 
     def get_data_config(self):
         return self.configs.get('data', self._default_data())
@@ -276,14 +616,18 @@ class ConfigManager:
     def get_watchdog_config(self):
         return self._section("watchdog")
 
+    def get_quality_check_config(self):
+        return self._section("quality_check")
+
     def get_openflights_config(self):
         return self._section("openflights")
 
     def get_export_config(self):
         return self._section("export")
 
-    def get_alert_messages(self):
-        return self.configs.get('alert_messages', {})
+    # ------------------------------------------------------------------
+    # CONFIGURAZIONI RESIDUE (JSON)
+    # ------------------------------------------------------------------
 
     def get_database_config(self):
         return self.configs.get('database', self._default_database())
@@ -322,85 +666,6 @@ class ConfigManager:
         with self._lock:
             if self._save_json(CONFIG_GITHUB, data):
                 self.configs['github'] = data
-                return True
-            return False
-
-    def get_assaeroporti_config(self):
-        return self.configs.get('assaeroporti', self._default_assaeroporti())
-
-    def save_assaeroporti_config(self, data):
-        with self._lock:
-            if self._save_json(CONFIG_ASSAEROPORTI, data):
-                self.configs['assaeroporti'] = data
-                return True
-            return False
-
-    def get_airlines(self):
-        return self.configs.get('airlines', {})
-
-    def add_airline(self, prefix, name):
-        if not prefix or len(prefix) < 2:
-            return False
-        with self._lock:
-            data = self.configs.get('airlines', {})
-            if prefix in data:
-                return True
-            data[prefix] = name
-            if self._save_json(RULES_AIRLINES, data):
-                self.configs['airlines'] = data
-                logger.info(f"📝 Nuova compagnia aggiunta: {prefix} = {name}")
-                return True
-            return False
-
-    def save_airlines(self, data):
-        with self._lock:
-            if self._save_json(RULES_AIRLINES, data):
-                self.configs['airlines'] = data
-                return True
-            return False
-
-    def get_countries(self):
-        return self.configs.get('countries', {})
-
-    def add_destination(self, destination, country):
-        if not destination or len(destination) < 2:
-            return False
-        key = destination.strip().upper()
-        with self._lock:
-            data = self.configs.get('countries', {})
-            if key in data:
-                return True
-            data[key] = country
-            if self._save_json(RULES_COUNTRIES, data):
-                self.configs['countries'] = data
-                logger.info(f"📝 Nuova destinazione aggiunta: {key} = {country}")
-                return True
-            return False
-
-    def save_countries(self, data):
-        with self._lock:
-            if self._save_json(RULES_COUNTRIES, data):
-                self.configs['countries'] = data
-                return True
-            return False
-
-    def get_aircraft_models(self):
-        return self.configs.get('aircraft_models', {})
-
-    def save_aircraft_models(self, data):
-        with self._lock:
-            if self._save_json(RULES_AIRCRAFT_MODELS, data):
-                self.configs['aircraft_models'] = data
-                return True
-            return False
-
-    def get_noise_impact(self):
-        return self.configs.get('noise_impact', {})
-
-    def save_noise_impact(self, data):
-        with self._lock:
-            if self._save_json(RULES_NOISE_IMPACT, data):
-                self.configs['noise_impact'] = data
                 return True
             return False
 

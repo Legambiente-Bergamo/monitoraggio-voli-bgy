@@ -46,3 +46,7 @@ bgy_data/bgy_db_backup/
 *.bak
 *.bak_*
 *.bak_v*
+
+# Archivio JSON pre-migrazione DB
+bgy_data/bgy_archive/
+*.py.archived
