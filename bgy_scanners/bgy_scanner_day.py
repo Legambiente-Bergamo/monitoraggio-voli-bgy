@@ -1,8 +1,16 @@
 """
 bgy_scanners/bgy_scanner_day.py - Scanner diurno per il tabellone SACBO.
-Versione 2.5.0
+Versione 2.5.1
 - URL, timeout, attese, scroll, user-agent: da config_data.json (scanner_day)
 - Naming file: scan_YYYY-MM-DD_HH-MM.csv (via bgy_dates)
+
+Fix v2.5.1:
+- Il click sul tab "Arrivi" è ora esplicito. Playwright navigava all'URL
+  con #arrivals ma il JavaScript del sito non attivava la tab, quindi
+  venivano estratti solo i dati della tab "Partenze" (default).
+- Aggiunto fallback: se il click sul tab fallisce, prova l'URL diretto
+  con #arrivals e attende un tempo maggiore.
+- Aggiunta diagnostica: logga quanti voli sono stati estratti per ogni tab.
 """
 import os
 import re
@@ -61,6 +69,56 @@ def parse_flight_text(raw_text, movement_type):
     return flights
 
 
+def _click_arrivals_tab(page):
+    """
+    Prova a cliccare il tab 'Arrivi' con diversi selettori.
+    Ritorna True se il click è riuscito.
+    """
+    # Candidati: testo visibile del tab (italiano + inglese)
+    candidates = [
+        "Arrivi", "ARRIVI", "arrivi",
+        "Arrivals", "ARRIVALS", "arrivals",
+        "Arrivo", "Arrivo",
+    ]
+
+    for text in candidates:
+        try:
+            # Prova: link o button con questo testo esatto
+            loc = page.get_by_role("link", name=re.compile(text, re.IGNORECASE))
+            if loc.count() > 0:
+                loc.first.click(timeout=5000)
+                logger.info(f"🖱️ Click su tab 'Arrivi' (role=link, text={text})")
+                page.wait_for_timeout(3000)
+                return True
+        except Exception:
+            pass
+
+        try:
+            loc = page.get_by_role("button", name=re.compile(text, re.IGNORECASE))
+            if loc.count() > 0:
+                loc.first.click(timeout=5000)
+                logger.info(f"🖱️ Click su tab 'Arrivi' (role=button, text={text})")
+                page.wait_for_timeout(3000)
+                return True
+        except Exception:
+            pass
+
+        try:
+            # Fallback: cerca un elemento <a> o <li> con questo testo
+            loc = page.locator(f"a:has-text('{text}'), li:has-text('{text}'), "
+                               f"div[role='tab']:has-text('{text}')")
+            if loc.count() > 0:
+                loc.first.click(timeout=5000)
+                logger.info(f"🖱️ Click su tab 'Arrivi' (selettore generico, text={text})")
+                page.wait_for_timeout(3000)
+                return True
+        except Exception:
+            pass
+
+    logger.warning("⚠️ Nessun elemento 'Arrivi' trovato, provo con URL diretto")
+    return False
+
+
 @retry_on_failure(max_retries=3, delay=2)
 def fetch_board_data():
     """Acquisisce i dati del tabellone usando Playwright."""
@@ -87,17 +145,47 @@ def fetch_board_data():
                 except (ValueError, TypeError):
                     logger.warning(f"URL malformato in config: {entry}")
                     continue
+
                 try:
                     logger.info(f"📡 Accesso ({mov_type})...")
-                    page.goto(url, wait_until="networkidle", timeout=timeout)
+
+                    # === STRATEGIA 1: naviga all'URL base, poi clicca il tab ===
+                    base_url = url.split("#")[0]
+                    page.goto(base_url, wait_until="networkidle", timeout=timeout)
                     page.wait_for_timeout(wait_load)
+
+                    is_arrivals = "arriv" in url.lower() or "atterra" in mov_type.lower()
+
+                    if is_arrivals:
+                        # Prova il click sul tab "Arrivi"
+                        clicked = _click_arrivals_tab(page)
+                        if not clicked:
+                            # === STRATEGIA 2: naviga direttamente all'URL con fragment ===
+                            logger.info(f"🔄 Fallback: navigo a {url}")
+                            page.goto(url, wait_until="networkidle", timeout=timeout)
+                            page.wait_for_timeout(wait_load + 3000)
+
+                    # Scroll per caricare tutti i voli
                     page.evaluate(f"window.scrollBy(0, {scroll_px})")
                     page.wait_for_timeout(wait_scroll)
 
-                    parsed = parse_flight_text(page.inner_text("body"), mov_type)
+                    # Estrai il testo
+                    body_text = page.inner_text("body")
+                    parsed = parse_flight_text(body_text, mov_type)
+
+                    # Diagnostica: verifica che i voli estratti abbiano il tipo giusto
                     if parsed:
+                        # Conta quanti hanno mov_type = 'A' (se siamo su arrivals)
+                        n_a = sum(1 for f in parsed if f.get('tipo_movimento') == 'A')
+                        n_d = sum(1 for f in parsed if f.get('tipo_movimento') == 'D')
+                        logger.info(
+                            f"✅ Estratti {len(parsed)} voli da tab '{mov_type}' "
+                            f"(D={n_d}, A={n_a})"
+                        )
                         all_flights.extend(parsed)
-                        logger.info(f"✅ Estratti {len(parsed)} {mov_type}")
+                    else:
+                        logger.warning(f"⚠️ Nessun volo estratto da tab '{mov_type}'")
+
                 except Exception as e:
                     logger.error(f"Errore ({mov_type}): {e}")
 
@@ -119,7 +207,10 @@ def run_scan():
         return None
 
     before = len(df)
-    df = df.drop_duplicates(subset=['callsign_volo', 'orario_schedulato'], keep='first')
+    df = df.drop_duplicates(
+        subset=['callsign_volo', 'orario_schedulato', 'tipo_movimento'],
+        keep='first'
+    )
     if len(df) < before:
         logger.info(f"🗑️ Rimossi {before - len(df)} duplicati")
 
@@ -129,7 +220,10 @@ def run_scan():
     out_file = os.path.join(RAW_DIR, scan_filename(now))
     df.to_csv(out_file, index=False, encoding="utf-8-sig")
 
-    logger.info(f"✅ Scansione completata: {len(df)} voli")
+    # Diagnostica finale
+    n_d = len(df[df['tipo_movimento'] == 'D'])
+    n_a = len(df[df['tipo_movimento'] == 'A'])
+    logger.info(f"✅ Scansione completata: {len(df)} voli (D={n_d}, A={n_a})")
     return out_file
 
 
