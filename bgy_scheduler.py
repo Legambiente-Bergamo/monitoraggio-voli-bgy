@@ -1,10 +1,11 @@
 """
 bgy_scheduler.py - Pianificatore ed Orchestratore automatico.
-Versione 2.5.6
+Versione 2.5.7
 - Lock file per impedire doppio avvio
 - Radar notturno: SOLO tra le 23:00 e le 05:59
-- Sync DB: recupero automatico degli ultimi 8 giorni (oggi + 7 indietro)
+- Sync DB: recupero automatico degli ultimi 8 giorni
 - Quality check (F11e) integrato nel job giornaliero
+- Statistiche movimenti giorno/notte (F18b) nell'email di stato
 """
 import os
 import sys
@@ -334,6 +335,20 @@ def job_daily():
         qc_msg = f"Errore quality check: {e}"
         logger.error(f"❌ {qc_msg}")
 
+    # --- Statistiche movimenti (F18b) ---
+    logger.info("-" * 60)
+    logger.info("📊 Raccolta statistiche movimenti...")
+    stats_data = {"daily": None, "nightly": None}
+    try:
+        from bgy_core.bgy_db_migrate import get_daily_stats, get_nightly_stats
+        stats_data["daily"] = get_daily_stats(yesterday)
+        stats_data["nightly"] = get_nightly_stats(yesterday)
+        logger.info(f"✅ Statistiche raccolte: "
+                    f"giorno={stats_data['daily']['totale']} mov, "
+                    f"notte={stats_data['nightly']['totale']} mov")
+    except Exception as e:
+        logger.error(f"❌ Errore raccolta statistiche: {e}")
+
     # Riepilogo check
     checks = {
         'sacbo_acquisition': (sacbo_acq_ok, sacbo_acq_msg),
@@ -351,7 +366,7 @@ def job_daily():
     logger.info(f"📋 ESITO COMPLESSIVO: {'✅ TUTTO OK' if overall_success else '❌ PROBLEMI RILEVATI'}")
     logger.info("-" * 60)
 
-    send_daily_status(overall_success, "", checks=checks)
+    send_daily_status(overall_success, "", checks=checks, stats=stats_data)
 
     if datetime.now().day == 1:
         logger.info("📈 Primo del mese: generazione report mensile...")

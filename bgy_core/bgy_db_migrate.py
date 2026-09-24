@@ -1,6 +1,6 @@
 """
 bgy_core/bgy_db_migrate.py - Import e sincronizzazione CSV -> PostgreSQL.
-Versione 2.5.6
+Versione 2.5.8
 
 Modulo unificato che contiene:
   - Funzioni di import per ogni tipo di file (scan, radar, meteo, nightly)
@@ -8,6 +8,7 @@ Modulo unificato che contiene:
   - Logica di migrazione storica completa (tutte le directory)
   - Logica di sincronizzazione incrementale (per data, per ultimi N giorni)
   - Quality check (F11e) sui dati degli ultimi N giorni
+  - Statistiche movimenti giornalieri e notturni (F18b)
 
 Uso:
     py -3.12 -m bgy_core.bgy_db_migrate                      # sync di ieri
@@ -19,12 +20,13 @@ Uso:
     py -3.12 -m bgy_core.bgy_db_migrate --quality-check      # quality check (7 gg)
     py -3.12 -m bgy_core.bgy_db_migrate --quality-check --days 30
 
+Fix v2.5.8:
+- Aggiunta colonna `direzione_sacbo` a nightly_reports (F18b).
+- `apply_schema_updates()` applicato automaticamente prima di ogni sync.
+- Nuove funzioni: `get_daily_stats()`, `get_nightly_stats()`.
+
 Fix v2.5.6:
-- CHECK 4 (Notti con molti voli): considera solo i voli VISIBILI
-  (Passeggeri + Cargo + Charter), non le categorie opt-in.
-- CHECK 8 (PAX=0): considera solo i voli passeggeri CON modello aereo
-  noto (dove la stima è possibile). I voli senza match radar o senza
-  modello sono esclusi dal calcolo.
+- CHECK 4 e 8 del quality check affinati.
 """
 import os
 import sys
@@ -73,10 +75,40 @@ stats = {
     "errors": 0,
 }
 
+_schema_updates_applied = False
+
 
 def _reset_stats():
     for k in stats:
         stats[k] = 0
+
+
+# =============================================================================
+# SCHEMA UPDATES (F12a, F18b)
+# =============================================================================
+
+def apply_schema_updates():
+    """
+    Applica modifiche incrementali allo schema esistente.
+    Idempotente: usa IF NOT EXISTS / ADD COLUMN IF NOT EXISTS.
+    """
+    global _schema_updates_applied
+    if _schema_updates_applied:
+        return True
+
+    updates = [
+        # F18b: direzione_sacbo in nightly_reports
+        "ALTER TABLE nightly_reports ADD COLUMN IF NOT EXISTS direzione_sacbo VARCHAR(2)",
+    ]
+
+    for sql in updates:
+        ok, result = bgy_db.execute_query(sql, fetch=False)
+        if not ok:
+            logger.error(f"❌ Schema update fallito: {sql} → {result}")
+            return False
+
+    _schema_updates_applied = True
+    return True
 
 
 # =============================================================================
@@ -544,6 +576,7 @@ def import_nightly_file(filepath):
             date_str,
             safe_str(r.get("callsign"), ""),
             safe_str(r.get("tipo_movimento"), ""),
+            safe_str(r.get("direzione_sacbo"), ""),  # nuova colonna
             safe_bool(r.get("is_scheduled")),
             safe_str(r.get("destinazione_finale"), ""),
             safe_str(r.get("stato_destinazione"), ""),
@@ -571,13 +604,13 @@ def import_nightly_file(filepath):
         batch = params[i:i+BATCH_SIZE]
         ok, result = bgy_db.execute_many(
             """INSERT INTO nightly_reports
-               (data_riferimento, callsign, tipo_movimento, is_scheduled,
-                destinazione_finale, stato_destinazione, compagnia_aerea,
-                modello_aereo, orario_schedulato, timestamp, pista, fase_volo,
-                direzione, quota_ft, rotta_deg, distanza_km, paese,
-                matched_score, stima_passeggeri, stima_rumore_db)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                       %s, %s, %s, %s, %s, %s, %s, %s)""",
+               (data_riferimento, callsign, tipo_movimento, direzione_sacbo,
+                is_scheduled, destinazione_finale, stato_destinazione,
+                compagnia_aerea, modello_aereo, orario_schedulato, timestamp,
+                pista, fase_volo, direzione, quota_ft, rotta_deg, distanza_km,
+                paese, matched_score, stima_passeggeri, stima_rumore_db)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                       %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
             batch
         )
         if ok:
@@ -592,7 +625,7 @@ def import_nightly_file(filepath):
 
 
 # =============================================================================
-# SINCRONIZZAZIONE INCREMENTALE (per data)
+# SINCRONIZZAZIONE INCREMENTALE
 # =============================================================================
 
 def _date_matches(filename, date_str):
@@ -649,6 +682,8 @@ def sync_date(date_str):
     if not ok:
         logger.error(f"❌ Connessione DB fallita: {msg}")
         return None
+
+    apply_schema_updates()
 
     logger.info("=" * 60)
     logger.info(f"SYNC DB per la data: {date_str}")
@@ -723,138 +758,89 @@ def sync_last_n_days(n):
 
 
 # =============================================================================
-# MIGRAZIONE STORICA COMPLETA (--all)
+# STATISTICHE MOVIMENTI (F18b)
 # =============================================================================
 
-def reset_tables():
-    logger.warning("⚠️ RESET: svuoto tutte le tabelle...")
-    tables = ["nightly_reports", "weather_hourly", "radar_detections",
-              "flights_sacbo", "scans"]
-    ok, result = bgy_db.execute_query(
-        f"TRUNCATE {', '.join(tables)} RESTART IDENTITY CASCADE",
-        fetch=False
+def get_daily_stats(date_str):
+    """
+    Ritorna statistiche dei movimenti del giorno specificato.
+    Output: {"decolli": N, "atterraggi": N, "totale": N}
+    """
+    result = {"decolli": 0, "atterraggi": 0, "totale": 0}
+    ok, rows = bgy_db.execute_query(
+        """SELECT tipo_movimento, COUNT(*) AS n
+           FROM v_daily_report
+           WHERE data_riferimento = %s
+           GROUP BY tipo_movimento""",
+        (date_str,)
     )
-    if ok:
-        logger.info("✅ Tabelle svuotate")
-    else:
-        logger.error(f"❌ Errore reset: {result}")
-    return ok
-
-
-def migrate_all(reset=False, dry_run=False):
-    if not bgy_db.is_enabled():
-        logger.error("❌ DB non abilitato in config_database.json")
-        return False
-
-    ok, msg = bgy_db.test_connection()
     if not ok:
-        logger.error(f"❌ Connessione DB fallita: {msg}")
-        return False
+        logger.warning(f"get_daily_stats: errore query ({rows})")
+        return result
 
-    logger.info(f"Connessione DB OK: {msg}")
-    logger.info(f"Schema version: {bgy_db.get_schema_version()}")
+    for tipo, n in rows or []:
+        t = str(tipo).strip().upper()
+        if t.startswith('D'):
+            result["decolli"] += n
+        elif t.startswith('A'):
+            result["atterraggi"] += n
+        result["totale"] += n
+    return result
 
-    if reset and not dry_run:
-        reset_tables()
 
-    scan_files = []
-    radar_files = []
-    meteo_files = []
-    nightly_files = []
+def get_nightly_stats(date_str):
+    """
+    Ritorna statistiche dei movimenti notturni (solo Visibili):
+    Passeggeri, Cargo, Charter, con split decolli/atterraggi.
+    """
+    empty = {
+        "passeggeri": {"decolli": 0, "atterraggi": 0, "totale": 0},
+        "cargo": {"decolli": 0, "atterraggi": 0, "totale": 0},
+        "charter": {"decolli": 0, "atterraggi": 0, "totale": 0},
+        "totale": 0,
+    }
 
-    if os.path.isdir(RAW_DIR):
-        for f in sorted(os.listdir(RAW_DIR)):
-            full = os.path.join(RAW_DIR, f)
-            if not os.path.isfile(full):
-                continue
-            if f.startswith("scan_") and f.endswith(".csv"):
-                scan_files.append(full)
-            elif (f.startswith("radar_") or f.startswith("bgy_night_flights_")) \
-                    and f.endswith(".csv"):
-                radar_files.append(full)
+    ok, rows = bgy_db.execute_query(
+        """SELECT
+              CASE
+                WHEN tipo_movimento = 'Passeggeri' THEN 'passeggeri'
+                WHEN tipo_movimento LIKE 'Cargo%%' THEN 'cargo'
+                WHEN tipo_movimento LIKE 'Charter%%' THEN 'charter'
+                ELSE 'altro'
+              END AS categoria,
+              COALESCE(
+                NULLIF(direzione_sacbo, ''),
+                CASE
+                  WHEN fase_volo = 'Decollo' THEN 'D'
+                  WHEN fase_volo IN ('Atterraggio', 'Avvicinamento') THEN 'A'
+                  ELSE '?'
+                END
+              ) AS direzione,
+              COUNT(*) AS n
+           FROM nightly_reports
+           WHERE data_riferimento = %s
+             AND (tipo_movimento = 'Passeggeri'
+                  OR tipo_movimento LIKE 'Cargo%%'
+                  OR tipo_movimento LIKE 'Charter%%')
+           GROUP BY 1, 2""",
+        (date_str,)
+    )
+    if not ok:
+        logger.warning(f"get_nightly_stats: errore query ({rows})")
+        return empty
 
-    if os.path.isdir(OUTPUT_CSV_DIR):
-        for f in sorted(os.listdir(OUTPUT_CSV_DIR)):
-            full = os.path.join(OUTPUT_CSV_DIR, f)
-            if not os.path.isfile(full):
-                continue
-            if f.startswith("meteo_") and f.endswith(".csv"):
-                meteo_files.append(full)
-            elif f.startswith("report_nightly_") and f.endswith(".csv"):
-                nightly_files.append(full)
+    for categoria, direzione, n in rows or []:
+        if categoria not in ("passeggeri", "cargo", "charter"):
+            continue
+        d = str(direzione).strip().upper()
+        if d == 'D':
+            empty[categoria]["decolli"] += n
+        elif d == 'A':
+            empty[categoria]["atterraggi"] += n
+        empty[categoria]["totale"] += n
+        empty["totale"] += n
 
-    logger.info("=" * 60)
-    logger.info("MIGRAZIONE COMPLETA CSV → PostgreSQL")
-    logger.info("=" * 60)
-    logger.info(f"File trovati:")
-    logger.info(f"  Scansioni SACBO:      {len(scan_files)}")
-    logger.info(f"  Radar:                {len(radar_files)}")
-    logger.info(f"  Meteo:                {len(meteo_files)}")
-    logger.info(f"  Report notturni:      {len(nightly_files)}")
-    logger.info(f"  TOTALE:               {len(scan_files) + len(radar_files) + len(meteo_files) + len(nightly_files)}")
-    logger.info("=" * 60)
-
-    if dry_run:
-        logger.info("DRY-RUN: nessun dato verrà importato")
-        return True
-
-    logger.info("\n--- Fase 1: Scansioni SACBO ---")
-    for i, fp in enumerate(scan_files, 1):
-        if i % 50 == 0:
-            logger.info(f"  [{i}/{len(scan_files)}] ...")
-        try:
-            import_scan_file(fp)
-        except Exception as e:
-            logger.error(f"Errore su {fp}: {e}")
-            stats["errors"] += 1
-
-    logger.info("\n--- Fase 2: Radar ---")
-    for i, fp in enumerate(radar_files, 1):
-        if i % 20 == 0:
-            logger.info(f"  [{i}/{len(radar_files)}] ...")
-        try:
-            import_radar_file(fp)
-        except Exception as e:
-            logger.error(f"Errore su {fp}: {e}")
-            stats["errors"] += 1
-
-    logger.info("\n--- Fase 3: Meteo ---")
-    for i, fp in enumerate(meteo_files, 1):
-        try:
-            import_meteo_file(fp)
-        except Exception as e:
-            logger.error(f"Errore su {fp}: {e}")
-            stats["errors"] += 1
-
-    logger.info("\n--- Fase 4: Report notturni ---")
-    for i, fp in enumerate(nightly_files, 1):
-        try:
-            import_nightly_file(fp)
-        except Exception as e:
-            logger.error(f"Errore su {fp}: {e}")
-            stats["errors"] += 1
-
-    logger.info("\n" + "=" * 60)
-    logger.info("MIGRAZIONE COMPLETATA")
-    logger.info("=" * 60)
-    logger.info(f"Scansioni importate:      {stats['scans_imported']}")
-    logger.info(f"Scansioni già presenti:   {stats['scans_skipped']}")
-    logger.info(f"Scansioni recuperate:     {stats['scans_recovered']}")
-    logger.info(f"Scansioni formato vecchio:{stats['scans_old_format']}")
-    logger.info(f"Scansioni non supportate: {stats['scans_unsupported']}")
-    logger.info(f"Voli SACBO importati:     {stats['flights_imported']}")
-    logger.info(f"Rilevamenti radar:        {stats['radar_imported']}")
-    logger.info(f"Righe meteo:              {stats['weather_imported']}")
-    logger.info(f"Voli notturni:            {stats['nightly_imported']}")
-    logger.info(f"Errori:                   {stats['errors']}")
-    logger.info("=" * 60)
-
-    counts = bgy_db.get_table_counts()
-    logger.info("Stato tabelle DB:")
-    for t, c in counts.items():
-        logger.info(f"  {t}: {c}")
-
-    return True
+    return empty
 
 
 # =============================================================================
@@ -871,7 +857,6 @@ DEFAULT_THRESHOLDS = {
     "max_gap_days": 3,
 }
 
-# Filtro SQL per i soli voli VISIBILI (Passeggeri + Cargo + Charter)
 VISIBLE_FILTER_SQL = (
     "(tipo_movimento = 'Passeggeri' "
     " OR tipo_movimento LIKE 'Cargo%%' "
@@ -946,11 +931,6 @@ def _qc_nomi_anomali(date_from, date_to):
 
 
 def _qc_notti_troppi_voli(date_from, date_to, thresholds):
-    """
-    CHECK 4: notti con troppi voli VISIBILI (soglia 40).
-    Fix v2.5.6: considera solo i voli Visibili di default
-    (Passeggeri + Cargo + Charter), non le categorie opt-in.
-    """
     soglia = thresholds["max_flights_per_night"]
     ok, rows = bgy_db.execute_query(
         f"""SELECT data_riferimento, COUNT(*) AS n
@@ -1056,13 +1036,6 @@ def _qc_gap_notti(date_from, date_to, thresholds):
 
 
 def _qc_pax_zero(date_from, date_to, thresholds):
-    """
-    CHECK 8: percentuale di voli passeggeri con stima_passeggeri=0,
-    MA solo sui voli CON modello aereo noto (dove la stima è possibile).
-
-    Fix v2.5.6: esclude i voli senza modello (che per definizione hanno
-    stima_passeggeri=0 perché non stimabile).
-    """
     ok, rows = bgy_db.execute_query(
         """SELECT
               COUNT(*) FILTER (WHERE stima_passeggeri = 0 OR stima_passeggeri IS NULL) AS zero,
@@ -1079,8 +1052,7 @@ def _qc_pax_zero(date_from, date_to, thresholds):
         return True, False, 0, thresholds["max_pax_zero_pct"], [f"Errore query: {rows}"]
     zero, tot = rows[0][0], rows[0][1]
     if tot == 0:
-        # Nessun volo con modello noto → check non applicabile
-        return True, False, 0, thresholds["max_pax_zero_pct"], ["Nessun volo con modello noto nel periodo"]
+        return True, False, 0, thresholds["max_pax_zero_pct"], ["Nessun volo con modello noto"]
     pct = round(100.0 * zero / tot, 1)
     soglia = thresholds["max_pax_zero_pct"]
     warning_soglia = soglia / 2
@@ -1138,21 +1110,6 @@ def _qc_csv_vs_db(date_from, date_to):
 
 
 def run_quality_check(days=7):
-    """
-    Esegue i 10 check di qualità sui dati degli ultimi N giorni.
-
-    Ritorna:
-    {
-        "periodo": {"da": "...", "a": "...", "giorni": N},
-        "checks": [
-            {"id": 1, "nome": "...", "ok": True, "warning": False,
-             "valore": 0, "soglia": 0, "dettagli": []},
-            ...
-        ],
-        "riepilogo": {"ok": N, "warning": M, "errori": K},
-        "testo_email": "..."  # già formattato per l'email
-    }
-    """
     end_date = datetime.now().date() - timedelta(days=1)
     start_date = end_date - timedelta(days=days - 1)
     date_from = start_date.strftime("%Y-%m-%d")
@@ -1219,7 +1176,6 @@ def run_quality_check(days=7):
 
 
 def format_quality_text(qc_result):
-    """Formatta il risultato del quality check per l'email."""
     p = qc_result["periodo"]
     lines = [f"─── Qualità dati (ultimi {p['giorni']} giorni) ───"]
 
@@ -1298,6 +1254,7 @@ def main():
         print()
         success = result["riepilogo"]["errori"] == 0
     elif args.all:
+        apply_schema_updates()
         success = migrate_all(reset=args.reset, dry_run=args.dry_run)
     elif args.date:
         result = sync_date(args.date)

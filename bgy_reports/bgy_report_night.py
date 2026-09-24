@@ -1,6 +1,6 @@
 """
 bgy_reports/bgy_report_night.py - Report notturno integrato (SACBO + OpenSky).
-Versione 2.8.3
+Versione 2.8.5
 
 Modello logico:
 - TABELLONE SACBO: fonte primaria per i voli PASSEGGERI (arrivi + partenze).
@@ -17,17 +17,20 @@ Visibilità:
   - Visibili di default: Passeggeri, Cargo, Charter
   - Opt-in (checkbox GUI): Passeggeri (radar), Non identificato
 
-Novità v2.8.3:
-- PAX stimati e rumore calcolati SOLO sui voli Visibili
-  (Passeggeri + Cargo + Charter). I voli opt-in (Passeggeri radar,
-  Non identificato) restano nel CSV/DB ma non contribuiscono alle
-  statistiche principali del report.
+Novità v2.8.5:
+- Aggiunta colonna `direzione_sacbo` (D/A) al CSV finale.
+  Serve per distinguere decolli/atterraggi dei passeggeri nell'email
+  di stato (F18b). Prima il dato D/A del tabellone veniva perso durante
+  la classificazione.
+- Il campo `tipo_movimento` del tabellone viene salvato in `direzione_sacbo`
+  prima di essere sovrascritto con la categoria finale.
+- Il matching fase usa `direzione_sacbo` invece di `tipo_movimento`.
 
-Novità v2.8.2:
-- Categoria "Passeggeri" unificata.
-- Aggiunte "Charter (Nome)" e "Passeggeri (radar)".
-- Rimosso match callsign-based (non affidabile).
-- SRR (Star Air) spostata in _cargo_airlines.
+Novità v2.8.4:
+- (nessuna, versione di allineamento)
+
+Novità v2.8.3:
+- PAX e rumore calcolati solo sui Visibili.
 """
 import os
 import math
@@ -162,24 +165,19 @@ def _is_valid_airline_name(name):
     return True
 
 
-def _is_visible_row(tipo_movimento):
-    """Ritorna True se la riga è visibile di default nei report."""
-    if not isinstance(tipo_movimento, str):
-        return False
-    if tipo_movimento == 'Passeggeri':
-        return True
-    if tipo_movimento.startswith('Cargo'):
-        return True
-    if tipo_movimento.startswith('Charter'):
-        return True
-    return False
-
-
 # -----------------------------------------------------------------------------
 # CARICAMENTO DATI
 # -----------------------------------------------------------------------------
 
 def load_scheduled_flights(date_str):
+    """
+    Carica i voli schedulati notturni da tutte le scansioni SACBO della data.
+    Deduplica per (callsign_volo, orario_schedulato).
+
+    Novità v2.8.5: il campo `tipo_movimento` (D/A) viene salvato in
+    `direzione_sacbo` prima di essere rimosso. Il matching e il CSV usano
+    `direzione_sacbo` per distinguere decolli/atterraggi.
+    """
     date_norm = normalize_date(date_str)
     date_clean = date_norm.replace("-", "")
     scheduled = []
@@ -217,7 +215,12 @@ def load_scheduled_flights(date_str):
                             duplicates_skipped += 1
                             continue
                         seen.add(key)
-                        scheduled.append(row.to_dict())
+                        row_dict = row.to_dict()
+                        # Salva D/A del tabellone in direzione_sacbo
+                        direzione = str(row_dict.get('tipo_movimento', '')).strip().upper()[:1]
+                        row_dict['direzione_sacbo'] = direzione
+                        row_dict.pop('tipo_movimento', None)
+                        scheduled.append(row_dict)
                 except Exception:
                     continue
         except Exception as e:
@@ -269,10 +272,11 @@ def load_radar_data(date_str):
 # MATCHING
 # -----------------------------------------------------------------------------
 
-def _is_phase_compatible(tipo_movimento, fase_volo):
-    if tipo_movimento == 'D':
+def _is_phase_compatible(direzione_sacbo, fase_volo):
+    """direzione_sacbo: 'D' o 'A'. fase_volo: 'Decollo', 'Atterraggio', 'Avvicinamento'."""
+    if direzione_sacbo == 'D':
         return fase_volo == 'Decollo'
-    if tipo_movimento == 'A':
+    if direzione_sacbo == 'A':
         return fase_volo in ('Atterraggio', 'Avvicinamento')
     return False
 
@@ -290,6 +294,7 @@ def match_flights(scheduled_df, radar_df, session_date):
         radar_df['is_scheduled'] = False
         radar_df['orario_schedulato'] = ''
         radar_df['destinazione_origine'] = ''
+        radar_df['direzione_sacbo'] = ''  # Non disponibile per i radar
         radar_df['matched_score'] = 0
         radar_df = _dedup_radar_by_callsign(radar_df)
         classified = _classify_unmatched_radar(radar_df)
@@ -312,6 +317,7 @@ def match_flights(scheduled_df, radar_df, session_date):
         scheduled_df['matched_score'] = 0
         scheduled_df['callsign'] = scheduled_df['callsign_volo']
         scheduled_df['tipo_movimento'] = 'Passeggeri'
+        # direzione_sacbo è già presente dal load_scheduled_flights
         return _enrich_final(scheduled_df)
 
     # --- Match ---
@@ -332,7 +338,7 @@ def match_flights(scheduled_df, radar_df, session_date):
 
     for _, s in sched.iterrows():
         sched_min = s['_sched_min']
-        tipo_mov = s.get('tipo_movimento', '')
+        direzione = s.get('direzione_sacbo', '')
 
         if sched_min is None:
             combined = dict(s)
@@ -364,7 +370,7 @@ def match_flights(scheduled_df, radar_df, session_date):
             if r_min is None or r_min < low or r_min > high:
                 continue
             fase = str(r.get('fase_volo', '') or '')
-            if not _is_phase_compatible(tipo_mov, fase):
+            if not _is_phase_compatible(direzione, fase):
                 continue
             delta = abs(r_min - sched_min)
             if best_delta is None or delta < best_delta:
@@ -433,6 +439,14 @@ def _classify_unmatched_radar(radar_df):
         row_dict['orario_schedulato'] = ''
         row_dict['destinazione_origine'] = ''
         row_dict['matched_score'] = 0
+        if 'direzione_sacbo' not in row_dict or not row_dict.get('direzione_sacbo'):
+            # Per i radar non matchati, derivo direzione dalla fase
+            if fase == 'Decollo':
+                row_dict['direzione_sacbo'] = 'D'
+            elif fase in ('Atterraggio', 'Avvicinamento'):
+                row_dict['direzione_sacbo'] = 'A'
+            else:
+                row_dict['direzione_sacbo'] = '?'
 
         cargo, cargo_airline = is_cargo_flight(cs)
         if cargo:
@@ -515,6 +529,9 @@ def _enrich_final(df):
         df['callsign'] = df.get('callsign_volo', 'N/D')
     else:
         df['callsign'] = df['callsign'].fillna(df.get('callsign_volo', 'N/D'))
+
+    if 'direzione_sacbo' not in df.columns:
+        df['direzione_sacbo'] = ''
 
     df['compagnia_aerea'] = df['callsign'].apply(
         lambda x: get_airline(x) if pd.notna(x) else 'N/D')
@@ -619,7 +636,7 @@ def generate_nightly_report(date_str=None):
     out_path = os.path.join(OUTPUT_CSV_DIR, report_nightly_filename(date_norm))
 
     final_columns = [
-        'callsign', 'tipo_movimento', 'is_scheduled',
+        'callsign', 'tipo_movimento', 'direzione_sacbo', 'is_scheduled',
         'destinazione_finale', 'stato_destinazione',
         'compagnia_aerea', 'modello_aereo',
         'orario_schedulato', 'timestamp', 'pista', 'fase_volo',
@@ -633,7 +650,6 @@ def generate_nightly_report(date_str=None):
 
     result_df[final_columns].to_csv(out_path, index=False, encoding='utf-8-sig')
 
-    # --- Conteggi per categoria ---
     total = len(result_df)
     pax = len(result_df[result_df['tipo_movimento'] == 'Passeggeri']) if 'tipo_movimento' in result_df.columns else 0
     cargo = len(result_df[result_df['tipo_movimento'].str.startswith('Cargo', na=False)]) if 'tipo_movimento' in result_df.columns else 0
@@ -643,8 +659,13 @@ def generate_nightly_report(date_str=None):
 
     visibili = pax + cargo + charter
 
-    # --- Statistiche SOLO sui Visibili (v2.8.3) ---
-    visibili_mask = result_df['tipo_movimento'].apply(_is_visible_row) if 'tipo_movimento' in result_df.columns else pd.Series(False, index=result_df.index)
+    visibili_mask = result_df['tipo_movimento'].apply(
+        lambda x: isinstance(x, str) and (
+            x == 'Passeggeri'
+            or x.startswith('Cargo')
+            or x.startswith('Charter')
+        )
+    ) if 'tipo_movimento' in result_df.columns else pd.Series(False, index=result_df.index)
     visibili_df = result_df[visibili_mask]
 
     pax_tot = int(visibili_df['stima_passeggeri'].sum()) if 'stima_passeggeri' in visibili_df.columns else 0

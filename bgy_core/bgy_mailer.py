@@ -1,12 +1,15 @@
 """
 bgy_core/bgy_mailer.py - Modulo unificato di invio email.
-Versione 2.5.2
-- Legge config via config_manager
-- Rispetta i flag di silenziamento:
-  * notifications.enabled             → master ON/OFF
-  * notifications.alerts_enabled      → allarmi watchdog
-  * notifications.daily_status_enabled → email stato 06:30
-- send_daily_status() mostra 7 check (aggiunto db_sync e quality_check)
+Versione 2.5.4
+
+Novità v2.5.4:
+- send_daily_status() accetta parametro `stats` con statistiche movimenti
+  giorno/notte. Le statistiche vengono formattate nel corpo email.
+- Gradiente header modificato: bianco → azzurro → blu scuro (F18c).
+
+Novità v2.5.2:
+- Flag di silenziamento (notifications.enabled/alerts_enabled/daily_status_enabled)
+- send_daily_status() mostra 7 check
 """
 import os
 import json
@@ -139,7 +142,7 @@ def get_active_cooldowns():
 
 
 # =============================================================================
-# INVIO SMTP (core)
+# INVIO SMTP
 # =============================================================================
 
 def _send_smtp(cfg, subject, plain_text, html_body=None, attachment_paths=None,
@@ -210,7 +213,7 @@ def _send_smtp(cfg, subject, plain_text, html_body=None, attachment_paths=None,
 
 
 # =============================================================================
-# ALERT (con cooldown + flag silenziamento)
+# ALERT
 # =============================================================================
 
 def send_alert(key, subject, body, force=False):
@@ -245,7 +248,7 @@ def send_alert(key, subject, body, force=False):
 
 
 # =============================================================================
-# EMAIL DI STATO (HTML + allegati)
+# EMAIL DI STATO (HTML)
 # =============================================================================
 
 def _build_html_status(subject_icon, is_success, body, attachment_paths, now):
@@ -256,11 +259,13 @@ def _build_html_status(subject_icon, is_success, body, attachment_paths, now):
             if f and os.path.exists(f):
                 attachments_html += f'<div class="file">📎 {os.path.basename(f)}</div>\n'
 
+    # F18c: gradiente bianco → azzurro → blu scuro
     return f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
 <style>
 body {{ font-family: Arial; line-height: 1.6; color: #333; max-width: 700px; margin: 0 auto; padding: 20px; }}
-.header {{ background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d); color: white; padding: 25px; border-radius: 12px 12px 0 0; text-align: center; }}
+.header {{ background: linear-gradient(135deg, #ffffff 0%, #87CEEB 50%, #1a2a6c 100%); color: #1a2a6c; padding: 25px; border-radius: 12px 12px 0 0; text-align: center; }}
+.header h1 {{ color: #1a2a6c; text-shadow: 0 1px 2px rgba(255,255,255,0.8); }}
 .content {{ background: #f8f9fa; padding: 25px 30px; border-left: 1px solid #ddd; border-right: 1px solid #ddd; }}
 .status-box {{ padding: 15px 20px; border-radius: 8px; text-align: center; font-size: 18px; font-weight: bold; background: {status_color}22; border: 2px solid {status_color}; color: {status_color}; margin-bottom: 20px; }}
 .footer {{ background: #2c3e50; color: #ecf0f1; padding: 18px 25px; border-radius: 0 0 12px 12px; text-align: center; font-size: 12px; }}
@@ -324,7 +329,45 @@ def _get_today_log_path():
     return path if os.path.exists(path) else None
 
 
-def send_daily_status(success=True, details="", checks=None, force=False):
+# =============================================================================
+# FORMATTAZIONE STATISTICHE (F18b)
+# =============================================================================
+
+def _format_stats_section(stats, yesterday_str):
+    """Formatta la sezione statistiche movimenti per il corpo email."""
+    lines = []
+
+    daily = stats.get("daily") if stats else None
+    nightly = stats.get("nightly") if stats else None
+
+    if daily:
+        lines.append(f"📊 MOVIMENTI DEL GIORNO ({yesterday_str})")
+        lines.append(f"   • Decolli:    {daily.get('decolli', 0):>3}")
+        lines.append(f"   • Atterraggi: {daily.get('atterraggi', 0):>3}")
+        lines.append(f"   • TOTALE:     {daily.get('totale', 0):>3}")
+        lines.append("")
+
+    if nightly:
+        lines.append(f"🌙 MOVIMENTI DELLA NOTTE ({yesterday_str})")
+        for cat_key, cat_label in (("passeggeri", "Passeggeri"),
+                                    ("cargo", "Cargo"),
+                                    ("charter", "Charter")):
+            cat = nightly.get(cat_key, {})
+            d = cat.get("decolli", 0)
+            a = cat.get("atterraggi", 0)
+            t = cat.get("totale", 0)
+            lines.append(f"   {cat_label}:")
+            lines.append(f"     • Decolli:    {d:>3}")
+            lines.append(f"     • Atterraggi: {a:>3}")
+            lines.append(f"     • Sub-totale: {t:>3}")
+        lines.append(f"   ─────────────────────")
+        lines.append(f"   TOTALE NOTTE: {nightly.get('totale', 0)}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def send_daily_status(success=True, details="", checks=None, stats=None, force=False):
     if not force and not is_daily_status_enabled():
         logger.info("🔕 Email di stato giornaliero silenziata")
         return True
@@ -339,8 +382,16 @@ def send_daily_status(success=True, details="", checks=None, force=False):
     subject = (f"{status_icon} Monitoraggio BGY - "
                f"{datetime.now().strftime('%d/%m/%Y')} [{status_text}]")
 
+    # Data del giorno precedente
+    from datetime import timedelta
+    yesterday_dt = datetime.now() - timedelta(days=1)
+    yesterday_str = yesterday_dt.strftime("%d/%m/%Y")
+
+    parts = []
+
     if checks:
-        lines = ["Riepilogo processi di monitoraggio:", ""]
+        parts.append("Riepilogo processi di monitoraggio:")
+        parts.append("")
         labels = [
             ('sacbo_acquisition', '1) Acquisizione dati dal tabellone SACBO'),
             ('sacbo_processing', '2) Elaborazione dati dal tabellone SACBO'),
@@ -355,19 +406,25 @@ def send_daily_status(success=True, details="", checks=None, force=False):
                 ok, msg = checks[key]
                 icon = '✅' if ok else '❌'
                 stato = 'OK' if ok else 'KO'
-                lines.append(f"{icon} {label}: {stato}")
+                parts.append(f"{icon} {label}: {stato}")
                 if msg:
-                    # Per quality_check il msg è multi-riga: indentazione diversa
                     if key == 'quality_check':
-                        lines.append(msg)
+                        parts.append(msg)
                     else:
-                        lines.append(f"      → {msg}")
-                lines.append("")
-        body = "\n".join(lines)
-        if details:
-            body += f"\n{details}"
-    else:
-        body = f"Report: {'OK' if success else 'KO'}\n\n{details}"
+                        parts.append(f"      → {msg}")
+                parts.append("")
+
+    # Sezione statistiche
+    if stats:
+        stats_text = _format_stats_section(stats, yesterday_str)
+        if stats_text:
+            parts.append("━" * 37)
+            parts.append("")
+            parts.append(stats_text)
+
+    body = "\n".join(parts)
+    if details:
+        body += f"\n{details}"
 
     attachments = []
     if not all_ok:
