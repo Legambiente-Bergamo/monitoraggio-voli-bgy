@@ -20,6 +20,7 @@ from bgy_core import get_logger, config_manager
 from bgy_core.bgy_paths import LOGS_DIR, RAW_DIR
 from bgy_core.bgy_github_sync import sync_to_github
 from bgy_core.bgy_mailer import send_daily_status
+from bgy_core.bgy_dates import is_night_time
 from bgy_reports import (generate_daily_report, generate_nightly_report,
                          send_monthly_report)
 from bgy_scanners import run_day_scan, run_night_scan
