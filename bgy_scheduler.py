@@ -244,7 +244,7 @@ def job_sacbo_night_scan():
 
 def job_radar_night_scan():
     now = datetime.now()
-    if not _is_in_night_window(now):
+    if not is_night_time(now):
         return
     run_night_scan(check_night_window=True)
 
@@ -414,7 +414,7 @@ def run_scheduler_loop():
 
     setup_scheduler()
     now = datetime.now()
-    if _is_in_night_window(now):
+    if is_night_time(now):
         logger.info("🌙 Avvio scansione radar immediata all'avvio...")
         job_radar_night_scan()
     while True:
