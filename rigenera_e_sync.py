@@ -12,7 +12,6 @@ Uso:
 """
 import os
 import sys
-from pathlib import Path
 
 from bgy_core import bgy_db, get_logger
 from bgy_core.bgy_paths import RAW_DIR

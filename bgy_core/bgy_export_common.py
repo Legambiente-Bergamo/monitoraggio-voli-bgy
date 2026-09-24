@@ -9,7 +9,6 @@ Centralizza:
   - tema colori (config_data.json → export.theme)
   - footer comune
 """
-import os
 from datetime import datetime
 
 from bgy_core.bgy_logger import get_logger

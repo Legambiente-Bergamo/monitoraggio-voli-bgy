@@ -27,7 +27,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 
 from bgy_core import get_logger, bgy_db
 from bgy_core.bgy_charts import CHART_FUNCTIONS
-from bgy_core.bgy_update_rules import get_airline, get_country
+from bgy_core.bgy_update_rules import get_airline
 from bgy_core.bgy_dates import (
     format_gui_date, format_gui_month, format_gui_year,
     parse_gui_date, parse_gui_month, parse_gui_year,

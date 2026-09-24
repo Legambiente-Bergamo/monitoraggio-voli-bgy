@@ -35,7 +35,6 @@ Novità v2.8.3:
 import os
 import math
 import pandas as pd
-from datetime import datetime, timedelta
 
 from bgy_core import (
     get_airline, get_country, get_aircraft_model,

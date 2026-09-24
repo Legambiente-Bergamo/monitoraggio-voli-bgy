@@ -46,7 +46,6 @@ def ensure_dependencies():
 ensure_dependencies()
 
 import os
-import json
 import threading
 import subprocess as sp
 import tkinter as tk

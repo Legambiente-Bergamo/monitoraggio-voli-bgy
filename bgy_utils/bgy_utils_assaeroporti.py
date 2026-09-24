@@ -11,8 +11,7 @@ import os
 import re
 import sys
 import requests
-from datetime import datetime, timedelta
-
+from datetime import datetime
 # Bootstrap path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

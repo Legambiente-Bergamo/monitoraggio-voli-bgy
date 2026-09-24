@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 import schedule
 
 from bgy_core import get_logger, config_manager
-from bgy_core.bgy_paths import LOGS_DIR, RAW_DIR, PROJECT_ROOT
+from bgy_core.bgy_paths import LOGS_DIR, RAW_DIR
 from bgy_core.bgy_github_sync import sync_to_github
 from bgy_core.bgy_mailer import send_daily_status
 from bgy_reports import (generate_daily_report, generate_nightly_report,

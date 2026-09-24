@@ -552,24 +552,6 @@ class ConfigManager:
     # SAVE DEPRECATI (i JSON anagrafici non esistono più)
     # ------------------------------------------------------------------
 
-    def save_airlines(self, data):
-        logger.warning("⚠️ save_airlines() deprecato: le compagnie sono nel DB. "
-                       "Modifica direttamente la tabella airlines.")
-        return False
-
-    def save_countries(self, data):
-        logger.warning("⚠️ save_countries() deprecato: le destinazioni sono nel DB. "
-                       "Modifica direttamente la tabella countries.")
-        return False
-
-    def save_aircraft_models(self, data):
-        logger.warning("⚠️ save_aircraft_models() deprecato: i modelli sono nel DB.")
-        return False
-
-    def save_noise_impact(self, data):
-        logger.warning("⚠️ save_noise_impact() deprecato: le centraline/curve sono nel DB.")
-        return False
-
     def save_assaeroporti_config(self, data):
         logger.warning("⚠️ save_assaeroporti_config() deprecato: le stats sono nel DB.")
         return False
@@ -616,12 +598,6 @@ class ConfigManager:
     def get_watchdog_config(self):
         return self._section("watchdog")
 
-    def get_quality_check_config(self):
-        return self._section("quality_check")
-
-    def get_openflights_config(self):
-        return self._section("openflights")
-
     def get_export_config(self):
         return self._section("export")
 
@@ -631,13 +607,6 @@ class ConfigManager:
 
     def get_database_config(self):
         return self.configs.get('database', self._default_database())
-
-    def save_database_config(self, data):
-        with self._lock:
-            if self._save_json(CONFIG_DATABASE, data):
-                self.configs['database'] = data
-                return True
-            return False
 
     def get_mail_config(self):
         return self.configs.get('mail', self._default_mail())
@@ -649,25 +618,7 @@ class ConfigManager:
                 return True
             return False
 
-    def get_opensky_config(self):
-        return self.configs.get('opensky', self._default_opensky())
-
-    def save_opensky_config(self, data):
-        with self._lock:
-            if self._save_json(CONFIG_OPENSKY, data):
-                self.configs['opensky'] = data
-                return True
-            return False
-
     def get_github_config(self):
         return self.configs.get('github', self._default_github())
-
-    def save_github_config(self, data):
-        with self._lock:
-            if self._save_json(CONFIG_GITHUB, data):
-                self.configs['github'] = data
-                return True
-            return False
-
 
 config_manager = ConfigManager()

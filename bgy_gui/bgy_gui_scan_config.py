@@ -3,7 +3,6 @@ bgy_gui/bgy_gui_scan_config.py - Tab configurazione scansioni e orari.
 Versione 2.5.0
 - rimosso campo github_upload_time (il sync GitHub usa daily_report_time)
 """
-import tkinter as tk
 from tkinter import ttk, messagebox
 
 from bgy_core import config_manager

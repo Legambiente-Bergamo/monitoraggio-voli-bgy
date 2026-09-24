@@ -25,9 +25,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-import pandas as pd
 import numpy as np
-from datetime import datetime
 
 from bgy_core.bgy_logger import get_logger
 

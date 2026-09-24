@@ -3,7 +3,6 @@ bgy_core/bgy_github_sync.py - Sincronizzazione automatica verso GitHub.
 v2.5.0 - config via config_manager
 """
 import os
-import sys
 import subprocess as sp
 from datetime import datetime
 

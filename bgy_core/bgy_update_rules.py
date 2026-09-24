@@ -9,8 +9,7 @@ Versione 2.6.1
 """
 import os
 import requests
-from datetime import datetime, timedelta
-
+from datetime import datetime
 from bgy_core.bgy_logger import get_logger
 from bgy_core.bgy_config_manager import config_manager
 from bgy_core.bgy_paths import DATA_DIR

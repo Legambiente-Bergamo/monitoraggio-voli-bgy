@@ -1,9 +1,13 @@
 """
 bgy_reports/bgy_report_month.py - Report mensile con grafici.
-Versione 2.5.0
+Versione 2.5.1
 - doppia lettura: report_{daily,nightly}_YYYY-MM-DD.csv e YYYYMMDD.csv
 - output: report_monthly_{daily,nightly}_YYYY-MM.csv
 - grafici incorporati in base64 nel report HTML
+
+Fix v2.5.1:
+- Rimossi import inutilizzati da bgy_core.bgy_dates
+  (normalize_date, report_monthly_filename, to_year_month).
 """
 import os
 import base64
@@ -18,9 +22,6 @@ import numpy as np
 from bgy_core import get_logger
 from bgy_core.bgy_paths import OUTPUT_CSV_DIR, CHARTS_DIR
 from bgy_core.bgy_mailer import send_email_with_attachments
-from bgy_core.bgy_dates import (
-    normalize_date, report_monthly_filename, to_year_month,
-)
 
 logger = get_logger("ReportMonth")
 os.makedirs(CHARTS_DIR, exist_ok=True)
