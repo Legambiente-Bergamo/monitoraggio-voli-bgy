@@ -104,13 +104,6 @@ def acquire_scheduler_lock():
 # -----------------------------------------------------------------------------
 # UTILITY
 # -----------------------------------------------------------------------------
-
-def _is_in_night_window(now=None):
-    if now is None:
-        now = datetime.now()
-    return now.hour >= 23 or now.hour < 6
-
-
 def _get_scheduler_start_time(target_date_str):
     target_date = datetime.strptime(target_date_str, "%Y-%m-%d")
     for days_back in range(0, 8):

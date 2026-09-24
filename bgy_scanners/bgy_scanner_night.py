@@ -23,7 +23,7 @@ from bgy_core.bgy_logger import get_logger
 from bgy_core.bgy_paths import RAW_DIR, CONFIG_OPENSKY
 from bgy_core.bgy_retry import retry_on_failure
 from bgy_core.bgy_config_manager import config_manager
-from bgy_core.bgy_dates import radar_filename
+from bgy_core.bgy_dates import is_night_time, radar_filename
 
 logger = get_logger("ScannerNight")
 
@@ -66,7 +66,7 @@ def _get_session_date(now, start_hour):
     return (now - timedelta(days=1)).strftime("%Y-%m-%d")
 
 
-def _is_in_night_window(now, start_hour, end_hour):
+def is_night_time(now, start_hour, end_hour):
     return now.hour >= start_hour or now.hour < end_hour
 
 
@@ -364,7 +364,7 @@ def run_night_scan(check_night_window=True):
     cfg = _cfg()
     now = datetime.now()
 
-    if check_night_window and not _is_in_night_window(
+    if check_night_window and not is_night_time(
             now, cfg["night_start_hour"], cfg["night_end_hour"]):
         logger.info("🌙 Fuori dalla finestra notturna (23:00-05:59). Scansione ignorata.")
         return None
