@@ -2,8 +2,8 @@
 bgy_core/bgy_version.py - Identità e versione della suite.
 Unico punto di verità per nome, versione e data di rilascio.
 """
-__version__ = "2.5.0"
-__release_date__ = "2026-09-15"
+__version__ = "2.9.0"
+__release_date__ = "2026-09-24"
 __suite_name__ = "BGY Monitoring Suite"
 __author__ = "Circolo Legambiente Bergamo APS"
 __license__ = "Custom (vedi Licenza.txt)"
