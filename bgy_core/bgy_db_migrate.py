@@ -47,6 +47,7 @@ import re
 import csv
 import argparse
 from datetime import datetime, timedelta
+from bgy_core.bgy_dates import parse_radar_filename
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -127,18 +128,6 @@ def parse_date_from_scan_filename(filename):
         tipo = "notturno" if hh >= 23 or hh < 6 else "diurno"
         return date_str, hh_mm, tipo
     return None, None, None
-
-
-def parse_radar_filename(filename):
-    base = filename.replace(".csv", "")
-    m = re.match(r'^radar_(\d{4}-\d{2}-\d{2})$', base)
-    if m:
-        return m.group(1)
-    m = re.match(r'^bgy_night_flights_(\d{4}-\d{2}-\d{2})$', base)
-    if m:
-        return m.group(1)
-    return None
-
 
 def parse_meteo_filename(filename):
     base = filename.replace(".csv", "")

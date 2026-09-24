@@ -24,6 +24,7 @@ from bgy_core.bgy_logger import get_logger
 from bgy_core.bgy_paths import LOGS_DIR
 from bgy_core.bgy_config_manager import config_manager
 from bgy_core.bgy_version import version_string
+from bgy_core.bgy_logger import _get_today_log_path
 
 logger = get_logger("Mailer")
 
@@ -321,13 +322,6 @@ def send_status_email(subject, body, is_success=True,
 
     return _send_smtp(cfg, subject, plain_text, html_body,
                       attachment_paths, recipients)
-
-
-def _get_today_log_path():
-    date_str = datetime.now().strftime("%Y-%m-%d")
-    path = os.path.join(LOGS_DIR, f"bgy_app_{date_str}.log")
-    return path if os.path.exists(path) else None
-
 
 # =============================================================================
 # FORMATTAZIONE STATISTICHE (F18b)
