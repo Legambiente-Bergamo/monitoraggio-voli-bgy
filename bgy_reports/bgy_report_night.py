@@ -1,10 +1,10 @@
 """
 bgy_reports/bgy_report_night.py - Report notturno integrato (SACBO + OpenSky).
-Versione 2.8.5
+Versione 2.8.6
 
 Modello logico:
-- TABELLONE SACBO: fonte primaria per i voli PASSEGGERI (arrivi + partenze).
-- RADAR: arricchisce i passeggeri + identifica Cargo e Charter.
+- Il TABELLONE SACBO è la fonte primaria per i voli PASSEGGERI.
+- Il RADAR arricchisce i passeggeri + identifica Cargo e Charter.
 
 Categorie finali:
   1. Passeggeri        — dal tabellone (con o senza match radar)
@@ -17,17 +17,16 @@ Visibilità:
   - Visibili di default: Passeggeri, Cargo, Charter
   - Opt-in (checkbox GUI): Passeggeri (radar), Non identificato
 
-Novità v2.8.5:
-- Aggiunta colonna `direzione_sacbo` (D/A) al CSV finale.
-  Serve per distinguere decolli/atterraggi dei passeggeri nell'email
-  di stato (F18b). Prima il dato D/A del tabellone veniva perso durante
-  la classificazione.
-- Il campo `tipo_movimento` del tabellone viene salvato in `direzione_sacbo`
-  prima di essere sovrascritto con la categoria finale.
-- Il matching fase usa `direzione_sacbo` invece di `tipo_movimento`.
+Novità v2.8.6:
+- Aggiunto il caricamento delle scansioni SACBO del giorno successivo
+  in fascia notturna (00:00-05:59). Questo permette di catturare gli
+  ARRIVI notturni che il tabellone delle 23:00 non vede (mostra solo
+  le partenze del mattino successivo). Configurato in config_data.json
+  con sacbo_night_scans = ["23:00", "00:01", "02:00", "05:00"].
+- Reintrodotto import timedelta (rimosso erroneamente in F12 Step 1).
 
-Novità v2.8.4:
-- (nessuna, versione di allineamento)
+Novità v2.8.5:
+- Aggiunta colonna direzione_sacbo (D/A) al CSV finale.
 
 Novità v2.8.3:
 - PAX e rumore calcolati solo sui Visibili.
@@ -35,6 +34,7 @@ Novità v2.8.3:
 import os
 import math
 import pandas as pd
+from datetime import datetime, timedelta
 
 from bgy_core import (
     get_airline, get_country, get_aircraft_model,
@@ -170,15 +170,22 @@ def _is_valid_airline_name(name):
 
 def load_scheduled_flights(date_str):
     """
-    Carica i voli schedulati notturni da tutte le scansioni SACBO della data.
-    Deduplica per (callsign_volo, orario_schedulato).
+    Carica i voli schedulati notturni da:
+      - tutte le scansioni della data di sessione (X)
+      - scansioni del giorno successivo (X+1) in fascia notturna (00:00-05:59)
 
-    Novità v2.8.5: il campo `tipo_movimento` (D/A) viene salvato in
-    `direzione_sacbo` prima di essere rimosso. Il matching e il CSV usano
-    `direzione_sacbo` per distinguere decolli/atterraggi.
+    Questo permette di catturare gli ARRIVI notturni del giorno X+1, che la
+    scansione delle 23:00 di X non vede (il tabellone mostra solo gli arrivi
+    del giorno corrente).
+
+    Deduplica per (callsign_volo, orario_schedulato).
     """
     date_norm = normalize_date(date_str)
+    next_date = (datetime.strptime(date_norm, "%Y-%m-%d")
+                 + timedelta(days=1)).strftime("%Y-%m-%d")
     date_clean = date_norm.replace("-", "")
+    next_clean = next_date.replace("-", "")
+
     scheduled = []
     seen = set()
 
@@ -187,10 +194,22 @@ def load_scheduled_flights(date_str):
         for f in os.listdir(RAW_DIR):
             if not f.startswith("scan_") or not f.endswith(".csv"):
                 continue
-            if f.startswith(f"scan_{date_norm}_"):
+
+            # Scansioni della data di sessione (tutte)
+            if f.startswith(f"scan_{date_norm}_") or f.startswith(f"scan_{date_clean}_"):
                 scan_files.append(f)
-            elif f.startswith(f"scan_{date_clean}_"):
-                scan_files.append(f)
+                continue
+
+            # Scansioni del giorno successivo: solo fascia notturna (00:00-05:59)
+            if f.startswith(f"scan_{next_date}_") or f.startswith(f"scan_{next_clean}_"):
+                try:
+                    parts = f.replace(".csv", "").split("_")
+                    if len(parts) >= 3:
+                        hh = int(parts[2].split("-")[0])
+                        if hh < 6:
+                            scan_files.append(f)
+                except Exception:
+                    pass
 
     scan_files.sort(reverse=True)
     duplicates_skipped = 0
@@ -215,7 +234,6 @@ def load_scheduled_flights(date_str):
                             continue
                         seen.add(key)
                         row_dict = row.to_dict()
-                        # Salva D/A del tabellone in direzione_sacbo
                         direzione = str(row_dict.get('tipo_movimento', '')).strip().upper()[:1]
                         row_dict['direzione_sacbo'] = direzione
                         row_dict.pop('tipo_movimento', None)
@@ -272,7 +290,6 @@ def load_radar_data(date_str):
 # -----------------------------------------------------------------------------
 
 def _is_phase_compatible(direzione_sacbo, fase_volo):
-    """direzione_sacbo: 'D' o 'A'. fase_volo: 'Decollo', 'Atterraggio', 'Avvicinamento'."""
     if direzione_sacbo == 'D':
         return fase_volo == 'Decollo'
     if direzione_sacbo == 'A':
@@ -281,7 +298,6 @@ def _is_phase_compatible(direzione_sacbo, fase_volo):
 
 
 def match_flights(scheduled_df, radar_df, session_date):
-    """Matching tra voli schedulati e radar."""
     if scheduled_df.empty and radar_df.empty:
         return pd.DataFrame()
 
@@ -293,7 +309,7 @@ def match_flights(scheduled_df, radar_df, session_date):
         radar_df['is_scheduled'] = False
         radar_df['orario_schedulato'] = ''
         radar_df['destinazione_origine'] = ''
-        radar_df['direzione_sacbo'] = ''  # Non disponibile per i radar
+        radar_df['direzione_sacbo'] = ''
         radar_df['matched_score'] = 0
         radar_df = _dedup_radar_by_callsign(radar_df)
         classified = _classify_unmatched_radar(radar_df)
@@ -316,7 +332,6 @@ def match_flights(scheduled_df, radar_df, session_date):
         scheduled_df['matched_score'] = 0
         scheduled_df['callsign'] = scheduled_df['callsign_volo']
         scheduled_df['tipo_movimento'] = 'Passeggeri'
-        # direzione_sacbo è già presente dal load_scheduled_flights
         return _enrich_final(scheduled_df)
 
     # --- Match ---
@@ -417,7 +432,6 @@ def match_flights(scheduled_df, radar_df, session_date):
 
 
 def _classify_unmatched_radar(radar_df):
-    """Classifica radar non matchati in Cargo / Charter / Passeggeri radar / Non id."""
     if radar_df.empty:
         return radar_df
 
@@ -439,7 +453,6 @@ def _classify_unmatched_radar(radar_df):
         row_dict['destinazione_origine'] = ''
         row_dict['matched_score'] = 0
         if 'direzione_sacbo' not in row_dict or not row_dict.get('direzione_sacbo'):
-            # Per i radar non matchati, derivo direzione dalla fase
             if fase == 'Decollo':
                 row_dict['direzione_sacbo'] = 'D'
             elif fase in ('Atterraggio', 'Avvicinamento'):
