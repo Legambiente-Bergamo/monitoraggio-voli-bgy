@@ -1,6 +1,11 @@
 """
 bgy_core/bgy_mailer.py - Modulo unificato di invio email.
-Versione 2.5.4
+Versione 2.5.5
+
+Novità v2.5.5 (F14):
+- send_daily_status() mostra anche il check "8) Compagnie da risolvere".
+- Il messaggio multi-riga di check_unresolved_airlines() viene indentato
+  nel corpo email.
 
 Novità v2.5.4:
 - send_daily_status() accetta parametro `stats` con statistiche movimenti
@@ -394,6 +399,7 @@ def send_daily_status(success=True, details="", checks=None, stats=None, force=F
             ('github_sync', '5) Sincronizzazione GitHub'),
             ('db_sync', '6) Sincronizzazione Database'),
             ('quality_check', '7) Verifica qualità dati'),
+            ('unresolved_airlines', '8) Compagnie da risolvere'),   # F14
         ]
         for key, label in labels:
             if key in checks:
@@ -403,7 +409,15 @@ def send_daily_status(success=True, details="", checks=None, stats=None, force=F
                 parts.append(f"{icon} {label}: {stato}")
                 if msg:
                     if key == 'quality_check':
+                        # Il quality check produce testo multi-riga già
+                        # formattato (una riga per check, con indentazione).
                         parts.append(msg)
+                    elif key == 'unresolved_airlines':
+                        # F14: anche check_unresolved_airlines produce
+                        # testo multi-riga. Lo indentiamo di 3 spazi
+                        # per allinearlo al blocco quality_check.
+                        for line in msg.split('\n'):
+                            parts.append(f"   {line}")
                     else:
                         parts.append(f"      → {msg}")
                 parts.append("")

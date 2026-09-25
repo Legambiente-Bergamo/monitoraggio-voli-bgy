@@ -1,6 +1,6 @@
 """
 bgy_core/bgy_db_migrate.py - Import e sincronizzazione CSV -> PostgreSQL.
-Versione 2.6.2
+Versione 2.6.3
 
 Modulo unificato che contiene:
   - Funzioni di import per ogni tipo di file (scan, radar, meteo, nightly)
@@ -9,6 +9,7 @@ Modulo unificato che contiene:
   - Logica di sincronizzazione incrementale
   - Quality check esteso: 27 check (F11e)
   - Statistiche movimenti giornalieri e notturni (F18b)
+  - Check compagnie placeholder irrisolte (F14)
 
 Uso:
     py -3.12 -m bgy_core.bgy_db_migrate                      # sync di ieri
@@ -20,6 +21,16 @@ Uso:
     py -3.12 -m bgy_core.bgy_db_migrate --quality-check
     py -3.12 -m bgy_core.bgy_db_migrate --quality-check --days 30
     py -3.12 -m bgy_core.bgy_db_migrate --quality-check --dry-run
+
+Novità v2.6.3 (F14):
+- Fix check_unresolved_airlines:
+  * INTERVAL '%s days' -> make_interval(days => %s): la soglia era ignorata
+    per un problema di parametrizzazione psycopg.
+  * EXTRACT(DAY FROM NOW() - created_at) -> CURRENT_DATE - created_at::date:
+    il primo restituiva solo il campo "giorni" dell'intervallo, non i giorni
+    totali (35 gg diventavano 5).
+  * Aggiunto filtro min_occorrenze (default 1): i placeholder con 0 occorrenze
+    nei report notturni non sono più segnalati (non impattano nulla).
 
 Novità v2.6.2:
 - Fix check 15 (Compagnie una-tantum): applicato solo se days >= 14.
@@ -1567,6 +1578,89 @@ def format_quality_text(qc_result):
         lines.append(
             f"Riepilogo: {r['ok']} OK, {r['warning']} warning, {r['errori']} errori")
     return "\n".join(lines)
+
+
+# =============================================================================
+# COMPAGNIE DA RISOLVERE (F14) — v2.6.3
+# =============================================================================
+
+def check_unresolved_airlines(days_threshold=30, min_occorrenze=1):
+    """
+    Verifica se ci sono compagnie placeholder ("Compagnia XXX") più vecchie
+    di N giorni (default 30) nella tabella airlines.
+
+    Un placeholder è considerato "da risolvere" solo se:
+      - è più vecchio di days_threshold giorni (created_at)
+      - ha almeno min_occorrenze nei report notturni (default 1)
+
+    Ritorna (ok, msg):
+      - ok: True  -> nessun placeholder da risolvere
+      - ok: False -> almeno un placeholder da risolvere
+      - msg: messaggio formattato multi-riga per l'email di stato
+
+    Fix v2.6.3:
+      - make_interval(days => %s) al posto di INTERVAL '%s days'
+        (la soglia era ignorata per un problema di parametrizzazione psycopg)
+      - CURRENT_DATE - created_at::date al posto di
+        EXTRACT(DAY FROM NOW() - created_at)
+        (il primo restituiva solo il campo "giorni" dell'intervallo,
+         non i giorni totali: 35 gg diventavano 5)
+      - filtro min_occorrenze (default 1): i placeholder con 0 occorrenze
+        nei report notturni non sono più segnalati
+    """
+    try:
+        ok, rows = bgy_db.execute_query(
+            """SELECT code,
+                      name,
+                      (CURRENT_DATE - created_at::date) AS age_days,
+                      (SELECT COUNT(*) FROM nightly_reports nr
+                       WHERE nr.compagnia_aerea = airlines.name) AS occ
+               FROM airlines
+               WHERE name LIKE 'Compagnia %%'
+                 AND created_at < NOW() - make_interval(days => %s)
+                 AND (SELECT COUNT(*) FROM nightly_reports nr
+                      WHERE nr.compagnia_aerea = airlines.name) >= %s
+               ORDER BY age_days DESC, occ DESC
+               LIMIT 20""",
+            (days_threshold, min_occorrenze)
+        )
+        if not ok:
+            return True, f"Errore query compagnie: {str(rows)[:80]}"
+
+        old_placeholders = rows or []
+
+        # Conta TUTTI i placeholder (anche recenti) per il messaggio "ok"
+        ok2, rows2 = bgy_db.execute_query(
+            """SELECT COUNT(*) FROM airlines
+               WHERE name LIKE 'Compagnia %%'"""
+        )
+        total_placeholders = rows2[0][0] if ok2 and rows2 else 0
+
+        if not old_placeholders:
+            if total_placeholders == 0:
+                return True, "✅ Nessuna compagnia placeholder"
+            return True, (
+                f"✅ Nessuna più vecchia di {days_threshold} giorni "
+                f"con occorrenze ≥ {min_occorrenze} "
+                f"({total_placeholders} placeholder totali)"
+            )
+
+        lines = [
+            f"⚠️ {len(old_placeholders)} compagnie placeholder da risolvere "
+            f"(> {days_threshold} giorni, occorrenze ≥ {min_occorrenze}):"
+        ]
+        for code, name, age_days, occ in old_placeholders:
+            lines.append(
+                f"   • {name} (codice: {code}, "
+                f"{age_days} giorni, {occ} occorrenze)"
+            )
+        lines.append("   → Apri il tab 🏢 Compagnie nella GUI per correggerle")
+
+        return False, "\n".join(lines)
+
+    except Exception as e:
+        logger.error(f"Errore check_unresolved_airlines: {e}")
+        return True, f"Errore verifica compagnie: {str(e)[:80]}"
 
 
 # =============================================================================

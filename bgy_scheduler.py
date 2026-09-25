@@ -1,11 +1,12 @@
 """
 bgy_scheduler.py - Pianificatore ed Orchestratore automatico.
-Versione 2.5.7
+Versione 2.5.8
 - Lock file per impedire doppio avvio
 - Radar notturno: SOLO tra le 23:00 e le 05:59
 - Sync DB: recupero automatico degli ultimi 8 giorni
 - Quality check (F11e) integrato nel job giornaliero
 - Statistiche movimenti giorno/notte (F18b) nell'email di stato
+- Verifica compagnie da risolvere (F14) nell'email di stato
 """
 import os
 import sys
@@ -105,6 +106,7 @@ def acquire_scheduler_lock():
 # -----------------------------------------------------------------------------
 # UTILITY
 # -----------------------------------------------------------------------------
+
 def _get_scheduler_start_time(target_date_str):
     target_date = datetime.strptime(target_date_str, "%Y-%m-%d")
     for days_back in range(0, 8):
@@ -329,6 +331,24 @@ def job_daily():
         qc_msg = f"Errore quality check: {e}"
         logger.error(f"❌ {qc_msg}")
 
+    # --- Compagnie da risolvere (F14) ---
+    logger.info("-" * 60)
+    logger.info("🏢 Verifica compagnie da risolvere...")
+    ua_ok = True
+    ua_msg = "Non tentato"
+    try:
+        from bgy_core.bgy_db_migrate import check_unresolved_airlines
+        data_cfg = config_manager.get_data_config()
+        threshold = int(
+            data_cfg.get("notifications", {}).get("unresolved_airlines_days", 30)
+        )
+        ua_ok, ua_msg = check_unresolved_airlines(days_threshold=threshold)
+        first_line = ua_msg.split(chr(10))[0]
+        logger.info(f"{'✅' if ua_ok else '⚠️'} {first_line}")
+    except Exception as e:
+        ua_msg = f"Errore verifica compagnie: {e}"
+        logger.error(f"❌ {ua_msg}")
+
     # --- Statistiche movimenti (F18b) ---
     logger.info("-" * 60)
     logger.info("📊 Raccolta statistiche movimenti...")
@@ -352,6 +372,7 @@ def job_daily():
         'github_sync': (sync_ok, sync_msg),
         'db_sync': (db_ok, db_msg),
         'quality_check': (qc_ok, qc_msg),
+        'unresolved_airlines': (ua_ok, ua_msg),
     }
 
     overall_success = all(ok for ok, _ in checks.values())
@@ -401,7 +422,7 @@ def setup_scheduler():
 
     report_time = config.get("daily_report_time", "06:30")
     schedule.every().day.at(report_time).do(job_daily)
-    logger.info(f"📊 Report + sync GitHub + sync DB + quality check + email alle {report_time}")
+    logger.info(f"📊 Report + sync GitHub + sync DB + quality check + compagnie + email alle {report_time}")
 
     logger.info("=" * 50)
     logger.info("✅ Scheduler configurato e in esecuzione...")
