@@ -1,8 +1,9 @@
 """
 BGY Monitoring Suite - Interfaccia Grafica di Controllo
-v2.5.2
+v2.5.3
 - Aggiunto tab "📈 Grafici" (anteprima con dati dal DB)
 - Aggiunto tab "🔔 Notifiche" (silenzia/attiva email)
+- Aggiunto tab "🏢 Compagnie" (risoluzione placeholder)
 - Pulizia periodica processi orfani (fix zombie scheduler)
 """
 import sys
@@ -46,6 +47,7 @@ def ensure_dependencies():
 ensure_dependencies()
 
 import os
+import json
 import threading
 import subprocess as sp
 import tkinter as tk
@@ -56,7 +58,7 @@ from bgy_core import get_logger, config_manager, ensure_directories
 from bgy_core.bgy_version import __version__
 from bgy_gui import (
     DashboardTab, MailConfigTab, ScanConfigTab, ReportExportTab,
-    WatchdogConfigTab, NotificationsTab,
+    WatchdogConfigTab, NotificationsTab, AirlinesTab,
 )
 from bgy_gui.bgy_gui_charts import ChartsTab
 
@@ -215,6 +217,9 @@ class BgyAppGUI:
 
         self.notifications_tab = NotificationsTab(self.notebook, self)
         self.notebook.add(self.notifications_tab.tab, text="🔔 Notifiche")
+
+        self.airlines_tab = AirlinesTab(self.notebook, self)
+        self.notebook.add(self.airlines_tab.tab, text="🏢 Compagnie")
 
         self.watchdog_tab = WatchdogConfigTab(self.notebook, self)
         self.notebook.add(self.watchdog_tab.tab, text="🐕 Watchdog")
