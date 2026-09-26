@@ -1,23 +1,44 @@
 """
 bgy_scanners/bgy_scanner_day.py - Scanner diurno per il tabellone SACBO.
-Versione 2.5.1
+Versione 2.5.3
+
 - URL, timeout, attese, scroll, user-agent: da config_data.json (scanner_day)
 - Naming file: scan_YYYY-MM-DD_HH-MM.csv (via bgy_dates)
 
+Fix v2.5.3:
+- Aggiunto stealth mode con playwright-stealth v2.0.0+ (classe Stealth).
+  Il sito SACBO è protetto da Cloudflare; senza stealth la pagina viene
+  bloccata e il tab "Arrivi" non è cliccabile.
+- Aggiunta rimozione overlay (banner cookie iubenda + alert-popup)
+  prima del click sul tab "Arrivi". Senza questa rimozione, gli overlay
+  intercettano i click e il tab non viene attivato.
+- Verifica del cambio di contenuto dopo il click tramite fingerprint
+  del body (md5). Se il body non cambia, gli arrivi vengono scartati.
+
+Fix v2.5.2:
+- Safety net in run_scan(): se D e A hanno lo stesso set di
+  (callsign, orario), gli A vengono scartati e viene loggato un WARNING.
+
 Fix v2.5.1:
-- Il click sul tab "Arrivi" è ora esplicito. Playwright navigava all'URL
-  con #arrivals ma il JavaScript del sito non attivava la tab, quindi
-  venivano estratti solo i dati della tab "Partenze" (default).
-- Aggiunto fallback: se il click sul tab fallisce, prova l'URL diretto
-  con #arrivals e attende un tempo maggiore.
-- Aggiunta diagnostica: logga quanti voli sono stati estratti per ogni tab.
+- Il click sul tab "Arrivi" è ora esplicito (Playwright navigava all'URL
+  con #arrivals ma il JavaScript non attivava la tab).
+- Fallback URL diretto se il click fallisce.
+- Diagnostica: logga quanti voli sono stati estratti per ogni tab.
 """
 import os
 import re
 import sys
+import hashlib
 import pandas as pd
 from datetime import datetime
 from playwright.sync_api import sync_playwright
+
+try:
+    from playwright_stealth import Stealth
+    _STEALTH_AVAILABLE = True
+except ImportError:
+    Stealth = None
+    _STEALTH_AVAILABLE = False
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -69,54 +90,98 @@ def parse_flight_text(raw_text, movement_type):
     return flights
 
 
+def _body_fingerprint(page):
+    """Restituisce un hash del body corrente, per rilevare cambi di contenuto."""
+    try:
+        text = page.inner_text("body")
+        return hashlib.md5(text.encode("utf-8", errors="ignore")).hexdigest()
+    except Exception:
+        return None
+
+
+def _dismiss_overlays(page):
+    """
+    Rimuove banner cookie e modal di avviso che intercettano i click.
+    Ritorna il numero di overlay rimossi.
+    """
+    try:
+        removed = page.evaluate("""
+            () => {
+                let count = 0;
+                const selectors = [
+                    '#iubenda-cs-banner',
+                    '.iubenda-cs-banner',
+                    '#alert-popup',
+                    '.modal-backdrop',
+                    '.modal.show',
+                    '.modal.fade.in',
+                ];
+                for (const sel of selectors) {
+                    document.querySelectorAll(sel).forEach(el => {
+                        el.remove();
+                        count++;
+                    });
+                }
+                document.body.classList.remove('modal-open');
+                document.body.style.overflow = '';
+                document.body.style.paddingRight = '';
+                return count;
+            }
+        """)
+        if removed > 0:
+            logger.info(f"🧹 Rimossi {removed} overlay (cookie banner/modal)")
+        return removed
+    except Exception as e:
+        logger.warning(f"Errore rimozione overlay: {e}")
+        return 0
+
+
 def _click_arrivals_tab(page):
     """
-    Prova a cliccare il tab 'Arrivi' con diversi selettori.
-    Ritorna True se il click è riuscito.
+    Prova a cliccare il tab 'Arrivi'.
+    Ritorna True se il click è riuscito (a livello di click).
     """
-    # Candidati: testo visibile del tab (italiano + inglese)
     candidates = [
-        "Arrivi", "ARRIVI", "arrivi",
-        "Arrivals", "ARRIVALS", "arrivals",
-        "Arrivo", "Arrivo",
+        "[role='tab']:has-text('Arrivi')",
+        "a[href='#arr-table']",
+        "a:has-text('Arrivi')",
+        "text=Arrivi",
     ]
 
-    for text in candidates:
+    for sel in candidates:
         try:
-            # Prova: link o button con questo testo esatto
-            loc = page.get_by_role("link", name=re.compile(text, re.IGNORECASE))
+            loc = page.locator(sel).first
             if loc.count() > 0:
-                loc.first.click(timeout=5000)
-                logger.info(f"🖱️ Click su tab 'Arrivi' (role=link, text={text})")
-                page.wait_for_timeout(3000)
+                loc.click(timeout=8000)
+                logger.info(f"🖱️ Click su tab 'Arrivi' (selettore: {sel})")
                 return True
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Selettore '{sel}' fallito: {str(e)[:100]}")
+            try:
+                loc = page.locator(sel).first
+                if loc.count() > 0:
+                    loc.evaluate("el => el.click()")
+                    logger.info(f"🖱️ Click JS su tab 'Arrivi' (selettore: {sel})")
+                    return True
+            except Exception:
+                continue
 
-        try:
-            loc = page.get_by_role("button", name=re.compile(text, re.IGNORECASE))
-            if loc.count() > 0:
-                loc.first.click(timeout=5000)
-                logger.info(f"🖱️ Click su tab 'Arrivi' (role=button, text={text})")
-                page.wait_for_timeout(3000)
-                return True
-        except Exception:
-            pass
-
-        try:
-            # Fallback: cerca un elemento <a> o <li> con questo testo
-            loc = page.locator(f"a:has-text('{text}'), li:has-text('{text}'), "
-                               f"div[role='tab']:has-text('{text}')")
-            if loc.count() > 0:
-                loc.first.click(timeout=5000)
-                logger.info(f"🖱️ Click su tab 'Arrivi' (selettore generico, text={text})")
-                page.wait_for_timeout(3000)
-                return True
-        except Exception:
-            pass
-
-    logger.warning("⚠️ Nessun elemento 'Arrivi' trovato, provo con URL diretto")
+    logger.warning("⚠️ Nessun elemento 'Arrivi' trovato")
     return False
+
+
+def _wait_body_change(page, fingerprint_before, max_wait_ms=10000, poll_ms=500):
+    """Aspetta che il body cambi rispetto al fingerprint dato."""
+    if fingerprint_before is None:
+        return True, _body_fingerprint(page)
+
+    steps = max(1, max_wait_ms // poll_ms)
+    for _ in range(steps):
+        page.wait_for_timeout(poll_ms)
+        fp = _body_fingerprint(page)
+        if fp is not None and fp != fingerprint_before:
+            return True, fp
+    return False, _body_fingerprint(page)
 
 
 @retry_on_failure(max_retries=3, delay=2)
@@ -131,13 +196,36 @@ def fetch_board_data():
     scroll_px = cfg.get("scroll_pixels", 1500)
     ua = cfg.get("user_agent", "Mozilla/5.0")
 
-    logger.info("🚀 Avvio Playwright...")
+    if not _STEALTH_AVAILABLE:
+        logger.warning("⚠️ playwright-stealth non disponibile. "
+                       "Il sito SACBO potrebbe bloccare Playwright.")
+
+    logger.info("🚀 Avvio Playwright (stealth mode)...")
 
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            context = browser.new_context(user_agent=ua)
+            browser = p.chromium.launch(
+                headless=False,
+                args=[
+                    "--disable-blink-features=AutomationControlled",
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                ],
+            )
+            context = browser.new_context(
+                viewport={"width": 1366, "height": 768},
+                user_agent=ua,
+                locale="it-IT",
+                timezone_id="Europe/Rome",
+            )
             page = context.new_page()
+
+            if _STEALTH_AVAILABLE:
+                try:
+                    Stealth().apply_stealth_sync(page)
+                    logger.info("🥷 Stealth applicato")
+                except Exception as e:
+                    logger.warning(f"Impossibile applicare stealth: {e}")
 
             for entry in urls:
                 try:
@@ -149,33 +237,52 @@ def fetch_board_data():
                 try:
                     logger.info(f"📡 Accesso ({mov_type})...")
 
-                    # === STRATEGIA 1: naviga all'URL base, poi clicca il tab ===
+                    is_arrivals = "arriv" in url.lower() or "atterra" in mov_type.lower()
                     base_url = url.split("#")[0]
-                    page.goto(base_url, wait_until="networkidle", timeout=timeout)
+
+                    page.goto(base_url, wait_until="domcontentloaded", timeout=timeout)
                     page.wait_for_timeout(wait_load)
 
-                    is_arrivals = "arriv" in url.lower() or "atterra" in mov_type.lower()
+                    for i in range(15):
+                        title = page.title()
+                        if "Just a moment" not in title and "Attention" not in title:
+                            break
+                        page.wait_for_timeout(1000)
+
+                    _dismiss_overlays(page)
+                    page.wait_for_timeout(1000)
 
                     if is_arrivals:
-                        # Prova il click sul tab "Arrivi"
-                        clicked = _click_arrivals_tab(page)
-                        if not clicked:
-                            # === STRATEGIA 2: naviga direttamente all'URL con fragment ===
-                            logger.info(f"🔄 Fallback: navigo a {url}")
-                            page.goto(url, wait_until="networkidle", timeout=timeout)
-                            page.wait_for_timeout(wait_load + 3000)
+                        fp_before = _body_fingerprint(page)
 
-                    # Scroll per caricare tutti i voli
+                        clicked = _click_arrivals_tab(page)
+                        if clicked:
+                            changed, _ = _wait_body_change(
+                                page, fp_before,
+                                max_wait_ms=10000, poll_ms=500
+                            )
+                            if not changed:
+                                logger.warning(
+                                    "⚠️ Il click sul tab 'Arrivi' NON ha cambiato "
+                                    "il contenuto della pagina. Salto l'acquisizione "
+                                    "degli arrivi per evitare di duplicare le partenze."
+                                )
+                                continue
+                            logger.info("✅ Contenuto pagina cambiato dopo il click")
+                        else:
+                            logger.warning(
+                                "⚠️ Impossibile cliccare il tab 'Arrivi'. "
+                                "Salto l'acquisizione degli arrivi."
+                            )
+                            continue
+
                     page.evaluate(f"window.scrollBy(0, {scroll_px})")
                     page.wait_for_timeout(wait_scroll)
 
-                    # Estrai il testo
                     body_text = page.inner_text("body")
                     parsed = parse_flight_text(body_text, mov_type)
 
-                    # Diagnostica: verifica che i voli estratti abbiano il tipo giusto
                     if parsed:
-                        # Conta quanti hanno mov_type = 'A' (se siamo su arrivals)
                         n_a = sum(1 for f in parsed if f.get('tipo_movimento') == 'A')
                         n_d = sum(1 for f in parsed if f.get('tipo_movimento') == 'D')
                         logger.info(
@@ -196,6 +303,41 @@ def fetch_board_data():
     return pd.DataFrame(all_flights) if all_flights else pd.DataFrame()
 
 
+def _sanity_check_d_a(df):
+    """
+    Safety net: se D e A hanno lo stesso set di (callsign, orario_schedulato),
+    gli 'arrivi' sono in realtà un duplicato delle partenze. Scarta gli A.
+    """
+    if df.empty:
+        return df, False
+
+    d_rows = df[df['tipo_movimento'] == 'D']
+    a_rows = df[df['tipo_movimento'] == 'A']
+
+    if d_rows.empty or a_rows.empty:
+        return df, False
+
+    d_set = set(zip(
+        d_rows['callsign_volo'].astype(str),
+        d_rows['orario_schedulato'].astype(str)
+    ))
+    a_set = set(zip(
+        a_rows['callsign_volo'].astype(str),
+        a_rows['orario_schedulato'].astype(str)
+    ))
+
+    if d_set == a_set:
+        logger.warning(
+            f"⚠️ SAFETY NET: D e A hanno lo stesso set di "
+            f"(callsign, orario_schedulato) — {len(d_set)} coppie identiche. "
+            f"Scarto {len(a_rows)} righe A."
+        )
+        df = df[df['tipo_movimento'] != 'A'].copy()
+        return df, True
+
+    return df, False
+
+
 def run_scan():
     """Esegue la scansione diurna."""
     logger.info("🚀 Avvio scansione diurna...")
@@ -205,6 +347,8 @@ def run_scan():
     if df.empty:
         logger.error("❌ Nessun dato acquisito")
         return None
+
+    df, _ = _sanity_check_d_a(df)
 
     before = len(df)
     df = df.drop_duplicates(
@@ -220,7 +364,6 @@ def run_scan():
     out_file = os.path.join(RAW_DIR, scan_filename(now))
     df.to_csv(out_file, index=False, encoding="utf-8-sig")
 
-    # Diagnostica finale
     n_d = len(df[df['tipo_movimento'] == 'D'])
     n_a = len(df[df['tipo_movimento'] == 'A'])
     logger.info(f"✅ Scansione completata: {len(df)} voli (D={n_d}, A={n_a})")
