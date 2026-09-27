@@ -1,15 +1,22 @@
 """
 bgy_scheduler.py - Pianificatore ed Orchestratore automatico.
-Versione 2.5.8
+Versione 2.5.9
 - Lock file per impedire doppio avvio
 - Radar notturno: SOLO tra le 23:00 e le 05:59
 - Sync DB: recupero automatico degli ultimi 8 giorni
 - Quality check (F11e) integrato nel job giornaliero
 - Statistiche movimenti giorno/notte (F18b) nell'email di stato
 - Verifica compagnie da risolvere (F14) nell'email di stato
+- Diagnostica scanner diurno Cloudflare (F14b) nell'email di stato
+
+Novità v2.5.9:
+- Aggiunto check 9 "Diagnostica scanner diurno": legge
+  bgy_data/bgy_logs/scanner_day_status.json scritto dallo scanner v2.5.4
+  e segnala eventuali problemi con Cloudflare o col tabellone SACBO.
 """
 import os
 import sys
+import json
 import time
 import threading
 import subprocess as sp
@@ -34,6 +41,7 @@ _scheduler_lock = threading.Lock()
 _scheduler_started = False
 
 SCHEDULER_LOCK_FILE = os.path.join(LOGS_DIR, "scheduler.lock")
+SCANNER_STATUS_FILE = os.path.join(LOGS_DIR, "scanner_day_status.json")
 
 
 # -----------------------------------------------------------------------------
@@ -227,6 +235,58 @@ def check_night_acquisition(date_str):
     return (len(mancanti) == 0 and radar_ok), msg
 
 
+def check_scanner_day_status():
+    """
+    Legge bgy_data/bgy_logs/scanner_day_status.json scritto dallo scanner diurno
+    (v2.5.4+) e verifica se l'ultima scansione è andata a buon fine.
+
+    Ritorna (ok, msg):
+      - ok=True  se l'ultima scansione è OK o se il file non esiste
+      - ok=False se l'ultima scansione ha avuto problemi
+    """
+    if not os.path.exists(SCANNER_STATUS_FILE):
+        return True, "Nessuna scansione registrata"
+
+    try:
+        with open(SCANNER_STATUS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception as e:
+        return True, f"Impossibile leggere status: {str(e)[:60]}"
+
+    ts = data.get("timestamp", "?")
+    challenge = data.get("challenge_superato", False)
+    clicked = data.get("tab_arrivi_cliccato", False)
+    changed = data.get("body_arrivi_cambiato", False)
+    n_d = int(data.get("n_decolli", 0))
+    n_a = int(data.get("n_arrivi", 0))
+
+    # Tutto OK
+    if challenge and clicked and changed and n_d > 0 and n_a > 0:
+        return True, f"OK ({n_d} D + {n_a} A) — ultima scansione {ts}"
+
+    # Problemi: componi un messaggio con la diagnosi
+    problemi = []
+    if not challenge:
+        problemi.append("Challenge Cloudflare non superato")
+    elif not clicked:
+        problemi.append("Tab 'Arrivi' non cliccabile (possibile modifica al sito SACBO)")
+    elif not changed:
+        problemi.append("Click su 'Arrivi' eseguito ma contenuto non cambiato")
+    if n_a == 0:
+        problemi.append(f"Nessun arrivo estratto (D={n_d}, A={n_a})")
+    if n_d == 0:
+        problemi.append(f"Nessun decollo estratto (D={n_d}, A={n_a})")
+
+    dettaglio = " | ".join(problemi) if problemi else "Stato scanner non chiaro"
+
+    msg = (
+        f"⚠️ Ultima scansione ({ts}): {dettaglio}\n"
+        f"   D={n_d}, A={n_a}\n"
+        f"   → Esegui: py -3.12 -m bgy_tools.test_sacbo_stealth"
+    )
+    return False, msg
+
+
 # -----------------------------------------------------------------------------
 # JOB
 # -----------------------------------------------------------------------------
@@ -349,6 +409,19 @@ def job_daily():
         ua_msg = f"Errore verifica compagnie: {e}"
         logger.error(f"❌ {ua_msg}")
 
+    # --- Diagnostica scanner diurno (F14b) ---
+    logger.info("-" * 60)
+    logger.info("🩺 Diagnostica scanner diurno...")
+    sc_ok = True
+    sc_msg = "Non tentato"
+    try:
+        sc_ok, sc_msg = check_scanner_day_status()
+        first_line = sc_msg.split(chr(10))[0]
+        logger.info(f"{'✅' if sc_ok else '⚠️'} {first_line}")
+    except Exception as e:
+        sc_msg = f"Errore diagnostica scanner: {e}"
+        logger.error(f"❌ {sc_msg}")
+
     # --- Statistiche movimenti (F18b) ---
     logger.info("-" * 60)
     logger.info("📊 Raccolta statistiche movimenti...")
@@ -373,6 +446,7 @@ def job_daily():
         'db_sync': (db_ok, db_msg),
         'quality_check': (qc_ok, qc_msg),
         'unresolved_airlines': (ua_ok, ua_msg),
+        'scanner_day_status': (sc_ok, sc_msg),
     }
 
     overall_success = all(ok for ok, _ in checks.values())
@@ -422,7 +496,8 @@ def setup_scheduler():
 
     report_time = config.get("daily_report_time", "06:30")
     schedule.every().day.at(report_time).do(job_daily)
-    logger.info(f"📊 Report + sync GitHub + sync DB + quality check + compagnie + email alle {report_time}")
+    logger.info(f"📊 Report + sync GitHub + sync DB + quality check + compagnie "
+                f"+ diagnostica scanner + email alle {report_time}")
 
     logger.info("=" * 50)
     logger.info("✅ Scheduler configurato e in esecuzione...")

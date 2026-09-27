@@ -1,6 +1,14 @@
 """
 bgy_core/bgy_mailer.py - Modulo unificato di invio email.
-Versione 2.5.4
+Versione 2.5.6
+
+Novità v2.5.6 (F14b):
+- send_daily_status() mostra anche il check 9 "Diagnostica scanner diurno".
+- Il messaggio multi-riga di check_scanner_day_status() viene indentato.
+
+Novità v2.5.5 (F14):
+- send_daily_status() mostra anche il check 8 "Compagnie da risolvere".
+- Il messaggio multi-riga di check_unresolved_airlines() viene indentato.
 
 Novità v2.5.4:
 - send_daily_status() accetta parametro `stats` con statistiche movimenti
@@ -394,6 +402,8 @@ def send_daily_status(success=True, details="", checks=None, stats=None, force=F
             ('github_sync', '5) Sincronizzazione GitHub'),
             ('db_sync', '6) Sincronizzazione Database'),
             ('quality_check', '7) Verifica qualità dati'),
+            ('unresolved_airlines', '8) Compagnie da risolvere'),
+            ('scanner_day_status', '9) Diagnostica scanner diurno'),
         ]
         for key, label in labels:
             if key in checks:
@@ -403,7 +413,12 @@ def send_daily_status(success=True, details="", checks=None, stats=None, force=F
                 parts.append(f"{icon} {label}: {stato}")
                 if msg:
                     if key == 'quality_check':
+                        # Il quality check produce testo multi-riga già formattato
                         parts.append(msg)
+                    elif key in ('unresolved_airlines', 'scanner_day_status'):
+                        # F14/F14b: messaggi multi-riga, li indentiamo di 3 spazi
+                        for line in msg.split('\n'):
+                            parts.append(f"   {line}")
                     else:
                         parts.append(f"      → {msg}")
                 parts.append("")
@@ -427,7 +442,8 @@ def send_daily_status(success=True, details="", checks=None, stats=None, force=F
             'github_sync' in checks and
             not checks['github_sync'][0] and
             all(ok for k, (ok, _) in checks.items()
-                if k not in ('github_sync', 'quality_check'))
+                if k not in ('github_sync', 'quality_check',
+                             'unresolved_airlines', 'scanner_day_status'))
         )
         if not only_sync_error:
             log_path = _get_today_log_path()
