@@ -1,19 +1,30 @@
 """
 bgy_scanners/bgy_scanner_day.py - Scanner diurno per il tabellone SACBO.
-Versione 2.5.3
+Versione 2.5.4
 
 - URL, timeout, attese, scroll, user-agent: da config_data.json (scanner_day)
 - Naming file: scan_YYYY-MM-DD_HH-MM.csv (via bgy_dates)
+
+Novità v2.5.4 (diagnostica Cloudflare):
+- Lo scanner scrive bgy_data/bgy_logs/scanner_day_status.json al termine
+  di ogni scansione, con:
+    * challenge_superato (bool)
+    * tab_arrivi_cliccato (bool)
+    * body_arrivi_cambiato (bool)
+    * n_decolli, n_arrivi (int)
+    * messaggio (str, human-readable)
+- Il file viene scritto anche in caso di errore/eccezione, così il check 9
+  nell'email di stato può segnalare il problema.
+- Nessun auto-fix: la diagnostica rileva e notifica, non ripara.
 
 Fix v2.5.3:
 - Aggiunto stealth mode con playwright-stealth v2.0.0+ (classe Stealth).
   Il sito SACBO è protetto da Cloudflare; senza stealth la pagina viene
   bloccata e il tab "Arrivi" non è cliccabile.
 - Aggiunta rimozione overlay (banner cookie iubenda + alert-popup)
-  prima del click sul tab "Arrivi". Senza questa rimozione, gli overlay
-  intercettano i click e il tab non viene attivato.
+  prima del click sul tab "Arrivi".
 - Verifica del cambio di contenuto dopo il click tramite fingerprint
-  del body (md5). Se il body non cambia, gli arrivi vengono scartati.
+  del body (md5).
 
 Fix v2.5.2:
 - Safety net in run_scan(): se D e A hanno lo stesso set di
@@ -28,6 +39,7 @@ Fix v2.5.1:
 import os
 import re
 import sys
+import json
 import hashlib
 import pandas as pd
 from datetime import datetime
@@ -43,12 +55,51 @@ except ImportError:
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from bgy_core.bgy_logger import get_logger
-from bgy_core.bgy_paths import RAW_DIR
+from bgy_core.bgy_paths import RAW_DIR, LOGS_DIR
 from bgy_core.bgy_retry import retry_on_failure
 from bgy_core.bgy_config_manager import config_manager
 from bgy_core.bgy_dates import scan_filename
 
 logger = get_logger("ScannerDay")
+
+STATUS_FILE = os.path.join(LOGS_DIR, "scanner_day_status.json")
+
+
+# Stato della scansione corrente (module-level, popolato da fetch_board_data)
+_scan_status = {
+    "timestamp": None,
+    "challenge_superato": False,
+    "tab_arrivi_cliccato": False,
+    "body_arrivi_cambiato": False,
+    "n_decolli": 0,
+    "n_arrivi": 0,
+    "messaggio": "",
+}
+
+
+def _reset_scan_status():
+    _scan_status["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    _scan_status["challenge_superato"] = False
+    _scan_status["tab_arrivi_cliccato"] = False
+    _scan_status["body_arrivi_cambiato"] = False
+    _scan_status["n_decolli"] = 0
+    _scan_status["n_arrivi"] = 0
+    _scan_status["messaggio"] = "Scansione avviata"
+
+
+def _write_scan_status(messaggio_finale=None):
+    """Scrive lo stato su disco. Non solleva eccezioni."""
+    try:
+        if messaggio_finale:
+            _scan_status["messaggio"] = messaggio_finale
+
+        os.makedirs(os.path.dirname(STATUS_FILE), exist_ok=True)
+        with open(STATUS_FILE, "w", encoding="utf-8") as f:
+            json.dump(_scan_status, f, indent=2, ensure_ascii=False)
+
+        logger.info(f"📝 Status scanner scritto: {STATUS_FILE}")
+    except Exception as e:
+        logger.error(f"❌ Errore scrittura status scanner: {e}")
 
 
 def _cfg():
@@ -199,6 +250,7 @@ def fetch_board_data():
     if not _STEALTH_AVAILABLE:
         logger.warning("⚠️ playwright-stealth non disponibile. "
                        "Il sito SACBO potrebbe bloccare Playwright.")
+        _scan_status["messaggio"] = "playwright-stealth non installato"
 
     logger.info("🚀 Avvio Playwright (stealth mode)...")
 
@@ -243,11 +295,25 @@ def fetch_board_data():
                     page.goto(base_url, wait_until="domcontentloaded", timeout=timeout)
                     page.wait_for_timeout(wait_load)
 
+                    # --- Attesa challenge Cloudflare ---
+                    challenge_ok = False
                     for i in range(15):
                         title = page.title()
                         if "Just a moment" not in title and "Attention" not in title:
+                            challenge_ok = True
+                            logger.info(f"✅ Challenge Cloudflare superato dopo {i+1}s")
                             break
                         page.wait_for_timeout(1000)
+
+                    if not challenge_ok:
+                        logger.error("❌ Challenge Cloudflare NON superato (15s)")
+                        _scan_status["messaggio"] = (
+                            "Cloudflare ha bloccato lo scanner: challenge non superato in 15s"
+                        )
+                        continue
+
+                    # Aggiorna status: challenge superato
+                    _scan_status["challenge_superato"] = True
 
                     _dismiss_overlays(page)
                     page.wait_for_timeout(1000)
@@ -256,25 +322,39 @@ def fetch_board_data():
                         fp_before = _body_fingerprint(page)
 
                         clicked = _click_arrivals_tab(page)
-                        if clicked:
-                            changed, _ = _wait_body_change(
-                                page, fp_before,
-                                max_wait_ms=10000, poll_ms=500
-                            )
-                            if not changed:
-                                logger.warning(
-                                    "⚠️ Il click sul tab 'Arrivi' NON ha cambiato "
-                                    "il contenuto della pagina. Salto l'acquisizione "
-                                    "degli arrivi per evitare di duplicare le partenze."
-                                )
-                                continue
-                            logger.info("✅ Contenuto pagina cambiato dopo il click")
-                        else:
+                        if not clicked:
                             logger.warning(
                                 "⚠️ Impossibile cliccare il tab 'Arrivi'. "
                                 "Salto l'acquisizione degli arrivi."
                             )
+                            _scan_status["messaggio"] = (
+                                "Tab 'Arrivi' non cliccabile: possibile modifica "
+                                "al sito SACBO"
+                            )
                             continue
+
+                        # Aggiorna status: tab cliccato
+                        _scan_status["tab_arrivi_cliccato"] = True
+
+                        changed, _ = _wait_body_change(
+                            page, fp_before,
+                            max_wait_ms=10000, poll_ms=500
+                        )
+                        if not changed:
+                            logger.warning(
+                                "⚠️ Il click sul tab 'Arrivi' NON ha cambiato "
+                                "il contenuto della pagina. Salto l'acquisizione "
+                                "degli arrivi per evitare di duplicare le partenze."
+                            )
+                            _scan_status["messaggio"] = (
+                                "Click su tab 'Arrivi' eseguito ma il contenuto "
+                                "non è cambiato"
+                            )
+                            continue
+
+                        # Aggiorna status: body cambiato
+                        _scan_status["body_arrivi_cambiato"] = True
+                        logger.info("✅ Contenuto pagina cambiato dopo il click")
 
                     page.evaluate(f"window.scrollBy(0, {scroll_px})")
                     page.wait_for_timeout(wait_scroll)
@@ -299,6 +379,7 @@ def fetch_board_data():
             browser.close()
     except Exception as e:
         logger.error(f"Errore Playwright: {e}")
+        _scan_status["messaggio"] = f"Errore Playwright: {str(e)[:120]}"
 
     return pd.DataFrame(all_flights) if all_flights else pd.DataFrame()
 
@@ -338,36 +419,86 @@ def _sanity_check_d_a(df):
     return df, False
 
 
+def _componi_messaggio_finale(n_d, n_a):
+    """
+    Compone il messaggio human-readable per l'email di stato.
+    Casi:
+      - Challenge non superato: priorità massima
+      - Tab non cliccato / body non cambiato
+      - Arrivi = 0 nonostante il tab sia stato cliccato
+      - Tutto OK
+    """
+    if not _scan_status["challenge_superato"]:
+        return "Cloudflare ha bloccato lo scanner: challenge non superato"
+
+    if not _scan_status["tab_arrivi_cliccato"]:
+        return "Tab 'Arrivi' non cliccabile: possibile modifica al sito SACBO"
+
+    if not _scan_status["body_arrivi_cambiato"]:
+        return "Click su tab 'Arrivi' eseguito ma il contenuto non è cambiato"
+
+    if n_a == 0:
+        return f"Nessun arrivo estratto (D={n_d}, A={n_a}): possibile modifica al tabellone"
+
+    if n_d == 0:
+        return f"Nessun decollo estratto (D={n_d}, A={n_a}): possibile modifica al tabellone"
+
+    return f"Scanner diurno OK ({n_d} D + {n_a} A)"
+
+
 def run_scan():
     """Esegue la scansione diurna."""
     logger.info("🚀 Avvio scansione diurna...")
     os.makedirs(RAW_DIR, exist_ok=True)
+    _reset_scan_status()
 
-    df = fetch_board_data()
-    if df.empty:
-        logger.error("❌ Nessun dato acquisito")
-        return None
+    try:
+        df = fetch_board_data()
+        if df.empty:
+            logger.error("❌ Nessun dato acquisito")
+            _write_scan_status("Nessun dato acquisito dal tabellone")
+            return None
 
-    df, _ = _sanity_check_d_a(df)
+        df, sanity_changed = _sanity_check_d_a(df)
 
-    before = len(df)
-    df = df.drop_duplicates(
-        subset=['callsign_volo', 'orario_schedulato', 'tipo_movimento'],
-        keep='first'
-    )
-    if len(df) < before:
-        logger.info(f"🗑️ Rimossi {before - len(df)} duplicati")
+        before = len(df)
+        df = df.drop_duplicates(
+            subset=['callsign_volo', 'orario_schedulato', 'tipo_movimento'],
+            keep='first'
+        )
+        if len(df) < before:
+            logger.info(f"🗑️ Rimossi {before - len(df)} duplicati")
 
-    now = datetime.now()
-    df['scan_timestamp'] = now.strftime("%Y-%m-%d %H:%M:%S")
+        now = datetime.now()
+        df['scan_timestamp'] = now.strftime("%Y-%m-%d %H:%M:%S")
 
-    out_file = os.path.join(RAW_DIR, scan_filename(now))
-    df.to_csv(out_file, index=False, encoding="utf-8-sig")
+        out_file = os.path.join(RAW_DIR, scan_filename(now))
+        df.to_csv(out_file, index=False, encoding="utf-8-sig")
 
-    n_d = len(df[df['tipo_movimento'] == 'D'])
-    n_a = len(df[df['tipo_movimento'] == 'A'])
-    logger.info(f"✅ Scansione completata: {len(df)} voli (D={n_d}, A={n_a})")
-    return out_file
+        n_d = len(df[df['tipo_movimento'] == 'D'])
+        n_a = len(df[df['tipo_movimento'] == 'A'])
+
+        # Aggiorna status finale
+        _scan_status["n_decolli"] = int(n_d)
+        _scan_status["n_arrivi"] = int(n_a)
+
+        # Se la safety net ha scartato gli A, il messaggio deve rifletterlo
+        if sanity_changed:
+            _scan_status["messaggio"] = (
+                f"Safety net: gli arrivi erano duplicati delle partenze. "
+                f"Scartati. (D={n_d}, A={n_a})"
+            )
+        else:
+            _scan_status["messaggio"] = _componi_messaggio_finale(n_d, n_a)
+
+        logger.info(f"✅ Scansione completata: {len(df)} voli (D={n_d}, A={n_a})")
+        _write_scan_status()
+        return out_file
+
+    except Exception as e:
+        logger.error(f"❌ Errore durante la scansione: {e}")
+        _write_scan_status(f"Errore imprevisto: {str(e)[:120]}")
+        raise
 
 
 if __name__ == "__main__":
