@@ -1,6 +1,6 @@
 """
 bgy_core/bgy_db_migrate.py - Import e sincronizzazione CSV -> PostgreSQL.
-Versione 2.6.3
+Versione 2.6.4
 
 Modulo unificato che contiene:
   - Funzioni di import per ogni tipo di file (scan, radar, meteo, nightly)
@@ -11,41 +11,29 @@ Modulo unificato che contiene:
   - Statistiche movimenti giornalieri e notturni (F18b)
   - Check compagnie placeholder irrisolte (F14)
 
-Uso:
-    py -3.12 -m bgy_core.bgy_db_migrate                      # sync di ieri
-    py -3.12 -m bgy_core.bgy_db_migrate --date 2026-09-17
-    py -3.12 -m bgy_core.bgy_db_migrate --last-n-days 7
-    py -3.12 -m bgy_core.bgy_db_migrate --all
-    py -3.12 -m bgy_core.bgy_db_migrate --all --reset
-    py -3.12 -m bgy_core.bgy_db_migrate --all --dry-run
-    py -3.12 -m bgy_core.bgy_db_migrate --quality-check
-    py -3.12 -m bgy_core.bgy_db_migrate --quality-check --days 30
-    py -3.12 -m bgy_core.bgy_db_migrate --quality-check --dry-run
+Novità v2.6.4 (sconfinamenti):
+- Import della nuova colonna notte_categoria ('regolare' | 'sconfinamento')
+  in nightly_reports.
+- Schema update: ALTER TABLE nightly_reports ADD COLUMN notte_categoria
+  VARCHAR(20) (idempotente).
+- get_nightly_stats() ora separa i movimenti in:
+    * regolari      — schedulati in fascia 23:00-05:59
+    * sconfinamenti — diurni ritardati che operano in fascia notturna
+  Il campo nightly['sconfinamenti'] contiene le stesse chiavi di
+  passeggeri/cargo/charter con i soli sconfinamenti.
 
 Novità v2.6.3 (F14):
 - Fix check_unresolved_airlines:
-  * INTERVAL '%s days' -> make_interval(days => %s): la soglia era ignorata
-    per un problema di parametrizzazione psycopg.
-  * EXTRACT(DAY FROM NOW() - created_at) -> CURRENT_DATE - created_at::date:
-    il primo restituiva solo il campo "giorni" dell'intervallo, non i giorni
-    totali (35 gg diventavano 5).
-  * Aggiunto filtro min_occorrenze (default 1): i placeholder con 0 occorrenze
-    nei report notturni non sono più segnalati (non impattano nulla).
+  * INTERVAL '%s days' -> make_interval(days => %s)
+  * EXTRACT(DAY FROM NOW() - created_at) -> CURRENT_DATE - created_at::date
+  * Aggiunto filtro min_occorrenze (default 1)
 
 Novità v2.6.2:
 - Fix check 15 (Compagnie una-tantum): applicato solo se days >= 14.
-  Su periodi brevi la diversità è naturalmente alta e il check dà
-  falsi positivi.
-- Fix check 20 (Scansioni SACBO complete): conta TUTTE le scansioni
-  del giorno (diurne + notturne). La scansione di mezzanotte (00:00)
-  è classificata come notturna, quindi contare solo le diurne dà
-  sempre 3 invece di 4.
+- Fix check 20 (Scansioni SACBO complete): conta TUTTE le scansioni.
 
 Novità v2.6.1:
-- Fix bug `_effective_from`: il reference_date NON modifica più la
-  finestra temporale delle query.
-- Fix bug check 23 (Radar senza timestamp): timestamp IS NULL.
-- Fix bug check 27 (Data riferimento futura): nome funzione corretto.
+- Fix bug `_effective_from`.
 
 Novità v2.6.0:
 - Quality check esteso da 10 a 27 check.
@@ -101,17 +89,24 @@ def _reset_stats():
 
 
 def apply_schema_updates():
+    """
+    Applica gli aggiornamenti di schema idempotenti.
+    Tutti gli ALTER sono ADD COLUMN IF NOT EXISTS: sicuri da rieseguire.
+    """
     global _schema_updates_applied
     if _schema_updates_applied:
         return True
+
     updates = [
         "ALTER TABLE nightly_reports ADD COLUMN IF NOT EXISTS direzione_sacbo VARCHAR(2)",
+        "ALTER TABLE nightly_reports ADD COLUMN IF NOT EXISTS notte_categoria VARCHAR(20)",
     ]
     for sql in updates:
         ok, result = bgy_db.execute_query(sql, fetch=False)
         if not ok:
             logger.error(f"❌ Schema update fallito: {sql} → {result}")
             return False
+
     _schema_updates_applied = True
     return True
 
@@ -517,6 +512,7 @@ def import_nightly_file(filepath):
             date_str, safe_str(r.get("callsign"), ""),
             safe_str(r.get("tipo_movimento"), ""),
             safe_str(r.get("direzione_sacbo"), ""),
+            safe_str(r.get("notte_categoria"), ""),
             safe_bool(r.get("is_scheduled")),
             safe_str(r.get("destinazione_finale"), ""),
             safe_str(r.get("stato_destinazione"), ""),
@@ -538,11 +534,11 @@ def import_nightly_file(filepath):
         ok, result = bgy_db.execute_many(
             """INSERT INTO nightly_reports
                (data_riferimento, callsign, tipo_movimento, direzione_sacbo,
-                is_scheduled, destinazione_finale, stato_destinazione,
+                notte_categoria, is_scheduled, destinazione_finale, stato_destinazione,
                 compagnia_aerea, modello_aereo, orario_schedulato, timestamp,
                 pista, fase_volo, direzione, quota_ft, rotta_deg, distanza_km,
                 paese, matched_score, stima_passeggeri, stima_rumore_db)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""", batch)
         if ok:
             total += len(batch)
@@ -797,11 +793,38 @@ def get_daily_stats(date_str):
 
 
 def get_nightly_stats(date_str):
+    """
+    Statistiche movimenti notturni, divise per categoria.
+
+    Ritorna:
+      {
+        "passeggeri": {"decolli": N, "atterraggi": N, "totale": N},
+        "cargo": {"decolli": N, "atterraggi": N, "totale": N},
+        "charter": {"decolli": N, "atterraggi": N, "totale": N},
+        "regolari": {"decolli": N, "atterraggi": N, "totale": N},
+        "sconfinamenti": {
+            "passeggeri": {"decolli": N, "atterraggi": N, "totale": N},
+            "cargo": {"decolli": N, "atterraggi": N, "totale": N},
+            "charter": {"decolli": N, "atterraggi": N, "totale": N},
+            "totale": N,
+        },
+        "totale": N,
+      }
+    """
     empty = {
         "passeggeri": {"decolli": 0, "atterraggi": 0, "totale": 0},
         "cargo": {"decolli": 0, "atterraggi": 0, "totale": 0},
         "charter": {"decolli": 0, "atterraggi": 0, "totale": 0},
-        "totale": 0}
+        "regolari": {"decolli": 0, "atterraggi": 0, "totale": 0},
+        "sconfinamenti": {
+            "passeggeri": {"decolli": 0, "atterraggi": 0, "totale": 0},
+            "cargo": {"decolli": 0, "atterraggi": 0, "totale": 0},
+            "charter": {"decolli": 0, "atterraggi": 0, "totale": 0},
+            "totale": 0,
+        },
+        "totale": 0,
+    }
+
     ok, rows = bgy_db.execute_query(
         """SELECT
               CASE
@@ -818,26 +841,50 @@ def get_nightly_stats(date_str):
                   ELSE '?'
                 END
               ) AS direzione,
+              COALESCE(NULLIF(notte_categoria, ''), 'regolare') AS notte_cat,
               COUNT(*) AS n
            FROM nightly_reports
            WHERE data_riferimento = %s
              AND (tipo_movimento = 'Passeggeri'
                   OR tipo_movimento LIKE 'Cargo%%'
                   OR tipo_movimento LIKE 'Charter%%')
-           GROUP BY 1, 2""", (date_str,))
+           GROUP BY 1, 2, 3""", (date_str,))
     if not ok:
         logger.warning(f"get_nightly_stats: errore query ({rows})")
         return empty
-    for categoria, direzione, n in rows or []:
+
+    for categoria, direzione, notte_cat, n in rows or []:
         if categoria not in ("passeggeri", "cargo", "charter"):
             continue
         d = str(direzione).strip().upper()
-        if d == 'D':
+        is_d = (d == 'D')
+        is_a = (d == 'A')
+
+        # Aggiorna i totali per categoria
+        if is_d:
             empty[categoria]["decolli"] += n
-        elif d == 'A':
+        elif is_a:
             empty[categoria]["atterraggi"] += n
         empty[categoria]["totale"] += n
         empty["totale"] += n
+
+        # Aggiorna regolari
+        if notte_cat == 'regolare':
+            if is_d:
+                empty["regolari"]["decolli"] += n
+            elif is_a:
+                empty["regolari"]["atterraggi"] += n
+            empty["regolari"]["totale"] += n
+
+        # Aggiorna sconfinamenti
+        elif notte_cat == 'sconfinamento':
+            if is_d:
+                empty["sconfinamenti"][categoria]["decolli"] += n
+            elif is_a:
+                empty["sconfinamenti"][categoria]["atterraggi"] += n
+            empty["sconfinamenti"][categoria]["totale"] += n
+            empty["sconfinamenti"]["totale"] += n
+
     return empty
 
 
@@ -1171,12 +1218,7 @@ def _qc_airlines_diversita(date_from, date_to, thresholds):
 
 
 def _qc_onetime_airlines(date_from, date_to, thresholds):
-    """
-    CHECK 15 (fix v2.6.2): applica il check solo se il periodo è >= N giorni.
-    Su periodi brevi la diversità è naturalmente alta e il check dà falsi positivi.
-    """
     min_days = thresholds.get("min_days_for_onetime_check", 14)
-    # Calcola i giorni del periodo
     try:
         df_dt = datetime.strptime(date_from, "%Y-%m-%d").date()
         dt_dt = datetime.strptime(date_to, "%Y-%m-%d").date()
@@ -1285,11 +1327,6 @@ def _qc_report_daily_mancanti(date_from, date_to):
 
 
 def _qc_scansioni_complete(date_from, date_to):
-    """
-    CHECK 20 (fix v2.6.2): conta TUTTE le scansioni del giorno (diurne + notturne).
-    La scansione di mezzanotte (00:00) è classificata come notturna, quindi
-    contare solo le diurne dà sempre 3 invece di 4.
-    """
     ok, rows = bgy_db.execute_query(
         """SELECT data_riferimento, COUNT(*) AS n
            FROM scans
@@ -1600,13 +1637,8 @@ def check_unresolved_airlines(days_threshold=30, min_occorrenze=1):
 
     Fix v2.6.3:
       - make_interval(days => %s) al posto di INTERVAL '%s days'
-        (la soglia era ignorata per un problema di parametrizzazione psycopg)
-      - CURRENT_DATE - created_at::date al posto di
-        EXTRACT(DAY FROM NOW() - created_at)
-        (il primo restituiva solo il campo "giorni" dell'intervallo,
-         non i giorni totali: 35 gg diventavano 5)
-      - filtro min_occorrenze (default 1): i placeholder con 0 occorrenze
-        nei report notturni non sono più segnalati
+      - CURRENT_DATE - created_at::date al posto di EXTRACT(DAY FROM ...)
+      - filtro min_occorrenze (default 1)
     """
     try:
         ok, rows = bgy_db.execute_query(
@@ -1629,7 +1661,6 @@ def check_unresolved_airlines(days_threshold=30, min_occorrenze=1):
 
         old_placeholders = rows or []
 
-        # Conta TUTTI i placeholder (anche recenti) per il messaggio "ok"
         ok2, rows2 = bgy_db.execute_query(
             """SELECT COUNT(*) FROM airlines
                WHERE name LIKE 'Compagnia %%'"""

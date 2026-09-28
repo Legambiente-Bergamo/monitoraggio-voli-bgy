@@ -1,6 +1,6 @@
 """
 bgy_scheduler.py - Pianificatore ed Orchestratore automatico.
-Versione 2.6.0
+Versione 2.6.1
 - Lock file per impedire doppio avvio
 - Radar notturno: SOLO tra le 23:00 e le 05:59
 - Sync DB: recupero automatico degli ultimi 8 giorni
@@ -8,12 +8,14 @@ Versione 2.6.0
 - Statistiche movimenti giorno/notte (F18b) nell'email di stato
 - Verifica compagnie da risolvere (F14) nell'email di stato
 - Diagnostica scanner diurno Cloudflare (F14b) nell'email di stato
-- Screenshot tabellone allegati all'email + rotazione 7 giorni (v2.6.0)
+- Screenshot tabellone allegati all'email + rotazione 7 giorni (F14c)
 
-Novità v2.6.0:
-- Aggiunta raccolta screenshot del tabellone (board_dep_*, board_arr_*)
-  e passaggio a send_daily_status() come allegati.
-- Aggiunta cleanup_old_screenshots(days=7) in coda al job_daily.
+Novità v2.6.1:
+- Fix selezione screenshot: ora vengono presi quelli della scansione
+  delle 23:00 (baseline sessione notturna), non i più recenti (05:00).
+  Se lo screenshot delle 23:00 non è disponibile, fallback al più recente.
+- La funzione _get_latest_screenshots() diventa _get_session_screenshots()
+  e prende un parametro session_date.
 """
 import os
 import sys
@@ -44,6 +46,9 @@ _scheduler_started = False
 SCHEDULER_LOCK_FILE = os.path.join(LOGS_DIR, "scheduler.lock")
 SCANNER_STATUS_FILE = os.path.join(LOGS_DIR, "scanner_day_status.json")
 SCREENSHOTS_DIR = os.path.join(os.path.dirname(LOGS_DIR), "bgy_screenshots")
+
+# Ora preferita per gli screenshot del tabellone (baseline sessione notturna)
+PREFERRED_SCREENSHOT_HOUR = "23-00"
 
 
 # -----------------------------------------------------------------------------
@@ -284,17 +289,52 @@ def check_scanner_day_status():
 # SCREENSHOT
 # -----------------------------------------------------------------------------
 
-def _get_latest_screenshots():
+def _get_session_screenshots(session_date):
     """
-    Ritorna (dep_path, arr_path): i due screenshot più recenti del tabellone.
-    Se uno non esiste, ritorna None per quel campo.
+    Ritorna (dep_path, arr_path): i due screenshot del tabellone della
+    scansione delle 23:00 della sessione notturna.
+
+    Se lo screenshot delle 23:00 non esiste, fallback al più recente
+    disponibile (con warning nel log).
     """
     if not os.path.isdir(SCREENSHOTS_DIR):
         return None, None
 
+    def _find_by_suffix(prefix, date_str, scan_time):
+        """Cerca un file board_{prefix}_{date_str}_{scan_time}.png"""
+        if not date_str:
+            return None
+        # Normalizza il formato data
+        date_variants = [date_str]
+        if "-" in date_str:
+            date_variants.append(date_str.replace("-", ""))
+        for dv in date_variants:
+            for tm in [scan_time, scan_time.replace("-", "")]:
+                candidate = os.path.join(
+                    SCREENSHOTS_DIR, f"{prefix}_{dv}_{tm}.png"
+                )
+                if os.path.exists(candidate):
+                    return candidate
+        return None
+
+    # Tentativo 1: screenshot delle 23:00 della data di sessione
+    dep_23 = _find_by_suffix("board_dep", session_date, "23-00")
+    arr_23 = _find_by_suffix("board_arr", session_date, "23-00")
+
+    if dep_23 and arr_23:
+        logger.info(f"📸 Screenshot 23:00 trovati per {session_date}")
+        return dep_23, arr_23
+
+    # Tentativo 2: fallback al più recente in assoluto (con warning)
+    logger.warning(
+        f"⚠️ Screenshot 23:00 non trovati per {session_date} "
+        f"(dep={'ok' if dep_23 else 'mancante'}, "
+        f"arr={'ok' if arr_23 else 'mancante'}). "
+        f"Fallback al più recente."
+    )
+
     dep_candidates = []
     arr_candidates = []
-
     try:
         for f in os.listdir(SCREENSHOTS_DIR):
             if not f.endswith(".png"):
@@ -310,18 +350,15 @@ def _get_latest_screenshots():
                 continue
     except Exception as e:
         logger.warning(f"Errore scansione screenshots: {e}")
-        return None, None
+        return dep_23, arr_23
 
-    dep = max(dep_candidates, key=lambda x: x[0])[1] if dep_candidates else None
-    arr = max(arr_candidates, key=lambda x: x[0])[1] if arr_candidates else None
+    dep = max(dep_candidates, key=lambda x: x[0])[1] if dep_candidates else dep_23
+    arr = max(arr_candidates, key=lambda x: x[0])[1] if arr_candidates else arr_23
     return dep, arr
 
 
 def cleanup_old_screenshots(days=7):
-    """
-    Rimuove gli screenshot più vecchi di N giorni.
-    Ritorna (n_rimossi, n_errori).
-    """
+    """Rimuove gli screenshot più vecchi di N giorni."""
     if not os.path.isdir(SCREENSHOTS_DIR):
         return 0, 0
 
@@ -493,12 +530,12 @@ def job_daily():
     except Exception as e:
         logger.error(f"❌ Errore raccolta statistiche: {e}")
 
-    # --- Screenshot del tabellone (v2.6.0) ---
+    # --- Screenshot del tabellone (baseline 23:00 della sessione) ---
     logger.info("-" * 60)
-    logger.info("📸 Raccolta screenshot tabellone...")
+    logger.info(f"📸 Raccolta screenshot tabellone (sessione {yesterday}, 23:00)...")
     screenshot_paths = []
     try:
-        dep_shot, arr_shot = _get_latest_screenshots()
+        dep_shot, arr_shot = _get_session_screenshots(yesterday)
         if dep_shot:
             screenshot_paths.append(dep_shot)
         if arr_shot:
@@ -509,7 +546,6 @@ def job_daily():
     except Exception as e:
         logger.error(f"❌ Errore raccolta screenshot: {e}")
 
-    # Riepilogo check
     checks = {
         'sacbo_acquisition': (sacbo_acq_ok, sacbo_acq_msg),
         'sacbo_processing': (daily_ok, daily_msg),
@@ -531,7 +567,6 @@ def job_daily():
     send_daily_status(overall_success, "", checks=checks, stats=stats_data,
                       screenshot_paths=screenshot_paths)
 
-    # --- Pulizia screenshot vecchi (v2.6.0) ---
     logger.info("-" * 60)
     logger.info("🧹 Pulizia screenshot vecchi (>7 giorni)...")
     try:

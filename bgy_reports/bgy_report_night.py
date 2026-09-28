@@ -1,6 +1,6 @@
 """
 bgy_reports/bgy_report_night.py - Report notturno integrato (SACBO + OpenSky).
-Versione 2.8.6
+Versione 2.8.8
 
 Modello logico:
 - Il TABELLONE SACBO è la fonte primaria per i voli PASSEGGERI.
@@ -17,22 +17,37 @@ Visibilità:
   - Visibili di default: Passeggeri, Cargo, Charter
   - Opt-in (checkbox GUI): Passeggeri (radar), Non identificato
 
+Novità v2.8.8 (sconfinamenti, logica baseline 23:00):
+- Nuova logica di classificazione dei voli sconfinamento basata sulla
+  scansione delle 23:00 come baseline:
+    1. Se orario_schedulato in fascia 23:00-05:59 → 'regolare'
+    2. Altrimenti, guarda la STIMA nella scansione 23:00:
+       a. Fuori fascia → escludi (non è sconfinamento)
+       b. In fascia 23:01-05:59 → candidato
+    3. Verifica le scansioni successive (00:00, 02:00, 05:00):
+       - Se compare 'CANCELLATO' → escludi
+       - Se riappare con STIMA fuori fascia (ritardo rientrato) → escludi
+       - Altrimenti → 'sconfinamento' confermato
+- Fix del bug FR 3530 (STIMA 01:40 solo a mezzanotte, baseline 07:55).
+- Il CSV finale ha una colonna notte_categoria ('regolare' | 'sconfinamento').
+
+Novità v2.8.7 (sconfinamenti, prima iterazione):
+- Aggiunta colonna notte_categoria.
+- Filtro iniziale con check su orario_effettivo.
+
 Novità v2.8.6:
-- Aggiunto il caricamento delle scansioni SACBO del giorno successivo
-  in fascia notturna (00:00-05:59). Questo permette di catturare gli
-  ARRIVI notturni che il tabellone delle 23:00 non vede (mostra solo
-  le partenze del mattino successivo). Configurato in config_data.json
-  con sacbo_night_scans = ["23:00", "00:01", "02:00", "05:00"].
-- Reintrodotto import timedelta (rimosso erroneamente in F12 Step 1).
+- Caricamento scansioni SACBO del giorno successivo (00:00-05:59).
+- Reintrodotto import timedelta.
 
 Novità v2.8.5:
-- Aggiunta colonna direzione_sacbo (D/A) al CSV finale.
+- Aggiunta colonna direzione_sacbo (D/A).
 
 Novità v2.8.3:
 - PAX e rumore calcolati solo sui Visibili.
 """
 import os
 import math
+from collections import defaultdict
 import pandas as pd
 from datetime import datetime, timedelta
 
@@ -62,6 +77,17 @@ BGY_PHASES = ('Atterraggio', 'Decollo', 'Avvicinamento')
 
 PLACEHOLDER_PREFIX = 'Compagnia '
 PLACEHOLDER_VALUES = {'N/D', 'Non identificato', ''}
+
+NIGHT_START_HOUR = 23
+NIGHT_END_HOUR = 6
+SCONFINAMENTO_START_MIN = 23 * 60 + 1
+SCONFINAMENTO_END_MIN = 6 * 60
+
+# Scansioni della sessione notturna, in ordine cronologico.
+# Le scansioni di mezzanotte (00:00, 00:01) sono escluse dalla logica di
+# classificazione perché possono contenere STIME transitorie errate.
+SESSION_SCAN_TIMES = ['23-00', '00-00', '00-01', '02-00', '05-00', '06-00']
+MEZZANOTTE_SCANS = {'00-00', '00-01'}
 
 
 def _cfg():
@@ -164,21 +190,140 @@ def _is_valid_airline_name(name):
     return True
 
 
+def _is_in_night_schedule(hhmm):
+    mins = _time_to_minutes(hhmm)
+    if mins is None:
+        return False
+    return mins >= NIGHT_START_HOUR * 60 or mins < NIGHT_END_HOUR * 60
+
+
+def _is_in_sconfinamento_effective(hhmm):
+    mins = _time_to_minutes(hhmm)
+    if mins is None:
+        return False
+    return mins >= SCONFINAMENTO_START_MIN or mins < SCONFINAMENTO_END_MIN
+
+
+def _extract_scan_time(filename):
+    """Estrae 'HH-MM' dal nome file scan_YYYY-MM-DD_HH-MM.csv."""
+    try:
+        base = filename.replace(".csv", "")
+        parts = base.split("_")
+        if len(parts) >= 3:
+            scan_time = parts[2]
+            if "-" in scan_time:
+                return scan_time
+            # Formato vecchio: HHMM senza trattino
+            if len(scan_time) == 4:
+                return f"{scan_time[:2]}-{scan_time[2:]}"
+    except Exception:
+        pass
+    return None
+
+
+def _scan_time_to_order(scan_time):
+    """
+    Converte 'HH-MM' in un intero per ordinamento cronologico della sessione
+    notturna (che inizia alle 23:00 del giorno X).
+      23:00 → 0
+      00:00 → 60
+      00:01 → 61
+      02:00 → 180
+      05:00 → 360
+      06:00 → 420
+    """
+    try:
+        hh, mm = map(int, scan_time.split('-'))
+        if hh >= 23:
+            return hh * 60 + mm - 23 * 60
+        else:
+            return (hh + 24) * 60 + mm - 23 * 60
+    except Exception:
+        return 9999
+
+
+def _classify_volo(records):
+    """
+    Classifica un volo in base ai suoi record (uno per scansione),
+    ordinati cronologicamente dal più vecchio al più recente.
+
+    Ritorna:
+      - 'regolare'      : orario_schedulato in fascia 23:00-05:59
+      - 'sconfinamento' : orario_schedulato fuori fascia, ma baseline 23:00
+                          con STIMA in fascia 23:01-05:59, non cancellato,
+                          e non rientrato in orario
+      - None            : escluso
+
+    Logica (v2.8.8, baseline 23:00):
+      1. Se sched in fascia → 'regolare'
+      2. Trova il record baseline (prima scansione non di mezzanotte;
+         se non esiste, il primo record in assoluto).
+      3. Se la STIMA del baseline è fuori fascia → escludi.
+      4. Se compare 'CANCELLATO' in una qualsiasi scansione → escludi.
+      5. Se il volo riappare dopo il baseline con STIMA fuori fascia
+         (escluse le scansioni di mezzanotte) → escludi (ritardo rientrato).
+      6. Altrimenti → 'sconfinamento'.
+    """
+    if not records:
+        return None
+
+    sched = records[0]['orario_schedulato']
+
+    # 1. Sched in fascia → regolare
+    if _is_in_night_schedule(sched):
+        return 'regolare'
+
+    # 2. Baseline: prima scansione non di mezzanotte
+    ref = None
+    ref_index = None
+    for i, r in enumerate(records):
+        if r['scan_time'] in MEZZANOTTE_SCANS:
+            continue
+        ref = r
+        ref_index = i
+        break
+
+    # Fallback: se il volo compare solo a mezzanotte, usa il primo record
+    if ref is None:
+        ref = records[0]
+        ref_index = 0
+
+    # 3. STIMA del baseline fuori fascia → escludi
+    stima_ref = ref.get('orario_effettivo')
+    if not stima_ref or not _is_in_sconfinamento_effective(stima_ref):
+        return None
+
+    # 4. CANCELLATO in qualsiasi scansione → escludi
+    for r in records:
+        stato = str(r.get('stato_volo', '')).upper()
+        if 'CANCELLAT' in stato or 'CANCEL' in stato:
+            return None
+
+    # 5. Rientro ritardo: riappare dopo il baseline con STIMA fuori fascia
+    for r in records[ref_index + 1:]:
+        if r['scan_time'] in MEZZANOTTE_SCANS:
+            continue
+        stima = r.get('orario_effettivo')
+        if stima and not _is_in_sconfinamento_effective(stima):
+            return None
+
+    # 6. Sconfinamento confermato
+    return 'sconfinamento'
+
+
 # -----------------------------------------------------------------------------
 # CARICAMENTO DATI
 # -----------------------------------------------------------------------------
 
 def load_scheduled_flights(date_str):
     """
-    Carica i voli schedulati notturni da:
-      - tutte le scansioni della data di sessione (X)
-      - scansioni del giorno successivo (X+1) in fascia notturna (00:00-05:59)
+    Carica i voli schedulati notturni dalle scansioni della sessione
+    (23:00 del giorno X + 00:00-05:59 del giorno X+1).
 
-    Questo permette di catturare gli ARRIVI notturni del giorno X+1, che la
-    scansione delle 23:00 di X non vede (il tabellone mostra solo gli arrivi
-    del giorno corrente).
+    Per ogni (callsign, orario_schedulato) raccoglie TUTTI i record
+    dalle varie scansioni, poi li classifica con _classify_volo().
 
-    Deduplica per (callsign_volo, orario_schedulato).
+    Aggiunge la colonna notte_categoria ('regolare' | 'sconfinamento').
     """
     date_norm = normalize_date(date_str)
     next_date = (datetime.strptime(date_norm, "%Y-%m-%d")
@@ -186,69 +331,111 @@ def load_scheduled_flights(date_str):
     date_clean = date_norm.replace("-", "")
     next_clean = next_date.replace("-", "")
 
-    scheduled = []
-    seen = set()
-
+    # Raccogli solo le scansioni della sessione notturna
     scan_files = []
     if os.path.isdir(RAW_DIR):
         for f in os.listdir(RAW_DIR):
             if not f.startswith("scan_") or not f.endswith(".csv"):
                 continue
 
-            # Scansioni della data di sessione (tutte)
-            if f.startswith(f"scan_{date_norm}_") or f.startswith(f"scan_{date_clean}_"):
-                scan_files.append(f)
+            scan_time = _extract_scan_time(f)
+            if not scan_time or scan_time not in SESSION_SCAN_TIMES:
                 continue
 
-            # Scansioni del giorno successivo: solo fascia notturna (00:00-05:59)
-            if f.startswith(f"scan_{next_date}_") or f.startswith(f"scan_{next_clean}_"):
+            # Scansioni del giorno X con orario >= 23:00
+            if f.startswith(f"scan_{date_norm}_") or f.startswith(f"scan_{date_clean}_"):
                 try:
-                    parts = f.replace(".csv", "").split("_")
-                    if len(parts) >= 3:
-                        hh = int(parts[2].split("-")[0])
-                        if hh < 6:
-                            scan_files.append(f)
+                    hh = int(scan_time.split("-")[0])
+                    if hh >= 23:
+                        scan_files.append(f)
+                except Exception:
+                    pass
+            # Scansioni del giorno X+1 con orario < 06:00
+            elif f.startswith(f"scan_{next_date}_") or f.startswith(f"scan_{next_clean}_"):
+                try:
+                    hh = int(scan_time.split("-")[0])
+                    if hh < 6:
+                        scan_files.append(f)
                 except Exception:
                     pass
 
-    scan_files.sort(reverse=True)
-    duplicates_skipped = 0
+    scan_files.sort()
+    logger.info(f"🔎 Scansioni notturne trovate: {len(scan_files)}")
+
+    # Raggruppa per (callsign, orario_schedulato)
+    flights = defaultdict(list)
 
     for f in scan_files:
         filepath = os.path.join(RAW_DIR, f)
+        scan_time = _extract_scan_time(f)
+        if not scan_time:
+            continue
         try:
             df = pd.read_csv(filepath)
             df = normalize_scan_columns(df)
             for _, row in df.iterrows():
-                sched_time = row.get('orario_schedulato')
-                if not sched_time:
+                sched = row.get('orario_schedulato')
+                if not sched:
                     continue
-                try:
-                    hour = int(str(sched_time).strip().split(':')[0])
-                    if hour >= 23 or hour < 6:
-                        callsign = str(row.get('callsign_volo', '')).strip()
-                        orario = str(sched_time).strip()
-                        key = (callsign, orario)
-                        if key in seen:
-                            duplicates_skipped += 1
-                            continue
-                        seen.add(key)
-                        row_dict = row.to_dict()
-                        direzione = str(row_dict.get('tipo_movimento', '')).strip().upper()[:1]
-                        row_dict['direzione_sacbo'] = direzione
-                        row_dict.pop('tipo_movimento', None)
-                        scheduled.append(row_dict)
-                except Exception:
-                    continue
+                cs = str(row.get('callsign_volo', '')).strip()
+                key = (cs, str(sched).strip())
+                flights[key].append({
+                    'scan_time': scan_time,
+                    'callsign_volo': cs,
+                    'orario_schedulato': str(sched).strip(),
+                    'orario_effettivo': row.get('orario_effettivo'),
+                    'stato_volo': row.get('stato_volo'),
+                    'tipo_movimento': row.get('tipo_movimento'),
+                    'destinazione_origine': row.get('destinazione_origine'),
+                })
         except Exception as e:
             logger.warning(f"Errore lettura {f}: {e}")
+
+    # Ordina i record di ogni volo cronologicamente
+    for key in flights:
+        flights[key].sort(key=lambda r: _scan_time_to_order(r['scan_time']))
+
+    # Classifica
+    scheduled = []
+    n_regolare = 0
+    n_sconfinamento = 0
+    n_esclusi = 0
+
+    for key, records in flights.items():
+        categoria = _classify_volo(records)
+        if categoria is None:
+            n_esclusi += 1
+            continue
+
+        # Scegli il record rappresentativo:
+        # il più recente con STIMA in fascia notturna, altrimenti l'ultimo.
+        row_dict = None
+        for r in reversed(records):
+            stima = r.get('orario_effettivo')
+            if stima and _is_in_sconfinamento_effective(stima):
+                row_dict = r.copy()
+                break
+        if row_dict is None:
+            row_dict = records[-1].copy()
+
+        row_dict.pop('scan_time', None)
+        direzione = str(row_dict.get('tipo_movimento', '')).strip().upper()[:1]
+        row_dict['direzione_sacbo'] = direzione
+        row_dict['notte_categoria'] = categoria
+        row_dict.pop('tipo_movimento', None)
+        scheduled.append(row_dict)
+
+        if categoria == 'regolare':
+            n_regolare += 1
+        else:
+            n_sconfinamento += 1
 
     if scheduled:
         df_sched = pd.DataFrame(scheduled)
         logger.info(
             f"📋 Caricati {len(df_sched)} voli schedulati notturni "
-            f"(da {len(scan_files)} scansioni, "
-            f"{duplicates_skipped} duplicati scartati)"
+            f"(regolari {n_regolare}, sconfinamenti {n_sconfinamento}, "
+            f"esclusi {n_esclusi})"
         )
         return df_sched
     logger.info("📋 Nessun volo schedulato notturno trovato")
@@ -301,7 +488,6 @@ def match_flights(scheduled_df, radar_df, session_date):
     if scheduled_df.empty and radar_df.empty:
         return pd.DataFrame()
 
-    # --- Nessun schedulato: solo radar ---
     if scheduled_df.empty:
         if radar_df.empty:
             return pd.DataFrame()
@@ -310,6 +496,7 @@ def match_flights(scheduled_df, radar_df, session_date):
         radar_df['orario_schedulato'] = ''
         radar_df['destinazione_origine'] = ''
         radar_df['direzione_sacbo'] = ''
+        radar_df['notte_categoria'] = ''
         radar_df['matched_score'] = 0
         radar_df = _dedup_radar_by_callsign(radar_df)
         classified = _classify_unmatched_radar(radar_df)
@@ -317,7 +504,6 @@ def match_flights(scheduled_df, radar_df, session_date):
             return pd.DataFrame()
         return _enrich_final(classified)
 
-    # --- Nessun radar: tutti Passeggeri ---
     if radar_df.empty:
         scheduled_df = scheduled_df.copy()
         scheduled_df['is_scheduled'] = True
@@ -334,7 +520,6 @@ def match_flights(scheduled_df, radar_df, session_date):
         scheduled_df['tipo_movimento'] = 'Passeggeri'
         return _enrich_final(scheduled_df)
 
-    # --- Match ---
     sched = scheduled_df.copy()
     radar = radar_df.copy()
 
@@ -353,6 +538,7 @@ def match_flights(scheduled_df, radar_df, session_date):
     for _, s in sched.iterrows():
         sched_min = s['_sched_min']
         direzione = s.get('direzione_sacbo', '')
+        categoria = s.get('notte_categoria', '')
 
         if sched_min is None:
             combined = dict(s)
@@ -368,6 +554,7 @@ def match_flights(scheduled_df, radar_df, session_date):
             combined['matched_score'] = 0
             combined['callsign'] = combined.get('callsign_volo', '')
             combined['tipo_movimento'] = 'Passeggeri'
+            combined['notte_categoria'] = categoria
             matched.append(combined)
             continue
 
@@ -398,6 +585,7 @@ def match_flights(scheduled_df, radar_df, session_date):
             combined['is_scheduled'] = True
             combined['matched_score'] = 100
             combined['tipo_movimento'] = 'Passeggeri'
+            combined['notte_categoria'] = categoria
             matched.append(combined)
         else:
             combined = dict(s)
@@ -413,9 +601,9 @@ def match_flights(scheduled_df, radar_df, session_date):
             combined['matched_score'] = 0
             combined['callsign'] = combined.get('callsign_volo', '')
             combined['tipo_movimento'] = 'Passeggeri'
+            combined['notte_categoria'] = categoria
             matched.append(combined)
 
-    # --- Radar non matchati ---
     unmatched = radar[~radar.index.isin(used_radar_idx)].copy()
     unmatched = _dedup_radar_by_callsign(unmatched)
     classified = _classify_unmatched_radar(unmatched)
@@ -452,6 +640,8 @@ def _classify_unmatched_radar(radar_df):
         row_dict['orario_schedulato'] = ''
         row_dict['destinazione_origine'] = ''
         row_dict['matched_score'] = 0
+        if 'notte_categoria' not in row_dict or not row_dict.get('notte_categoria'):
+            row_dict['notte_categoria'] = ''
         if 'direzione_sacbo' not in row_dict or not row_dict.get('direzione_sacbo'):
             if fase == 'Decollo':
                 row_dict['direzione_sacbo'] = 'D'
@@ -544,6 +734,11 @@ def _enrich_final(df):
 
     if 'direzione_sacbo' not in df.columns:
         df['direzione_sacbo'] = ''
+
+    if 'notte_categoria' not in df.columns:
+        df['notte_categoria'] = ''
+    else:
+        df['notte_categoria'] = df['notte_categoria'].fillna('')
 
     df['compagnia_aerea'] = df['callsign'].apply(
         lambda x: get_airline(x) if pd.notna(x) else 'N/D')
@@ -648,7 +843,8 @@ def generate_nightly_report(date_str=None):
     out_path = os.path.join(OUTPUT_CSV_DIR, report_nightly_filename(date_norm))
 
     final_columns = [
-        'callsign', 'tipo_movimento', 'direzione_sacbo', 'is_scheduled',
+        'callsign', 'tipo_movimento', 'direzione_sacbo', 'notte_categoria',
+        'is_scheduled',
         'destinazione_finale', 'stato_destinazione',
         'compagnia_aerea', 'modello_aereo',
         'orario_schedulato', 'timestamp', 'pista', 'fase_volo',
@@ -668,6 +864,13 @@ def generate_nightly_report(date_str=None):
     charter = len(result_df[result_df['tipo_movimento'].str.startswith('Charter', na=False)]) if 'tipo_movimento' in result_df.columns else 0
     pax_radar = len(result_df[result_df['tipo_movimento'] == 'Passeggeri (radar)']) if 'tipo_movimento' in result_df.columns else 0
     non_id = len(result_df[result_df['tipo_movimento'] == 'Non identificato']) if 'tipo_movimento' in result_df.columns else 0
+
+    n_sconfinamenti = 0
+    if 'notte_categoria' in result_df.columns:
+        n_sconfinamenti = int(
+            ((result_df['notte_categoria'] == 'sconfinamento')
+             & (result_df['tipo_movimento'] == 'Passeggeri')).sum()
+        )
 
     visibili = pax + cargo + charter
 
@@ -702,9 +905,13 @@ def generate_nightly_report(date_str=None):
         logger.warning(f"Errore salvataggio meteo: {e}")
         meteo_msg = ", errore meteo"
 
+    sconfinamenti_msg = (
+        f", sconfinamenti {n_sconfinamenti}" if n_sconfinamenti > 0 else ""
+    )
+
     msg = (f"✅ Report notturno: {total} voli "
            f"(Visibili: {visibili} = Passeggeri {pax} + Cargo {cargo} "
-           f"+ Charter {charter} | "
+           f"+ Charter {charter}{sconfinamenti_msg} | "
            f"Opt-in: {pax_radar + non_id} = Passeggeri radar {pax_radar} "
            f"+ Non id {non_id} | "
            f"PAX stimati: {pax_tot}, "
