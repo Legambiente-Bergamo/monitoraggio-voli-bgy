@@ -1,28 +1,28 @@
 """
 bgy_core/bgy_mailer.py - Modulo unificato di invio email.
-Versione 2.5.7
+Versione 2.5.8
+
+Novità v2.5.8 (sconfinamenti):
+- _format_stats_section() mostra una sezione dedicata "SCONFINAMENTI"
+  con i voli diurni ritardati che operano in fascia notturna.
+- La struttura di nightly[] è stata estesa con regolari/sconfinamenti.
 
 Novità v2.5.7 (F14c):
 - send_daily_status() accetta parametro `screenshot_paths` con i path
   degli screenshot del tabellone SACBO (Partenze + Arrivi) da allegare.
-- Gli screenshot vengono allegati indipendentemente dall'esito dei check.
 
 Novità v2.5.6 (F14b):
 - send_daily_status() mostra anche il check 9 "Diagnostica scanner diurno".
-- Il messaggio multi-riga di check_scanner_day_status() viene indentato.
 
 Novità v2.5.5 (F14):
 - send_daily_status() mostra anche il check 8 "Compagnie da risolvere".
-- Il messaggio multi-riga di check_unresolved_airlines() viene indentato.
 
 Novità v2.5.4:
-- send_daily_status() accetta parametro `stats` con statistiche movimenti
-  giorno/notte. Le statistiche vengono formattate nel corpo email.
-- Gradiente header modificato: bianco → azzurro → blu scuro (F18c).
+- send_daily_status() accetta parametro `stats`.
+- Gradiente header bianco → azzurro → blu scuro (F18c).
 
 Novità v2.5.2:
 - Flag di silenziamento (notifications.enabled/alerts_enabled/daily_status_enabled)
-- send_daily_status() mostra 7 check
 """
 import os
 import json
@@ -273,7 +273,6 @@ def _build_html_status(subject_icon, is_success, body, attachment_paths, now):
             if f and os.path.exists(f):
                 attachments_html += f'<div class="file">📎 {os.path.basename(f)}</div>\n'
 
-    # F18c: gradiente bianco → azzurro → blu scuro
     return f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
 <style>
@@ -336,12 +335,21 @@ def send_status_email(subject, body, is_success=True,
     return _send_smtp(cfg, subject, plain_text, html_body,
                       attachment_paths, recipients)
 
+
 # =============================================================================
-# FORMATTAZIONE STATISTICHE (F18b)
+# FORMATTAZIONE STATISTICHE (F18b + sconfinamenti v2.5.8)
 # =============================================================================
 
 def _format_stats_section(stats, yesterday_str):
-    """Formatta la sezione statistiche movimenti per il corpo email."""
+    """
+    Formatta la sezione statistiche movimenti per il corpo email.
+
+    Struttura `stats`:
+      - daily   : {decolli, atterraggi, totale}
+      - nightly : {passeggeri, cargo, charter, regolari, sconfinamenti, totale}
+
+    Novità v2.5.8: sezione SCONFINAMENTI separata.
+    """
     lines = []
 
     daily = stats.get("daily") if stats else None
@@ -371,6 +379,25 @@ def _format_stats_section(stats, yesterday_str):
         lines.append(f"   TOTALE NOTTE: {nightly.get('totale', 0)}")
         lines.append("")
 
+        # --- Sezione sconfinamenti (v2.5.8) ---
+        sconf = nightly.get("sconfinamenti", {})
+        sconf_tot = sconf.get("totale", 0)
+        if sconf_tot > 0:
+            lines.append("🚨 SCONFINAMENTI")
+            lines.append("   (voli schedulati fuori fascia che operano di notte)")
+            for cat_key, cat_label in (("passeggeri", "Passeggeri"),
+                                        ("cargo", "Cargo"),
+                                        ("charter", "Charter")):
+                cat = sconf.get(cat_key, {})
+                d = cat.get("decolli", 0)
+                a = cat.get("atterraggi", 0)
+                if d == 0 and a == 0:
+                    continue
+                lines.append(f"   {cat_label}: D={d:>3}  A={a:>3}  (tot {d + a})")
+            lines.append(f"   ─────────────────────")
+            lines.append(f"   TOTALE SCONFINAMENTI: {sconf_tot}")
+            lines.append("")
+
     return "\n".join(lines)
 
 
@@ -390,7 +417,6 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
     subject = (f"{status_icon} Monitoraggio BGY - "
                f"{datetime.now().strftime('%d/%m/%Y')} [{status_text}]")
 
-    # Data del giorno precedente
     from datetime import timedelta
     yesterday_dt = datetime.now() - timedelta(days=1)
     yesterday_str = yesterday_dt.strftime("%d/%m/%Y")
@@ -419,17 +445,14 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
                 parts.append(f"{icon} {label}: {stato}")
                 if msg:
                     if key == 'quality_check':
-                        # Il quality check produce testo multi-riga già formattato
                         parts.append(msg)
                     elif key in ('unresolved_airlines', 'scanner_day_status'):
-                        # F14/F14b: messaggi multi-riga, li indentiamo di 3 spazi
                         for line in msg.split('\n'):
                             parts.append(f"   {line}")
                     else:
                         parts.append(f"      → {msg}")
                 parts.append("")
 
-    # Sezione statistiche
     if stats:
         stats_text = _format_stats_section(stats, yesterday_str)
         if stats_text:
@@ -441,7 +464,6 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
     if details:
         body += f"\n{details}"
 
-    # --- Allegati: log (se serve) + screenshot del tabellone ---
     attachments = []
 
     if not all_ok:
@@ -460,7 +482,6 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
                 body += (f"\n\n📎 In allegato il file di log completo: "
                          f"{os.path.basename(log_path)}")
 
-    # Screenshot del tabellone (indipendenti dall'esito)
     screenshots_present = []
     if screenshot_paths:
         for sp in screenshot_paths:
