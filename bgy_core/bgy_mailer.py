@@ -1,6 +1,11 @@
 """
 bgy_core/bgy_mailer.py - Modulo unificato di invio email.
-Versione 2.5.6
+Versione 2.5.7
+
+Novità v2.5.7 (F14c):
+- send_daily_status() accetta parametro `screenshot_paths` con i path
+  degli screenshot del tabellone SACBO (Partenze + Arrivi) da allegare.
+- Gli screenshot vengono allegati indipendentemente dall'esito dei check.
 
 Novità v2.5.6 (F14b):
 - send_daily_status() mostra anche il check 9 "Diagnostica scanner diurno".
@@ -369,7 +374,8 @@ def _format_stats_section(stats, yesterday_str):
     return "\n".join(lines)
 
 
-def send_daily_status(success=True, details="", checks=None, stats=None, force=False):
+def send_daily_status(success=True, details="", checks=None, stats=None,
+                      screenshot_paths=None, force=False):
     if not force and not is_daily_status_enabled():
         logger.info("🔕 Email di stato giornaliero silenziata")
         return True
@@ -435,7 +441,9 @@ def send_daily_status(success=True, details="", checks=None, stats=None, force=F
     if details:
         body += f"\n{details}"
 
+    # --- Allegati: log (se serve) + screenshot del tabellone ---
     attachments = []
+
     if not all_ok:
         only_sync_error = (
             checks and
@@ -451,6 +459,18 @@ def send_daily_status(success=True, details="", checks=None, stats=None, force=F
                 attachments.append(log_path)
                 body += (f"\n\n📎 In allegato il file di log completo: "
                          f"{os.path.basename(log_path)}")
+
+    # Screenshot del tabellone (indipendenti dall'esito)
+    screenshots_present = []
+    if screenshot_paths:
+        for sp in screenshot_paths:
+            if sp and os.path.exists(sp):
+                attachments.append(sp)
+                screenshots_present.append(sp)
+
+    if screenshots_present:
+        body += ("\n\n📸 In allegato gli screenshot del tabellone: "
+                 + ", ".join(os.path.basename(s) for s in screenshots_present))
 
     return send_status_email(subject, body, all_ok,
                              attachment_paths=attachments,

@@ -50,3 +50,6 @@ bgy_data/bgy_db_backup/
 # Archivio JSON pre-migrazione DB
 bgy_data/bgy_archive/
 *.py.archived
+
+# Screenshot del tabellone (generati automaticamente, non versionati)
+bgy_data/bgy_screenshots/

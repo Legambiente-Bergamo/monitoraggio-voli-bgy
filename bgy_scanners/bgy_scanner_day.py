@@ -1,9 +1,39 @@
 """
 bgy_scanners/bgy_scanner_day.py - Scanner diurno per il tabellone SACBO.
-Versione 2.5.4
+Versione 2.5.8
 
 - URL, timeout, attese, scroll, user-agent: da config_data.json (scanner_day)
 - Naming file: scan_YYYY-MM-DD_HH-MM.csv (via bgy_dates)
+
+Novità v2.5.8 (screenshot puliti):
+- _hide_extra_elements() migliorato: target più aggressivo per il box
+  "Cerca un volo" che era rimasto visibile.
+  Strategie:
+    1. Keyword match su più tag (div, section, aside, form, nav,
+       article, span, header)
+    2. Targeting via input placeholder ("FOR EXAMPLE", "esempio", ecc.)
+    3. Targeting via classi comuni (search-box, flight-search, ecc.)
+    4. Override con display:none !important per vincere su CSS
+- Esclude dalla rimozione gli elementi che contengono una <table> con
+  più di 5 righe (sono wrapper del tabellone, non nasconderli).
+
+Novità v2.5.7 (screenshot puliti):
+- Aggiunta _hide_extra_elements(page) che nasconde via JS gli elementi
+  estranei al tabellone (box "Cerca un volo", fasce di navigazione,
+  banner) prima di catturare lo screenshot.
+
+Novità v2.5.6 (screenshot full-board):
+- _capture_screenshot() ora cattura l'INTERO tabellone, non solo la
+  porzione di viewport. Strategia a cascata:
+    1. Cerca il selettore specifico del tab (#arr-table / #dep-table)
+    2. Fallback: la prima <table> della pagina
+    3. Fallback finale: full_page=True (tutta la pagina)
+
+Novità v2.5.5 (screenshot):
+- Ad ogni scansione vengono salvati due screenshot del tabellone:
+    bgy_data/bgy_screenshots/board_dep_YYYY-MM-DD_HH-MM.png
+    bgy_data/bgy_screenshots/board_arr_YYYY-MM-DD_HH-MM.png
+- I path degli screenshot vengono aggiunti a scanner_day_status.json.
 
 Novità v2.5.4 (diagnostica Cloudflare):
 - Lo scanner scrive bgy_data/bgy_logs/scanner_day_status.json al termine
@@ -12,6 +42,7 @@ Novità v2.5.4 (diagnostica Cloudflare):
     * tab_arrivi_cliccato (bool)
     * body_arrivi_cambiato (bool)
     * n_decolli, n_arrivi (int)
+    * screenshot_dep, screenshot_arr (str o null)
     * messaggio (str, human-readable)
 - Il file viene scritto anche in caso di errore/eccezione, così il check 9
   nell'email di stato può segnalare il problema.
@@ -22,17 +53,17 @@ Fix v2.5.3:
   Il sito SACBO è protetto da Cloudflare; senza stealth la pagina viene
   bloccata e il tab "Arrivi" non è cliccabile.
 - Aggiunta rimozione overlay (banner cookie iubenda + alert-popup)
-  prima del click sul tab "Arrivi".
+  prima del click sul tab "Arrivi". Senza questa rimozione, gli overlay
+  intercettano i click e il tab non viene attivato.
 - Verifica del cambio di contenuto dopo il click tramite fingerprint
-  del body (md5).
+  del body (md5). Se il body non cambia, gli arrivi vengono scartati.
 
 Fix v2.5.2:
 - Safety net in run_scan(): se D e A hanno lo stesso set di
   (callsign, orario), gli A vengono scartati e viene loggato un WARNING.
 
 Fix v2.5.1:
-- Il click sul tab "Arrivi" è ora esplicito (Playwright navigava all'URL
-  con #arrivals ma il JavaScript non attivava la tab).
+- Il click sul tab "Arrivi" è ora esplicito.
 - Fallback URL diretto se il click fallisce.
 - Diagnostica: logga quanti voli sono stati estratti per ogni tab.
 """
@@ -63,9 +94,9 @@ from bgy_core.bgy_dates import scan_filename
 logger = get_logger("ScannerDay")
 
 STATUS_FILE = os.path.join(LOGS_DIR, "scanner_day_status.json")
+SCREENSHOTS_DIR = os.path.join(os.path.dirname(LOGS_DIR), "bgy_screenshots")
 
 
-# Stato della scansione corrente (module-level, popolato da fetch_board_data)
 _scan_status = {
     "timestamp": None,
     "challenge_superato": False,
@@ -73,6 +104,8 @@ _scan_status = {
     "body_arrivi_cambiato": False,
     "n_decolli": 0,
     "n_arrivi": 0,
+    "screenshot_dep": None,
+    "screenshot_arr": None,
     "messaggio": "",
 }
 
@@ -84,6 +117,8 @@ def _reset_scan_status():
     _scan_status["body_arrivi_cambiato"] = False
     _scan_status["n_decolli"] = 0
     _scan_status["n_arrivi"] = 0
+    _scan_status["screenshot_dep"] = None
+    _scan_status["screenshot_arr"] = None
     _scan_status["messaggio"] = "Scansione avviata"
 
 
@@ -187,6 +222,113 @@ def _dismiss_overlays(page):
         return 0
 
 
+def _hide_extra_elements(page):
+    """
+    Nasconde via JS gli elementi che non fanno parte del tabellone:
+    box di ricerca, banner, fasce di navigazione.
+
+    Strategie combinate:
+      1. Keyword match su molti tag HTML
+      2. Targeting via input placeholder (FOR EXAMPLE, esempio, ecc.)
+      3. Targeting via classi comuni (search-box, flight-search, ecc.)
+      4. Override con display:none !important
+
+    Esclude dalla rimozione gli elementi che contengono una <table> con
+    più di 5 righe (sono wrapper del tabellone, non vanno nascosti).
+
+    Ritorna il numero di elementi nascosti.
+    """
+    try:
+        hidden = page.evaluate("""
+            () => {
+                let count = 0;
+                const HIDE_STYLE = 'display: none !important;';
+
+                // Helper: un elemento contiene una tabella "grande"?
+                function hasBigTable(el) {
+                    const rows = el.querySelectorAll('table tr');
+                    return rows.length > 5;
+                }
+
+                // Helper: nascondi un elemento se non contiene una tabella grande
+                function tryHide(el) {
+                    if (!el || el === document.body || el === document.documentElement) return false;
+                    if (el.dataset && el.dataset.bgyHidden === '1') return false;
+                    if (hasBigTable(el)) return false;
+                    el.style.cssText += ';' + HIDE_STYLE;
+                    el.dataset.bgyHidden = '1';
+                    count++;
+                    return true;
+                }
+
+                // === Strategia 1: keyword match su molti tag ===
+                const keywords = [
+                    'cerca un volo',
+                    'cerca volo',
+                    'for example',
+                    'trasporti via terra',
+                    'lavora con noi',
+                    'bgy sostenibile',
+                ];
+                const tagSelector = 'div, section, aside, form, nav, article, header, span, p';
+
+                document.querySelectorAll(tagSelector).forEach(el => {
+                    const text = (el.innerText || '').toLowerCase().slice(0, 300);
+                    for (const kw of keywords) {
+                        if (text.includes(kw)) {
+                            tryHide(el);
+                            return;
+                        }
+                    }
+                });
+
+                // === Strategia 2: targeting via input placeholder ===
+                const placeholderHints = ['example', 'esempio', 'fr 9429', 'mad'];
+                document.querySelectorAll('input').forEach(input => {
+                    const ph = (input.placeholder || '').toLowerCase();
+                    if (!placeholderHints.some(h => ph.includes(h))) return;
+
+                    // Risali fino a un contenitore ragionevolmente ampio
+                    let el = input;
+                    for (let i = 0; i < 6 && el.parentElement; i++) {
+                        el = el.parentElement;
+                        if (el.offsetWidth > 600 || el.tagName === 'FORM' || el.tagName === 'SECTION') {
+                            if (tryHide(el)) return;
+                        }
+                    }
+                    // Se non ha funzionato, nascondi il wrapper diretto
+                    if (el && el.parentElement) tryHide(el.parentElement);
+                });
+
+                // === Strategia 3: classi comuni ===
+                const classSelectors = [
+                    '[class*="search-box"]',
+                    '[class*="searchBox"]',
+                    '[class*="search_box"]',
+                    '[class*="flight-search"]',
+                    '[class*="flightSearch"]',
+                    '[class*="cerca-volo"]',
+                    '[class*="cercaVolo"]',
+                    '.c-search',
+                    '.search-flight',
+                ];
+                classSelectors.forEach(sel => {
+                    try {
+                        document.querySelectorAll(sel).forEach(el => tryHide(el));
+                    } catch (e) { /* selettore non valido, ignora */ }
+                });
+
+                return count;
+            }
+        """)
+        if hidden > 0:
+            logger.info(f"🧹 Nascosti {hidden} elementi estranei al tabellone")
+        return hidden
+    except Exception as e:
+        logger.debug(f"Errore hide extra: {e}")
+        return 0
+
+
 def _click_arrivals_tab(page):
     """
     Prova a cliccare il tab 'Arrivi'.
@@ -233,6 +375,75 @@ def _wait_body_change(page, fingerprint_before, max_wait_ms=10000, poll_ms=500):
         if fp is not None and fp != fingerprint_before:
             return True, fp
     return False, _body_fingerprint(page)
+
+
+def _capture_screenshot(page, movement_type):
+    """
+    Cattura uno screenshot dell'INTERO tabellone (non solo il viewport),
+    dopo aver nascosto gli elementi estranei (box di ricerca, banner).
+
+    Ritorna il path del file salvato, o None in caso di errore.
+    """
+    try:
+        os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
+
+        is_arrivals = 'atterra' in movement_type.lower()
+        prefix = "board_arr" if is_arrivals else "board_dep"
+        ts = datetime.now().strftime("%Y-%m-%d_%H-%M")
+        filename = f"{prefix}_{ts}.png"
+        filepath = os.path.join(SCREENSHOTS_DIR, filename)
+
+        # --- Nascondi elementi estranei prima dello screenshot ---
+        _hide_extra_elements(page)
+        page.wait_for_timeout(500)
+
+        # --- Tentativo 1: selettore specifico del tab ---
+        specific_selectors = (
+            ["#arr-table", "div#arr-table", "table#arr-table"]
+            if is_arrivals
+            else ["#dep-table", "div#dep-table", "table#dep-table"]
+        )
+
+        captured = False
+
+        for sel in specific_selectors:
+            try:
+                loc = page.locator(sel).first
+                if loc.count() > 0:
+                    loc.screenshot(path=filepath)
+                    logger.info(f"📸 Screenshot (elemento '{sel}'): {filename}")
+                    captured = True
+                    break
+            except Exception as e:
+                logger.debug(f"Selettore '{sel}' fallito: {str(e)[:80]}")
+
+        # --- Tentativo 2: la prima <table> della pagina ---
+        if not captured:
+            try:
+                table = page.locator("table").first
+                if table.count() > 0:
+                    table.screenshot(path=filepath)
+                    logger.info(f"📸 Screenshot (prima table): {filename}")
+                    captured = True
+            except Exception as e:
+                logger.debug(f"Fallback table fallito: {str(e)[:80]}")
+
+        # --- Tentativo 3: tutta la pagina (full_page) ---
+        if not captured:
+            try:
+                page.screenshot(path=filepath, full_page=True)
+                logger.info(f"📸 Screenshot (full_page): {filename}")
+                captured = True
+            except Exception as e:
+                logger.warning(f"Errore screenshot full_page: {e}")
+
+        if captured:
+            return filepath
+        return None
+
+    except Exception as e:
+        logger.warning(f"Errore screenshot ({movement_type}): {e}")
+        return None
 
 
 @retry_on_failure(max_retries=3, delay=2)
@@ -312,7 +523,6 @@ def fetch_board_data():
                         )
                         continue
 
-                    # Aggiorna status: challenge superato
                     _scan_status["challenge_superato"] = True
 
                     _dismiss_overlays(page)
@@ -333,7 +543,6 @@ def fetch_board_data():
                             )
                             continue
 
-                        # Aggiorna status: tab cliccato
                         _scan_status["tab_arrivi_cliccato"] = True
 
                         changed, _ = _wait_body_change(
@@ -343,8 +552,7 @@ def fetch_board_data():
                         if not changed:
                             logger.warning(
                                 "⚠️ Il click sul tab 'Arrivi' NON ha cambiato "
-                                "il contenuto della pagina. Salto l'acquisizione "
-                                "degli arrivi per evitare di duplicare le partenze."
+                                "il contenuto della pagina."
                             )
                             _scan_status["messaggio"] = (
                                 "Click su tab 'Arrivi' eseguito ma il contenuto "
@@ -352,12 +560,19 @@ def fetch_board_data():
                             )
                             continue
 
-                        # Aggiorna status: body cambiato
                         _scan_status["body_arrivi_cambiato"] = True
                         logger.info("✅ Contenuto pagina cambiato dopo il click")
 
                     page.evaluate(f"window.scrollBy(0, {scroll_px})")
                     page.wait_for_timeout(wait_scroll)
+
+                    # --- Screenshot del tabellone (v2.5.8) ---
+                    screenshot_path = _capture_screenshot(page, mov_type)
+                    if screenshot_path:
+                        if is_arrivals:
+                            _scan_status["screenshot_arr"] = screenshot_path
+                        else:
+                            _scan_status["screenshot_dep"] = screenshot_path
 
                     body_text = page.inner_text("body")
                     parsed = parse_flight_text(body_text, mov_type)
@@ -420,14 +635,7 @@ def _sanity_check_d_a(df):
 
 
 def _componi_messaggio_finale(n_d, n_a):
-    """
-    Compone il messaggio human-readable per l'email di stato.
-    Casi:
-      - Challenge non superato: priorità massima
-      - Tab non cliccato / body non cambiato
-      - Arrivi = 0 nonostante il tab sia stato cliccato
-      - Tutto OK
-    """
+    """Compone il messaggio human-readable per l'email di stato."""
     if not _scan_status["challenge_superato"]:
         return "Cloudflare ha bloccato lo scanner: challenge non superato"
 
@@ -478,11 +686,9 @@ def run_scan():
         n_d = len(df[df['tipo_movimento'] == 'D'])
         n_a = len(df[df['tipo_movimento'] == 'A'])
 
-        # Aggiorna status finale
         _scan_status["n_decolli"] = int(n_d)
         _scan_status["n_arrivi"] = int(n_a)
 
-        # Se la safety net ha scartato gli A, il messaggio deve rifletterlo
         if sanity_changed:
             _scan_status["messaggio"] = (
                 f"Safety net: gli arrivi erano duplicati delle partenze. "

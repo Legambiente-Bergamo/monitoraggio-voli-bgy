@@ -1,6 +1,6 @@
 """
 bgy_scheduler.py - Pianificatore ed Orchestratore automatico.
-Versione 2.5.9
+Versione 2.6.0
 - Lock file per impedire doppio avvio
 - Radar notturno: SOLO tra le 23:00 e le 05:59
 - Sync DB: recupero automatico degli ultimi 8 giorni
@@ -8,11 +8,12 @@ Versione 2.5.9
 - Statistiche movimenti giorno/notte (F18b) nell'email di stato
 - Verifica compagnie da risolvere (F14) nell'email di stato
 - Diagnostica scanner diurno Cloudflare (F14b) nell'email di stato
+- Screenshot tabellone allegati all'email + rotazione 7 giorni (v2.6.0)
 
-Novità v2.5.9:
-- Aggiunto check 9 "Diagnostica scanner diurno": legge
-  bgy_data/bgy_logs/scanner_day_status.json scritto dallo scanner v2.5.4
-  e segnala eventuali problemi con Cloudflare o col tabellone SACBO.
+Novità v2.6.0:
+- Aggiunta raccolta screenshot del tabellone (board_dep_*, board_arr_*)
+  e passaggio a send_daily_status() come allegati.
+- Aggiunta cleanup_old_screenshots(days=7) in coda al job_daily.
 """
 import os
 import sys
@@ -42,6 +43,7 @@ _scheduler_started = False
 
 SCHEDULER_LOCK_FILE = os.path.join(LOGS_DIR, "scheduler.lock")
 SCANNER_STATUS_FILE = os.path.join(LOGS_DIR, "scanner_day_status.json")
+SCREENSHOTS_DIR = os.path.join(os.path.dirname(LOGS_DIR), "bgy_screenshots")
 
 
 # -----------------------------------------------------------------------------
@@ -236,14 +238,7 @@ def check_night_acquisition(date_str):
 
 
 def check_scanner_day_status():
-    """
-    Legge bgy_data/bgy_logs/scanner_day_status.json scritto dallo scanner diurno
-    (v2.5.4+) e verifica se l'ultima scansione è andata a buon fine.
-
-    Ritorna (ok, msg):
-      - ok=True  se l'ultima scansione è OK o se il file non esiste
-      - ok=False se l'ultima scansione ha avuto problemi
-    """
+    """Legge scanner_day_status.json scritto dallo scanner diurno v2.5.4+."""
     if not os.path.exists(SCANNER_STATUS_FILE):
         return True, "Nessuna scansione registrata"
 
@@ -260,11 +255,9 @@ def check_scanner_day_status():
     n_d = int(data.get("n_decolli", 0))
     n_a = int(data.get("n_arrivi", 0))
 
-    # Tutto OK
     if challenge and clicked and changed and n_d > 0 and n_a > 0:
         return True, f"OK ({n_d} D + {n_a} A) — ultima scansione {ts}"
 
-    # Problemi: componi un messaggio con la diagnosi
     problemi = []
     if not challenge:
         problemi.append("Challenge Cloudflare non superato")
@@ -285,6 +278,75 @@ def check_scanner_day_status():
         f"   → Esegui: py -3.12 -m bgy_tools.test_sacbo_stealth"
     )
     return False, msg
+
+
+# -----------------------------------------------------------------------------
+# SCREENSHOT
+# -----------------------------------------------------------------------------
+
+def _get_latest_screenshots():
+    """
+    Ritorna (dep_path, arr_path): i due screenshot più recenti del tabellone.
+    Se uno non esiste, ritorna None per quel campo.
+    """
+    if not os.path.isdir(SCREENSHOTS_DIR):
+        return None, None
+
+    dep_candidates = []
+    arr_candidates = []
+
+    try:
+        for f in os.listdir(SCREENSHOTS_DIR):
+            if not f.endswith(".png"):
+                continue
+            full = os.path.join(SCREENSHOTS_DIR, f)
+            try:
+                mtime = os.path.getmtime(full)
+                if f.startswith("board_dep_"):
+                    dep_candidates.append((mtime, full))
+                elif f.startswith("board_arr_"):
+                    arr_candidates.append((mtime, full))
+            except Exception:
+                continue
+    except Exception as e:
+        logger.warning(f"Errore scansione screenshots: {e}")
+        return None, None
+
+    dep = max(dep_candidates, key=lambda x: x[0])[1] if dep_candidates else None
+    arr = max(arr_candidates, key=lambda x: x[0])[1] if arr_candidates else None
+    return dep, arr
+
+
+def cleanup_old_screenshots(days=7):
+    """
+    Rimuove gli screenshot più vecchi di N giorni.
+    Ritorna (n_rimossi, n_errori).
+    """
+    if not os.path.isdir(SCREENSHOTS_DIR):
+        return 0, 0
+
+    cutoff = datetime.now() - timedelta(days=days)
+    n_removed = 0
+    n_errors = 0
+
+    try:
+        for f in os.listdir(SCREENSHOTS_DIR):
+            if not f.endswith(".png"):
+                continue
+            full = os.path.join(SCREENSHOTS_DIR, f)
+            try:
+                mtime = datetime.fromtimestamp(os.path.getmtime(full))
+                if mtime < cutoff:
+                    os.remove(full)
+                    n_removed += 1
+            except Exception as e:
+                logger.warning(f"Errore rimozione screenshot {f}: {e}")
+                n_errors += 1
+    except Exception as e:
+        logger.error(f"Errore pulizia screenshots: {e}")
+        return 0, 1
+
+    return n_removed, n_errors
 
 
 # -----------------------------------------------------------------------------
@@ -346,7 +408,6 @@ def job_daily():
         sync_msg = f"Eccezione: {e}"
         logger.error(f"❌ Errore sync GitHub: {e}")
 
-    # --- Sync DB: recupero ultimi 8 giorni ---
     logger.info("-" * 60)
     logger.info("🗄️  Avvio sincronizzazione Database (ultimi 8 giorni)...")
     db_ok = False
@@ -372,7 +433,6 @@ def job_daily():
         db_msg = f"Eccezione: {e}"
         logger.error(f"❌ Errore sync DB: {e}")
 
-    # --- Quality check (F11e) ---
     logger.info("-" * 60)
     logger.info("🔍 Avvio quality check (ultimi 7 giorni)...")
     qc_ok = False
@@ -391,7 +451,6 @@ def job_daily():
         qc_msg = f"Errore quality check: {e}"
         logger.error(f"❌ {qc_msg}")
 
-    # --- Compagnie da risolvere (F14) ---
     logger.info("-" * 60)
     logger.info("🏢 Verifica compagnie da risolvere...")
     ua_ok = True
@@ -409,7 +468,6 @@ def job_daily():
         ua_msg = f"Errore verifica compagnie: {e}"
         logger.error(f"❌ {ua_msg}")
 
-    # --- Diagnostica scanner diurno (F14b) ---
     logger.info("-" * 60)
     logger.info("🩺 Diagnostica scanner diurno...")
     sc_ok = True
@@ -422,7 +480,6 @@ def job_daily():
         sc_msg = f"Errore diagnostica scanner: {e}"
         logger.error(f"❌ {sc_msg}")
 
-    # --- Statistiche movimenti (F18b) ---
     logger.info("-" * 60)
     logger.info("📊 Raccolta statistiche movimenti...")
     stats_data = {"daily": None, "nightly": None}
@@ -435,6 +492,22 @@ def job_daily():
                     f"notte={stats_data['nightly']['totale']} mov")
     except Exception as e:
         logger.error(f"❌ Errore raccolta statistiche: {e}")
+
+    # --- Screenshot del tabellone (v2.6.0) ---
+    logger.info("-" * 60)
+    logger.info("📸 Raccolta screenshot tabellone...")
+    screenshot_paths = []
+    try:
+        dep_shot, arr_shot = _get_latest_screenshots()
+        if dep_shot:
+            screenshot_paths.append(dep_shot)
+        if arr_shot:
+            screenshot_paths.append(arr_shot)
+        logger.info(f"✅ Screenshot trovati: {len(screenshot_paths)} "
+                    f"(dep={'sì' if dep_shot else 'no'}, "
+                    f"arr={'sì' if arr_shot else 'no'})")
+    except Exception as e:
+        logger.error(f"❌ Errore raccolta screenshot: {e}")
 
     # Riepilogo check
     checks = {
@@ -455,7 +528,17 @@ def job_daily():
     logger.info(f"📋 ESITO COMPLESSIVO: {'✅ TUTTO OK' if overall_success else '❌ PROBLEMI RILEVATI'}")
     logger.info("-" * 60)
 
-    send_daily_status(overall_success, "", checks=checks, stats=stats_data)
+    send_daily_status(overall_success, "", checks=checks, stats=stats_data,
+                      screenshot_paths=screenshot_paths)
+
+    # --- Pulizia screenshot vecchi (v2.6.0) ---
+    logger.info("-" * 60)
+    logger.info("🧹 Pulizia screenshot vecchi (>7 giorni)...")
+    try:
+        n_rem, n_err = cleanup_old_screenshots(days=7)
+        logger.info(f"✅ Rimossi {n_rem} screenshot vecchi ({n_err} errori)")
+    except Exception as e:
+        logger.error(f"❌ Errore pulizia screenshot: {e}")
 
     if datetime.now().day == 1:
         logger.info("📈 Primo del mese: generazione report mensile...")
@@ -496,8 +579,8 @@ def setup_scheduler():
 
     report_time = config.get("daily_report_time", "06:30")
     schedule.every().day.at(report_time).do(job_daily)
-    logger.info(f"📊 Report + sync GitHub + sync DB + quality check + compagnie "
-                f"+ diagnostica scanner + email alle {report_time}")
+    logger.info(f"📊 Report + sync + quality + compagnie + diagnostica "
+                f"+ screenshot + email alle {report_time}")
 
     logger.info("=" * 50)
     logger.info("✅ Scheduler configurato e in esecuzione...")
