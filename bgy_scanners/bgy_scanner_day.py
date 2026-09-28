@@ -1,71 +1,43 @@
 """
 bgy_scanners/bgy_scanner_day.py - Scanner diurno per il tabellone SACBO.
-Versione 2.5.8
+Versione 2.5.9
 
 - URL, timeout, attese, scroll, user-agent: da config_data.json (scanner_day)
 - Naming file: scan_YYYY-MM-DD_HH-MM.csv (via bgy_dates)
 
-Novità v2.5.8 (screenshot puliti):
-- _hide_extra_elements() migliorato: target più aggressivo per il box
-  "Cerca un volo" che era rimasto visibile.
-  Strategie:
-    1. Keyword match su più tag (div, section, aside, form, nav,
-       article, span, header)
-    2. Targeting via input placeholder ("FOR EXAMPLE", "esempio", ecc.)
-    3. Targeting via classi comuni (search-box, flight-search, ecc.)
-    4. Override con display:none !important per vincere su CSS
-- Esclude dalla rimozione gli elementi che contengono una <table> con
-  più di 5 righe (sono wrapper del tabellone, non nasconderli).
+Novità v2.5.9 (recupero scansioni mancate):
+- run_scan() accetta parametri is_recovery (bool) e recovered_slot (str).
+- Quando is_recovery=True, scanner_day_status.json include:
+    * "is_recovery": true
+    * "recovered_slot": "YYYY-MM-DD HH:MM" (slot originale mancato)
+- Il file CSV viene nominato con il timestamp attuale (non quello dello slot),
+  per non confondere la sequenza cronologica.
+- Il check 9 dell'email di stato mostra "🔄 Recupero di XX:XX" quando applicabile.
+
+Novità v2.5.8 (screenshot full-board):
+- _capture_screenshot() cattura l'INTERO tabellone, non solo il viewport.
 
 Novità v2.5.7 (screenshot puliti):
-- Aggiunta _hide_extra_elements(page) che nasconde via JS gli elementi
-  estranei al tabellone (box "Cerca un volo", fasce di navigazione,
-  banner) prima di catturare lo screenshot.
+- _hide_extra_elements() nasconde via JS gli elementi estranei al tabellone.
 
 Novità v2.5.6 (screenshot full-board):
-- _capture_screenshot() ora cattura l'INTERO tabellone, non solo la
-  porzione di viewport. Strategia a cascata:
-    1. Cerca il selettore specifico del tab (#arr-table / #dep-table)
-    2. Fallback: la prima <table> della pagina
-    3. Fallback finale: full_page=True (tutta la pagina)
+- Strategia a cascata per la cattura dello screenshot.
 
 Novità v2.5.5 (screenshot):
-- Ad ogni scansione vengono salvati due screenshot del tabellone:
-    bgy_data/bgy_screenshots/board_dep_YYYY-MM-DD_HH-MM.png
-    bgy_data/bgy_screenshots/board_arr_YYYY-MM-DD_HH-MM.png
-- I path degli screenshot vengono aggiunti a scanner_day_status.json.
+- Salvataggio di due screenshot del tabellone per ogni scansione.
 
 Novità v2.5.4 (diagnostica Cloudflare):
-- Lo scanner scrive bgy_data/bgy_logs/scanner_day_status.json al termine
-  di ogni scansione, con:
-    * challenge_superato (bool)
-    * tab_arrivi_cliccato (bool)
-    * body_arrivi_cambiato (bool)
-    * n_decolli, n_arrivi (int)
-    * screenshot_dep, screenshot_arr (str o null)
-    * messaggio (str, human-readable)
-- Il file viene scritto anche in caso di errore/eccezione, così il check 9
-  nell'email di stato può segnalare il problema.
-- Nessun auto-fix: la diagnostica rileva e notifica, non ripara.
+- Lo scanner scrive bgy_data/bgy_logs/scanner_day_status.json.
 
 Fix v2.5.3:
-- Aggiunto stealth mode con playwright-stealth v2.0.0+ (classe Stealth).
-  Il sito SACBO è protetto da Cloudflare; senza stealth la pagina viene
-  bloccata e il tab "Arrivi" non è cliccabile.
-- Aggiunta rimozione overlay (banner cookie iubenda + alert-popup)
-  prima del click sul tab "Arrivi". Senza questa rimozione, gli overlay
-  intercettano i click e il tab non viene attivato.
-- Verifica del cambio di contenuto dopo il click tramite fingerprint
-  del body (md5). Se il body non cambia, gli arrivi vengono scartati.
+- Stealth mode con playwright-stealth v2.0.0+ (classe Stealth).
+- Rimozione overlay (banner cookie iubenda + alert-popup).
 
 Fix v2.5.2:
-- Safety net in run_scan(): se D e A hanno lo stesso set di
-  (callsign, orario), gli A vengono scartati e viene loggato un WARNING.
+- Safety net in run_scan() contro duplicazione D/A.
 
 Fix v2.5.1:
-- Il click sul tab "Arrivi" è ora esplicito.
-- Fallback URL diretto se il click fallisce.
-- Diagnostica: logga quanti voli sono stati estratti per ogni tab.
+- Click esplicito sul tab "Arrivi".
 """
 import os
 import re
@@ -106,11 +78,13 @@ _scan_status = {
     "n_arrivi": 0,
     "screenshot_dep": None,
     "screenshot_arr": None,
+    "is_recovery": False,
+    "recovered_slot": None,
     "messaggio": "",
 }
 
 
-def _reset_scan_status():
+def _reset_scan_status(is_recovery=False, recovered_slot=None):
     _scan_status["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     _scan_status["challenge_superato"] = False
     _scan_status["tab_arrivi_cliccato"] = False
@@ -119,7 +93,12 @@ def _reset_scan_status():
     _scan_status["n_arrivi"] = 0
     _scan_status["screenshot_dep"] = None
     _scan_status["screenshot_arr"] = None
-    _scan_status["messaggio"] = "Scansione avviata"
+    _scan_status["is_recovery"] = bool(is_recovery)
+    _scan_status["recovered_slot"] = recovered_slot
+    _scan_status["messaggio"] = (
+        f"Recupero scansione {recovered_slot} in corso"
+        if is_recovery else "Scansione avviata"
+    )
 
 
 def _write_scan_status(messaggio_finale=None):
@@ -186,10 +165,7 @@ def _body_fingerprint(page):
 
 
 def _dismiss_overlays(page):
-    """
-    Rimuove banner cookie e modal di avviso che intercettano i click.
-    Ritorna il numero di overlay rimossi.
-    """
+    """Rimuove banner cookie e modal di avviso che intercettano i click."""
     try:
         removed = page.evaluate("""
             () => {
@@ -223,34 +199,16 @@ def _dismiss_overlays(page):
 
 
 def _hide_extra_elements(page):
-    """
-    Nasconde via JS gli elementi che non fanno parte del tabellone:
-    box di ricerca, banner, fasce di navigazione.
-
-    Strategie combinate:
-      1. Keyword match su molti tag HTML
-      2. Targeting via input placeholder (FOR EXAMPLE, esempio, ecc.)
-      3. Targeting via classi comuni (search-box, flight-search, ecc.)
-      4. Override con display:none !important
-
-    Esclude dalla rimozione gli elementi che contengono una <table> con
-    più di 5 righe (sono wrapper del tabellone, non vanno nascosti).
-
-    Ritorna il numero di elementi nascosti.
-    """
+    """Nasconde via JS gli elementi che non fanno parte del tabellone."""
     try:
         hidden = page.evaluate("""
             () => {
                 let count = 0;
                 const HIDE_STYLE = 'display: none !important;';
-
-                // Helper: un elemento contiene una tabella "grande"?
                 function hasBigTable(el) {
                     const rows = el.querySelectorAll('table tr');
                     return rows.length > 5;
                 }
-
-                // Helper: nascondi un elemento se non contiene una tabella grande
                 function tryHide(el) {
                     if (!el || el === document.body || el === document.documentElement) return false;
                     if (el.dataset && el.dataset.bgyHidden === '1') return false;
@@ -260,35 +218,21 @@ def _hide_extra_elements(page):
                     count++;
                     return true;
                 }
-
-                // === Strategia 1: keyword match su molti tag ===
                 const keywords = [
-                    'cerca un volo',
-                    'cerca volo',
-                    'for example',
-                    'trasporti via terra',
-                    'lavora con noi',
-                    'bgy sostenibile',
+                    'cerca un volo', 'cerca volo', 'for example',
+                    'trasporti via terra', 'lavora con noi', 'bgy sostenibile',
                 ];
                 const tagSelector = 'div, section, aside, form, nav, article, header, span, p';
-
                 document.querySelectorAll(tagSelector).forEach(el => {
                     const text = (el.innerText || '').toLowerCase().slice(0, 300);
                     for (const kw of keywords) {
-                        if (text.includes(kw)) {
-                            tryHide(el);
-                            return;
-                        }
+                        if (text.includes(kw)) { tryHide(el); return; }
                     }
                 });
-
-                // === Strategia 2: targeting via input placeholder ===
                 const placeholderHints = ['example', 'esempio', 'fr 9429', 'mad'];
                 document.querySelectorAll('input').forEach(input => {
                     const ph = (input.placeholder || '').toLowerCase();
                     if (!placeholderHints.some(h => ph.includes(h))) return;
-
-                    // Risali fino a un contenitore ragionevolmente ampio
                     let el = input;
                     for (let i = 0; i < 6 && el.parentElement; i++) {
                         el = el.parentElement;
@@ -296,28 +240,19 @@ def _hide_extra_elements(page):
                             if (tryHide(el)) return;
                         }
                     }
-                    // Se non ha funzionato, nascondi il wrapper diretto
                     if (el && el.parentElement) tryHide(el.parentElement);
                 });
-
-                // === Strategia 3: classi comuni ===
                 const classSelectors = [
-                    '[class*="search-box"]',
-                    '[class*="searchBox"]',
-                    '[class*="search_box"]',
-                    '[class*="flight-search"]',
-                    '[class*="flightSearch"]',
-                    '[class*="cerca-volo"]',
-                    '[class*="cercaVolo"]',
-                    '.c-search',
-                    '.search-flight',
+                    '[class*="search-box"]', '[class*="searchBox"]',
+                    '[class*="search_box"]', '[class*="flight-search"]',
+                    '[class*="flightSearch"]', '[class*="cerca-volo"]',
+                    '[class*="cercaVolo"]', '.c-search', '.search-flight',
                 ];
                 classSelectors.forEach(sel => {
                     try {
                         document.querySelectorAll(sel).forEach(el => tryHide(el));
-                    } catch (e) { /* selettore non valido, ignora */ }
+                    } catch (e) { }
                 });
-
                 return count;
             }
         """)
@@ -330,17 +265,13 @@ def _hide_extra_elements(page):
 
 
 def _click_arrivals_tab(page):
-    """
-    Prova a cliccare il tab 'Arrivi'.
-    Ritorna True se il click è riuscito (a livello di click).
-    """
+    """Prova a cliccare il tab 'Arrivi'."""
     candidates = [
         "[role='tab']:has-text('Arrivi')",
         "a[href='#arr-table']",
         "a:has-text('Arrivi')",
         "text=Arrivi",
     ]
-
     for sel in candidates:
         try:
             loc = page.locator(sel).first
@@ -358,7 +289,6 @@ def _click_arrivals_tab(page):
                     return True
             except Exception:
                 continue
-
     logger.warning("⚠️ Nessun elemento 'Arrivi' trovato")
     return False
 
@@ -367,7 +297,6 @@ def _wait_body_change(page, fingerprint_before, max_wait_ms=10000, poll_ms=500):
     """Aspetta che il body cambi rispetto al fingerprint dato."""
     if fingerprint_before is None:
         return True, _body_fingerprint(page)
-
     steps = max(1, max_wait_ms // poll_ms)
     for _ in range(steps):
         page.wait_for_timeout(poll_ms)
@@ -378,34 +307,24 @@ def _wait_body_change(page, fingerprint_before, max_wait_ms=10000, poll_ms=500):
 
 
 def _capture_screenshot(page, movement_type):
-    """
-    Cattura uno screenshot dell'INTERO tabellone (non solo il viewport),
-    dopo aver nascosto gli elementi estranei (box di ricerca, banner).
-
-    Ritorna il path del file salvato, o None in caso di errore.
-    """
+    """Cattura uno screenshot dell'INTERO tabellone (non solo il viewport)."""
     try:
         os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
-
         is_arrivals = 'atterra' in movement_type.lower()
         prefix = "board_arr" if is_arrivals else "board_dep"
         ts = datetime.now().strftime("%Y-%m-%d_%H-%M")
         filename = f"{prefix}_{ts}.png"
         filepath = os.path.join(SCREENSHOTS_DIR, filename)
 
-        # --- Nascondi elementi estranei prima dello screenshot ---
         _hide_extra_elements(page)
         page.wait_for_timeout(500)
 
-        # --- Tentativo 1: selettore specifico del tab ---
         specific_selectors = (
             ["#arr-table", "div#arr-table", "table#arr-table"]
             if is_arrivals
             else ["#dep-table", "div#dep-table", "table#dep-table"]
         )
-
         captured = False
-
         for sel in specific_selectors:
             try:
                 loc = page.locator(sel).first
@@ -417,7 +336,6 @@ def _capture_screenshot(page, movement_type):
             except Exception as e:
                 logger.debug(f"Selettore '{sel}' fallito: {str(e)[:80]}")
 
-        # --- Tentativo 2: la prima <table> della pagina ---
         if not captured:
             try:
                 table = page.locator("table").first
@@ -428,7 +346,6 @@ def _capture_screenshot(page, movement_type):
             except Exception as e:
                 logger.debug(f"Fallback table fallito: {str(e)[:80]}")
 
-        # --- Tentativo 3: tutta la pagina (full_page) ---
         if not captured:
             try:
                 page.screenshot(path=filepath, full_page=True)
@@ -437,10 +354,7 @@ def _capture_screenshot(page, movement_type):
             except Exception as e:
                 logger.warning(f"Errore screenshot full_page: {e}")
 
-        if captured:
-            return filepath
-        return None
-
+        return filepath if captured else None
     except Exception as e:
         logger.warning(f"Errore screenshot ({movement_type}): {e}")
         return None
@@ -499,14 +413,12 @@ def fetch_board_data():
 
                 try:
                     logger.info(f"📡 Accesso ({mov_type})...")
-
                     is_arrivals = "arriv" in url.lower() or "atterra" in mov_type.lower()
                     base_url = url.split("#")[0]
 
                     page.goto(base_url, wait_until="domcontentloaded", timeout=timeout)
                     page.wait_for_timeout(wait_load)
 
-                    # --- Attesa challenge Cloudflare ---
                     challenge_ok = False
                     for i in range(15):
                         title = page.title()
@@ -524,13 +436,11 @@ def fetch_board_data():
                         continue
 
                     _scan_status["challenge_superato"] = True
-
                     _dismiss_overlays(page)
                     page.wait_for_timeout(1000)
 
                     if is_arrivals:
                         fp_before = _body_fingerprint(page)
-
                         clicked = _click_arrivals_tab(page)
                         if not clicked:
                             logger.warning(
@@ -542,12 +452,10 @@ def fetch_board_data():
                                 "al sito SACBO"
                             )
                             continue
-
                         _scan_status["tab_arrivi_cliccato"] = True
 
                         changed, _ = _wait_body_change(
-                            page, fp_before,
-                            max_wait_ms=10000, poll_ms=500
+                            page, fp_before, max_wait_ms=10000, poll_ms=500
                         )
                         if not changed:
                             logger.warning(
@@ -566,7 +474,6 @@ def fetch_board_data():
                     page.evaluate(f"window.scrollBy(0, {scroll_px})")
                     page.wait_for_timeout(wait_scroll)
 
-                    # --- Screenshot del tabellone (v2.5.8) ---
                     screenshot_path = _capture_screenshot(page, mov_type)
                     if screenshot_path:
                         if is_arrivals:
@@ -600,19 +507,13 @@ def fetch_board_data():
 
 
 def _sanity_check_d_a(df):
-    """
-    Safety net: se D e A hanno lo stesso set di (callsign, orario_schedulato),
-    gli 'arrivi' sono in realtà un duplicato delle partenze. Scarta gli A.
-    """
+    """Safety net: se D e A hanno lo stesso set, scarta gli A."""
     if df.empty:
         return df, False
-
     d_rows = df[df['tipo_movimento'] == 'D']
     a_rows = df[df['tipo_movimento'] == 'A']
-
     if d_rows.empty or a_rows.empty:
         return df, False
-
     d_set = set(zip(
         d_rows['callsign_volo'].astype(str),
         d_rows['orario_schedulato'].astype(str)
@@ -621,7 +522,6 @@ def _sanity_check_d_a(df):
         a_rows['callsign_volo'].astype(str),
         a_rows['orario_schedulato'].astype(str)
     ))
-
     if d_set == a_set:
         logger.warning(
             f"⚠️ SAFETY NET: D e A hanno lo stesso set di "
@@ -630,35 +530,41 @@ def _sanity_check_d_a(df):
         )
         df = df[df['tipo_movimento'] != 'A'].copy()
         return df, True
-
     return df, False
 
 
 def _componi_messaggio_finale(n_d, n_a):
     """Compone il messaggio human-readable per l'email di stato."""
+    prefix = "Recupero scanner diurno" if _scan_status.get("is_recovery") else "Scanner diurno"
+
     if not _scan_status["challenge_superato"]:
         return "Cloudflare ha bloccato lo scanner: challenge non superato"
-
     if not _scan_status["tab_arrivi_cliccato"]:
         return "Tab 'Arrivi' non cliccabile: possibile modifica al sito SACBO"
-
     if not _scan_status["body_arrivi_cambiato"]:
         return "Click su tab 'Arrivi' eseguito ma il contenuto non è cambiato"
-
     if n_a == 0:
         return f"Nessun arrivo estratto (D={n_d}, A={n_a}): possibile modifica al tabellone"
-
     if n_d == 0:
         return f"Nessun decollo estratto (D={n_d}, A={n_a}): possibile modifica al tabellone"
+    return f"{prefix} OK ({n_d} D + {n_a} A)"
 
-    return f"Scanner diurno OK ({n_d} D + {n_a} A)"
 
+def run_scan(is_recovery=False, recovered_slot=None):
+    """
+    Esegue la scansione diurna.
 
-def run_scan():
-    """Esegue la scansione diurna."""
-    logger.info("🚀 Avvio scansione diurna...")
+    Parametri (v2.5.9):
+      - is_recovery (bool): True se questa è una scansione di recupero.
+      - recovered_slot (str): slot originale mancato (YYYY-MM-DD HH:MM).
+    """
+    if is_recovery:
+        logger.info(f"🚀 Avvio scansione diurna (RECUPERO di {recovered_slot})...")
+    else:
+        logger.info("🚀 Avvio scansione diurna...")
+
     os.makedirs(RAW_DIR, exist_ok=True)
-    _reset_scan_status()
+    _reset_scan_status(is_recovery=is_recovery, recovered_slot=recovered_slot)
 
     try:
         df = fetch_board_data()
