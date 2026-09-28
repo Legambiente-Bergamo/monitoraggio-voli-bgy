@@ -1,4 +1,4 @@
-"""
+﻿"""
 bgy_scheduler.py - Pianificatore ed Orchestratore automatico.
 Versione 2.6.2
 - Lock file per impedire doppio avvio
@@ -428,7 +428,7 @@ def check_night_acquisition(date_str):
         scan_date = date_str if hh >= 12 else next_day
         stato, info = _classifica_scansione(t, scan_date, scheduler_start)
         if stato == "eseguita":
-            eseguite := eseguite.append(t)
+            eseguite.append(t)
         elif stato == "saltata":
             saltate.append((t, info))
         else:
