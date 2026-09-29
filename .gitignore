@@ -64,3 +64,5 @@ test_*.py
 analisi_*.py
 check_*.py
 dev_*.py
+
+bgy_config/config_wordpress.json
