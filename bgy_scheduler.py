@@ -1,6 +1,6 @@
 ﻿"""
 bgy_scheduler.py - Pianificatore ed Orchestratore automatico.
-Versione 2.6.5
+Versione 2.6.6
 - Lock file per impedire doppio avvio
 - Radar notturno: SOLO tra le 23:00 e le 05:59
 - Sync DB: recupero automatico degli ultimi 8 giorni
@@ -11,6 +11,10 @@ Versione 2.6.5
 - Screenshot tabellone allegati all'email + rotazione 7 giorni (F14c)
 - Recupero automatico scansioni mancate (v2.6.2)
 - Confronto incrociato Avionio (v2.6.4)
+
+Novità v2.6.6 (check 11 servizio DB):
+- Aggiunto check 11 "Servizio Database" nell'email di stato 06:30.
+- Verifica stato servizio PostgreSQL e raggiungibilità DB.
 
 Novità v2.6.5 (statistiche puntualità):
 - Raccolta statistiche di puntualità via get_daily_delay_stats().
@@ -867,6 +871,26 @@ def job_daily():
     except Exception as e:
         logger.error(f"❌ Errore raccolta screenshot: {e}")
 
+    logger.info("-" * 60)
+    logger.info("🗄️  Verifica servizio Database...")
+    db_svc_ok = True
+    db_svc_msg = "Non tentato"
+    try:
+        from bgy_core import bgy_db_service
+        status, status_msg = bgy_db_service.get_service_status()
+        db_ok, db_msg = bgy_db_service.is_db_reachable()
+        db_svc_ok = (status == "Running" and db_ok)
+        if db_svc_ok:
+            db_svc_msg = f"OK ({status}, DB raggiungibile)"
+        else:
+            db_svc_msg = (f"Servizio: {status}\n"
+                          f"DB raggiungibile: {db_ok}\n"
+                          f"Dettaglio: {db_msg[:100]}")
+        logger.info(f"{'✅' if db_svc_ok else '⚠️'} {db_svc_msg}")
+    except Exception as e:
+        db_svc_msg = f"Errore verifica servizio DB: {e}"
+        logger.error(f"❌ {db_svc_msg}")
+
     checks = {
         'sacbo_acquisition': (sacbo_acq_ok, sacbo_acq_msg),
         'sacbo_processing': (daily_ok, daily_msg),
@@ -878,6 +902,7 @@ def job_daily():
         'unresolved_airlines': (ua_ok, ua_msg),
         'scanner_day_status': (sc_ok, sc_msg),
         'avionio_confronto': (av_ok, av_msg),
+        'db_service': (db_svc_ok, db_svc_msg),
     }
 
     overall_success = all(

@@ -1,6 +1,10 @@
 """
 bgy_core/bgy_mailer.py - Modulo unificato di invio email.
-Versione 2.5.11
+Versione 2.5.12
+
+Novità v2.5.12 (check 11 servizio DB):
+- Aggiunto check 11 "Servizio Database" alla lista labels.
+- Il messaggio multi-riga viene indentato come gli altri check.
 
 Novità v2.5.11 (statistiche puntualità):
 - _format_stats_section() mostra, dopo i movimenti del giorno:
@@ -531,6 +535,7 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
             ('unresolved_airlines', '8) Compagnie da risolvere'),
             ('scanner_day_status', '9) Diagnostica scanner diurno'),
             ('avionio_confronto', '10) Conferma incrociata Avionio'),
+            ('db_service', '11) Servizio Database'),
         ]
         for key, label in labels:
             if key in checks:
@@ -546,7 +551,7 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
                     if key == 'quality_check':
                         parts.append(msg)
                     elif key in ('unresolved_airlines', 'scanner_day_status',
-                                 'avionio_confronto'):
+                                 'avionio_confronto', 'db_service'):
                         for line in msg.split('\n'):
                             parts.append(f"   {line}")
                     else:
@@ -574,7 +579,7 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
             all(ok for k, (ok, _) in checks.items()
                 if k not in ('github_sync', 'quality_check',
                              'unresolved_airlines', 'scanner_day_status',
-                             'avionio_confronto'))
+                             'avionio_confronto', 'db_service'))
         )
         if not only_sync_error:
             log_path = _get_today_log_path()

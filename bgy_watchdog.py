@@ -1,20 +1,22 @@
 """
 bgy_watchdog.py - Watchdog per il controllo anomalie BGY Monitoring Suite.
-Versione 2.5.5
+Versione 2.5.6
 - Doppio check prima di riavviare lo scheduler (evita falsi positivi)
 - Messaggi di alert letti da bgy_config/config_alert_messages.json
 
+Novità v2.5.6 (F11e-2 - Database service):
+- Aggiunto check 5 "database": verifica stato servizio PostgreSQL e
+  raggiungibilità DB. Se il DB è down per più di N minuti, tenta il
+  riavvio automatico del servizio (richiede privilegi amministrativi).
+- Alert `db_down` inviato quando il DB è irraggiungibile.
+- Alert `db_restarted` inviato quando il riavvio automatico riesce.
+- Alert `db_down_no_admin` inviato se il riavvio fallisce per mancanza
+  di privilegi.
+- Stato down/up salvato in bgy_data/bgy_logs/db_service_state.json.
+
 Novità v2.5.5 (fix falsi positivi SACBO stale):
 - check_sacbo() riscritto: ora tiene conto degli orari di scansione
-  attesi (da config_data.json → scan_schedules) e dell'orario di avvio
-  dello scheduler.
-- Non allarma più se l'ultima scansione è precedente alla soglia ma:
-  * il sistema è stato avviato DOPO la scansione attesa (scansione saltata
-    per sistema spento), oppure
-  * l'ultima scansione è successiva all'ultimo orario atteso (nessuna
-    scansione mancante).
-- Aggiunte funzioni _last_expected_scan_time() e _get_scheduler_start_time()
-  per supportare la nuova logica.
+  attesi e dell'orario di avvio dello scheduler.
 
 Fix v2.5.4:
 - check_radar(): grace period di 30 minuti dall'inizio della sessione notturna.
@@ -38,25 +40,29 @@ from bgy_core.bgy_paths import RAW_DIR, LOGS_DIR, PROJECT_ROOT
 from bgy_core.bgy_mailer import send_alert
 from bgy_core.bgy_dates import is_night_time, night_session_date, radar_filename
 from bgy_core.bgy_config_manager import config_manager
+from bgy_core import bgy_db_service
 
 logger = get_logger("Watchdog")
 
 STATE_FILE = os.path.join(LOGS_DIR, "watchdog_state.json")
+DB_STATE_FILE = os.path.join(LOGS_DIR, "db_service_state.json")
 SCHEDULER_SCRIPT = os.path.join(PROJECT_ROOT, "bgy_scheduler.py")
 
-# Ritardo tra primo e secondo check scheduler
 SCHEDULER_DOUBLE_CHECK_DELAY_SEC = 3
-
-# Grace period (minuti) dall'inizio della sessione notturna durante il quale
-# non si allarma se il file radar non esiste ancora.
 RADAR_MISSING_GRACE_MIN = 30
-
-# Orari di scansione di default (usati se config_data.json non li definisce)
 DEFAULT_SCAN_SCHEDULES = ["00:00", "06:00", "12:00", "18:00"]
 
 
 def _cfg():
     return config_manager.get_watchdog_config()
+
+
+def _db_cfg():
+    try:
+        cfg = config_manager.get_data_config()
+        return cfg.get("database_service", {}) or {}
+    except Exception:
+        return {}
 
 
 def _msg(key, **kwargs):
@@ -117,15 +123,30 @@ def _save_state(state):
         logger.error(f"Errore salvataggio stato watchdog: {e}")
 
 
+def _load_db_state():
+    if not os.path.exists(DB_STATE_FILE):
+        return {"down_since": None, "restart_attempts": 0}
+    try:
+        with open(DB_STATE_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {"down_since": None, "restart_attempts": 0}
+
+
+def _save_db_state(state):
+    try:
+        os.makedirs(os.path.dirname(DB_STATE_FILE), exist_ok=True)
+        with open(DB_STATE_FILE, "w", encoding="utf-8") as f:
+            json.dump(state, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        logger.error(f"Errore salvataggio stato DB: {e}")
+
+
 # =============================================================================
 # UTILITY - SCHEDULER START TIME E SCANSIONI ATTESE
 # =============================================================================
 
 def _get_scheduler_start_time(now):
-    """
-    Ritorna il datetime dell'ULTIMO avvio dello scheduler trovato nei log
-    recenti (fino a 8 giorni indietro). None se non trovato.
-    """
     for days_back in range(0, 8):
         check_date = (now - timedelta(days=days_back)).strftime("%Y-%m-%d")
         log_file = os.path.join(LOGS_DIR, f"bgy_app_{check_date}.log")
@@ -151,11 +172,6 @@ def _get_scheduler_start_time(now):
 
 
 def _last_expected_scan_time(now, scan_schedules):
-    """
-    Ritorna il datetime dell'ultima scansione schedulata già passata
-    rispetto a `now`. Se oggi non è ancora passato nessun orario,
-    ritorna l'ultimo orario schedulato di ieri.
-    """
     today = now.date()
     candidates_today = []
     for sched in scan_schedules:
@@ -171,7 +187,6 @@ def _last_expected_scan_time(now, scan_schedules):
     if candidates_today:
         return max(candidates_today)
 
-    # Nessun orario passato oggi: prendi l'ultimo di ieri
     yesterday = today - timedelta(days=1)
     latest_yesterday = None
     for sched in scan_schedules:
@@ -192,20 +207,6 @@ def _last_expected_scan_time(now, scan_schedules):
 # =============================================================================
 
 def check_sacbo():
-    """
-    Verifica che lo scanner diurno stia girando regolarmente.
-
-    Logica (v2.5.5):
-      1. Trova l'ultima scansione (file scan_*.csv più recente).
-      2. Se l'età è sotto soglia → OK.
-      3. Se l'età è sopra soglia, ma l'ultima scansione è successiva
-         all'ultimo orario schedulato atteso → OK (il sistema non ha
-         ancora avuto occasione di scansionare).
-      4. Se c'è una scansione mancante, verifica se era precedente
-         all'avvio dello scheduler:
-         - Se sì → OK (scansione saltata perché sistema spento).
-         - Se no → ALLARME (scanner probabilmente bloccato).
-    """
     cfg = _cfg()
     max_age = cfg.get("sacbo_max_age_hours", 7)
 
@@ -230,18 +231,15 @@ def check_sacbo():
         latest_dt = datetime.fromtimestamp(os.path.getmtime(latest))
         age_hours = (datetime.now() - latest_dt).total_seconds() / 3600
 
-        # --- Caso 1: scansione recente, tutto OK ---
         if age_hours <= max_age:
             msg = (f"Ultima scansione: {os.path.basename(latest)} "
                    f"({age_hours:.1f}h fa)")
             return True, msg
 
-        # --- Caso 2: età > soglia. Verifica se è un problema reale ---
         now = datetime.now()
         last_expected = _last_expected_scan_time(now, scan_schedules)
 
         if last_expected is None:
-            # Nessun orario schedulato definito: comportamento di fallback
             msg = (f"Ultima scansione SACBO: {os.path.basename(latest)} "
                    f"({age_hours:.1f}h fa)")
             _send_alert("sacbo_stale",
@@ -250,24 +248,18 @@ def check_sacbo():
                         soglia_ore=max_age)
             return False, msg
 
-        # Se l'ultima scansione è successiva all'ultimo atteso → OK
-        # (nessuna scansione mancante)
         if latest_dt >= last_expected:
             msg = (f"Ultima scansione: {os.path.basename(latest)} "
                    f"({age_hours:.1f}h fa, entro il ciclo atteso)")
             return True, msg
 
-        # Altrimenti c'è almeno una scansione mancante.
-        # Verifica se era precedente all'avvio dello scheduler.
         scheduler_start = _get_scheduler_start_time(now)
 
         if scheduler_start is not None and last_expected < scheduler_start:
-            # La scansione mancante era prima dell'avvio: saltata, non è colpa dello scanner
             msg = (f"Scansione {last_expected.strftime('%H:%M')} saltata "
                    f"(sistema avviato alle {scheduler_start.strftime('%H:%M')})")
             return True, msg
 
-        # Altrimenti: vera anomalia
         msg = (f"Ultima scansione SACBO: {os.path.basename(latest)} "
                f"({age_hours:.1f}h fa). "
                f"Scansione attesa {last_expected.strftime('%H:%M')} mancante")
@@ -286,7 +278,6 @@ def check_sacbo():
 # =============================================================================
 
 def _minutes_since_night_start(now):
-    """Ritorna i minuti trascorsi dall'inizio della sessione notturna corrente."""
     if not is_night_time(now):
         return None
     if now.hour >= 23:
@@ -317,7 +308,6 @@ def check_radar():
                     radar_file = p
                     break
 
-        # ---- File radar mancante ----
         if not radar_file:
             minuti_da_inizio = _minutes_since_night_start(now)
             if minuti_da_inizio is not None and minuti_da_inizio < RADAR_MISSING_GRACE_MIN:
@@ -331,7 +321,6 @@ def check_radar():
                         file_atteso=new_name or old_name)
             return False, msg
 
-        # ---- File radar presente: controlla freschezza ----
         mtime = datetime.fromtimestamp(os.path.getmtime(radar_file))
         elapsed_min = (now - mtime).total_seconds() / 60
 
@@ -383,12 +372,6 @@ def _scanner_night_is_active(now, window_sec=300, min_hits=2):
 # =============================================================================
 
 def check_opensky():
-    """
-    Conta gli errori 429 recenti nel log, MA:
-    - Ignora le righe generate dal Watchdog stesso ([Watchdog])
-    - Ignora le righe generate dal Mailer ([Mailer])
-    - Considera solo gli errori 429 reali dello scanner OpenSky
-    """
     cfg = _cfg()
     threshold = cfg.get("opensky_error_threshold", 5)
     log_lines = cfg.get("opensky_log_lines", 500)
@@ -588,6 +571,112 @@ def _kill_all_scheduler_processes():
 
 
 # =============================================================================
+# CHECK 5 - DATABASE SERVICE (v2.5.6)
+# =============================================================================
+
+def check_database():
+    """
+    Verifica lo stato del servizio PostgreSQL e la raggiungibilità del DB.
+    """
+    cfg = _db_cfg()
+    if not cfg.get("enabled", True):
+        return True, "Check DB disabilitato in config"
+
+    threshold_min = int(cfg.get("down_alert_threshold_min", 15))
+    auto_restart = bool(cfg.get("auto_restart_enabled", True))
+
+    try:
+        status, status_msg = bgy_db_service.get_service_status()
+        db_ok, db_msg = bgy_db_service.is_db_reachable()
+
+        now = datetime.now()
+        state = _load_db_state()
+
+        # -- Caso 1: tutto OK --
+        if status == "Running" and db_ok:
+            if state.get("down_since"):
+                logger.info(f"✅ DB tornato OK (era down da {state['down_since']})")
+                state["down_since"] = None
+                state["restart_attempts"] = 0
+                _save_db_state(state)
+            return True, f"DB OK ({status}, raggiungibile)"
+
+        # -- Caso 2: servizio Stopped o DB irraggiungibile --
+        if not state.get("down_since"):
+            state["down_since"] = now.isoformat()
+            state["restart_attempts"] = 0
+            _save_db_state(state)
+            logger.warning(f"⚠️  DB down rilevato: {status_msg} | {db_msg}")
+
+        try:
+            down_since = datetime.fromisoformat(state["down_since"])
+            down_min = (now - down_since).total_seconds() / 60
+        except Exception:
+            down_min = 0
+
+        if down_min < threshold_min:
+            return False, (f"DB down da {int(down_min)} min "
+                           f"(soglia alert {threshold_min} min)")
+
+        logger.error(f"❌ DB down da {int(down_min)} min — superata soglia {threshold_min} min")
+
+        restart_msg = ""
+        restart_ok = False
+
+        if auto_restart:
+            attempts = int(state.get("restart_attempts", 0))
+            max_attempts = int(cfg.get("max_restart_attempts", 3))
+            if attempts < max_attempts:
+                logger.info(f"🔄 Tentativo riavvio {attempts + 1}/{max_attempts}...")
+                restart_ok, restart_msg = bgy_service_restart()
+                state["restart_attempts"] = attempts + 1
+                _save_db_state(state)
+
+                if restart_ok:
+                    state["down_since"] = None
+                    state["restart_attempts"] = 0
+                    _save_db_state(state)
+                    _send_alert("db_restarted",
+                                down_min=int(down_min),
+                                dettagli=restart_msg)
+                    return True, f"DB riavviato con successo dopo {int(down_min)} min down"
+            else:
+                restart_msg = f"Numero massimo di tentativi ({max_attempts}) raggiunto"
+
+        if auto_restart and not restart_ok:
+            if "Privilegi amministrativi" in restart_msg or "admin" in restart_msg.lower():
+                _send_alert("db_down_no_admin",
+                            down_min=int(down_min),
+                            status=status,
+                            db_msg=db_msg[:100])
+            else:
+                _send_alert("db_down_restart_failed",
+                            down_min=int(down_min),
+                            status=status,
+                            restart_msg=restart_msg[:100])
+        else:
+            _send_alert("db_down",
+                        down_min=int(down_min),
+                        status=status,
+                        db_msg=db_msg[:100])
+
+        return False, (f"DB down da {int(down_min)} min: "
+                       f"status={status}, restart={'ok' if restart_ok else 'ko'}")
+
+    except Exception as e:
+        logger.error(f"Errore check_database: {e}")
+        return False, f"Errore check DB: {str(e)[:100]}"
+
+
+def bgy_service_restart():
+    """Wrapper per bgy_db_service.restart_service()."""
+    try:
+        return bgy_db_service.restart_service()
+    except Exception as e:
+        return False, f"Eccezione restart: {str(e)[:80]}"
+
+
+# =============================================================================
 # RUN CHECK
 # =============================================================================
 
@@ -601,7 +690,8 @@ def run_check(manual=False):
     for name, fn in (("sacbo", check_sacbo),
                      ("radar", check_radar),
                      ("opensky", check_opensky),
-                     ("scheduler", check_scheduler)):
+                     ("scheduler", check_scheduler),
+                     ("database", check_database)):
         try:
             ok, msg = fn()
             results[name] = {"ok": ok, "msg": msg}
@@ -634,6 +724,7 @@ def watchdog_loop():
     logger.info("🐕 WATCHDOG BGY - AVVIO")
     logger.info(f"Intervallo: {interval}s")
     logger.info(f"Grace period radar: {RADAR_MISSING_GRACE_MIN} min")
+    logger.info(f"Admin: {bgy_db_service.is_admin()}")
     logger.info("=" * 50)
     try:
         run_check(manual=False)

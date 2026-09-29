@@ -206,5 +206,13 @@
         "retention_days": 7,
         "time_tolerance_min": 15,
         "http_timeout_sec": 20
+    },
+    "database_service": {
+        "enabled": true,
+        "service_name": "postgresql-x64-17",
+        "auto_restart_enabled": true,
+        "down_alert_threshold_min": 15,
+        "restart_cooldown_min": 30,
+        "max_restart_attempts": 3
     }
 }
