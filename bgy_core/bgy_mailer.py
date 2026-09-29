@@ -1,6 +1,6 @@
 """
 bgy_core/bgy_mailer.py - Modulo unificato di invio email.
-Versione 2.5.15
+Versione 2.5.16
 
 Novità v2.5.13 (distribuzione ritardi):
 - _format_delay_section() mostra la distribuzione dei voli in ritardo
@@ -429,6 +429,7 @@ def _format_hourly_section(hourly, yesterday_str):
 
     lines = []
     lines.append(f"⏰ DISTRIBUZIONE ORARIA ({yesterday_str})")
+    lines.append("   Nota: ritardi dichiarati da SACBO (STIMA).")
     lines.append("")
     lines.append("   Fascia oraria      Movimenti   Ritardi")
     lines.append("   ───────────────    ─────────   ───────")
@@ -463,6 +464,33 @@ def _format_hourly_section(hourly, yesterday_str):
     return "\n".join(lines)
 
 
+def _format_airlines_section(airlines, yesterday_str):
+    """Formatta la sezione top compagnie per ritardi."""
+    if not airlines:
+        return ""
+
+    lines = []
+    lines.append(f"✈️  TOP COMPAGNIE PER RITARDI ({yesterday_str})")
+    lines.append("")
+    lines.append("   Compagnia              Ritardi   Medio    Max    Voli")
+    lines.append("   ────────────────────   ───────   ──────   ────   ────")
+
+    for a in airlines:
+        nome = str(a.get("compagnia", "?"))[:20]
+        delayed = a.get("delayed", 0)
+        total = a.get("total", 0)
+        avg = a.get("avg_delay", 0.0)
+        maxd = a.get("max_delay", 0)
+
+        lines.append(
+            f"   {nome:<22} {delayed:>5}   {avg:>5} min   "
+            f"{maxd:>4}   {total:>4}"
+        )
+
+    lines.append("")
+    return "\n".join(lines)
+
+
 def _format_stats_section(stats, yesterday_str):
     lines = []
 
@@ -489,6 +517,13 @@ def _format_stats_section(stats, yesterday_str):
         hourly_text = _format_hourly_section(hourly, yesterday_str)
         if hourly_text:
             lines.append(hourly_text)
+
+    # Sezione top compagnie per ritardi
+    airlines = stats.get("airlines") if stats else None
+    if airlines:
+        airlines_text = _format_airlines_section(airlines, yesterday_str)
+        if airlines_text:
+            lines.append(airlines_text)
 
     if nightly:
         lines.append(f"🌙 MOVIMENTI DELLA NOTTE ({yesterday_str})")
