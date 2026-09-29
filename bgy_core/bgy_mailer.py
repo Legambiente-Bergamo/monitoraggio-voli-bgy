@@ -1,6 +1,6 @@
 """
 bgy_core/bgy_mailer.py - Modulo unificato di invio email.
-Versione 2.5.16
+Versione 2.5.17
 
 Novità v2.5.13 (distribuzione ritardi):
 - _format_delay_section() mostra la distribuzione dei voli in ritardo
@@ -491,6 +491,34 @@ def _format_airlines_section(airlines, yesterday_str):
     return "\n".join(lines)
 
 
+def _format_destinations_section(destinations, yesterday_str):
+    """Formatta la sezione destinazioni/origini con ritardi (tutte)."""
+    if not destinations:
+        return ""
+
+    lines = []
+    lines.append(f"🌍 DESTINAZIONI CON RITARDI ({yesterday_str})")
+    lines.append(f"   Totale: {len(destinations)} destinazioni con almeno 1 ritardo")
+    lines.append("")
+    lines.append("   Destinazione           Ritardi   Medio    Max    Voli")
+    lines.append("   ────────────────────   ───────   ──────   ────   ────")
+
+    for d in destinations:
+        nome = str(d.get("destinazione", "?"))[:20]
+        delayed = d.get("delayed", 0)
+        total = d.get("total", 0)
+        avg = d.get("avg_delay", 0.0)
+        maxd = d.get("max_delay", 0)
+
+        lines.append(
+            f"   {nome:<22} {delayed:>5}   {avg:>5} min   "
+            f"{maxd:>4}   {total:>4}"
+        )
+
+    lines.append("")
+    return "\n".join(lines)
+
+
 def _format_stats_section(stats, yesterday_str):
     lines = []
 
@@ -524,6 +552,13 @@ def _format_stats_section(stats, yesterday_str):
         airlines_text = _format_airlines_section(airlines, yesterday_str)
         if airlines_text:
             lines.append(airlines_text)
+
+    # Sezione destinazioni con ritardi
+    destinations = stats.get("destinations") if stats else None
+    if destinations:
+        dest_text = _format_destinations_section(destinations, yesterday_str)
+        if dest_text:
+            lines.append(dest_text)
 
     if nightly:
         lines.append(f"🌙 MOVIMENTI DELLA NOTTE ({yesterday_str})")

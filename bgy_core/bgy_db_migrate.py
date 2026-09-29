@@ -1,6 +1,6 @@
 """
 bgy_core/bgy_db_migrate.py - Import e sincronizzazione CSV -> PostgreSQL.
-Versione 2.6.9
+Versione 2.6.10
 
 Modulo unificato che contiene:
   - Funzioni di import per ogni tipo di file (scan, radar, meteo, nightly)
@@ -935,6 +935,75 @@ def get_nightly_stats(date_str):
 # =============================================================================
 # =============================================================================
 # =============================================================================
+# =============================================================================
+# TOP DESTINAZIONI PER RITARDI (v2.6.10)
+# =============================================================================
+
+def get_top_destinations_delays(date_str):
+    """
+    Ritorna TUTTE le destinazioni/origini con almeno 1 ritardo dichiarato.
+
+    Per ogni destinazione:
+      - delayed:   numero di voli con ritardo > 0
+      - total:     numero totale di voli della destinazione
+      - avg_delay: ritardo medio (sui ritardati)
+      - max_delay: ritardo massimo
+
+    Ordina per numero di ritardi decrescente.
+
+    Ritorna lista di dict.
+    """
+    csv_path = os.path.join(OUTPUT_CSV_DIR, f"report_daily_{date_str}.csv")
+    if not os.path.exists(csv_path):
+        logger.warning(f"get_top_destinations_delays: file non trovato {csv_path}")
+        return []
+
+    try:
+        df = pd.read_csv(csv_path)
+    except Exception as e:
+        logger.error(f"get_top_destinations_delays: errore lettura {csv_path}: {e}")
+        return []
+
+    if df.empty:
+        return []
+
+    # Escludi cancellati
+    if "stato_volo" in df.columns:
+        cancellati_mask = (
+            df["stato_volo"].astype(str).str.upper().str.contains("CANCEL", na=False)
+        )
+        df = df[~cancellati_mask].copy()
+
+    # Colonna destinazione: usa "destinazione_origine" del CSV daily
+    if "destinazione_origine" not in df.columns or "minuti_ritardo" not in df.columns:
+        return []
+
+    df["_rit"] = pd.to_numeric(df["minuti_ritardo"], errors="coerce").fillna(0)
+    df["_dest"] = df["destinazione_origine"].astype(str).str.strip().str.upper()
+
+    # Escludi valori non validi
+    df = df[~df["_dest"].isin(["", "NAN", "N/D", "-"])]
+
+    result = []
+    for dest, group in df.groupby("_dest"):
+        delayed = group[group["_rit"] > 0]
+        n_delayed = len(delayed)
+        if n_delayed == 0:
+            continue
+        result.append({
+            "destinazione": dest,
+            "delayed": n_delayed,
+            "total": len(group),
+            "avg_delay": round(float(delayed["_rit"].mean()), 1),
+            "max_delay": int(delayed["_rit"].max()),
+        })
+
+    # Ordina per numero di ritardi decrescente, poi per ritardo medio
+    result.sort(key=lambda x: (-x["delayed"], -x["avg_delay"]))
+
+    return result
+
+
 # TOP COMPAGNIE PER RITARDI (v2.6.9)
 # =============================================================================
 

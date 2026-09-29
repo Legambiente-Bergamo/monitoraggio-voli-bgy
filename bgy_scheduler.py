@@ -1,6 +1,6 @@
 ﻿"""
 bgy_scheduler.py - Pianificatore ed Orchestratore automatico.
-Versione 2.6.8
+Versione 2.6.9
 - Lock file per impedire doppio avvio
 - Radar notturno: SOLO tra le 23:00 e le 05:59
 - Sync DB: recupero automatico degli ultimi 8 giorni
@@ -840,17 +840,19 @@ def job_daily():
 
     logger.info("-" * 60)
     logger.info("📊 Raccolta statistiche movimenti...")
-    stats_data = {"daily": None, "nightly": None, "delay": None, "hourly": None, "airlines": None}
+    stats_data = {"daily": None, "nightly": None, "delay": None, "hourly": None, "airlines": None, "destinations": None}
     try:
         from bgy_core.bgy_db_migrate import (get_daily_stats, get_nightly_stats,
                                               get_daily_delay_stats,
                                               get_hourly_distribution,
-                                              get_top_airlines_delays)
+                                              get_top_airlines_delays,
+                                              get_top_destinations_delays)
         stats_data["daily"] = get_daily_stats(yesterday)
         stats_data["nightly"] = get_nightly_stats(yesterday)
         stats_data["delay"] = get_daily_delay_stats(yesterday)
         stats_data["hourly"] = get_hourly_distribution(yesterday)
         stats_data["airlines"] = get_top_airlines_delays(yesterday, top_n=5)
+        stats_data["destinations"] = get_top_destinations_delays(yesterday)
         d = stats_data["delay"]
         n_ore = sum(1 for h in stats_data["hourly"].values()
                     if h["d_total"] + h["a_total"] > 0)
