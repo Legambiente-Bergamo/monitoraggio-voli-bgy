@@ -1,6 +1,6 @@
 """
 bgy_core/bgy_mailer.py - Modulo unificato di invio email.
-Versione 2.5.13
+Versione 2.5.15
 
 Novità v2.5.13 (distribuzione ritardi):
 - _format_delay_section() mostra la distribuzione dei voli in ritardo
@@ -422,6 +422,47 @@ def _format_delay_section(delay, yesterday_str):
     return "\n".join(lines)
 
 
+def _format_hourly_section(hourly, yesterday_str):
+    """Formatta la distribuzione oraria dei movimenti (tabella unica)."""
+    if not hourly:
+        return ""
+
+    lines = []
+    lines.append(f"⏰ DISTRIBUZIONE ORARIA ({yesterday_str})")
+    lines.append("")
+    lines.append("   Fascia oraria      Movimenti   Ritardi")
+    lines.append("   ───────────────    ─────────   ───────")
+
+    totale_mov = 0
+    totale_rit = 0
+
+    for ora in sorted(hourly.keys()):
+        h = hourly[ora]
+        d_tot = h.get("d_total", 0)
+        d_rit = h.get("d_delayed", 0)
+        a_tot = h.get("a_total", 0)
+        a_rit = h.get("a_delayed", 0)
+
+        mov = d_tot + a_tot
+        rit = d_rit + a_rit
+
+        totale_mov += mov
+        totale_rit += rit
+
+        # Mostra solo le ore con almeno un movimento
+        if mov == 0:
+            continue
+
+        fascia = f"{ora}:00 - {ora}:59"
+        lines.append(f"   {fascia:<17}    {mov:>7}   {rit:>7}")
+
+    lines.append("   ───────────────    ─────────   ───────")
+    lines.append(f"   {'TOTALE':<17}    {totale_mov:>7}   {totale_rit:>7}")
+    lines.append("")
+
+    return "\n".join(lines)
+
+
 def _format_stats_section(stats, yesterday_str):
     lines = []
 
@@ -441,6 +482,13 @@ def _format_stats_section(stats, yesterday_str):
         delay_text = _format_delay_section(delay, yesterday_str)
         if delay_text:
             lines.append(delay_text)
+
+    # Sezione distribuzione oraria
+    hourly = stats.get("hourly") if stats else None
+    if hourly:
+        hourly_text = _format_hourly_section(hourly, yesterday_str)
+        if hourly_text:
+            lines.append(hourly_text)
 
     if nightly:
         lines.append(f"🌙 MOVIMENTI DELLA NOTTE ({yesterday_str})")

@@ -1,6 +1,6 @@
 """
 bgy_core/bgy_db_migrate.py - Import e sincronizzazione CSV -> PostgreSQL.
-Versione 2.6.7
+Versione 2.6.8
 
 Modulo unificato che contiene:
   - Funzioni di import per ogni tipo di file (scan, radar, meteo, nightly)
@@ -933,6 +933,89 @@ def get_nightly_stats(date_str):
 
 
 # =============================================================================
+# =============================================================================
+# DISTRIBUZIONE ORARIA (v2.6.8)
+# =============================================================================
+
+def get_hourly_distribution(date_str):
+    """
+    Calcola la distribuzione oraria dei movimenti.
+
+    Per ogni ora (00-23) ritorna:
+      - d_total:   decolli totali
+      - d_delayed: decolli con ritardo > 0
+      - a_total:   atterraggi totali
+      - a_delayed: atterraggi con ritardo > 0
+
+    Base oraria: orario_effettivo (fallback orario_schedulato).
+
+    Ritorna dict:
+      {"00": {...}, "01": {...}, ..., "23": {...}}
+    """
+    empty_hour = {"d_total": 0, "d_delayed": 0, "a_total": 0, "a_delayed": 0}
+    result = {f"{h:02d}": dict(empty_hour) for h in range(24)}
+
+    csv_path = os.path.join(OUTPUT_CSV_DIR, f"report_daily_{date_str}.csv")
+    if not os.path.exists(csv_path):
+        logger.warning(f"get_hourly_distribution: file non trovato {csv_path}")
+        return result
+
+    try:
+        df = pd.read_csv(csv_path)
+    except Exception as e:
+        logger.error(f"get_hourly_distribution: errore lettura {csv_path}: {e}")
+        return result
+
+    if df.empty:
+        return result
+
+    # Escludi cancellati
+    if "stato_volo" in df.columns:
+        cancellati_mask = (
+            df["stato_volo"].astype(str).str.upper().str.contains("CANCEL", na=False)
+        )
+        df = df[~cancellati_mask].copy()
+
+    if "minuti_ritardo" not in df.columns:
+        return result
+    df["_rit"] = pd.to_numeric(df["minuti_ritardo"], errors="coerce").fillna(0)
+
+    df["_tipo"] = df["tipo_movimento"].astype(str).str.upper().str[:1]
+
+    def _get_hour(row):
+        eff = str(row.get("orario_effettivo", "") or "").strip()
+        sched = str(row.get("orario_schedulato", "") or "").strip()
+        for t in (eff, sched):
+            if t and ":" in t:
+                try:
+                    h = int(t.split(":")[0])
+                    if 0 <= h <= 23:
+                        return f"{h:02d}"
+                except (ValueError, IndexError):
+                    continue
+        return None
+
+    df["_ora"] = df.apply(_get_hour, axis=1)
+
+    for _, row in df.iterrows():
+        ora = row["_ora"]
+        if not ora:
+            continue
+        tipo = row["_tipo"]
+        rit = float(row["_rit"]) if pd.notna(row["_rit"]) else 0.0
+
+        if tipo == "D":
+            result[ora]["d_total"] += 1
+            if rit > 0:
+                result[ora]["d_delayed"] += 1
+        elif tipo == "A":
+            result[ora]["a_total"] += 1
+            if rit > 0:
+                result[ora]["a_delayed"] += 1
+
+    return result
+
+
 # QUALITY CHECK — CONFIGURAZIONE
 # =============================================================================
 
