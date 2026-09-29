@@ -1,6 +1,6 @@
 ﻿"""
 bgy_scheduler.py - Pianificatore ed Orchestratore automatico.
-Versione 2.6.2
+Versione 2.6.4
 - Lock file per impedire doppio avvio
 - Radar notturno: SOLO tra le 23:00 e le 05:59
 - Sync DB: recupero automatico degli ultimi 8 giorni
@@ -10,18 +10,21 @@ Versione 2.6.2
 - Diagnostica scanner diurno Cloudflare (F14b) nell'email di stato
 - Screenshot tabellone allegati all'email + rotazione 7 giorni (F14c)
 - Recupero automatico scansioni mancate (v2.6.2)
+- Confronto incrociato Avionio (v2.6.4)
 
-Novità v2.6.2 (recupero scansioni mancate):
-- Nuova logica di recovery: se una scansione attesa non è stata prodotta
-  (sistema spento o scanner bloccato), il sistema pianifica una scansione
-  di recupero a +5 minuti.
-- Il recupero avviene solo se:
-    * La scansione mancata è recente (è l'ultima attesa, non più vecchia)
-    * La prossima scansione schedulata è a più di 60 minuti
-    * Il recupero per quello slot non è già stato tentato
-- Max 1 tentativo di recupero per slot. Lista slot tentati in
-  bgy_data/bgy_logs/recovery_state.json (pulizia automatica a 7 giorni).
-- Il recupero viene segnalato nell'email di stato come "🔄 Recupero di XX:XX".
+Novità v2.6.4 (Avionio):
+- Esegue scanner Avionio + confronto dopo ogni scansione SACBO
+  (se avionio.run_at_every_scan=true, prima settimana).
+- Al job 06:30 esegue comunque Avionio + confronto come check 10.
+- Check 10 'avionio_confronto' è warning-only: non fa diventare l'email ❌.
+- Cleanup cartella bgy_avionio/ a 7 giorni in coda al job_daily.
+- Configurazione in config_data.json sezione 'avionio'.
+
+Novità v2.6.3:
+- Bump per compatibilità con bgy_db_migrate v2.6.5.
+
+Novità v2.6.2:
+- Recupero automatico scansioni mancate.
 
 Novità v2.6.1:
 - Fix selezione screenshot: ora vengono presi quelli delle 23:00.
@@ -57,13 +60,24 @@ SCHEDULER_LOCK_FILE = os.path.join(LOGS_DIR, "scheduler.lock")
 SCANNER_STATUS_FILE = os.path.join(LOGS_DIR, "scanner_day_status.json")
 SCREENSHOTS_DIR = os.path.join(os.path.dirname(LOGS_DIR), "bgy_screenshots")
 RECOVERY_STATE_FILE = os.path.join(LOGS_DIR, "recovery_state.json")
+AVIONIO_DIR = os.path.join(os.path.dirname(LOGS_DIR), "bgy_avionio")
 
 PREFERRED_SCREENSHOT_HOUR = "23-00"
 
-# Recupero scansioni mancate
-RECOVERY_DELAY_SEC = 300          # 5 minuti
-RECOVERY_MIN_GAP_MIN = 60         # salta se prossima scansione < 60 min
-RECOVERY_MAX_AGE_DAYS = 7         # pulizia slot tentati più vecchi di 7gg
+RECOVERY_DELAY_SEC = 300
+RECOVERY_MIN_GAP_MIN = 60
+RECOVERY_MAX_AGE_DAYS = 7
+
+# Check warning-only (non contano in overall_success)
+WARNING_ONLY_CHECKS = {'avionio_confronto'}
+
+
+def _cfg_avionio():
+    try:
+        cfg = config_manager.get_data_config()
+        return cfg.get("avionio", {}) or {}
+    except Exception:
+        return {}
 
 
 # -----------------------------------------------------------------------------
@@ -134,6 +148,59 @@ def acquire_scheduler_lock():
 
 
 # -----------------------------------------------------------------------------
+# AVIONIO (v2.6.4)
+# -----------------------------------------------------------------------------
+
+def _run_avionio_scan():
+    """Esegue lo scanner Avionio (arrivals + departures)."""
+    try:
+        from bgy_scanners.bgy_scanner_alt import run_scan_alt
+        results = run_scan_alt("both")
+        n_arr = results.get("arrivals", {}).get("count", 0)
+        n_dep = results.get("departures", {}).get("count", 0)
+        logger.info(f"✅ Avionio scan: {n_arr} arrivi, {n_dep} partenze")
+        return True
+    except Exception as e:
+        logger.error(f"❌ Errore Avionio scan: {e}")
+        return False
+
+
+def _run_avionio_comparison(trigger=""):
+    """Esegue il confronto SACBO vs Avionio. Ritorna (ok, msg)."""
+    try:
+        from bgy_tools.confronto_sacbo_avionio import run_confronto_summary
+        ok, msg = run_confronto_summary()
+        first = msg.split("\n")[0]
+        logger.info(f"{'✅' if ok else '⚠️'} Confronto Avionio [{trigger}]: {first}")
+        return ok, msg
+    except Exception as e:
+        logger.error(f"❌ Errore confronto Avionio: {e}")
+        return True, f"Errore confronto: {str(e)[:80]}"
+
+
+def _run_avionio_after_scan(trigger):
+    """Esegue Avionio scan + confronto dopo una scansione SACBO."""
+    cfg = _cfg_avionio()
+    if not cfg.get("enabled", True):
+        return
+    if not cfg.get("run_at_every_scan", True):
+        return
+
+    _run_avionio_scan()
+    _run_avionio_comparison(trigger=trigger)
+
+
+def cleanup_old_avionio(days=7):
+    """Rimuove i file Avionio più vecchi di N giorni."""
+    try:
+        from bgy_scanners.bgy_scanner_alt import cleanup_old_files
+        return cleanup_old_files(days=days)
+    except Exception as e:
+        logger.error(f"Errore cleanup Avionio: {e}")
+        return 0
+
+
+# -----------------------------------------------------------------------------
 # RECOVERY STATE
 # -----------------------------------------------------------------------------
 
@@ -160,7 +227,6 @@ def _save_recovery_state(state):
 
 
 def _cleanup_recovery_state(state):
-    """Rimuove slot tentati più vecchi di RECOVERY_MAX_AGE_DAYS giorni."""
     cutoff = (datetime.now() - timedelta(days=RECOVERY_MAX_AGE_DAYS)).strftime("%Y-%m-%d")
     attempted = state.get("attempted", [])
     state["attempted"] = [s for s in attempted if s[:10] >= cutoff]
@@ -172,19 +238,14 @@ def _cleanup_recovery_state(state):
 # -----------------------------------------------------------------------------
 
 def _all_scheduled_slots():
-    """
-    Ritorna la lista di tutti gli slot schedulati (diurni + notturni),
-    in formato "HH:MM". Ordine non garantito.
-    """
     config = config_manager.get_data_config()
-    slots = list(config.get("scan_schedules", ["00:00", "06:00", "12:00", "18:00"]))
+    slots = list(config.get("scan_schedules", ["02:00", "06:00", "10:00", "14:00", "18:00", "22:00"]))
     if config.get("sacbo_night_scan_enabled", True):
         slots += list(config.get("sacbo_night_scans", ["23:00", "02:00", "05:00"]))
     return slots
 
 
 def _parse_scan_filename_dt(filename):
-    """Estrae datetime da 'scan_YYYY-MM-DD_HH-MM.csv' o 'scan_YYYYMMDD_HHMM.csv'."""
     base = filename.replace(".csv", "")
     m = re.match(r'^scan_(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})$', base)
     if m:
@@ -209,7 +270,6 @@ def _parse_scan_filename_dt(filename):
 
 
 def _latest_scan_file_dt():
-    """Ritorna il datetime dello slot dell'ultima scansione (per nome file)."""
     if not os.path.isdir(RAW_DIR):
         return None
     candidates = []
@@ -223,7 +283,6 @@ def _latest_scan_file_dt():
 
 
 def _last_expected_scan_time(now):
-    """Ultimo slot di scansione schedulato già passato (anche ieri)."""
     slots = _all_scheduled_slots()
     today = now.date()
     yesterday = today - timedelta(days=1)
@@ -243,7 +302,6 @@ def _last_expected_scan_time(now):
 
 
 def _next_scheduled_scan_time(now):
-    """Prossimo slot di scansione schedulato dopo `now`."""
     slots = _all_scheduled_slots()
     candidates = []
     for sched in slots:
@@ -260,21 +318,14 @@ def _next_scheduled_scan_time(now):
 
 
 def _detect_missed_scan(now):
-    """
-    Ritorna la chiave slot ("YYYY-MM-DD HH:MM") della scansione mancata,
-    oppure None se non c'è nulla da recuperare.
-    """
     last_expected = _last_expected_scan_time(now)
     if not last_expected:
         return None
-
     last_actual = _latest_scan_file_dt()
     if last_actual is None:
         return last_expected.strftime("%Y-%m-%d %H:%M")
-
     if last_actual >= last_expected:
         return None
-
     return last_expected.strftime("%Y-%m-%d %H:%M")
 
 
@@ -283,18 +334,12 @@ def _detect_missed_scan(now):
 # -----------------------------------------------------------------------------
 
 def _recovery_tag(slot_key):
-    """Tag univoco per un job di recovery."""
     return f"recovery_{slot_key.replace(' ', '_').replace(':', '')}"
 
 
 def _schedule_recovery(slot_key):
-    """
-    Pianifica una scansione di recupero per lo slot dato.
-    Ritorna True se pianificato, False altrimenti.
-    """
     if not slot_key:
         return False
-
     state = _load_recovery_state()
     if slot_key in state.get("attempted", []):
         logger.info(f"⏭️ Recupero {slot_key} già tentato, skip")
@@ -326,7 +371,6 @@ def _schedule_recovery(slot_key):
 
 
 def _check_and_schedule_recovery(trigger="unknown"):
-    """Verifica se c'è una scansione mancante e pianifica il recupero."""
     now = datetime.now()
     missed_slot = _detect_missed_scan(now)
     if not missed_slot:
@@ -386,7 +430,7 @@ def _classifica_scansione(expected_time, scan_date, scheduler_start):
 
 def check_sacbo_acquisition(date_str):
     config = config_manager.get_data_config()
-    expected_times = config.get("scan_schedules", ["00:00", "06:00", "12:00", "18:00"])
+    expected_times = config.get("scan_schedules", ["02:00", "06:00", "10:00", "14:00", "18:00", "22:00"])
     scheduler_start = _get_scheduler_start_time(date_str)
     eseguite, saltate, mancanti = [], [], []
     for t in expected_times:
@@ -461,7 +505,6 @@ def check_night_acquisition(date_str):
 
 
 def check_scanner_day_status():
-    """Legge scanner_day_status.json e verifica l'esito dell'ultima scansione."""
     if not os.path.exists(SCANNER_STATUS_FILE):
         return True, "Nessuna scansione registrata"
 
@@ -493,7 +536,7 @@ def check_scanner_day_status():
     if not challenge:
         problemi.append("Challenge Cloudflare non superato")
     elif not clicked:
-        problemi.append("Tab 'Arrivi' non cliccabile (possibile modifica al sito SACBO)")
+        problemi.append("Tab 'Arrivi' non cliccabile")
     elif not changed:
         problemi.append("Click su 'Arrivi' eseguito ma contenuto non cambiato")
     if n_a == 0:
@@ -515,7 +558,6 @@ def check_scanner_day_status():
 # -----------------------------------------------------------------------------
 
 def _get_session_screenshots(session_date):
-    """Ritorna (dep_path, arr_path) per gli screenshot delle 23:00 della sessione."""
     if not os.path.isdir(SCREENSHOTS_DIR):
         return None, None
 
@@ -527,9 +569,7 @@ def _get_session_screenshots(session_date):
             date_variants.append(date_str.replace("-", ""))
         for dv in date_variants:
             for tm in [scan_time, scan_time.replace("-", "")]:
-                candidate = os.path.join(
-                    SCREENSHOTS_DIR, f"{prefix}_{dv}_{tm}.png"
-                )
+                candidate = os.path.join(SCREENSHOTS_DIR, f"{prefix}_{dv}_{tm}.png")
                 if os.path.exists(candidate):
                     return candidate
         return None
@@ -571,7 +611,6 @@ def _get_session_screenshots(session_date):
 
 
 def cleanup_old_screenshots(days=7):
-    """Rimuove gli screenshot più vecchi di N giorni."""
     if not os.path.isdir(SCREENSHOTS_DIR):
         return 0, 0
     cutoff = datetime.now() - timedelta(days=days)
@@ -601,7 +640,6 @@ def cleanup_old_screenshots(days=7):
 # -----------------------------------------------------------------------------
 
 def job_scan(slot=None):
-    """Scansione SACBO diurna. Pianifica recupero in caso di fallimento."""
     logger.info(f"📡 Avvio scansione SACBO diurna... (slot {slot})")
     success = False
     try:
@@ -612,6 +650,7 @@ def job_scan(slot=None):
 
     if success:
         logger.info(f"✅ Scansione diurna {slot} completata")
+        _run_avionio_after_scan(trigger=f"scan_{slot}")
     else:
         logger.warning(f"⚠️ Scansione diurna {slot} fallita, pianifico recupero")
         now = datetime.now()
@@ -620,7 +659,6 @@ def job_scan(slot=None):
 
 
 def job_sacbo_night_scan(slot=None):
-    """Scansione SACBO notturna. Pianifica recupero in caso di fallimento."""
     config = config_manager.get_data_config()
     if not config.get("sacbo_night_scan_enabled", True):
         logger.info("🌙 Scansioni SACBO notturne disabilitate")
@@ -636,6 +674,7 @@ def job_sacbo_night_scan(slot=None):
 
     if success:
         logger.info(f"✅ Scansione notturna {slot} completata")
+        _run_avionio_after_scan(trigger=f"night_{slot}")
     else:
         logger.warning(f"⚠️ Scansione notturna {slot} fallita, pianifico recupero")
         now = datetime.now()
@@ -645,7 +684,6 @@ def job_sacbo_night_scan(slot=None):
 
 
 def job_recovery_scan(slot_key=None):
-    """Esegue una scansione di recupero per lo slot mancato."""
     if not slot_key:
         logger.warning("⚠️ Recupero senza slot_key, abort")
         return
@@ -775,6 +813,24 @@ def job_daily():
         logger.error(f"❌ {sc_msg}")
 
     logger.info("-" * 60)
+    logger.info("🔍 Confronto incrociato Avionio...")
+    av_ok = True
+    av_msg = "Non tentato"
+    try:
+        av_cfg = _cfg_avionio()
+        if av_cfg.get("enabled", True):
+            _run_avionio_scan()
+            av_ok, av_msg = _run_avionio_comparison(trigger="daily")
+            first_line = av_msg.split(chr(10))[0]
+            logger.info(f"{'✅' if av_ok else '⚠️'} {first_line}")
+        else:
+            av_msg = "Avionio disabilitato in config"
+            logger.info(f"⏭️ {av_msg}")
+    except Exception as e:
+        av_msg = f"Errore confronto Avionio: {e}"
+        logger.error(f"❌ {av_msg}")
+
+    logger.info("-" * 60)
     logger.info("📊 Raccolta statistiche movimenti...")
     stats_data = {"daily": None, "nightly": None}
     try:
@@ -812,9 +868,13 @@ def job_daily():
         'quality_check': (qc_ok, qc_msg),
         'unresolved_airlines': (ua_ok, ua_msg),
         'scanner_day_status': (sc_ok, sc_msg),
+        'avionio_confronto': (av_ok, av_msg),
     }
 
-    overall_success = all(ok for ok, _ in checks.values())
+    overall_success = all(
+        ok for k, (ok, _) in checks.items()
+        if k not in WARNING_ONLY_CHECKS
+    )
 
     logger.info("-" * 60)
     logger.info(f"📋 ESITO COMPLESSIVO: {'✅ TUTTO OK' if overall_success else '❌ PROBLEMI RILEVATI'}")
@@ -830,6 +890,15 @@ def job_daily():
         logger.info(f"✅ Rimossi {n_rem} screenshot vecchi ({n_err} errori)")
     except Exception as e:
         logger.error(f"❌ Errore pulizia screenshot: {e}")
+
+    logger.info("🧹 Pulizia file Avionio vecchi (>7 giorni)...")
+    try:
+        av_cfg = _cfg_avionio()
+        days_ret = int(av_cfg.get("retention_days", 7))
+        n_av = cleanup_old_avionio(days=days_ret)
+        logger.info(f"✅ Rimossi {n_av} file Avionio vecchi")
+    except Exception as e:
+        logger.error(f"❌ Errore pulizia Avionio: {e}")
 
     if datetime.now().day == 1:
         logger.info("📈 Primo del mese: generazione report mensile...")
@@ -855,7 +924,7 @@ def setup_scheduler():
     logger.info("⏰ SCHEDULER BGY - CONFIGURAZIONE")
     logger.info("=" * 50)
 
-    for t in config.get("scan_schedules", ["00:00", "06:00", "12:00", "18:00"]):
+    for t in config.get("scan_schedules", ["02:00", "06:00", "10:00", "14:00", "18:00", "22:00"]):
         schedule.every().day.at(t).do(job_scan, slot=t)
         logger.info(f"📡 Scansione SACBO diurna alle {t}")
 
@@ -871,7 +940,7 @@ def setup_scheduler():
     report_time = config.get("daily_report_time", "06:30")
     schedule.every().day.at(report_time).do(job_daily)
     logger.info(f"📊 Report + sync + quality + compagnie + diagnostica "
-                f"+ screenshot + email alle {report_time}")
+                f"+ Avionio + screenshot + email alle {report_time}")
 
     logger.info("=" * 50)
     logger.info("✅ Scheduler configurato e in esecuzione...")
@@ -885,7 +954,6 @@ def run_scheduler_loop():
 
     setup_scheduler()
 
-    # Verifica scansioni mancate all'avvio
     try:
         _check_and_schedule_recovery("startup")
     except Exception as e:

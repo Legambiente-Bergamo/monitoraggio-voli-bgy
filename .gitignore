@@ -53,3 +53,6 @@ bgy_data/bgy_archive/
 
 # Screenshot del tabellone (generati automaticamente, non versionati)
 bgy_data/bgy_screenshots/
+
+# File Avionio (fonte alternativa, dati temporanei)
+bgy_data/bgy_avionio/
