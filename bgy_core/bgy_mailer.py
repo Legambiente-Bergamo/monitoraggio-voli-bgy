@@ -1,6 +1,10 @@
 """
 bgy_core/bgy_mailer.py - Modulo unificato di invio email.
-Versione 2.5.12
+Versione 2.5.13
+
+Novità v2.5.13 (distribuzione ritardi):
+- _format_delay_section() mostra la distribuzione dei voli in ritardo
+  per fasce: <5, 5-10, 10-15, 15-30, 30-60, >60 minuti.
 
 Novità v2.5.12 (check 11 servizio DB):
 - Aggiunto check 11 "Servizio Database" alla lista labels.
@@ -369,7 +373,7 @@ def _format_cat_line(cat_key, cat_label, cat_data):
 
 
 def _format_delay_section(delay, yesterday_str):
-    """Formatta la sezione puntualità + cancellati."""
+    """Formatta la sezione puntualità + cancellati + distribuzione fasce."""
     if not delay:
         return ""
 
@@ -395,6 +399,16 @@ def _format_delay_section(delay, yesterday_str):
     lines.append(f"   • In orario:       {in_oro:>3}")
     lines.append(f"   • In anticipo:     {in_ant:>3}")
     lines.append("")
+
+    # Distribuzione per fasce (Fase 2)
+    fasce = delay.get("fasce", {})
+    if fasce:
+        lines.append("   📊 Distribuzione per fascia di ritardo:")
+        for nome, count in fasce.items():
+            if count > 0:
+                barra = "█" * min(count, 30)
+                lines.append(f"     • {nome:<10} {count:>3}  {barra}")
+        lines.append("")
 
     if canc_count > 0:
         lines.append(f"❌ CANCELLATI: {canc_count}")

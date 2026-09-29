@@ -1,6 +1,6 @@
 """
 bgy_core/bgy_db_migrate.py - Import e sincronizzazione CSV -> PostgreSQL.
-Versione 2.6.6
+Versione 2.6.7
 
 Modulo unificato che contiene:
   - Funzioni di import per ogni tipo di file (scan, radar, meteo, nightly)
@@ -11,6 +11,10 @@ Modulo unificato che contiene:
   - Statistiche movimenti giornalieri e notturni (F18b + sconfinamenti)
   - Check compagnie placeholder irrisolte (F14)
   - Check anomalie notturne (v2.6.5)
+
+Novità v2.6.7 (distribuzione ritardi):
+- get_daily_delay_stats() ora ritorna anche la distribuzione dei voli
+  in ritardo per fasce: <5, 5-10, 10-15, 15-30, 30-60, >60 minuti.
 
 Novità v2.6.6 (statistiche puntualità):
 - Nuova funzione get_daily_delay_stats(date_str) che legge il CSV daily
@@ -1766,6 +1770,7 @@ def get_daily_delay_stats(date_str):
       - ritardo_medio (solo sui voli in ritardo)
       - ritardo_massimo (in minuti)
       - cancellati (lista di dict con callsign, compagnia, destinazione)
+      - fasce (distribuzione dei voli in ritardo per fascia)
 
     Ritorna:
       {
@@ -1777,6 +1782,10 @@ def get_daily_delay_stats(date_str):
         "ritardo_massimo": int,
         "cancellati": [{"callsign": ..., "compagnia": ..., "destinazione": ...}, ...],
         "cancellati_count": N,
+        "fasce": {
+          "< 5 min": N, "5-10 min": N, "10-15 min": N,
+          "15-30 min": N, "30-60 min": N, "> 60 min": N,
+        },
       }
     """
     empty = {
@@ -1844,6 +1853,32 @@ def get_daily_delay_stats(date_str):
     if len(in_ritardo) > 0:
         result["ritardo_medio"] = round(float(in_ritardo["_rit"].mean()), 1)
         result["ritardo_massimo"] = int(in_ritardo["_rit"].max())
+
+    # Distribuzione per fasce (Fase 2)
+    fasce = {
+        "< 5 min":   0,
+        "5-10 min":  0,
+        "10-15 min": 0,
+        "15-30 min": 0,
+        "30-60 min": 0,
+        "> 60 min":  0,
+    }
+    for _, r in in_ritardo.iterrows():
+        v = float(r["_rit"])
+        if v < 5:
+            fasce["< 5 min"] += 1
+        elif v < 10:
+            fasce["5-10 min"] += 1
+        elif v < 15:
+            fasce["10-15 min"] += 1
+        elif v < 30:
+            fasce["15-30 min"] += 1
+        elif v < 60:
+            fasce["30-60 min"] += 1
+        else:
+            fasce["> 60 min"] += 1
+
+    result["fasce"] = fasce
 
     return result
 # =============================================================================
