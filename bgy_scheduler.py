@@ -1,6 +1,6 @@
 ﻿"""
 bgy_scheduler.py - Pianificatore ed Orchestratore automatico.
-Versione 2.6.4
+Versione 2.6.5
 - Lock file per impedire doppio avvio
 - Radar notturno: SOLO tra le 23:00 e le 05:59
 - Sync DB: recupero automatico degli ultimi 8 giorni
@@ -11,6 +11,10 @@ Versione 2.6.4
 - Screenshot tabellone allegati all'email + rotazione 7 giorni (F14c)
 - Recupero automatico scansioni mancate (v2.6.2)
 - Confronto incrociato Avionio (v2.6.4)
+
+Novità v2.6.5 (statistiche puntualità):
+- Raccolta statistiche di puntualità via get_daily_delay_stats().
+- Passaggio a send_daily_status(stats={daily, nightly, delay}).
 
 Novità v2.6.4 (Avionio):
 - Esegue scanner Avionio + confronto dopo ogni scansione SACBO
@@ -832,14 +836,19 @@ def job_daily():
 
     logger.info("-" * 60)
     logger.info("📊 Raccolta statistiche movimenti...")
-    stats_data = {"daily": None, "nightly": None}
+    stats_data = {"daily": None, "nightly": None, "delay": None}
     try:
-        from bgy_core.bgy_db_migrate import get_daily_stats, get_nightly_stats
+        from bgy_core.bgy_db_migrate import (get_daily_stats, get_nightly_stats,
+                                              get_daily_delay_stats)
         stats_data["daily"] = get_daily_stats(yesterday)
         stats_data["nightly"] = get_nightly_stats(yesterday)
+        stats_data["delay"] = get_daily_delay_stats(yesterday)
+        d = stats_data["delay"]
         logger.info(f"✅ Statistiche raccolte: "
                     f"giorno={stats_data['daily']['totale']} mov, "
-                    f"notte={stats_data['nightly']['totale']} mov")
+                    f"notte={stats_data['nightly']['totale']} mov, "
+                    f"ritardi={d['in_ritardo']}, "
+                    f"cancellati={d['cancellati_count']}")
     except Exception as e:
         logger.error(f"❌ Errore raccolta statistiche: {e}")
 

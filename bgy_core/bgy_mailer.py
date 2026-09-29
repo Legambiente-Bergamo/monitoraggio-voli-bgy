@@ -1,6 +1,12 @@
 """
 bgy_core/bgy_mailer.py - Modulo unificato di invio email.
-Versione 2.5.10
+Versione 2.5.11
+
+Novità v2.5.11 (statistiche puntualità):
+- _format_stats_section() mostra, dopo i movimenti del giorno:
+    * Puntualità: voli in ritardo, ritardo medio, ritardo massimo
+    * Cancellati: elenco con callsign, compagnia, destinazione
+- I dati arrivano da stats["delay"] (dict opzionale).
 
 Novità v2.5.10 (Avionio check 10):
 - Aggiunto check 10 "Conferma incrociata Avionio".
@@ -358,11 +364,52 @@ def _format_cat_line(cat_key, cat_label, cat_data):
     return f"   {cat_label}: D={d:>3}  A={a:>3}  (tot {d + a})"
 
 
+def _format_delay_section(delay, yesterday_str):
+    """Formatta la sezione puntualità + cancellati."""
+    if not delay:
+        return ""
+
+    lines = []
+    totale = delay.get("totale_voli", 0)
+    if totale == 0:
+        return ""
+
+    in_rit = delay.get("in_ritardo", 0)
+    in_oro = delay.get("in_orario", 0)
+    in_ant = delay.get("in_anticipo", 0)
+    medio = delay.get("ritardo_medio", 0.0)
+    massimo = delay.get("ritardo_massimo", 0)
+    canc_count = delay.get("cancellati_count", 0)
+
+    pct = round(100.0 * in_rit / totale, 1) if totale > 0 else 0.0
+
+    lines.append(f"⏱️  PUNTUALITÀ ({yesterday_str})")
+    lines.append(f"   • Voli in ritardo: {in_rit:>3}  ({pct}%)")
+    if in_rit > 0:
+        lines.append(f"   • Ritardo medio:   {medio} min")
+        lines.append(f"   • Ritardo massimo: {massimo} min")
+    lines.append(f"   • In orario:       {in_oro:>3}")
+    lines.append(f"   • In anticipo:     {in_ant:>3}")
+    lines.append("")
+
+    if canc_count > 0:
+        lines.append(f"❌ CANCELLATI: {canc_count}")
+        for c in delay.get("cancellati", [])[:20]:
+            lines.append(f"   • {c.get('callsign', '?')} "
+                         f"({c.get('compagnia', '?')} -> {c.get('destinazione', '?')})")
+        if canc_count > 20:
+            lines.append(f"   ... e altri {canc_count - 20}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
 def _format_stats_section(stats, yesterday_str):
     lines = []
 
     daily = stats.get("daily") if stats else None
     nightly = stats.get("nightly") if stats else None
+    delay = stats.get("delay") if stats else None
 
     if daily:
         lines.append(f"📊 MOVIMENTI DEL GIORNO ({yesterday_str})")
@@ -370,6 +417,12 @@ def _format_stats_section(stats, yesterday_str):
         lines.append(f"   • Atterraggi: {daily.get('atterraggi', 0):>3}")
         lines.append(f"   • TOTALE:     {daily.get('totale', 0):>3}")
         lines.append("")
+
+    # Sezione puntualita + cancellati
+    if delay:
+        delay_text = _format_delay_section(delay, yesterday_str)
+        if delay_text:
+            lines.append(delay_text)
 
     if nightly:
         lines.append(f"🌙 MOVIMENTI DELLA NOTTE ({yesterday_str})")
@@ -388,7 +441,6 @@ def _format_stats_section(stats, yesterday_str):
         lines.append(f"   TOTALE NOTTE: {nightly.get('totale', 0)}")
         lines.append("")
 
-        # --- Sconfinamenti (normali) ---
         sconf = nightly.get("sconfinamenti", {})
         sconf_tot = sconf.get("totale", 0)
         if sconf_tot > 0:
@@ -404,12 +456,11 @@ def _format_stats_section(stats, yesterday_str):
             lines.append(f"   TOTALE SCONFINAMENTI: {sconf_tot}")
             lines.append("")
 
-        # --- Sconfinamenti gravi ---
         sconf_gravi = nightly.get("sconfinamenti_gravi", {})
         sconf_gravi_tot = sconf_gravi.get("totale", 0)
         if sconf_gravi_tot > 0:
             lines.append("🚨🚨 SCONFINAMENTI GRAVI")
-            lines.append("   (voli schedulati fuori fascia, ritardo ≥ 1h)")
+            lines.append("   (voli schedulati fuori fascia, ritardo >= 1h)")
             for cat_key, cat_label in (("passeggeri", "Passeggeri"),
                                         ("cargo", "Cargo"),
                                         ("charter", "Charter")):
@@ -420,7 +471,6 @@ def _format_stats_section(stats, yesterday_str):
             lines.append(f"   TOTALE GRAVI: {sconf_gravi_tot}")
             lines.append("")
 
-        # --- Anomalie notturne ---
         anomalie = nightly.get("anomalie", {})
         anom_tot = anomalie.get("totale", 0)
         if anom_tot > 0:

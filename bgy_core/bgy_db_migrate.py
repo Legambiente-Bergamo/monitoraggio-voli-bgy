@@ -1,6 +1,6 @@
 """
 bgy_core/bgy_db_migrate.py - Import e sincronizzazione CSV -> PostgreSQL.
-Versione 2.6.5
+Versione 2.6.6
 
 Modulo unificato che contiene:
   - Funzioni di import per ogni tipo di file (scan, radar, meteo, nightly)
@@ -11,6 +11,15 @@ Modulo unificato che contiene:
   - Statistiche movimenti giornalieri e notturni (F18b + sconfinamenti)
   - Check compagnie placeholder irrisolte (F14)
   - Check anomalie notturne (v2.6.5)
+
+Novità v2.6.6 (statistiche puntualità):
+- Nuova funzione get_daily_delay_stats(date_str) che legge il CSV daily
+  e ritorna statistiche di puntualità:
+    * voli in ritardo / in orario / in anticipo
+    * ritardo medio (sui ritardati)
+    * ritardo massimo
+    * elenco dei voli cancellati (callsign, compagnia, destinazione)
+- I cancellati sono esclusi dalle statistiche di ritardo.
 
 Novità v2.6.5 (anomalie + sconfinamenti gravi):
 - get_nightly_stats() ora separa:
@@ -43,6 +52,7 @@ import os
 import sys
 import re
 import csv
+import pandas as pd
 import argparse
 from datetime import datetime, timedelta
 from bgy_core.bgy_dates import parse_radar_filename
@@ -1741,7 +1751,101 @@ def check_unresolved_airlines(days_threshold=30, min_occorrenze=1):
         logger.error(f"Errore check_unresolved_airlines: {e}")
         return True, f"Errore verifica compagnie: {str(e)[:80]}"
 
+# =============================================================================
+# STATISTICHE DI PUNTUALITÀ (v2.6.6)
+# =============================================================================
 
+def get_daily_delay_stats(date_str):
+    """
+    Calcola le statistiche di puntualità sui voli del giorno.
+
+    Legge il CSV report_daily_YYYY-MM-DD.csv e calcola:
+      - voli_in_ritardo (minuti_ritardo > 0)
+      - voli_in_orario (minuti_ritardo == 0)
+      - voli_in_anticipo (minuti_ritardo < 0)
+      - ritardo_medio (solo sui voli in ritardo)
+      - ritardo_massimo (in minuti)
+      - cancellati (lista di dict con callsign, compagnia, destinazione)
+
+    Ritorna:
+      {
+        "totale_voli": N,
+        "in_ritardo": N,
+        "in_orario": N,
+        "in_anticipo": N,
+        "ritardo_medio": float,
+        "ritardo_massimo": int,
+        "cancellati": [{"callsign": ..., "compagnia": ..., "destinazione": ...}, ...],
+        "cancellati_count": N,
+      }
+    """
+    empty = {
+        "totale_voli": 0,
+        "in_ritardo": 0,
+        "in_orario": 0,
+        "in_anticipo": 0,
+        "ritardo_medio": 0.0,
+        "ritardo_massimo": 0,
+        "cancellati": [],
+        "cancellati_count": 0,
+    }
+
+    csv_path = os.path.join(OUTPUT_CSV_DIR, f"report_daily_{date_str}.csv")
+    if not os.path.exists(csv_path):
+        logger.warning(f"get_daily_delay_stats: file non trovato {csv_path}")
+        return empty
+
+    try:
+        df = pd.read_csv(csv_path)
+    except Exception as e:
+        logger.error(f"get_daily_delay_stats: errore lettura {csv_path}: {e}")
+        return empty
+
+    if df.empty:
+        return empty
+
+    result = dict(empty)
+    result["totale_voli"] = len(df)
+
+    # --- Cancellati (esclusi dalle statistiche di ritardo) ---
+    cancellati_mask = pd.Series(False, index=df.index)
+    if "stato_volo" in df.columns:
+        cancellati_mask = (
+            df["stato_volo"].astype(str).str.upper().str.contains("CANCEL", na=False)
+        )
+
+    cancellati_df = df[cancellati_mask]
+    result["cancellati_count"] = int(len(cancellati_df))
+    for _, row in cancellati_df.iterrows():
+        result["cancellati"].append({
+            "callsign": str(row.get("callsign_volo", "?")),
+            "compagnia": str(row.get("compagnia_aerea", "?")),
+            "destinazione": str(row.get("destinazione_origine", "?")),
+            "tipo": str(row.get("tipo_movimento", "?")),
+        })
+
+    # --- Voli validi (esclusi cancellati) per statistiche ritardo ---
+    validi = df[~cancellati_mask].copy()
+
+    if "minuti_ritardo" not in validi.columns:
+        return result
+
+    # Converti a numerico (NaN → 0)
+    validi["_rit"] = pd.to_numeric(validi["minuti_ritardo"], errors="coerce").fillna(0)
+
+    in_ritardo = validi[validi["_rit"] > 0]
+    in_orario = validi[validi["_rit"] == 0]
+    in_anticipo = validi[validi["_rit"] < 0]
+
+    result["in_ritardo"] = int(len(in_ritardo))
+    result["in_orario"] = int(len(in_orario))
+    result["in_anticipo"] = int(len(in_anticipo))
+
+    if len(in_ritardo) > 0:
+        result["ritardo_medio"] = round(float(in_ritardo["_rit"].mean()), 1)
+        result["ritardo_massimo"] = int(in_ritardo["_rit"].max())
+
+    return result
 # =============================================================================
 # MAIN
 # =============================================================================
