@@ -1,27 +1,21 @@
 """
 bgy_tools/confronto_sacbo_avionio.py - Confronto tra dati SACBO e Avionio.
-Versione 0.1.1
+Versione 0.1.2
 
 Scopo:
   - Confrontare i dati dello scanner SACBO con quelli di Avionio.
-  - Rilevare:
-      * Voli comuni (confermati da entrambe le fonti)
-      * Voli solo SACBO (che Avionio non vede)
-      * Voli solo Avionio (che SACBO non vede)
+  - Rilevare TUTTE le differenze (senza soglie):
+      * Voli solo Avionio (in SACBO non ci sono)
+      * Voli con orario diverso (> tolleranza)
   - Non modificare il report: solo diagnostica.
 
-Logica di matching:
-  - Callsign: confronto su "prefisso + cifre senza padding"
-    (es. 'FR 0460' == 'FR 460')
-  - Orario: match se differenza ≤ 15 minuti
+Novità v0.1.2:
+- Aggiunta funzione run_confronto_summary() per il check 10 del job_daily.
+- Ritorna (ok, msg) pronto per il rendering nell'email.
 
 Novità v0.1.1:
-- Avviso se lo scan SACBO è più vecchio di 2 ore (Avionio copre solo
-  le prossime 4-6h, quindi il confronto sarebbe distorto).
-- Metriche corrette: invece della fuorviante "% accordo totale",
-  mostra:
-    * "% Avionio confermato da SACBO" (metrica principale)
-    * "% SACBO confermato da Avionio" (metrica complementare)
+- Avviso se lo scan SACBO è più vecchio di 2 ore.
+- Metriche corrette (% Avionio confermato, % SACBO confermato).
 
 Uso:
     py -3.12 -m bgy_tools.confronto_sacbo_avionio
@@ -43,10 +37,7 @@ from bgy_core.bgy_paths import RAW_DIR
 
 logger = get_logger("Confronto")
 
-# Tolleranza match orario (minuti)
 TIME_TOLERANCE_MIN = 15
-
-# Soglia di avviso per scan troppo vecchio (minuti)
 SCAN_AGE_WARN_MIN = 120
 
 
@@ -55,23 +46,17 @@ SCAN_AGE_WARN_MIN = 120
 # -----------------------------------------------------------------------------
 
 def _normalize_callsign_key(callsign):
-    """
-    Crea una chiave di confronto robusta per il callsign.
-    Es. 'FR 0460' e 'FR 460' → 'FR_460'
-    """
+    """Chiave di confronto robusta: 'FR 0460' e 'FR 460' → 'FR_460'."""
     if not callsign or pd.isna(callsign):
         return ""
     s = str(callsign).strip().upper()
-    # Estrai prefisso (lettere/cifre non numeriche) e parte numerica
     m = re.match(r'^([A-Z][A-Z0-9]?[A-Z]?)\s*0*(\d+)$', s.replace(" ", ""))
     if m:
         return f"{m.group(1)}_{m.group(2)}"
-    # Fallback: rimuovi spazi
     return s.replace(" ", "")
 
 
 def _parse_time_to_min(hhmm):
-    """Converte 'HH:MM' in minuti dalla mezzanotte."""
     if not hhmm or pd.isna(hhmm):
         return None
     try:
@@ -82,13 +67,11 @@ def _parse_time_to_min(hhmm):
 
 
 def _times_match(t1, t2, tolerance=TIME_TOLERANCE_MIN):
-    """True se i due orari distano <= tolerance minuti."""
     m1 = _parse_time_to_min(t1)
     m2 = _parse_time_to_min(t2)
     if m1 is None or m2 is None:
         return False
     diff = abs(m1 - m2)
-    # Gestione passaggio mezzanotte
     if diff > 12 * 60:
         diff = 24 * 60 - diff
     return diff <= tolerance
@@ -99,7 +82,6 @@ def _times_match(t1, t2, tolerance=TIME_TOLERANCE_MIN):
 # -----------------------------------------------------------------------------
 
 def _find_latest_scan():
-    """Trova l'ultimo file scan_*.csv in RAW_DIR."""
     files = sorted(glob.glob(os.path.join(RAW_DIR, "scan_2026-*.csv")))
     if not files:
         return None
@@ -107,10 +89,6 @@ def _find_latest_scan():
 
 
 def _find_latest_avionio(movement_type):
-    """
-    Trova l'ultimo file avionio_*.csv per il tipo dato.
-    movement_type: 'arrivals' o 'departures'
-    """
     _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     avionio_dir = os.path.join(_PROJECT_ROOT, "bgy_data", "bgy_avionio")
     if not os.path.isdir(avionio_dir):
@@ -122,18 +100,12 @@ def _find_latest_avionio(movement_type):
 
 
 def _load_sacbo(scan_file=None):
-    """
-    Carica i voli SACBO dall'ultimo scan (o da file specificato).
-    Avvisa se lo scan è più vecchio di SCAN_AGE_WARN_MIN minuti.
-    """
     path = scan_file or _find_latest_scan()
     if not path or not os.path.exists(path):
         logger.error("❌ Nessun file scan SACBO trovato")
         return None, None
     try:
         df = pd.read_csv(path)
-
-        # Avviso se lo scan è più vecchio di 2 ore
         mtime = datetime.fromtimestamp(os.path.getmtime(path))
         age_min = (datetime.now() - mtime).total_seconds() / 60
         if age_min > SCAN_AGE_WARN_MIN:
@@ -143,7 +115,6 @@ def _load_sacbo(scan_file=None):
                 f"Considera di lanciare prima: "
                 f"py -3.12 -m bgy_scanners.bgy_scanner_day"
             )
-
         logger.info(f"📄 SACBO: {os.path.basename(path)} ({len(df)} voli)")
         return df, path
     except Exception as e:
@@ -152,7 +123,6 @@ def _load_sacbo(scan_file=None):
 
 
 def _load_avionio(movement_type):
-    """Carica l'ultimo file Avionio del tipo dato."""
     path = _find_latest_avionio(movement_type)
     if not path:
         logger.warning(f"⚠️  Nessun file Avionio per {movement_type}")
@@ -171,19 +141,6 @@ def _load_avionio(movement_type):
 # -----------------------------------------------------------------------------
 
 def confronta_direzionale(df_sacbo, df_avionio, tipo):
-    """
-    Confronta i voli di un tipo (D o A) tra SACBO e Avionio.
-
-    Ritorna dict:
-      {
-        "tipo": tipo,
-        "sacbo_count": N,
-        "avionio_count": M,
-        "comuni": [(callsign, sched_sacbo, sched_avionio, time_match), ...],
-        "solo_sacbo": [(callsign, sched), ...],
-        "solo_avionio": [(callsign, sched), ...],
-      }
-    """
     result = {
         "tipo": tipo,
         "sacbo_count": 0,
@@ -196,18 +153,15 @@ def confronta_direzionale(df_sacbo, df_avionio, tipo):
     if df_sacbo is None or df_avionio is None or df_sacbo.empty or df_avionio.empty:
         return result
 
-    # Filtra per tipo movimento
     s = df_sacbo[df_sacbo["tipo_movimento"].astype(str).str.upper() == tipo].copy()
     a = df_avionio[df_avionio["tipo_movimento"].astype(str).str.upper() == tipo].copy()
 
     result["sacbo_count"] = len(s)
     result["avionio_count"] = len(a)
 
-    # Chiave normalizzata
     s["_key"] = s["callsign_volo"].apply(_normalize_callsign_key)
     a["_key"] = a["callsign_volo"].apply(_normalize_callsign_key)
 
-    # Set di chiavi
     s_keys = set(s["_key"]) - {""}
     a_keys = set(a["_key"]) - {""}
 
@@ -215,7 +169,6 @@ def confronta_direzionale(df_sacbo, df_avionio, tipo):
     solo_sacbo_keys = s_keys - a_keys
     solo_avionio_keys = a_keys - s_keys
 
-    # Dettagli comuni (con verifica orario)
     for k in sorted(comuni_keys):
         s_row = s[s["_key"] == k].iloc[0]
         a_row = a[a["_key"] == k].iloc[0]
@@ -229,7 +182,6 @@ def confronta_direzionale(df_sacbo, df_avionio, tipo):
             "time_match": time_ok,
         })
 
-    # Solo SACBO
     for k in sorted(solo_sacbo_keys):
         s_row = s[s["_key"] == k].iloc[0]
         result["solo_sacbo"].append({
@@ -237,7 +189,6 @@ def confronta_direzionale(df_sacbo, df_avionio, tipo):
             "sched": str(s_row.get("orario_schedulato", "")),
         })
 
-    # Solo Avionio
     for k in sorted(solo_avionio_keys):
         a_row = a[a["_key"] == k].iloc[0]
         result["solo_avionio"].append({
@@ -249,10 +200,6 @@ def confronta_direzionale(df_sacbo, df_avionio, tipo):
 
 
 def format_report_text(confronti):
-    """
-    Formatta il risultato del confronto come testo multi-riga.
-    Ritorna (testo, summary_dict).
-    """
     lines = []
     lines.append("=" * 60)
     lines.append("CONFRONTO SACBO vs AVIONIO")
@@ -274,7 +221,6 @@ def format_report_text(confronti):
         lines.append(f"  Solo Avionio: {len(c['solo_avionio']):3d}")
         lines.append("")
 
-        # Comuni con mismatch orario
         mismatch = [x for x in c["comuni"] if not x["time_match"]]
         if mismatch:
             total_mismatch_time += len(mismatch)
@@ -305,7 +251,6 @@ def format_report_text(confronti):
         total_solo_sacbo += len(c["solo_sacbo"])
         total_solo_avionio += len(c["solo_avionio"])
 
-    # Riepilogo finale (metriche corrette)
     lines.append("=" * 60)
     lines.append("RIEPILOGO")
     lines.append("=" * 60)
@@ -317,7 +262,6 @@ def format_report_text(confronti):
         lines.append(f"  ⚠️  Mismatch orario:    {total_mismatch_time}")
     lines.append("")
 
-    # Metrica principale: % di voli Avionio confermati da SACBO
     totale_avionio = total_comuni + total_solo_avionio
     pct_avionio_confermato = 0.0
     if totale_avionio > 0:
@@ -325,7 +269,6 @@ def format_report_text(confronti):
         lines.append(f"  📊 Avionio confermato da SACBO: "
                      f"{total_comuni}/{totale_avionio} ({pct_avionio_confermato}%)")
 
-    # Metrica complementare: % di voli SACBO confermati da Avionio
     totale_sacbo = total_comuni + total_solo_sacbo
     pct_sacbo_confermato = 0.0
     if totale_sacbo > 0:
@@ -350,6 +293,73 @@ def format_report_text(confronti):
 
 
 # -----------------------------------------------------------------------------
+# FUNZIONE PER IL JOB GIORNALIERO (v0.1.2)
+# -----------------------------------------------------------------------------
+
+def run_confronto_summary(scan_file=None):
+    """
+    Esegue il confronto e ritorna un riepilogo per il check dell'email.
+
+    Ritorna (ok, msg):
+      - ok=True  se non ci sono incongruenze
+      - ok=False se ci sono incongruenze (warning, non errore)
+      - msg: messaggio multi-riga per l'email
+    """
+    try:
+        df_sacbo, sacbo_path = _load_sacbo(scan_file)
+        if df_sacbo is None:
+            return True, "⚠️ Nessuno scan SACBO disponibile"
+
+        arr_avionio, _ = _load_avionio("arrivals")
+        dep_avionio, _ = _load_avionio("departures")
+        if arr_avionio is None and dep_avionio is None:
+            return True, "⚠️ Nessun dato Avionio disponibile"
+
+        confronti = []
+        if dep_avionio is not None:
+            confronti.append(confronta_direzionale(df_sacbo, dep_avionio, "D"))
+        if arr_avionio is not None:
+            confronti.append(confronta_direzionale(df_sacbo, arr_avionio, "A"))
+
+        if not confronti:
+            return True, "⚠️ Nessun confronto possibile"
+
+        incongruenze = []
+        for c in confronti:
+            tipo_label = "D" if c["tipo"] == "D" else "A"
+            for x in c["solo_avionio"]:
+                incongruenze.append(
+                    f"{x['callsign']} @ {x['sched']} ({tipo_label}) - solo Avionio"
+                )
+            for x in c["comuni"]:
+                if not x["time_match"]:
+                    incongruenze.append(
+                        f"{x['callsign']} ({tipo_label}) - orario: "
+                        f"SACBO {x['sched_sacbo']} vs Avionio {x['sched_avionio']}"
+                    )
+
+        total_comuni = sum(len(c["comuni"]) for c in confronti)
+        total_avionio = sum(c["avionio_count"] for c in confronti)
+        pct = round(100 * total_comuni / total_avionio, 1) if total_avionio > 0 else 0.0
+
+        if not incongruenze:
+            msg = (f"✅ Nessuna incongruenza "
+                   f"({total_comuni} comuni, conferma {pct}%)")
+            return True, msg
+
+        lines = [f"⚠️ {len(incongruenze)} incongruenze rilevate:"]
+        for inc in incongruenze[:20]:
+            lines.append(f"   • {inc}")
+        if len(incongruenze) > 20:
+            lines.append(f"   ... e altre {len(incongruenze) - 20}")
+        return False, "\n".join(lines)
+
+    except Exception as e:
+        logger.error(f"Errore run_confronto_summary: {e}")
+        return True, f"Errore confronto: {str(e)[:80]}"
+
+
+# -----------------------------------------------------------------------------
 # MAIN
 # -----------------------------------------------------------------------------
 
@@ -359,16 +369,13 @@ def main():
                         help="Path specifico dello scan SACBO (default: ultimo)")
     args = parser.parse_args()
 
-    # Carica SACBO
     df_sacbo, sacbo_path = _load_sacbo(args.scan_file)
     if df_sacbo is None:
         sys.exit(1)
 
-    # Carica Avionio
     arr_avionio, _ = _load_avionio("arrivals")
     dep_avionio, _ = _load_avionio("departures")
 
-    # Confronta
     confronti = []
     if dep_avionio is not None:
         confronti.append(confronta_direzionale(df_sacbo, dep_avionio, "D"))
@@ -379,13 +386,11 @@ def main():
         logger.error("❌ Nessun confronto possibile (Avionio non disponibile)")
         sys.exit(1)
 
-    # Formatta e stampa
     text, summary = format_report_text(confronti)
     print()
     print(text)
     print()
 
-    # Salva report su file
     _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     report_dir = os.path.join(_PROJECT_ROOT, "bgy_data", "bgy_avionio")
     os.makedirs(report_dir, exist_ok=True)
@@ -400,7 +405,6 @@ def main():
     except Exception as e:
         logger.warning(f"Impossibile salvare report: {e}")
 
-    # Summary machine-readable (utile per future integrazioni)
     print()
     print("=" * 60)
     print("SUMMARY (machine-readable)")

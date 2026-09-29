@@ -1,13 +1,15 @@
 """
 bgy_core/bgy_mailer.py - Modulo unificato di invio email.
-Versione 2.5.9
+Versione 2.5.10
+
+Novità v2.5.10 (Avionio check 10):
+- Aggiunto check 10 "Conferma incrociata Avionio".
+- Il check 10 è "warning-only": se fallisce, l'email resta ✅ nell'oggetto
+  ma mostra il warning nel corpo.
+- Definite WARNING_ONLY_CHECKS per escludere questi check da all_ok.
 
 Novità v2.5.9 (sconfinamenti gravi + anomalie):
-- _format_stats_section() mostra tre sezioni:
-    * 🌙 MOVIMENTI DELLA NOTTE (regolari + totali)
-    * 🚨 SCONFINAMENTI (con separazione normale/grave)
-    * ⚠️ ANOMALIE NOTTURNE (con dettagli callsign + sched)
-- La struttura di nightly[] include ora 'sconfinamenti_gravi' e 'anomalie'.
+- _format_stats_section() mostra tre sezioni dedicate.
 
 Novità v2.5.8 (sconfinamenti):
 - _format_stats_section() mostra sezione 🚨 SCONFINAMENTI.
@@ -47,6 +49,9 @@ logger = get_logger("Mailer")
 
 COOLDOWN_FILE = os.path.join(LOGS_DIR, "notifier_cooldown.json")
 DEFAULT_COOLDOWN_MIN = 30
+
+# Check che non fanno diventare l'email ❌ se falliscono
+WARNING_ONLY_CHECKS = {'avionio_confronto'}
 
 
 # =============================================================================
@@ -345,7 +350,7 @@ def send_status_email(subject, body, is_success=True,
 # =============================================================================
 
 def _format_cat_line(cat_key, cat_label, cat_data):
-    """Riga singola categoria (es. 'Passeggeri: D=X A=Y (tot N)')."""
+    """Riga singola categoria."""
     d = cat_data.get("decolli", 0)
     a = cat_data.get("atterraggi", 0)
     if d == 0 and a == 0:
@@ -354,14 +359,6 @@ def _format_cat_line(cat_key, cat_label, cat_data):
 
 
 def _format_stats_section(stats, yesterday_str):
-    """
-    Formatta la sezione statistiche movimenti per il corpo email.
-
-    Struttura `stats`:
-      - daily  : {decolli, atterraggi, totale}
-      - nightly: {passeggeri, cargo, charter, regolari,
-                  sconfinamenti, sconfinamenti_gravi, anomalie, totale}
-    """
     lines = []
 
     daily = stats.get("daily") if stats else None
@@ -407,7 +404,7 @@ def _format_stats_section(stats, yesterday_str):
             lines.append(f"   TOTALE SCONFINAMENTI: {sconf_tot}")
             lines.append("")
 
-        # --- Sconfinamenti gravi (>= 1h) ---
+        # --- Sconfinamenti gravi ---
         sconf_gravi = nightly.get("sconfinamenti_gravi", {})
         sconf_gravi_tot = sconf_gravi.get("totale", 0)
         if sconf_gravi_tot > 0:
@@ -452,7 +449,10 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
         return True
 
     if checks:
-        all_ok = all(ok for ok, _ in checks.values())
+        all_ok = all(
+            ok for k, (ok, _) in checks.items()
+            if k not in WARNING_ONLY_CHECKS
+        )
     else:
         all_ok = success
 
@@ -480,17 +480,23 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
             ('quality_check', '7) Verifica qualità dati'),
             ('unresolved_airlines', '8) Compagnie da risolvere'),
             ('scanner_day_status', '9) Diagnostica scanner diurno'),
+            ('avionio_confronto', '10) Conferma incrociata Avionio'),
         ]
         for key, label in labels:
             if key in checks:
                 ok, msg = checks[key]
                 icon = '✅' if ok else '❌'
                 stato = 'OK' if ok else 'KO'
+                # Warning-only: icona ⚠️ invece di ❌
+                if key in WARNING_ONLY_CHECKS and not ok:
+                    icon = '⚠️'
+                    stato = 'WARN'
                 parts.append(f"{icon} {label}: {stato}")
                 if msg:
                     if key == 'quality_check':
                         parts.append(msg)
-                    elif key in ('unresolved_airlines', 'scanner_day_status'):
+                    elif key in ('unresolved_airlines', 'scanner_day_status',
+                                 'avionio_confronto'):
                         for line in msg.split('\n'):
                             parts.append(f"   {line}")
                     else:
@@ -517,7 +523,8 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
             not checks['github_sync'][0] and
             all(ok for k, (ok, _) in checks.items()
                 if k not in ('github_sync', 'quality_check',
-                             'unresolved_airlines', 'scanner_day_status'))
+                             'unresolved_airlines', 'scanner_day_status',
+                             'avionio_confronto'))
         )
         if not only_sync_error:
             log_path = _get_today_log_path()
