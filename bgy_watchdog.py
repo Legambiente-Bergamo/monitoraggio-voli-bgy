@@ -1,21 +1,27 @@
 """
 bgy_watchdog.py - Watchdog per il controllo anomalie BGY Monitoring Suite.
-Versione 2.5.4
+Versione 2.5.5
 - Doppio check prima di riavviare lo scheduler (evita falsi positivi)
 - Messaggi di alert letti da bgy_config/config_alert_messages.json
 
+Novità v2.5.5 (fix falsi positivi SACBO stale):
+- check_sacbo() riscritto: ora tiene conto degli orari di scansione
+  attesi (da config_data.json → scan_schedules) e dell'orario di avvio
+  dello scheduler.
+- Non allarma più se l'ultima scansione è precedente alla soglia ma:
+  * il sistema è stato avviato DOPO la scansione attesa (scansione saltata
+    per sistema spento), oppure
+  * l'ultima scansione è successiva all'ultimo orario atteso (nessuna
+    scansione mancante).
+- Aggiunte funzioni _last_expected_scan_time() e _get_scheduler_start_time()
+  per supportare la nuova logica.
+
 Fix v2.5.4:
 - check_radar(): grace period di 30 minuti dall'inizio della sessione notturna.
-  Prima alle 23:00 scattava subito l'allarme "radar_missing" perché il file
-  non era ancora stato creato (viene creato alla prima rilevazione, non
-  all'inizio della fascia).
-- check_radar(): l'alert "radar_stale_scanner_ok" (radar fermo ma scanner
-  attivo) non invia più email ma solo log. È un caso normale (nessun aereo
-  nell'area). Il caso "radar_stale" (scanner inattivo) continua a inviare email.
+- check_radar(): l'alert "radar_stale_scanner_ok" non invia più email.
 
 Fix v2.5.3:
-- check_opensky(): filtra le righe di [Watchdog] e [Mailer] per evitare
-  l'auto-conteggio degli errori 429.
+- check_opensky(): filtra le righe di [Watchdog] e [Mailer].
 """
 import os
 import sys
@@ -44,6 +50,9 @@ SCHEDULER_DOUBLE_CHECK_DELAY_SEC = 3
 # Grace period (minuti) dall'inizio della sessione notturna durante il quale
 # non si allarma se il file radar non esiste ancora.
 RADAR_MISSING_GRACE_MIN = 30
+
+# Orari di scansione di default (usati se config_data.json non li definisce)
+DEFAULT_SCAN_SCHEDULES = ["00:00", "06:00", "12:00", "18:00"]
 
 
 def _cfg():
@@ -109,15 +118,104 @@ def _save_state(state):
 
 
 # =============================================================================
+# UTILITY - SCHEDULER START TIME E SCANSIONI ATTESE
+# =============================================================================
+
+def _get_scheduler_start_time(now):
+    """
+    Ritorna il datetime dell'ULTIMO avvio dello scheduler trovato nei log
+    recenti (fino a 8 giorni indietro). None se non trovato.
+    """
+    for days_back in range(0, 8):
+        check_date = (now - timedelta(days=days_back)).strftime("%Y-%m-%d")
+        log_file = os.path.join(LOGS_DIR, f"bgy_app_{check_date}.log")
+        if not os.path.exists(log_file):
+            continue
+        try:
+            last_ts = None
+            with open(log_file, "r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    if "SCHEDULER BGY - CONFIGURAZIONE" in line:
+                        ts_str = line.split(" - ")[0].strip()
+                        try:
+                            dt = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S,%f")
+                            if last_ts is None or dt > last_ts:
+                                last_ts = dt
+                        except Exception:
+                            continue
+            if last_ts is not None:
+                return last_ts
+        except Exception:
+            continue
+    return None
+
+
+def _last_expected_scan_time(now, scan_schedules):
+    """
+    Ritorna il datetime dell'ultima scansione schedulata già passata
+    rispetto a `now`. Se oggi non è ancora passato nessun orario,
+    ritorna l'ultimo orario schedulato di ieri.
+    """
+    today = now.date()
+    candidates_today = []
+    for sched in scan_schedules:
+        try:
+            hh, mm = map(int, sched.split(":"))
+            dt = datetime.combine(
+                today, datetime.min.time().replace(hour=hh, minute=mm)
+            )
+            if dt <= now:
+                candidates_today.append(dt)
+        except Exception:
+            continue
+    if candidates_today:
+        return max(candidates_today)
+
+    # Nessun orario passato oggi: prendi l'ultimo di ieri
+    yesterday = today - timedelta(days=1)
+    latest_yesterday = None
+    for sched in scan_schedules:
+        try:
+            hh, mm = map(int, sched.split(":"))
+            dt = datetime.combine(
+                yesterday, datetime.min.time().replace(hour=hh, minute=mm)
+            )
+            if latest_yesterday is None or dt > latest_yesterday:
+                latest_yesterday = dt
+        except Exception:
+            continue
+    return latest_yesterday
+
+
+# =============================================================================
 # CHECK 1 - SACBO
 # =============================================================================
 
 def check_sacbo():
+    """
+    Verifica che lo scanner diurno stia girando regolarmente.
+
+    Logica (v2.5.5):
+      1. Trova l'ultima scansione (file scan_*.csv più recente).
+      2. Se l'età è sotto soglia → OK.
+      3. Se l'età è sopra soglia, ma l'ultima scansione è successiva
+         all'ultimo orario schedulato atteso → OK (il sistema non ha
+         ancora avuto occasione di scansionare).
+      4. Se c'è una scansione mancante, verifica se era precedente
+         all'avvio dello scheduler:
+         - Se sì → OK (scansione saltata perché sistema spento).
+         - Se no → ALLARME (scanner probabilmente bloccato).
+    """
     cfg = _cfg()
     max_age = cfg.get("sacbo_max_age_hours", 7)
+
+    data_cfg = config_manager.get_data_config()
+    scan_schedules = data_cfg.get("scan_schedules", DEFAULT_SCAN_SCHEDULES)
+
     try:
         if not os.path.isdir(RAW_DIR):
             return False, f"Cartella RAW non trovata: {RAW_DIR}"
+
         scan_files = [
             os.path.join(RAW_DIR, f)
             for f in os.listdir(RAW_DIR)
@@ -127,10 +225,23 @@ def check_sacbo():
             msg = "Nessuna scansione SACBO trovata in RAW"
             _send_alert("sacbo_missing")
             return False, msg
+
         latest = max(scan_files, key=os.path.getmtime)
         latest_dt = datetime.fromtimestamp(os.path.getmtime(latest))
         age_hours = (datetime.now() - latest_dt).total_seconds() / 3600
-        if age_hours > max_age:
+
+        # --- Caso 1: scansione recente, tutto OK ---
+        if age_hours <= max_age:
+            msg = (f"Ultima scansione: {os.path.basename(latest)} "
+                   f"({age_hours:.1f}h fa)")
+            return True, msg
+
+        # --- Caso 2: età > soglia. Verifica se è un problema reale ---
+        now = datetime.now()
+        last_expected = _last_expected_scan_time(now, scan_schedules)
+
+        if last_expected is None:
+            # Nessun orario schedulato definito: comportamento di fallback
             msg = (f"Ultima scansione SACBO: {os.path.basename(latest)} "
                    f"({age_hours:.1f}h fa)")
             _send_alert("sacbo_stale",
@@ -138,9 +249,34 @@ def check_sacbo():
                         eta_ore=f"{age_hours:.1f}",
                         soglia_ore=max_age)
             return False, msg
-        msg = (f"Ultima scansione: {os.path.basename(latest)} "
-               f"({age_hours:.1f}h fa)")
-        return True, msg
+
+        # Se l'ultima scansione è successiva all'ultimo atteso → OK
+        # (nessuna scansione mancante)
+        if latest_dt >= last_expected:
+            msg = (f"Ultima scansione: {os.path.basename(latest)} "
+                   f"({age_hours:.1f}h fa, entro il ciclo atteso)")
+            return True, msg
+
+        # Altrimenti c'è almeno una scansione mancante.
+        # Verifica se era precedente all'avvio dello scheduler.
+        scheduler_start = _get_scheduler_start_time(now)
+
+        if scheduler_start is not None and last_expected < scheduler_start:
+            # La scansione mancante era prima dell'avvio: saltata, non è colpa dello scanner
+            msg = (f"Scansione {last_expected.strftime('%H:%M')} saltata "
+                   f"(sistema avviato alle {scheduler_start.strftime('%H:%M')})")
+            return True, msg
+
+        # Altrimenti: vera anomalia
+        msg = (f"Ultima scansione SACBO: {os.path.basename(latest)} "
+               f"({age_hours:.1f}h fa). "
+               f"Scansione attesa {last_expected.strftime('%H:%M')} mancante")
+        _send_alert("sacbo_stale",
+                    ultimo_file=os.path.basename(latest),
+                    eta_ore=f"{age_hours:.1f}",
+                    soglia_ore=max_age)
+        return False, msg
+
     except Exception as e:
         return False, f"Errore check SACBO: {e}"
 
@@ -150,17 +286,12 @@ def check_sacbo():
 # =============================================================================
 
 def _minutes_since_night_start(now):
-    """
-    Ritorna i minuti trascorsi dall'inizio della sessione notturna corrente.
-    Se non siamo in fascia notturna, ritorna None.
-    """
+    """Ritorna i minuti trascorsi dall'inizio della sessione notturna corrente."""
     if not is_night_time(now):
         return None
-    # La sessione inizia alle 23:00
     if now.hour >= 23:
         night_start = now.replace(hour=23, minute=0, second=0, microsecond=0)
     else:
-        # Siamo dopo mezzanotte: la sessione è iniziata ieri alle 23:00
         night_start = (now - timedelta(days=1)).replace(
             hour=23, minute=0, second=0, microsecond=0)
     return int((now - night_start).total_seconds() / 60)
@@ -188,8 +319,6 @@ def check_radar():
 
         # ---- File radar mancante ----
         if not radar_file:
-            # Grace period a inizio sessione: il file viene creato solo alla
-            # prima rilevazione, non all'inizio della fascia.
             minuti_da_inizio = _minutes_since_night_start(now)
             if minuti_da_inizio is not None and minuti_da_inizio < RADAR_MISSING_GRACE_MIN:
                 return True, (f"Radar non ancora creato "
@@ -209,9 +338,7 @@ def check_radar():
         if elapsed_min <= radar_stale:
             return True, f"Radar aggiornato {int(elapsed_min)} min fa"
 
-        # Radar fermo: verifica se lo scanner è attivo
         if _scanner_night_is_active(now, log_window):
-            # Caso normale: nessun aereo nell'area. Log ma NIENTE email.
             logger.info(
                 f"ℹ️  Radar fermo da {int(elapsed_min)} min ma scanner attivo "
                 f"(nessun aereo nell'area) — nessuna notifica inviata"
@@ -219,7 +346,6 @@ def check_radar():
             return True, (f"Radar fermo da {int(elapsed_min)} min "
                           f"ma scanner attivo (nessun aereo nell'area)")
 
-        # Scanner NON attivo → vero problema, manda email
         msg = (f"Radar fermo da {int(elapsed_min)} min e scanner non attivo")
         _send_alert("radar_stale",
                     minuti_fermo=int(elapsed_min),
