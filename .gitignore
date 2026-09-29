@@ -56,3 +56,11 @@ bgy_data/bgy_screenshots/
 
 # File Avionio (fonte alternativa, dati temporanei)
 bgy_data/bgy_avionio/
+
+# File di sviluppo (patch temporanee, script di debug)
+patch_*.py
+fix_*.py
+test_*.py
+analisi_*.py
+check_*.py
+dev_*.py
