@@ -1,21 +1,25 @@
 """
 bgy_core/bgy_mailer.py - Modulo unificato di invio email.
-Versione 2.5.8
+Versione 2.5.9
+
+Novità v2.5.9 (sconfinamenti gravi + anomalie):
+- _format_stats_section() mostra tre sezioni:
+    * 🌙 MOVIMENTI DELLA NOTTE (regolari + totali)
+    * 🚨 SCONFINAMENTI (con separazione normale/grave)
+    * ⚠️ ANOMALIE NOTTURNE (con dettagli callsign + sched)
+- La struttura di nightly[] include ora 'sconfinamenti_gravi' e 'anomalie'.
 
 Novità v2.5.8 (sconfinamenti):
-- _format_stats_section() mostra una sezione dedicata "SCONFINAMENTI"
-  con i voli diurni ritardati che operano in fascia notturna.
-- La struttura di nightly[] è stata estesa con regolari/sconfinamenti.
+- _format_stats_section() mostra sezione 🚨 SCONFINAMENTI.
 
 Novità v2.5.7 (F14c):
-- send_daily_status() accetta parametro `screenshot_paths` con i path
-  degli screenshot del tabellone SACBO (Partenze + Arrivi) da allegare.
+- send_daily_status() accetta parametro `screenshot_paths`.
 
 Novità v2.5.6 (F14b):
-- send_daily_status() mostra anche il check 9 "Diagnostica scanner diurno".
+- send_daily_status() mostra anche il check 9.
 
 Novità v2.5.5 (F14):
-- send_daily_status() mostra anche il check 8 "Compagnie da risolvere".
+- send_daily_status() mostra anche il check 8.
 
 Novità v2.5.4:
 - send_daily_status() accetta parametro `stats`.
@@ -337,18 +341,26 @@ def send_status_email(subject, body, is_success=True,
 
 
 # =============================================================================
-# FORMATTAZIONE STATISTICHE (F18b + sconfinamenti v2.5.8)
+# FORMATTAZIONE STATISTICHE (v2.5.9)
 # =============================================================================
+
+def _format_cat_line(cat_key, cat_label, cat_data):
+    """Riga singola categoria (es. 'Passeggeri: D=X A=Y (tot N)')."""
+    d = cat_data.get("decolli", 0)
+    a = cat_data.get("atterraggi", 0)
+    if d == 0 and a == 0:
+        return None
+    return f"   {cat_label}: D={d:>3}  A={a:>3}  (tot {d + a})"
+
 
 def _format_stats_section(stats, yesterday_str):
     """
     Formatta la sezione statistiche movimenti per il corpo email.
 
     Struttura `stats`:
-      - daily   : {decolli, atterraggi, totale}
-      - nightly : {passeggeri, cargo, charter, regolari, sconfinamenti, totale}
-
-    Novità v2.5.8: sezione SCONFINAMENTI separata.
+      - daily  : {decolli, atterraggi, totale}
+      - nightly: {passeggeri, cargo, charter, regolari,
+                  sconfinamenti, sconfinamenti_gravi, anomalie, totale}
     """
     lines = []
 
@@ -379,23 +391,55 @@ def _format_stats_section(stats, yesterday_str):
         lines.append(f"   TOTALE NOTTE: {nightly.get('totale', 0)}")
         lines.append("")
 
-        # --- Sezione sconfinamenti (v2.5.8) ---
+        # --- Sconfinamenti (normali) ---
         sconf = nightly.get("sconfinamenti", {})
         sconf_tot = sconf.get("totale", 0)
         if sconf_tot > 0:
             lines.append("🚨 SCONFINAMENTI")
-            lines.append("   (voli schedulati fuori fascia che operano di notte)")
+            lines.append("   (voli schedulati fuori fascia, ritardo < 1h)")
             for cat_key, cat_label in (("passeggeri", "Passeggeri"),
                                         ("cargo", "Cargo"),
                                         ("charter", "Charter")):
-                cat = sconf.get(cat_key, {})
-                d = cat.get("decolli", 0)
-                a = cat.get("atterraggi", 0)
-                if d == 0 and a == 0:
-                    continue
-                lines.append(f"   {cat_label}: D={d:>3}  A={a:>3}  (tot {d + a})")
+                line = _format_cat_line(cat_key, cat_label, sconf.get(cat_key, {}))
+                if line:
+                    lines.append(line)
             lines.append(f"   ─────────────────────")
             lines.append(f"   TOTALE SCONFINAMENTI: {sconf_tot}")
+            lines.append("")
+
+        # --- Sconfinamenti gravi (>= 1h) ---
+        sconf_gravi = nightly.get("sconfinamenti_gravi", {})
+        sconf_gravi_tot = sconf_gravi.get("totale", 0)
+        if sconf_gravi_tot > 0:
+            lines.append("🚨🚨 SCONFINAMENTI GRAVI")
+            lines.append("   (voli schedulati fuori fascia, ritardo ≥ 1h)")
+            for cat_key, cat_label in (("passeggeri", "Passeggeri"),
+                                        ("cargo", "Cargo"),
+                                        ("charter", "Charter")):
+                line = _format_cat_line(cat_key, cat_label, sconf_gravi.get(cat_key, {}))
+                if line:
+                    lines.append(line)
+            lines.append(f"   ─────────────────────")
+            lines.append(f"   TOTALE GRAVI: {sconf_gravi_tot}")
+            lines.append("")
+
+        # --- Anomalie notturne ---
+        anomalie = nightly.get("anomalie", {})
+        anom_tot = anomalie.get("totale", 0)
+        if anom_tot > 0:
+            lines.append("⚠️  ANOMALIE NOTTURNE")
+            lines.append("   (voli a tabellone 3+ ore dopo lo sched)")
+            dettagli = anomalie.get("dettagli", [])
+            for d in dettagli[:10]:
+                lines.append(
+                    f"   • {d.get('callsign', '?')} "
+                    f"({d.get('direzione_sacbo', '?')}) "
+                    f"sched={d.get('orario_schedulato', '?')}"
+                )
+            if len(dettagli) > 10:
+                lines.append(f"   ... e altre {len(dettagli) - 10} anomalie")
+            lines.append(f"   ─────────────────────")
+            lines.append(f"   TOTALE ANOMALIE: {anom_tot}")
             lines.append("")
 
     return "\n".join(lines)

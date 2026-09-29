@@ -1,6 +1,6 @@
 """
 bgy_reports/bgy_report_night.py - Report notturno integrato (SACBO + OpenSky).
-Versione 2.8.8
+Versione 2.8.10
 
 Modello logico:
 - Il TABELLONE SACBO è la fonte primaria per i voli PASSEGGERI.
@@ -13,39 +13,57 @@ Categorie finali:
   4. Passeggeri (radar) — radar + compagnia di linea fuori tabellone
   5. Non identificato  — radar + callsign ignoto
 
+Categorie notte (colonna notte_categoria):
+  - 'regolare'              : orario_schedulato in fascia 23:00-05:59
+  - 'sconfinamento'         : schedulato fuori fascia, operante in fascia,
+                              con ritardo < 60 min (slittamento serale)
+  - 'sconfinamento_grave'   : schedulato fuori fascia, operante in fascia,
+                              con ritardo >= 60 min (slittamento grave)
+  - 'anomalia'              : stato "a terra" al baseline ma ancora presente
+                              a 02:00 o 05:00 (problema operativo)
+  - ''                      : voli radar non matchati
+
 Visibilità:
-  - Visibili di default: Passeggeri, Cargo, Charter
+  - Visibili di default: Passeggeri, Cargo, Charter (di cui 'regolare',
+    'sconfinamento', 'sconfinamento_grave', 'anomalia')
   - Opt-in (checkbox GUI): Passeggeri (radar), Non identificato
 
-Novità v2.8.8 (sconfinamenti, logica baseline 23:00):
-- Nuova logica di classificazione dei voli sconfinamento basata sulla
-  scansione delle 23:00 come baseline:
-    1. Se orario_schedulato in fascia 23:00-05:59 → 'regolare'
-    2. Altrimenti, guarda la STIMA nella scansione 23:00:
-       a. Fuori fascia → escludi (non è sconfinamento)
-       b. In fascia 23:01-05:59 → candidato
-    3. Verifica le scansioni successive (00:00, 02:00, 05:00):
-       - Se compare 'CANCELLATO' → escludi
-       - Se riappare con STIMA fuori fascia (ritardo rientrato) → escludi
-       - Altrimenti → 'sconfinamento' confermato
-- Fix del bug FR 3530 (STIMA 01:40 solo a mezzanotte, baseline 07:55).
-- Il CSV finale ha una colonna notte_categoria ('regolare' | 'sconfinamento').
+Novità v2.8.10 (sconfinamento grave ≥ 1h):
+- Aggiunta categoria 'sconfinamento_grave' per voli con ritardo >= 60 min.
+- Il ritardo è calcolato in modo diverso in base ai dati disponibili:
+    * Criterio A: delay = stima_sacbo - sched (esatto)
+    * Criterio B con radar: delay = timestamp_radar - sched (esatto)
+    * Criterio B senza radar: delay_lower_bound = 23:00 - sched
+      (minimo noto, il volo era ancora a terra alle 23:00)
+- Nel dubbio (delay_lower_bound < 60 ma ritardo reale ignoto) → non grave.
+- Aggiornato il messaggio finale: "sconfinamenti N (di cui M gravi)".
+- Log diagnostico: per ogni sconfinamento da Criterio B, indica se
+  confermato da radar e il delay calcolato.
 
-Novità v2.8.7 (sconfinamenti, prima iterazione):
-- Aggiunta colonna notte_categoria.
-- Filtro iniziale con check su orario_effettivo.
+Novità v2.8.9 (criterio B + anomalie):
+- Criterio B: voli con stato "a terra" (IMBARCO, IN RITARDO) al baseline
+  che SPARISCONO dalle scansioni successive.
+- Categoria 'anomalia': voli ancora a tabellone a 02:00 o 05:00.
+- Radar come conferma per gli sconfinamenti da Criterio B.
+
+Novità v2.8.8:
+- Fix bug FR 3530 (STIMA transitoria a mezzanotte).
+- Deduplica prima della classificazione (baseline 23:00).
+
+Novità v2.8.7:
+- Colonna notte_categoria ('regolare' | 'sconfinamento').
 
 Novità v2.8.6:
 - Caricamento scansioni SACBO del giorno successivo (00:00-05:59).
-- Reintrodotto import timedelta.
 
 Novità v2.8.5:
-- Aggiunta colonna direzione_sacbo (D/A).
+- Colonna direzione_sacbo (D/A).
 
 Novità v2.8.3:
 - PAX e rumore calcolati solo sui Visibili.
 """
 import os
+import re
 import math
 from collections import defaultdict
 import pandas as pd
@@ -83,11 +101,15 @@ NIGHT_END_HOUR = 6
 SCONFINAMENTO_START_MIN = 23 * 60 + 1
 SCONFINAMENTO_END_MIN = 6 * 60
 
-# Scansioni della sessione notturna, in ordine cronologico.
-# Le scansioni di mezzanotte (00:00, 00:01) sono escluse dalla logica di
-# classificazione perché possono contenere STIME transitorie errate.
+# Soglia per "sconfinamento grave" (ritardo >= 60 min)
+SCONFINAMENTO_GRAVE_MIN = 60
+
 SESSION_SCAN_TIMES = ['23-00', '00-00', '00-01', '02-00', '05-00', '06-00']
 MEZZANOTTE_SCANS = {'00-00', '00-01'}
+SCANSIONE_ANOMALIA = {'02-00', '05-00'}
+
+STATI_A_TERRA = ('IMBARCO', 'IN RITARDO')
+STATI_OPERATI = ('DECOLLATO', 'ATTERRATO', 'ARRIVATO', 'IN VOLO', 'PARTITO')
 
 
 def _cfg():
@@ -153,6 +175,22 @@ def _time_to_minutes(hhmm):
         return None
 
 
+def _minutes_since_sched(sched, effective):
+    """
+    Calcola i minuti tra sched e effective, gestendo il passaggio mezzanotte.
+    Es. sched 22:20, effective 00:15 → 115 min.
+    Ritorna None se uno dei due è invalido.
+    """
+    sched_min = _time_to_minutes(sched)
+    eff_min = _time_to_minutes(effective)
+    if sched_min is None or eff_min is None:
+        return None
+    # Se effective è prima di sched, ha superato mezzanotte
+    if eff_min < sched_min:
+        eff_min += 24 * 60
+    return eff_min - sched_min
+
+
 def _timestamp_to_minutes_session(ts, session_date):
     if not ts:
         return None
@@ -205,7 +243,6 @@ def _is_in_sconfinamento_effective(hhmm):
 
 
 def _extract_scan_time(filename):
-    """Estrae 'HH-MM' dal nome file scan_YYYY-MM-DD_HH-MM.csv."""
     try:
         base = filename.replace(".csv", "")
         parts = base.split("_")
@@ -213,7 +250,6 @@ def _extract_scan_time(filename):
             scan_time = parts[2]
             if "-" in scan_time:
                 return scan_time
-            # Formato vecchio: HHMM senza trattino
             if len(scan_time) == 4:
                 return f"{scan_time[:2]}-{scan_time[2:]}"
     except Exception:
@@ -222,16 +258,6 @@ def _extract_scan_time(filename):
 
 
 def _scan_time_to_order(scan_time):
-    """
-    Converte 'HH-MM' in un intero per ordinamento cronologico della sessione
-    notturna (che inizia alle 23:00 del giorno X).
-      23:00 → 0
-      00:00 → 60
-      00:01 → 61
-      02:00 → 180
-      05:00 → 360
-      06:00 → 420
-    """
     try:
         hh, mm = map(int, scan_time.split('-'))
         if hh >= 23:
@@ -242,27 +268,48 @@ def _scan_time_to_order(scan_time):
         return 9999
 
 
-def _classify_volo(records):
+def _extract_callsign_digits(callsign):
+    if not callsign:
+        return ''
+    return re.sub(r'\D', '', str(callsign))
+
+
+def _radar_confirms_flight(callsign, radar_df):
     """
-    Classifica un volo in base ai suoi record (uno per scansione),
-    ordinati cronologicamente dal più vecchio al più recente.
+    Verifica se il radar ha una traccia corrispondente al callsign.
+    Ritorna (bool, timestamp_str_or_None).
+    """
+    if radar_df is None or radar_df.empty:
+        return False, None
 
-    Ritorna:
-      - 'regolare'      : orario_schedulato in fascia 23:00-05:59
-      - 'sconfinamento' : orario_schedulato fuori fascia, ma baseline 23:00
-                          con STIMA in fascia 23:01-05:59, non cancellato,
-                          e non rientrato in orario
-      - None            : escluso
+    callsign_digits = _extract_callsign_digits(callsign)
+    if not callsign_digits:
+        return False, None
 
-    Logica (v2.8.8, baseline 23:00):
-      1. Se sched in fascia → 'regolare'
-      2. Trova il record baseline (prima scansione non di mezzanotte;
-         se non esiste, il primo record in assoluto).
-      3. Se la STIMA del baseline è fuori fascia → escludi.
-      4. Se compare 'CANCELLATO' in una qualsiasi scansione → escludi.
-      5. Se il volo riappare dopo il baseline con STIMA fuori fascia
-         (escluse le scansioni di mezzanotte) → escludi (ritardo rientrato).
-      6. Altrimenti → 'sconfinamento'.
+    try:
+        for _, row in radar_df.iterrows():
+            radar_cs = str(row.get('callsign', '')).strip()
+            if not radar_cs:
+                continue
+            radar_digits = _extract_callsign_digits(radar_cs)
+            if radar_digits == callsign_digits:
+                return True, str(row.get('timestamp', ''))
+    except Exception as e:
+        logger.debug(f"Errore radar confirm per {callsign}: {e}")
+
+    return False, None
+
+
+def _classify_volo(records, radar_df=None):
+    """
+    Classifica un volo in base ai suoi record.
+
+    Categorie ritornate:
+      - 'regolare'              : sched in fascia 23:00-05:59
+      - 'sconfinamento'         : sched fuori fascia, delay < 60 min
+      - 'sconfinamento_grave'   : sched fuori fascia, delay >= 60 min
+      - 'anomalia'              : sched fuori fascia, ancora presente a 02:00/05:00
+      - None                    : escluso
     """
     if not records:
         return None
@@ -283,14 +330,16 @@ def _classify_volo(records):
         ref_index = i
         break
 
-    # Fallback: se il volo compare solo a mezzanotte, usa il primo record
     if ref is None:
         ref = records[0]
         ref_index = 0
 
-    # 3. STIMA del baseline fuori fascia → escludi
-    stima_ref = ref.get('orario_effettivo')
-    if not stima_ref or not _is_in_sconfinamento_effective(stima_ref):
+    # 3. Stato al baseline
+    stato_ref = str(ref.get('stato_volo', '')).upper()
+    is_operato = any(s in stato_ref for s in STATI_OPERATI)
+    is_a_terra = any(s in stato_ref for s in STATI_A_TERRA)
+
+    if is_operato:
         return None
 
     # 4. CANCELLATO in qualsiasi scansione → escludi
@@ -299,15 +348,64 @@ def _classify_volo(records):
         if 'CANCELLAT' in stato or 'CANCEL' in stato:
             return None
 
-    # 5. Rientro ritardo: riappare dopo il baseline con STIMA fuori fascia
-    for r in records[ref_index + 1:]:
-        if r['scan_time'] in MEZZANOTTE_SCANS:
-            continue
-        stima = r.get('orario_effettivo')
-        if stima and not _is_in_sconfinamento_effective(stima):
-            return None
+    # 5. Scansioni successive al baseline (non mezzanotte)
+    scansioni_succ = [
+        r['scan_time'] for r in records[ref_index + 1:]
+        if r['scan_time'] not in MEZZANOTTE_SCANS
+    ]
 
-    # 6. Sconfinamento confermato
+    # 6. Criterio A: STIMA in fascia al baseline
+    stima_ref = ref.get('orario_effettivo')
+    if stima_ref and _is_in_sconfinamento_effective(stima_ref):
+        # Verifica rientro ritardo
+        for r in records[ref_index + 1:]:
+            if r['scan_time'] in MEZZANOTTE_SCANS:
+                continue
+            stima = r.get('orario_effettivo')
+            if stima and not _is_in_sconfinamento_effective(stima):
+                return None
+
+        # Calcola delay esatto dalla STIMA
+        delay = _minutes_since_sched(sched, stima_ref)
+        if delay is not None and delay >= SCONFINAMENTO_GRAVE_MIN:
+            return 'sconfinamento_grave'
+        return 'sconfinamento'
+
+    # 7. Criterio B: stato "a terra" al baseline
+    if not is_a_terra:
+        return None
+
+    # 7a. Anomalia: ancora presente a 02:00 o 05:00
+    if any(t in SCANSIONE_ANOMALIA for t in scansioni_succ):
+        return 'anomalia'
+
+    # 7b. Sparito dopo 00:01 → sconfinamento (calcola delay)
+    callsign = records[0].get('callsign_volo', '')
+    delay = None
+
+    # Prova radar per delay esatto
+    if radar_df is not None and callsign:
+        confirmed, radar_ts = _radar_confirms_flight(callsign, radar_df)
+        if confirmed and radar_ts:
+            try:
+                radar_dt = pd.to_datetime(radar_ts)
+                radar_hhmm = radar_dt.strftime('%H:%M')
+                delay = _minutes_since_sched(sched, radar_hhmm)
+                logger.info(f"✅ Sconfinamento {callsign} confermato da radar "
+                            f"({radar_ts}, delay {delay} min)")
+            except Exception as e:
+                logger.debug(f"Errore parsing timestamp radar per {callsign}: {e}")
+
+    # Se radar non conferma, usa lower bound = 23:00 - sched
+    if delay is None:
+        delay = _minutes_since_sched(sched, '23:00')
+        if radar_df is not None and callsign:
+            logger.info(f"⚠️  Sconfinamento {callsign} NON confermato da radar "
+                        f"(sched={sched}, delay min {delay} min, "
+                        f"stato={stato_ref[:30]})")
+
+    if delay is not None and delay >= SCONFINAMENTO_GRAVE_MIN:
+        return 'sconfinamento_grave'
     return 'sconfinamento'
 
 
@@ -315,23 +413,13 @@ def _classify_volo(records):
 # CARICAMENTO DATI
 # -----------------------------------------------------------------------------
 
-def load_scheduled_flights(date_str):
-    """
-    Carica i voli schedulati notturni dalle scansioni della sessione
-    (23:00 del giorno X + 00:00-05:59 del giorno X+1).
-
-    Per ogni (callsign, orario_schedulato) raccoglie TUTTI i record
-    dalle varie scansioni, poi li classifica con _classify_volo().
-
-    Aggiunge la colonna notte_categoria ('regolare' | 'sconfinamento').
-    """
+def load_scheduled_flights(date_str, radar_df=None):
     date_norm = normalize_date(date_str)
     next_date = (datetime.strptime(date_norm, "%Y-%m-%d")
                  + timedelta(days=1)).strftime("%Y-%m-%d")
     date_clean = date_norm.replace("-", "")
     next_clean = next_date.replace("-", "")
 
-    # Raccogli solo le scansioni della sessione notturna
     scan_files = []
     if os.path.isdir(RAW_DIR):
         for f in os.listdir(RAW_DIR):
@@ -342,7 +430,6 @@ def load_scheduled_flights(date_str):
             if not scan_time or scan_time not in SESSION_SCAN_TIMES:
                 continue
 
-            # Scansioni del giorno X con orario >= 23:00
             if f.startswith(f"scan_{date_norm}_") or f.startswith(f"scan_{date_clean}_"):
                 try:
                     hh = int(scan_time.split("-")[0])
@@ -350,7 +437,6 @@ def load_scheduled_flights(date_str):
                         scan_files.append(f)
                 except Exception:
                     pass
-            # Scansioni del giorno X+1 con orario < 06:00
             elif f.startswith(f"scan_{next_date}_") or f.startswith(f"scan_{next_clean}_"):
                 try:
                     hh = int(scan_time.split("-")[0])
@@ -362,7 +448,6 @@ def load_scheduled_flights(date_str):
     scan_files.sort()
     logger.info(f"🔎 Scansioni notturne trovate: {len(scan_files)}")
 
-    # Raggruppa per (callsign, orario_schedulato)
     flights = defaultdict(list)
 
     for f in scan_files:
@@ -391,24 +476,22 @@ def load_scheduled_flights(date_str):
         except Exception as e:
             logger.warning(f"Errore lettura {f}: {e}")
 
-    # Ordina i record di ogni volo cronologicamente
     for key in flights:
         flights[key].sort(key=lambda r: _scan_time_to_order(r['scan_time']))
 
-    # Classifica
     scheduled = []
     n_regolare = 0
     n_sconfinamento = 0
+    n_sconfinamento_grave = 0
+    n_anomalia = 0
     n_esclusi = 0
 
     for key, records in flights.items():
-        categoria = _classify_volo(records)
+        categoria = _classify_volo(records, radar_df=radar_df)
         if categoria is None:
             n_esclusi += 1
             continue
 
-        # Scegli il record rappresentativo:
-        # il più recente con STIMA in fascia notturna, altrimenti l'ultimo.
         row_dict = None
         for r in reversed(records):
             stima = r.get('orario_effettivo')
@@ -427,14 +510,19 @@ def load_scheduled_flights(date_str):
 
         if categoria == 'regolare':
             n_regolare += 1
-        else:
+        elif categoria == 'sconfinamento':
             n_sconfinamento += 1
+        elif categoria == 'sconfinamento_grave':
+            n_sconfinamento_grave += 1
+        elif categoria == 'anomalia':
+            n_anomalia += 1
 
     if scheduled:
         df_sched = pd.DataFrame(scheduled)
         logger.info(
             f"📋 Caricati {len(df_sched)} voli schedulati notturni "
             f"(regolari {n_regolare}, sconfinamenti {n_sconfinamento}, "
+            f"gravi {n_sconfinamento_grave}, anomalie {n_anomalia}, "
             f"esclusi {n_esclusi})"
         )
         return df_sched
@@ -831,8 +919,8 @@ def generate_nightly_report(date_str=None):
     date_norm = normalize_date(date_str) if date_str else night_session_date()
     logger.info(f"🌙 Avvio report notturno per {date_norm} (23:00-05:59)")
 
-    scheduled_df = load_scheduled_flights(date_norm)
     radar_df = load_radar_data(date_norm)
+    scheduled_df = load_scheduled_flights(date_norm, radar_df=radar_df)
     result_df = match_flights(scheduled_df, radar_df, date_norm)
 
     if result_df.empty:
@@ -866,10 +954,18 @@ def generate_nightly_report(date_str=None):
     non_id = len(result_df[result_df['tipo_movimento'] == 'Non identificato']) if 'tipo_movimento' in result_df.columns else 0
 
     n_sconfinamenti = 0
+    n_sconfinamenti_gravi = 0
+    n_anomalie = 0
     if 'notte_categoria' in result_df.columns:
+        passeggeri_mask = result_df['tipo_movimento'] == 'Passeggeri'
         n_sconfinamenti = int(
-            ((result_df['notte_categoria'] == 'sconfinamento')
-             & (result_df['tipo_movimento'] == 'Passeggeri')).sum()
+            ((result_df['notte_categoria'] == 'sconfinamento') & passeggeri_mask).sum()
+        )
+        n_sconfinamenti_gravi = int(
+            ((result_df['notte_categoria'] == 'sconfinamento_grave') & passeggeri_mask).sum()
+        )
+        n_anomalie = int(
+            ((result_df['notte_categoria'] == 'anomalia') & passeggeri_mask).sum()
         )
 
     visibili = pax + cargo + charter
@@ -905,13 +1001,19 @@ def generate_nightly_report(date_str=None):
         logger.warning(f"Errore salvataggio meteo: {e}")
         meteo_msg = ", errore meteo"
 
-    sconfinamenti_msg = (
-        f", sconfinamenti {n_sconfinamenti}" if n_sconfinamenti > 0 else ""
-    )
+    # Messaggio finale
+    sconf_tot = n_sconfinamenti + n_sconfinamenti_gravi
+    sconf_msg = ""
+    if sconf_tot > 0:
+        if n_sconfinamenti_gravi > 0:
+            sconf_msg = f", sconfinamenti {sconf_tot} (di cui {n_sconfinamenti_gravi} gravi)"
+        else:
+            sconf_msg = f", sconfinamenti {sconf_tot}"
+    anomalie_msg = f", anomalie {n_anomalie}" if n_anomalie > 0 else ""
 
     msg = (f"✅ Report notturno: {total} voli "
            f"(Visibili: {visibili} = Passeggeri {pax} + Cargo {cargo} "
-           f"+ Charter {charter}{sconfinamenti_msg} | "
+           f"+ Charter {charter}{sconf_msg}{anomalie_msg} | "
            f"Opt-in: {pax_radar + non_id} = Passeggeri radar {pax_radar} "
            f"+ Non id {non_id} | "
            f"PAX stimati: {pax_tot}, "
