@@ -1,29 +1,30 @@
 """
 bgy_watchdog.py - Watchdog per il controllo anomalie BGY Monitoring Suite.
-Versione 2.5.6
+Versione 2.6.0
+
 - Doppio check prima di riavviare lo scheduler (evita falsi positivi)
 - Messaggi di alert letti da bgy_config/config_alert_messages.json
 
+Novità v2.6.0 (radar h24):
+- check_radar() riscritto per funzionare h24: il file radar_YYYY-MM-DD.csv
+  deve essere aggiornato ogni radar_stale_min minuti (default 10),
+  indipendentemente dalla fascia oraria.
+- Grace period all'avvio: se lo scheduler è partito da meno di
+  radar_missing_grace_min minuti (default 15), il file radar mancante
+  non genera allarme.
+- check_opensky() ora cerca "[ScannerRadar]" invece di "[ScannerNight]".
+- check_scheduler() ora verifica la freschezza del log sia di
+  "[Scheduler]" che di "[ScannerRadar]", h24.
+- Rimosso il check "Fuori dalla finestra notturna" da check_radar().
+
 Novità v2.5.6 (F11e-2 - Database service):
-- Aggiunto check 5 "database": verifica stato servizio PostgreSQL e
-  raggiungibilità DB. Se il DB è down per più di N minuti, tenta il
-  riavvio automatico del servizio (richiede privilegi amministrativi).
-- Alert `db_down` inviato quando il DB è irraggiungibile.
-- Alert `db_restarted` inviato quando il riavvio automatico riesce.
-- Alert `db_down_no_admin` inviato se il riavvio fallisce per mancanza
-  di privilegi.
-- Stato down/up salvato in bgy_data/bgy_logs/db_service_state.json.
+- Aggiunto check 5 "database".
 
-Novità v2.5.5 (fix falsi positivi SACBO stale):
-- check_sacbo() riscritto: ora tiene conto degli orari di scansione
-  attesi e dell'orario di avvio dello scheduler.
+Novità v2.5.5 (fix falsi positivi SACBO stale).
 
-Fix v2.5.4:
-- check_radar(): grace period di 30 minuti dall'inizio della sessione notturna.
-- check_radar(): l'alert "radar_stale_scanner_ok" non invia più email.
+Novità v2.5.4 (radar grace period notturno — superato da v2.6.0).
 
-Fix v2.5.3:
-- check_opensky(): filtra le righe di [Watchdog] e [Mailer].
+Novità v2.5.3 (filtro righe [Watchdog] e [Mailer] in check_opensky).
 """
 import os
 import sys
@@ -49,8 +50,11 @@ DB_STATE_FILE = os.path.join(LOGS_DIR, "db_service_state.json")
 SCHEDULER_SCRIPT = os.path.join(PROJECT_ROOT, "bgy_scheduler.py")
 
 SCHEDULER_DOUBLE_CHECK_DELAY_SEC = 3
-RADAR_MISSING_GRACE_MIN = 30
-DEFAULT_SCAN_SCHEDULES = ["00:00", "06:00", "12:00", "18:00"]
+DEFAULT_SCAN_SCHEDULES = ["02:00", "06:00", "10:00", "14:00", "18:00", "22:00"]
+
+# Radar h24: se il file non è aggiornato da più di X minuti, è un problema.
+DEFAULT_RADAR_STALE_MIN = 10
+DEFAULT_RADAR_MISSING_GRACE_MIN = 15
 
 
 def _cfg():
@@ -143,7 +147,7 @@ def _save_db_state(state):
 
 
 # =============================================================================
-# UTILITY - SCHEDULER START TIME E SCANSIONI ATTESE
+# UTILITY
 # =============================================================================
 
 def _get_scheduler_start_time(now):
@@ -200,6 +204,32 @@ def _last_expected_scan_time(now, scan_schedules):
         except Exception:
             continue
     return latest_yesterday
+
+
+def _is_radar_recently_active(now, window_sec=300, min_hits=1):
+    """Verifica se lo scanner radar ha girato di recente (log fresco)."""
+    log_file = os.path.join(LOGS_DIR, f"bgy_app_{now.strftime('%Y-%m-%d')}.log")
+    if not os.path.exists(log_file):
+        return False
+    try:
+        with open(log_file, "r", encoding="utf-8", errors="ignore") as f:
+            lines = f.readlines()[-300:]
+        recent = 0
+        for line in lines:
+            if "ScannerRadar" not in line:
+                continue
+            if "Avvio scansione" not in line and "File salvato" not in line:
+                continue
+            try:
+                ts_str = line.split(" - ")[0].strip()
+                ts = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S,%f")
+                if (now - ts).total_seconds() < window_sec:
+                    recent += 1
+            except Exception:
+                continue
+        return recent >= min_hits
+    except Exception:
+        return False
 
 
 # =============================================================================
@@ -274,52 +304,53 @@ def check_sacbo():
 
 
 # =============================================================================
-# CHECK 2 - RADAR
+# CHECK 2 - RADAR (h24)
 # =============================================================================
 
-def _minutes_since_night_start(now):
-    if not is_night_time(now):
-        return None
-    if now.hour >= 23:
-        night_start = now.replace(hour=23, minute=0, second=0, microsecond=0)
-    else:
-        night_start = (now - timedelta(days=1)).replace(
-            hour=23, minute=0, second=0, microsecond=0)
-    return int((now - night_start).total_seconds() / 60)
-
-
 def check_radar():
+    """
+    Verifica la freschezza del file radar h24.
+
+    Logica:
+      1. Cerca radar_YYYY-MM-DD.csv (o il vecchio nome).
+      2. Se non esiste:
+         a. Se lo scheduler è partito da meno di grace_min, OK.
+         b. Altrimenti, allarme radar_missing.
+      3. Se esiste ma è fermo da più di radar_stale_min:
+         a. Se lo scanner radar è ancora attivo nel log, OK (nessun aereo).
+         b. Altrimenti, allarme radar_stale.
+    """
     cfg = _cfg()
-    radar_stale = cfg.get("radar_stale_min", 30)
-    log_window = cfg.get("scheduler_log_window_sec", 300)
+    radar_stale = int(cfg.get("radar_stale_min", DEFAULT_RADAR_STALE_MIN))
+    grace_min = int(cfg.get("radar_missing_grace_min", DEFAULT_RADAR_MISSING_GRACE_MIN))
+    log_window = int(cfg.get("scheduler_log_window_sec", 300))
+
     try:
         now = datetime.now()
-        if not is_night_time(now):
-            return True, "Fuori dalla finestra notturna"
+        today = now.strftime("%Y-%m-%d")
 
-        session = night_session_date(now)
-        new_name = radar_filename(session)
-        old_name = f"bgy_night_flights_{session}.csv"
-        radar_file = None
-        for name in (new_name, old_name):
-            if name:
-                p = os.path.join(RAW_DIR, name)
-                if os.path.exists(p):
-                    radar_file = p
-                    break
+        # File atteso (h24: giorno solare)
+        radar_file = os.path.join(RAW_DIR, f"radar_{today}.csv")
+        old_file = os.path.join(RAW_DIR, f"bgy_night_flights_{today}.csv")
 
-        if not radar_file:
-            minuti_da_inizio = _minutes_since_night_start(now)
-            if minuti_da_inizio is not None and minuti_da_inizio < RADAR_MISSING_GRACE_MIN:
-                return True, (f"Radar non ancora creato "
-                              f"({minuti_da_inizio} min dall'inizio sessione, "
-                              f"grace period {RADAR_MISSING_GRACE_MIN} min)")
+        if not os.path.exists(radar_file):
+            if os.path.exists(old_file):
+                radar_file = old_file
+            else:
+                # Grace period all'avvio
+                scheduler_start = _get_scheduler_start_time(now)
+                if scheduler_start is not None:
+                    minutes_since_start = (now - scheduler_start).total_seconds() / 60
+                    if minutes_since_start < grace_min:
+                        return True, (f"Radar non ancora creato "
+                                      f"({int(minutes_since_start)} min dall'avvio, "
+                                      f"grace period {grace_min} min)")
 
-            msg = f"File radar mancante per la sessione {session}"
-            _send_alert("radar_missing",
-                        sessione=session,
-                        file_atteso=new_name or old_name)
-            return False, msg
+                msg = f"File radar mancante per oggi ({today})"
+                _send_alert("radar_missing",
+                            sessione=today,
+                            file_atteso=f"radar_{today}.csv")
+                return False, msg
 
         mtime = datetime.fromtimestamp(os.path.getmtime(radar_file))
         elapsed_min = (now - mtime).total_seconds() / 60
@@ -327,7 +358,8 @@ def check_radar():
         if elapsed_min <= radar_stale:
             return True, f"Radar aggiornato {int(elapsed_min)} min fa"
 
-        if _scanner_night_is_active(now, log_window):
+        # File stale. Verifica se lo scanner è ancora attivo.
+        if _is_radar_recently_active(now, log_window):
             logger.info(
                 f"ℹ️  Radar fermo da {int(elapsed_min)} min ma scanner attivo "
                 f"(nessun aereo nell'area) — nessuna notifica inviata"
@@ -343,28 +375,6 @@ def check_radar():
 
     except Exception as e:
         return False, f"Errore check radar: {e}"
-
-
-def _scanner_night_is_active(now, window_sec=300, min_hits=2):
-    log_file = os.path.join(LOGS_DIR, f"bgy_app_{now.strftime('%Y-%m-%d')}.log")
-    if not os.path.exists(log_file):
-        return False
-    try:
-        with open(log_file, "r", encoding="utf-8", errors="ignore") as f:
-            lines = f.readlines()[-200:]
-        recent = 0
-        for line in lines:
-            if "ScannerNight" in line and "Avvio scansione" in line:
-                try:
-                    ts_str = line.split(" - ")[0].strip()
-                    ts = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S,%f")
-                    if (now - ts).total_seconds() < window_sec:
-                        recent += 1
-                except Exception:
-                    continue
-        return recent >= min_hits
-    except Exception:
-        return False
 
 
 # =============================================================================
@@ -396,7 +406,7 @@ def check_opensky():
         for line in lines:
             if "[Watchdog]" in line or "[Mailer]" in line:
                 continue
-            if "OpenSky" not in line and "[ScannerNight]" not in line:
+            if "OpenSky" not in line and "[ScannerRadar]" not in line:
                 continue
             if "429" not in line:
                 continue
@@ -426,10 +436,17 @@ def check_opensky():
 
 
 # =============================================================================
-# CHECK 4 - SCHEDULER (con doppio check)
+# CHECK 4 - SCHEDULER
 # =============================================================================
 
 def check_scheduler():
+    """
+    Verifica che lo scheduler sia attivo.
+
+    Con il radar h24, lo scheduler scrive nel log almeno ogni 2 minuti
+    (ScannerRadar). Quindi il log non dovrebbe mai essere fermo per più
+    di 15 minuti, indipendentemente dall'ora.
+    """
     cfg = _cfg()
     log_stale = cfg.get("scheduler_log_stale_min", 15)
     try:
@@ -459,25 +476,25 @@ def check_scheduler():
                         ora=datetime.now().strftime("%Y-%m-%d %H:%M"))
             return False, msg
 
-        if is_night_time():
-            stale_min = _scheduler_log_age_min()
-            if stale_min is not None and stale_min > log_stale:
-                logger.warning(
-                    f"Scheduler attivo ma log fermo da {int(stale_min)} min, riavvio..."
-                )
-                restarted = _restart_scheduler(force=True)
-                if restarted:
-                    msg = (f"Scheduler bloccato (log fermo da {int(stale_min)} min): riavviato")
-                    _send_alert("scheduler_blocked",
-                                minuti_fermi=int(stale_min),
-                                soglia=log_stale)
-                    return False, msg
-                msg = (f"Scheduler bloccato (log fermo da {int(stale_min)} min) "
-                       f"e riavvio fallito")
-                _send_alert("scheduler_blocked_fail",
+        # Scheduler attivo: verifica freschezza del log (h24)
+        stale_min = _scheduler_log_age_min()
+        if stale_min is not None and stale_min > log_stale:
+            logger.warning(
+                f"Scheduler attivo ma log fermo da {int(stale_min)} min, riavvio..."
+            )
+            restarted = _restart_scheduler(force=True)
+            if restarted:
+                msg = (f"Scheduler bloccato (log fermo da {int(stale_min)} min): riavviato")
+                _send_alert("scheduler_blocked",
                             minuti_fermi=int(stale_min),
                             soglia=log_stale)
                 return False, msg
+            msg = (f"Scheduler bloccato (log fermo da {int(stale_min)} min) "
+                   f"e riavvio fallito")
+            _send_alert("scheduler_blocked_fail",
+                        minuti_fermi=int(stale_min),
+                        soglia=log_stale)
+            return False, msg
 
         return True, "Scheduler attivo"
     except Exception as e:
@@ -505,6 +522,10 @@ def _is_scheduler_process_running():
 
 
 def _scheduler_log_age_min():
+    """
+    Minuti dall'ultima riga di log che dimostri attività dello scheduler.
+    Cerca [Scheduler] e [ScannerRadar] (radar h24 scrive ogni 2 min).
+    """
     now = datetime.now()
     for days_back in (0, 1):
         check_date = (now - timedelta(days=days_back)).strftime("%Y-%m-%d")
@@ -513,10 +534,10 @@ def _scheduler_log_age_min():
             continue
         try:
             with open(log_file, "r", encoding="utf-8", errors="ignore") as f:
-                lines = f.readlines()[-500:]
+                lines = f.readlines()[-800:]
             latest_ts = None
             for line in lines:
-                if "[Scheduler]" not in line and "Scheduler" not in line:
+                if "[Scheduler]" not in line and "[ScannerRadar]" not in line:
                     continue
                 try:
                     ts_str = line.split(" - ")[0].strip()
@@ -571,13 +592,11 @@ def _kill_all_scheduler_processes():
 
 
 # =============================================================================
-# CHECK 5 - DATABASE SERVICE (v2.5.6)
+# CHECK 5 - DATABASE SERVICE
 # =============================================================================
 
 def check_database():
-    """
-    Verifica lo stato del servizio PostgreSQL e la raggiungibilità del DB.
-    """
+    """Verifica stato servizio PostgreSQL e raggiungibilità DB."""
     cfg = _db_cfg()
     if not cfg.get("enabled", True):
         return True, "Check DB disabilitato in config"
@@ -592,7 +611,6 @@ def check_database():
         now = datetime.now()
         state = _load_db_state()
 
-        # -- Caso 1: tutto OK --
         if status == "Running" and db_ok:
             if state.get("down_since"):
                 logger.info(f"✅ DB tornato OK (era down da {state['down_since']})")
@@ -601,7 +619,6 @@ def check_database():
                 _save_db_state(state)
             return True, f"DB OK ({status}, raggiungibile)"
 
-        # -- Caso 2: servizio Stopped o DB irraggiungibile --
         if not state.get("down_since"):
             state["down_since"] = now.isoformat()
             state["restart_attempts"] = 0
@@ -669,7 +686,6 @@ def check_database():
 
 
 def bgy_service_restart():
-    """Wrapper per bgy_db_service.restart_service()."""
     try:
         return bgy_db_service.restart_service()
     except Exception as e:
@@ -723,7 +739,8 @@ def watchdog_loop():
     logger.info("=" * 50)
     logger.info("🐕 WATCHDOG BGY - AVVIO")
     logger.info(f"Intervallo: {interval}s")
-    logger.info(f"Grace period radar: {RADAR_MISSING_GRACE_MIN} min")
+    logger.info(f"Radar stale threshold: {cfg.get('radar_stale_min', DEFAULT_RADAR_STALE_MIN)} min (h24)")
+    logger.info(f"Radar missing grace: {cfg.get('radar_missing_grace_min', DEFAULT_RADAR_MISSING_GRACE_MIN)} min")
     logger.info(f"Admin: {bgy_db_service.is_admin()}")
     logger.info("=" * 50)
     try:

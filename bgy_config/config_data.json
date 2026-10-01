@@ -31,6 +31,37 @@
         "timezone": "Europe/Rome",
         "http_timeout": 10
     },
+    "scanner_radar": {
+        "bbox": {
+            "lamin": 45.545,
+            "lamax": 45.805,
+            "lomin": 9.52,
+            "lomax": 9.89
+        },
+        "bgy_lat": 45.6739,
+        "bgy_lon": 9.7042,
+        "max_distance_km": 15.0,
+        "adsb_lol_radius_nm": 10,
+        "adsb_fi_radius_nm": 10,
+        "airplanes_live_radius_nm": 10,
+        "airplanes_live_enabled": false,
+        "http_timeout": 15,
+        "user_agent": "BGY-Monitoring-Suite/2.6 (info@legambientebergamo.it)",
+        "phase_thresholds": {
+            "landing_max_distance_km": 5,
+            "landing_max_altitude_ft": 3000,
+            "approach_max_distance_km": 10,
+            "approach_max_altitude_ft": 5000
+        },
+        "runway_bearings": {
+            "RWY 28": [250, 300],
+            "RWY 10": [70, 120],
+            "RWY 16": [160, 190],
+            "RWY 34": [340, 10]
+        },
+        "parallel_test_mode": false,
+        "parallel_test_days": 5
+    },
     "scanner_night": {
         "bbox": {
             "lamin": 45.545,
@@ -54,34 +85,16 @@
             "approach_max_altitude_ft": 5000
         },
         "runway_bearings": {
-            "RWY 28": [
-                250,
-                300
-            ],
-            "RWY 10": [
-                70,
-                120
-            ],
-            "RWY 16": [
-                160,
-                190
-            ],
-            "RWY 34": [
-                340,
-                10
-            ]
+            "RWY 28": [250, 300],
+            "RWY 10": [70, 120],
+            "RWY 16": [160, 190],
+            "RWY 34": [340, 10]
         }
     },
     "scanner_day": {
         "urls": [
-            [
-                "https://www.milanbergamoairport.it/it/voli-tempo-reale/#departure",
-                "Decollo"
-            ],
-            [
-                "https://www.milanbergamoairport.it/it/voli-tempo-reale/#arrivals",
-                "Atterraggio"
-            ]
+            ["https://www.milanbergamoairport.it/it/voli-tempo-reale/#departure", "Decollo"],
+            ["https://www.milanbergamoairport.it/it/voli-tempo-reale/#arrivals", "Atterraggio"]
         ],
         "playwright_timeout_ms": 40000,
         "wait_after_load_ms": 3000,
@@ -110,7 +123,8 @@
     },
     "watchdog": {
         "check_interval_sec": 300,
-        "radar_stale_min": 30,
+        "radar_stale_min": 10,
+        "radar_missing_grace_min": 15,
         "scheduler_log_stale_min": 15,
         "scheduler_log_window_sec": 300,
         "sacbo_max_age_hours": 7,

@@ -1,6 +1,6 @@
 """
 bgy_core/bgy_db_migrate.py - Import e sincronizzazione CSV -> PostgreSQL.
-Versione 2.6.10
+Versione 2.7.0
 
 Modulo unificato che contiene:
   - Funzioni di import per ogni tipo di file (scan, radar, meteo, nightly)
@@ -12,45 +12,11 @@ Modulo unificato che contiene:
   - Check compagnie placeholder irrisolte (F14)
   - Check anomalie notturne (v2.6.5)
 
-Novità v2.6.7 (distribuzione ritardi):
-- get_daily_delay_stats() ora ritorna anche la distribuzione dei voli
-  in ritardo per fasce: <5, 5-10, 10-15, 15-30, 30-60, >60 minuti.
-
-Novità v2.6.6 (statistiche puntualità):
-- Nuova funzione get_daily_delay_stats(date_str) che legge il CSV daily
-  e ritorna statistiche di puntualità:
-    * voli in ritardo / in orario / in anticipo
-    * ritardo medio (sui ritardati)
-    * ritardo massimo
-    * elenco dei voli cancellati (callsign, compagnia, destinazione)
-- I cancellati sono esclusi dalle statistiche di ritardo.
-
-Novità v2.6.5 (anomalie + sconfinamenti gravi):
-- get_nightly_stats() ora separa:
-    * regolari
-    * sconfinamenti (ritardo < 60 min)
-    * sconfinamenti_gravi (ritardo >= 60 min)
-    * anomalie (voli a tabellone 3+ ore dopo sched)
-- Aggiunto QC check #28 "Anomalie notturne": rileva notti con 'anomalia'.
-
-Novità v2.6.4 (sconfinamenti):
-- Import della colonna notte_categoria.
-- Schema update: ALTER TABLE nightly_reports ADD COLUMN notte_categoria.
-
-Novità v2.6.3 (F14):
-- Fix check_unresolved_airlines (make_interval, CURRENT_DATE, min_occorrenze).
-
-Novità v2.6.2:
-- Fix check 15 (Compagnie una-tantum): applicato solo se days >= 14.
-- Fix check 20 (Scansioni SACBO complete): conta TUTTE le scansioni.
-
-Novità v2.6.1:
-- Fix bug `_effective_from`.
-
-Novità v2.6.0:
-- Quality check esteso da 10 a 27 check.
-- Aggiunto concetto di `reference_date` (default 2026-10-01).
-- Aggiunto --dry-run per il quality check.
+Novità v2.7.0 (radar h24):
+- radar_detections: nuove colonne fonte e data_riferimento.
+- sessione_notturna ora è nullable (valorizzata solo per rilevamenti 23:00-05:59).
+- import_radar_file() deriva data_riferimento dal timestamp di ogni riga,
+  calcola sessione_notturna dal timestamp, legge fonte dal CSV.
 """
 import os
 import sys
@@ -113,6 +79,9 @@ def apply_schema_updates():
     updates = [
         "ALTER TABLE nightly_reports ADD COLUMN IF NOT EXISTS direzione_sacbo VARCHAR(2)",
         "ALTER TABLE nightly_reports ADD COLUMN IF NOT EXISTS notte_categoria VARCHAR(30)",
+        "ALTER TABLE radar_detections ADD COLUMN IF NOT EXISTS fonte TEXT",
+        "ALTER TABLE radar_detections ADD COLUMN IF NOT EXISTS data_riferimento DATE",
+        "ALTER TABLE radar_detections ALTER COLUMN sessione_notturna DROP NOT NULL",
     ]
     for sql in updates:
         ok, result = bgy_db.execute_query(sql, fetch=False)
@@ -147,6 +116,7 @@ def parse_date_from_scan_filename(filename):
         tipo = "notturno" if hh >= 23 or hh < 6 else "diurno"
         return date_str, hh_mm, tipo
     return None, None, None
+
 
 def parse_meteo_filename(filename):
     base = filename.replace(".csv", "")
@@ -399,8 +369,28 @@ def import_scan_file(filepath):
 
 
 # =============================================================================
-# IMPORT: RADAR
+# IMPORT: RADAR (v2.7.0)
 # =============================================================================
+
+def _radar_session_date_from_ts(ts_str):
+    """
+    Data di sessione notturna da un timestamp.
+    Se l'ora è >= 23 o < 6, ritorna la data di inizio sessione (giorno solare).
+    Altrimenti ritorna None.
+    """
+    try:
+        dt = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        try:
+            dt = datetime.strptime(ts_str, "%Y-%m-%d %H:%M")
+        except ValueError:
+            return None
+    if dt.hour >= 23:
+        return dt.strftime("%Y-%m-%d")
+    if dt.hour < 6:
+        return (dt - timedelta(days=1)).strftime("%Y-%m-%d")
+    return None
+
 
 def import_radar_file(filepath):
     filename = os.path.basename(filepath)
@@ -408,38 +398,50 @@ def import_radar_file(filepath):
     if not date_str:
         logger.warning(f"File radar non riconosciuto: {filename}")
         return False, None
+
+    # Deduplica: il file è cumulativo per giorno solare.
     ok, rows = bgy_db.execute_query(
-        "SELECT COUNT(1) FROM radar_detections WHERE sessione_notturna = %s",
+        "SELECT COUNT(1) FROM radar_detections WHERE data_riferimento = %s",
         (date_str,))
     if ok and rows and rows[0][0] > 0:
         logger.info(f"⏭️ Già importato: {filename} ({rows[0][0]} righe)")
         stats["scans_skipped"] += 1
         return False, None
+
     csv_rows = read_csv_rows(filepath)
     if not csv_rows:
         return False, None
+
     params = []
     for r in csv_rows:
         ts = safe_timestamp(r.get("timestamp"))
         if not ts:
             continue
-        sessione = safe_str(r.get("sessione_notturna"), date_str)
+        # data_riferimento = giorno solare del timestamp
+        data_rif = ts[:10]
+        # sessione_notturna: calcolata dal timestamp
+        sessione = _radar_session_date_from_ts(ts)
+        # fonte dal CSV (retrocompatibilità: "unknown" se assente)
+        fonte = safe_str(r.get("fonte"), "unknown")
         params.append((
             ts, safe_str(r.get("callsign"), ""), safe_str(r.get("icao24"), ""),
             safe_str(r.get("pista"), ""), safe_str(r.get("fase_volo"), ""),
             safe_str(r.get("direzione"), ""), safe_int(r.get("quota_ft"), 0),
             safe_float(r.get("rotta_deg"), 0.0), safe_float(r.get("distanza_km"), 0.0),
-            safe_str(r.get("paese"), ""), sessione))
+            safe_str(r.get("paese"), ""), sessione, data_rif, fonte))
+
     if not params:
         return False, None
+
     total = 0
     for i in range(0, len(params), BATCH_SIZE):
         batch = params[i:i+BATCH_SIZE]
         ok, result = bgy_db.execute_many(
             """INSERT INTO radar_detections
                (timestamp, callsign, icao24, pista, fase_volo, direzione,
-                quota_ft, rotta_deg, distanza_km, paese, sessione_notturna)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""", batch)
+                quota_ft, rotta_deg, distanza_km, paese,
+                sessione_notturna, data_riferimento, fonte)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""", batch)
         if ok:
             total += len(batch)
         else:
@@ -808,18 +810,6 @@ def get_daily_stats(date_str):
 def get_nightly_stats(date_str):
     """
     Statistiche movimenti notturni, divise per categoria.
-
-    Ritorna:
-      {
-        "passeggeri": {"decolli": N, "atterraggi": N, "totale": N},
-        "cargo": {"decolli": N, "atterraggi": N, "totale": N},
-        "charter": {"decolli": N, "atterraggi": N, "totale": N},
-        "regolari": {"decolli": N, "atterraggi": N, "totale": N},
-        "sconfinamenti": {...},
-        "sconfinamenti_gravi": {...},
-        "anomalie": {"totale": N, "dettagli": [...]},
-        "totale": N,
-      }
     """
     empty = {
         "passeggeri": {"decolli": 0, "atterraggi": 0, "totale": 0},
@@ -838,10 +828,7 @@ def get_nightly_stats(date_str):
             "charter": {"decolli": 0, "atterraggi": 0, "totale": 0},
             "totale": 0,
         },
-        "anomalie": {
-            "totale": 0,
-            "dettagli": [],
-        },
+        "anomalie": {"totale": 0, "dettagli": []},
         "totale": 0,
     }
 
@@ -913,7 +900,6 @@ def get_nightly_stats(date_str):
         elif notte_cat == 'anomalia':
             empty["anomalie"]["totale"] += n
 
-    # Dettaglio anomalie (callsign + sched + motivo)
     if empty["anomalie"]["totale"] > 0:
         ok, rows = bgy_db.execute_query(
             """SELECT callsign, direzione_sacbo, orario_schedulato
@@ -933,26 +919,10 @@ def get_nightly_stats(date_str):
 
 
 # =============================================================================
-# =============================================================================
-# =============================================================================
-# =============================================================================
-# TOP DESTINAZIONI PER RITARDI (v2.6.10)
+# TOP DESTINAZIONI PER RITARDI
 # =============================================================================
 
 def get_top_destinations_delays(date_str):
-    """
-    Ritorna TUTTE le destinazioni/origini con almeno 1 ritardo dichiarato.
-
-    Per ogni destinazione:
-      - delayed:   numero di voli con ritardo > 0
-      - total:     numero totale di voli della destinazione
-      - avg_delay: ritardo medio (sui ritardati)
-      - max_delay: ritardo massimo
-
-    Ordina per numero di ritardi decrescente.
-
-    Ritorna lista di dict.
-    """
     csv_path = os.path.join(OUTPUT_CSV_DIR, f"report_daily_{date_str}.csv")
     if not os.path.exists(csv_path):
         logger.warning(f"get_top_destinations_delays: file non trovato {csv_path}")
@@ -967,21 +937,17 @@ def get_top_destinations_delays(date_str):
     if df.empty:
         return []
 
-    # Escludi cancellati
     if "stato_volo" in df.columns:
         cancellati_mask = (
             df["stato_volo"].astype(str).str.upper().str.contains("CANCEL", na=False)
         )
         df = df[~cancellati_mask].copy()
 
-    # Colonna destinazione: usa "destinazione_origine" del CSV daily
     if "destinazione_origine" not in df.columns or "minuti_ritardo" not in df.columns:
         return []
 
     df["_rit"] = pd.to_numeric(df["minuti_ritardo"], errors="coerce").fillna(0)
     df["_dest"] = df["destinazione_origine"].astype(str).str.strip().str.upper()
-
-    # Escludi valori non validi
     df = df[~df["_dest"].isin(["", "NAN", "N/D", "-"])]
 
     result = []
@@ -998,31 +964,15 @@ def get_top_destinations_delays(date_str):
             "max_delay": int(delayed["_rit"].max()),
         })
 
-    # Ordina per numero di ritardi decrescente, poi per ritardo medio
     result.sort(key=lambda x: (-x["delayed"], -x["avg_delay"]))
-
     return result
 
 
-# TOP COMPAGNIE PER RITARDI (v2.6.9)
+# =============================================================================
+# TOP COMPAGNIE PER RITARDI
 # =============================================================================
 
 def get_top_airlines_delays(date_str, top_n=5):
-    """
-    Ritorna le top N compagnie per numero di ritardi dichiarati.
-
-    Per ogni compagnia:
-      - delayed: numero di voli con ritardo > 0
-      - total:   numero totale di voli della compagnia
-      - avg_delay: ritardo medio (sui ritardati)
-      - max_delay: ritardo massimo
-
-    Ordina per numero di ritardi decrescente.
-
-    Ritorna lista di dict:
-      [{"compagnia": "Ryanair", "delayed": 42, "total": 120,
-        "avg_delay": 52.3, "max_delay": 200}, ...]
-    """
     csv_path = os.path.join(OUTPUT_CSV_DIR, f"report_daily_{date_str}.csv")
     if not os.path.exists(csv_path):
         logger.warning(f"get_top_airlines_delays: file non trovato {csv_path}")
@@ -1037,7 +987,6 @@ def get_top_airlines_delays(date_str, top_n=5):
     if df.empty:
         return []
 
-    # Escludi cancellati
     if "stato_volo" in df.columns:
         cancellati_mask = (
             df["stato_volo"].astype(str).str.upper().str.contains("CANCEL", na=False)
@@ -1050,7 +999,6 @@ def get_top_airlines_delays(date_str, top_n=5):
     df["_rit"] = pd.to_numeric(df["minuti_ritardo"], errors="coerce").fillna(0)
     df["_comp"] = df["compagnia_aerea"].astype(str).str.strip()
 
-    # Escludi placeholder e vuoti
     df = df[~df["_comp"].str.match(r"^Compagnia ", na=False)]
     df = df[df["_comp"] != ""]
     df = df[df["_comp"] != "N/D"]
@@ -1070,30 +1018,15 @@ def get_top_airlines_delays(date_str, top_n=5):
             "max_delay": int(delayed["_rit"].max()),
         })
 
-    # Ordina per numero di ritardi decrescente, poi per ritardo medio
     result.sort(key=lambda x: (-x["delayed"], -x["avg_delay"]))
-
     return result[:top_n]
 
 
-# DISTRIBUZIONE ORARIA (v2.6.8)
+# =============================================================================
+# DISTRIBUZIONE ORARIA
 # =============================================================================
 
 def get_hourly_distribution(date_str):
-    """
-    Calcola la distribuzione oraria dei movimenti.
-
-    Per ogni ora (00-23) ritorna:
-      - d_total:   decolli totali
-      - d_delayed: decolli con ritardo > 0
-      - a_total:   atterraggi totali
-      - a_delayed: atterraggi con ritardo > 0
-
-    Base oraria: orario_effettivo (fallback orario_schedulato).
-
-    Ritorna dict:
-      {"00": {...}, "01": {...}, ..., "23": {...}}
-    """
     empty_hour = {"d_total": 0, "d_delayed": 0, "a_total": 0, "a_delayed": 0}
     result = {f"{h:02d}": dict(empty_hour) for h in range(24)}
 
@@ -1111,7 +1044,6 @@ def get_hourly_distribution(date_str):
     if df.empty:
         return result
 
-    # Escludi cancellati
     if "stato_volo" in df.columns:
         cancellati_mask = (
             df["stato_volo"].astype(str).str.upper().str.contains("CANCEL", na=False)
@@ -1121,7 +1053,6 @@ def get_hourly_distribution(date_str):
     if "minuti_ritardo" not in df.columns:
         return result
     df["_rit"] = pd.to_numeric(df["minuti_ritardo"], errors="coerce").fillna(0)
-
     df["_tipo"] = df["tipo_movimento"].astype(str).str.upper().str[:1]
 
     def _get_hour(row):
@@ -1158,7 +1089,8 @@ def get_hourly_distribution(date_str):
     return result
 
 
-# QUALITY CHECK — CONFIGURAZIONE
+# =============================================================================
+# QUALITY CHECK
 # =============================================================================
 
 DEFAULT_THRESHOLDS = {
@@ -1191,10 +1123,6 @@ def _get_quality_config():
     except Exception:
         return dict(DEFAULT_THRESHOLDS), DEFAULT_REFERENCE_DATE
 
-
-# =============================================================================
-# QUALITY CHECK — 1-10
-# =============================================================================
 
 def _qc_compagnie_placeholder(date_from, date_to):
     ok, rows = bgy_db.execute_query(
@@ -1376,10 +1304,6 @@ def _qc_csv_vs_db(date_from, date_to):
     return len(mismatches) == 0, False, len(mismatches), 0, mismatches[:5]
 
 
-# =============================================================================
-# QUALITY CHECK — 11-28 (nuovi)
-# =============================================================================
-
 def _qc_bilanciamento_daily(date_from, date_to, thresholds):
     ok, rows = bgy_db.execute_query(
         """SELECT data_riferimento,
@@ -1552,7 +1476,7 @@ def _qc_file_radar_mancanti(date_from, date_to):
         radar_path = os.path.join(RAW_DIR, f"radar_{ds}.csv")
         if not os.path.exists(radar_path):
             ok, rows = bgy_db.execute_query(
-                "SELECT COUNT(*) FROM radar_detections WHERE sessione_notturna = %s",
+                "SELECT COUNT(*) FROM radar_detections WHERE data_riferimento = %s",
                 (ds,))
             if not ok or not rows or rows[0][0] == 0:
                 missing.append(ds)
@@ -1734,11 +1658,6 @@ def _qc_data_futura(date_from, date_to):
 
 
 def _qc_anomalie_notturne(date_from, date_to):
-    """
-    CHECK 28 (v2.6.5): rileva notti con 'anomalia' (voli a tabellone
-    3+ ore dopo lo sched). Ogni anomalia viene riportata con callsign
-    e orario schedulato.
-    """
     ok, rows = bgy_db.execute_query(
         """SELECT data_riferimento, callsign, orario_schedulato, direzione_sacbo
            FROM nightly_reports
@@ -1910,23 +1829,10 @@ def format_quality_text(qc_result):
 
 
 # =============================================================================
-# COMPAGNIE DA RISOLVERE (F14) — v2.6.3
+# COMPAGNIE DA RISOLVERE
 # =============================================================================
 
 def check_unresolved_airlines(days_threshold=30, min_occorrenze=1):
-    """
-    Verifica se ci sono compagnie placeholder ("Compagnia XXX") più vecchie
-    di N giorni (default 30) nella tabella airlines.
-
-    Un placeholder è considerato "da risolvere" solo se:
-      - è più vecchio di days_threshold giorni (created_at)
-      - ha almeno min_occorrenze nei report notturni (default 1)
-
-    Ritorna (ok, msg):
-      - ok: True  -> nessun placeholder da risolvere
-      - ok: False -> almeno un placeholder da risolvere
-      - msg: messaggio formattato multi-riga per l'email di stato
-    """
     try:
         ok, rows = bgy_db.execute_query(
             """SELECT code,
@@ -1980,39 +1886,12 @@ def check_unresolved_airlines(days_threshold=30, min_occorrenze=1):
         logger.error(f"Errore check_unresolved_airlines: {e}")
         return True, f"Errore verifica compagnie: {str(e)[:80]}"
 
+
 # =============================================================================
-# STATISTICHE DI PUNTUALITÀ (v2.6.6)
+# STATISTICHE PUNTUALITÀ
 # =============================================================================
 
 def get_daily_delay_stats(date_str):
-    """
-    Calcola le statistiche di puntualità sui voli del giorno.
-
-    Legge il CSV report_daily_YYYY-MM-DD.csv e calcola:
-      - voli_in_ritardo (minuti_ritardo > 0)
-      - voli_in_orario (minuti_ritardo == 0)
-      - voli_in_anticipo (minuti_ritardo < 0)
-      - ritardo_medio (solo sui voli in ritardo)
-      - ritardo_massimo (in minuti)
-      - cancellati (lista di dict con callsign, compagnia, destinazione)
-      - fasce (distribuzione dei voli in ritardo per fascia)
-
-    Ritorna:
-      {
-        "totale_voli": N,
-        "in_ritardo": N,
-        "in_orario": N,
-        "in_anticipo": N,
-        "ritardo_medio": float,
-        "ritardo_massimo": int,
-        "cancellati": [{"callsign": ..., "compagnia": ..., "destinazione": ...}, ...],
-        "cancellati_count": N,
-        "fasce": {
-          "< 5 min": N, "5-10 min": N, "10-15 min": N,
-          "15-30 min": N, "30-60 min": N, "> 60 min": N,
-        },
-      }
-    """
     empty = {
         "totale_voli": 0,
         "in_ritardo": 0,
@@ -2022,6 +1901,7 @@ def get_daily_delay_stats(date_str):
         "ritardo_massimo": 0,
         "cancellati": [],
         "cancellati_count": 0,
+        "fasce": {},
     }
 
     csv_path = os.path.join(OUTPUT_CSV_DIR, f"report_daily_{date_str}.csv")
@@ -2041,7 +1921,6 @@ def get_daily_delay_stats(date_str):
     result = dict(empty)
     result["totale_voli"] = len(df)
 
-    # --- Cancellati (esclusi dalle statistiche di ritardo) ---
     cancellati_mask = pd.Series(False, index=df.index)
     if "stato_volo" in df.columns:
         cancellati_mask = (
@@ -2058,13 +1937,11 @@ def get_daily_delay_stats(date_str):
             "tipo": str(row.get("tipo_movimento", "?")),
         })
 
-    # --- Voli validi (esclusi cancellati) per statistiche ritardo ---
     validi = df[~cancellati_mask].copy()
 
     if "minuti_ritardo" not in validi.columns:
         return result
 
-    # Converti a numerico (NaN → 0)
     validi["_rit"] = pd.to_numeric(validi["minuti_ritardo"], errors="coerce").fillna(0)
 
     in_ritardo = validi[validi["_rit"] > 0]
@@ -2079,7 +1956,6 @@ def get_daily_delay_stats(date_str):
         result["ritardo_medio"] = round(float(in_ritardo["_rit"].mean()), 1)
         result["ritardo_massimo"] = int(in_ritardo["_rit"].max())
 
-    # Distribuzione per fasce (Fase 2)
     fasce = {
         "< 5 min":   0,
         "5-10 min":  0,
@@ -2106,6 +1982,8 @@ def get_daily_delay_stats(date_str):
     result["fasce"] = fasce
 
     return result
+
+
 # =============================================================================
 # MAIN
 # =============================================================================

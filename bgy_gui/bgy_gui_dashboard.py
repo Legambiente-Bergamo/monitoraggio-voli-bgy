@@ -1,7 +1,13 @@
 """
 bgy_gui/bgy_gui_dashboard.py - Tab Dashboard della GUI BGY.
-Versione 2.5.1
-- Aggiunto logo Legambiente in alto a destra
+Versione 2.7.0
+
+- Aggiunto logo Legambiente in alto a destra (v2.5.1)
+- Pulsante "Scansione Radar" al posto di "Scansione Notturna" (v2.6.0)
+- Novità v2.7.0: rimosso il timer radar dalla dashboard.
+  Il radar gira ogni 2 minuti, non ha senso mostrare un countdown.
+  update_night_timer() è mantenuto come no-op per retrocompatibilità
+  con bgy_gui.py (che lo chiama nel suo loop).
 """
 import os
 import tkinter as tk
@@ -9,8 +15,7 @@ from tkinter import ttk, scrolledtext
 from datetime import datetime
 
 from bgy_core.bgy_paths import DATA_DIR
-from bgy_scanners import run_day_scan, run_night_scan
-
+from bgy_scanners import run_day_scan, run_radar_scan
 
 
 LOGO_PATH = os.path.join(DATA_DIR, "bgy_assets", "legambiente_logo_small.png")
@@ -24,14 +29,10 @@ class DashboardTab:
         self.parent = parent
         self.app = app
         self.tab = ttk.Frame(parent)
-        self._logo_image = None  # riferimento per evitare garbage collection
+        self._logo_image = None
         self._create_widgets()
 
     def _load_logo(self, max_height=80):
-        """
-        Carica il logo ridimensionato.
-        Ritorna PhotoImage o None se il file non esiste.
-        """
         try:
             from PIL import Image, ImageTk
         except ImportError:
@@ -58,7 +59,7 @@ class DashboardTab:
         header_frame = ttk.Frame(tab)
         header_frame.pack(pady=10, fill="x", padx=10)
 
-        # Sotto-frame sinistro: titolo + sottotitolo + stato scheduler + timer
+        # Sotto-frame sinistro: titolo + sottotitolo + stato scheduler + timer diurno
         left_frame = ttk.Frame(header_frame)
         left_frame.pack(side="left", fill="both", expand=True)
 
@@ -77,14 +78,9 @@ class DashboardTab:
         timer_frame.pack(anchor="w", fill="x", pady=2)
 
         self.day_timer_label = ttk.Label(
-            timer_frame, text="📅 Diurna: --:--:--",
+            timer_frame, text="📅 Prossima diurna: --:--:--",
             font=("Helvetica", 10), foreground="#2980b9")
         self.day_timer_label.pack(side="left", padx=10)
-
-        self.night_timer_label = ttk.Label(
-            timer_frame, text="🌙 Notturna: --:--:--",
-            font=("Helvetica", 10), foreground="#9b59b6")
-        self.night_timer_label.pack(side="left", padx=10)
 
         self.last_operation_label = ttk.Label(
             left_frame, text="💤 Ultima operazione: Nessuna",
@@ -100,7 +96,6 @@ class DashboardTab:
             self._logo_image = logo_image
             logo_label = ttk.Label(right_frame, image=logo_image)
             logo_label.pack()
-        # Se il logo non è caricabile, il frame resta vuoto (nessun errore)
 
         ttk.Separator(tab, orient='horizontal').pack(fill='x', padx=10, pady=5)
 
@@ -137,9 +132,9 @@ class DashboardTab:
                        run_day_scan, "Scansione Diurna"),
                    width=20).pack(side="left", padx=5, pady=5,
                                    expand=True, fill="x")
-        ttk.Button(btn_frame, text="🌙 Scansione Notturna",
+        ttk.Button(btn_frame, text="📡 Scansione Radar",
                    command=lambda: self.app.run_async(
-                       lambda: run_night_scan(False), "Scansione Notturna"),
+                       run_radar_scan, "Scansione Radar"),
                    width=20).pack(side="left", padx=5, pady=5,
                                    expand=True, fill="x")
 
@@ -180,10 +175,15 @@ class DashboardTab:
         self.scheduler_status_label.config(text=text, foreground=color)
 
     def update_day_timer(self, timer_text):
-        self.day_timer_label.config(text=f"📅 Diurna: {timer_text}")
+        self.day_timer_label.config(text=f"📅 Prossima diurna: {timer_text}")
 
     def update_night_timer(self, timer_text):
-        self.night_timer_label.config(text=f"🌙 Notturna: {timer_text}")
+        """
+        No-op da v2.7.0. Mantenuto per retrocompatibilità con bgy_gui.py
+        che chiama ancora questo metodo nel suo loop del timer.
+        Il timer radar è stato rimosso perché il radar gira ogni 2 minuti.
+        """
+        pass
 
     def update_last_operation(self, operation):
         self.last_operation_label.config(text=f"🔄 Ultima operazione: {operation}")

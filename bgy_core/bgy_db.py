@@ -1,8 +1,12 @@
 """
 bgy_core/bgy_db.py - Modulo di accesso al database PostgreSQL.
-Versione 2.5.2
+Versione 2.6.0
+
 - Fix: execute_query() gestisce correttamente INSERT ... RETURNING
 - Fix: execute_query() usa cur.description per capire se la query ritorna righe
+- Novità v2.6.0: SCHEMA_SQL aggiornato per radar h24 (fonte, data_riferimento,
+  sessione_notturna nullable). Compatibile con installazioni esistenti
+  grazie ad apply_schema_updates() in bgy_db_migrate.py.
 """
 import os
 import sys
@@ -14,7 +18,7 @@ from bgy_core.bgy_config_manager import config_manager
 
 logger = get_logger("DB")
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 SCHEMA_SQL = """
@@ -58,7 +62,7 @@ CREATE INDEX IF NOT EXISTS idx_flights_callsign ON flights_sacbo (callsign_volo)
 CREATE INDEX IF NOT EXISTS idx_flights_scan ON flights_sacbo (scan_id);
 CREATE INDEX IF NOT EXISTS idx_flights_ts ON flights_sacbo (scan_timestamp);
 
--- Rilevamenti radar
+-- Rilevamenti radar (h24 multi-fonte, v2.7.0)
 CREATE TABLE IF NOT EXISTS radar_detections (
     id BIGSERIAL PRIMARY KEY,
     timestamp TIMESTAMP NOT NULL,
@@ -71,10 +75,13 @@ CREATE TABLE IF NOT EXISTS radar_detections (
     rotta_deg REAL,
     distanza_km REAL,
     paese TEXT,
-    sessione_notturna DATE NOT NULL,
+    sessione_notturna DATE,
+    data_riferimento DATE,
+    fonte TEXT,
     imported_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_radar_sessione ON radar_detections (sessione_notturna);
+CREATE INDEX IF NOT EXISTS idx_radar_data ON radar_detections (data_riferimento);
 CREATE INDEX IF NOT EXISTS idx_radar_icao ON radar_detections (icao24);
 CREATE INDEX IF NOT EXISTS idx_radar_ts ON radar_detections (timestamp);
 
@@ -99,6 +106,8 @@ CREATE TABLE IF NOT EXISTS nightly_reports (
     data_riferimento DATE NOT NULL,
     callsign TEXT,
     tipo_movimento TEXT,
+    direzione_sacbo VARCHAR(2),
+    notte_categoria VARCHAR(30),
     is_scheduled BOOLEAN,
     destinazione_finale TEXT,
     stato_destinazione TEXT,
@@ -235,7 +244,7 @@ def apply_schema():
             cur.execute(
                 "INSERT INTO schema_version (version, note) VALUES (%s, %s) "
                 "ON CONFLICT (version) DO NOTHING",
-                (SCHEMA_VERSION, "Schema iniziale BGY Monitoring Suite 2.5")
+                (SCHEMA_VERSION, "Schema BGY Monitoring Suite 2.7 (radar h24)")
             )
         conn.commit()
         logger.info(f"✅ Schema v{SCHEMA_VERSION} applicato")
@@ -251,12 +260,9 @@ def apply_schema():
 def execute_query(sql, params=None, fetch=True):
     """
     Esegue una query SQL.
-
     - Se la query ritorna righe (SELECT, INSERT/UPDATE/DELETE ... RETURNING),
       ritorna (True, rows).
     - Altrimenti ritorna (True, rowcount).
-
-    Il commit viene fatto sempre, sia per SELECT che per DML.
     """
     conn = get_connection()
     if conn is None:
@@ -264,12 +270,10 @@ def execute_query(sql, params=None, fetch=True):
     try:
         with conn.cursor() as cur:
             cur.execute(sql, params or ())
-
             has_results = cur.description is not None
-
             if fetch and has_results:
                 rows = cur.fetchall()
-                conn.commit()  # commit per chiudere transazione
+                conn.commit()
                 return True, rows
             else:
                 conn.commit()

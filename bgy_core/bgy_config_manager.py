@@ -1,6 +1,6 @@
 """
 bgy_core/bgy_config_manager.py - Gestione centralizzata delle configurazioni.
-Versione 3.0.0
+Versione 3.1.0
 
 Cambio architetturale (F12a):
 - I JSON anagrafici (airlines, countries, aircraft_models, noise_impact,
@@ -11,6 +11,10 @@ Cambio architetturale (F12a):
   essere letti/scritti come prima.
 - Cache in memoria per evitare query ripetute: la cache viene invalidata
   da reload_rules() o dalle operazioni di scrittura (add_*).
+
+Novità v3.1.0 (radar h24):
+- Aggiunta sezione scanner_radar con get_scanner_radar_config().
+- La sezione scanner_night resta per retrocompatibilità.
 """
 import os
 import json
@@ -31,12 +35,12 @@ class ConfigManager:
 
     def __init__(self):
         self.configs = {}
-        self._cache = {}  # Cache anagrafiche lette dal DB
+        self._cache = {}
         self._lock = threading.Lock()
         self.load_all()
 
     # ------------------------------------------------------------------
-    # I/O JSON (solo per i 5 file residui)
+    # I/O JSON
     # ------------------------------------------------------------------
 
     def _load_json(self, path, default):
@@ -76,14 +80,11 @@ class ConfigManager:
     # ------------------------------------------------------------------
 
     def load_all(self):
-        # 5 JSON residui
         self.configs['data'] = self._load_json(CONFIG_DATA, self._default_data())
         self.configs['mail'] = self._load_json(CONFIG_MAIL, self._default_mail())
         self.configs['opensky'] = self._load_json(CONFIG_OPENSKY, self._default_opensky())
         self.configs['github'] = self._load_json(CONFIG_GITHUB, self._default_github())
         self.configs['database'] = self._load_json(CONFIG_DATABASE, self._default_database())
-
-        # Anagrafiche: la cache viene invalidata
         self._cache = {}
 
     def reload(self):
@@ -96,32 +97,56 @@ class ConfigManager:
         logger.info("Configurazione mail ricaricata")
 
     def reload_rules(self):
-        """Invalida la cache delle anagrafiche. La prossima lettura rilegge dal DB."""
         with self._lock:
             self._cache = {}
-        logger.info("Cache anagrafiche invalidata (lettura dal DB alla prossima richiesta)")
+        logger.info("Cache anagrafiche invalidata")
 
     # ------------------------------------------------------------------
-    # DEFAULT DEI 5 JSON RESIDUI
+    # DEFAULT
     # ------------------------------------------------------------------
 
     def _default_data(self):
         return {
-            "scan_schedules": ["00:00", "06:00", "12:00", "18:00"],
+            "scan_schedules": ["02:00", "06:00", "10:00", "14:00", "18:00", "22:00"],
             "night_scan_interval_minutes": 2,
             "daily_report_time": "06:30",
-            "sacbo_night_scans": ["23:00", "02:00", "05:00"],
+            "sacbo_night_scans": ["23:00", "00:01", "02:00", "05:00"],
             "sacbo_night_scan_enabled": True,
             "notifications": {
                 "cooldown_minutes": 30,
                 "enabled": True,
                 "alerts_enabled": True,
                 "daily_status_enabled": True,
+                "unresolved_airlines_days": 30,
             },
             "weather": {
                 "latitude": 45.6739, "longitude": 9.7042,
                 "start_hour": 20, "end_hour": 6,
                 "timezone": "Europe/Rome", "http_timeout": 10,
+            },
+            "scanner_radar": {
+                "bbox": {"lamin": 45.545, "lamax": 45.805,
+                         "lomin": 9.520, "lomax": 9.890},
+                "bgy_lat": 45.6739, "bgy_lon": 9.7042,
+                "max_distance_km": 15.0,
+                "adsb_lol_radius_nm": 10,
+                "adsb_fi_radius_nm": 10,
+                "airplanes_live_radius_nm": 10,
+                "airplanes_live_enabled": False,
+                "http_timeout": 15,
+                "user_agent": "BGY-Monitoring-Suite/2.6 (info@legambientebergamo.it)",
+                "phase_thresholds": {
+                    "landing_max_distance_km": 5,
+                    "landing_max_altitude_ft": 3000,
+                    "approach_max_distance_km": 10,
+                    "approach_max_altitude_ft": 5000,
+                },
+                "runway_bearings": {
+                    "RWY 28": [250, 300], "RWY 10": [70, 120],
+                    "RWY 16": [160, 190], "RWY 34": [340, 10],
+                },
+                "parallel_test_mode": False,
+                "parallel_test_days": 5,
             },
             "scanner_night": {
                 "bbox": {"lamin": 45.545, "lamax": 45.805,
@@ -223,6 +248,21 @@ class ConfigManager:
                 },
                 "max_rows": {"xlsx": 0, "pdf": 50, "docx": 100, "html": 100},
             },
+            "avionio": {
+                "enabled": True,
+                "run_at_every_scan": True,
+                "retention_days": 7,
+                "time_tolerance_min": 15,
+                "http_timeout_sec": 20,
+            },
+            "database_service": {
+                "enabled": True,
+                "service_name": "postgresql-x64-17",
+                "auto_restart_enabled": True,
+                "down_alert_threshold_min": 15,
+                "restart_cooldown_min": 30,
+                "max_restart_attempts": 3,
+            },
         }
 
     def _default_mail(self):
@@ -260,7 +300,6 @@ class ConfigManager:
         }
 
     def _default_assaeroporti(self):
-        """Parte fissa della config Assaeroporti (la parte 'years' arriva dal DB)."""
         return {
             "source_url": "https://assaeroporti.com/statistiche/",
             "airport_name": "Bergamo", "airport_code": "BGY",
@@ -269,37 +308,24 @@ class ConfigManager:
         }
 
     # ------------------------------------------------------------------
-    # ANAGRAFICHE DAL DB (F12a)
+    # ANAGRAFICHE DAL DB
     # ------------------------------------------------------------------
 
     def _db(self):
-        """Lazy import di bgy_db per evitare dipendenza circolare."""
         from bgy_core import bgy_db
         return bgy_db
 
     def get_airlines(self):
-        """
-        Ritorna un dict con:
-          - _iata_to_icao: {iata: icao}
-          - _cargo_airlines: {code: name}
-          - _charter_airlines: {code: name}
-          - altre chiavi piatte: {code: name} (passeggeri)
-        """
         if 'airlines' in self._cache:
             return self._cache['airlines']
 
         result = {"_iata_to_icao": {}, "_cargo_airlines": {}, "_charter_airlines": {}}
         try:
             db = self._db()
-
-            # IATA -> ICAO
             ok, rows = db.execute_query("SELECT iata, icao FROM iata_to_icao")
             if ok and rows:
                 result["_iata_to_icao"] = {r[0]: r[1] for r in rows}
-            else:
-                logger.warning(f"⚠️ get_airlines: iata_to_icao vuoto o errore ({rows})")
 
-            # Compagnie (con flag)
             ok, rows = db.execute_query(
                 "SELECT code, name, is_cargo, is_charter FROM airlines"
             )
@@ -311,9 +337,6 @@ class ConfigManager:
                         result["_charter_airlines"][code] = name
                     else:
                         result[code] = name
-            else:
-                logger.warning(f"⚠️ get_airlines: airlines vuoto o errore ({rows})")
-
         except Exception as e:
             logger.error(f"❌ get_airlines: {e}")
 
@@ -321,39 +344,25 @@ class ConfigManager:
         return result
 
     def get_countries(self):
-        """Ritorna {destination: country}."""
         if 'countries' in self._cache:
             return self._cache['countries']
-
         result = {}
         try:
             db = self._db()
             ok, rows = db.execute_query("SELECT destination, country FROM countries")
             if ok and rows:
                 result = {r[0]: r[1] for r in rows}
-            else:
-                logger.warning(f"⚠️ get_countries: vuoto o errore ({rows})")
         except Exception as e:
             logger.error(f"❌ get_countries: {e}")
-
         self._cache['countries'] = result
         return result
 
     def get_aircraft_models(self):
-        """
-        Ritorna un dict con:
-          - _seats: {model: {posti_2classi, posti_max, posti_default}}
-          - _load_factors: {_default: 0.85, code: value, ...}
-          - altre chiavi piatte: {code: model}
-        """
         if 'aircraft_models' in self._cache:
             return self._cache['aircraft_models']
-
         result = {"_seats": {}, "_load_factors": {"_default": 0.85}}
         try:
             db = self._db()
-
-            # Modelli con capienza
             ok, rows = db.execute_query(
                 "SELECT model, seats_2class, seats_max, seats_default FROM aircraft_models"
             )
@@ -361,12 +370,9 @@ class ConfigManager:
                 for model, s2, smax, sdef in rows:
                     if s2 is not None or smax is not None or sdef is not None:
                         result["_seats"][model] = {
-                            "posti_2classi": s2,
-                            "posti_max": smax,
+                            "posti_2classi": s2, "posti_max": smax,
                             "posti_default": sdef,
                         }
-
-            # Load factor default
             ok, rows = db.execute_query(
                 "SELECT value FROM config_settings WHERE key = 'load_factor_default'"
             )
@@ -375,8 +381,6 @@ class ConfigManager:
                     result["_load_factors"]["_default"] = float(rows[0][0])
                 except (ValueError, TypeError):
                     pass
-
-            # Load factors per compagnia
             ok, rows = db.execute_query("SELECT code, load_factor FROM load_factors")
             if ok and rows:
                 for code, value in rows:
@@ -384,34 +388,22 @@ class ConfigManager:
                         result["_load_factors"][code] = float(value)
                     except (ValueError, TypeError):
                         pass
-
-            # Mapping codice -> modello
             ok, rows = db.execute_query("SELECT code, model FROM aircraft_by_code")
             if ok and rows:
                 for code, model in rows:
                     if model:
                         result[code] = model
-
         except Exception as e:
             logger.error(f"❌ get_aircraft_models: {e}")
-
         self._cache['aircraft_models'] = result
         return result
 
     def get_noise_impact(self):
-        """
-        Ritorna un dict con:
-          - _stations: {name: {lat, lon}}
-          - _curves: {model: {phase: {distanze: [...], valori: [...]}}}
-        """
         if 'noise_impact' in self._cache:
             return self._cache['noise_impact']
-
         result = {"_stations": {}, "_curves": {}}
         try:
             db = self._db()
-
-            # Centraline
             ok, rows = db.execute_query("SELECT name, lat, lon FROM noise_stations")
             if ok and rows:
                 for name, lat, lon in rows:
@@ -419,12 +411,9 @@ class ConfigManager:
                         "lat": float(lat) if lat is not None else None,
                         "lon": float(lon) if lon is not None else None,
                     }
-
-            # Curve NPD
             ok, rows = db.execute_query(
                 "SELECT aircraft_model, phase, distance_m, noise_db "
-                "FROM noise_curves "
-                "ORDER BY aircraft_model, phase, distance_m"
+                "FROM noise_curves ORDER BY aircraft_model, phase, distance_m"
             )
             if ok and rows:
                 for model, phase, dist, db_val in rows:
@@ -434,45 +423,29 @@ class ConfigManager:
                         result["_curves"][model][phase] = {"distanze": [], "valori": []}
                     result["_curves"][model][phase]["distanze"].append(int(dist))
                     result["_curves"][model][phase]["valori"].append(float(db_val))
-
         except Exception as e:
             logger.error(f"❌ get_noise_impact: {e}")
-
         self._cache['noise_impact'] = result
         return result
 
     def get_alert_messages(self):
-        """Ritorna {key: {subject, body}}."""
         if 'alert_messages' in self._cache:
             return self._cache['alert_messages']
-
         result = {}
         try:
             db = self._db()
-            ok, rows = db.execute_query(
-                "SELECT key, subject, body FROM alert_messages"
-            )
+            ok, rows = db.execute_query("SELECT key, subject, body FROM alert_messages")
             if ok and rows:
                 for key, subject, body in rows:
-                    result[key] = {
-                        "subject": subject or "",
-                        "body": body or "",
-                    }
+                    result[key] = {"subject": subject or "", "body": body or ""}
         except Exception as e:
             logger.error(f"❌ get_alert_messages: {e}")
-
         self._cache['alert_messages'] = result
         return result
 
     def get_assaeroporti_config(self):
-        """
-        Ritorna la struttura originale:
-        { source_url, airport_name, airport_code, cache_days, http_timeout, years: {...} }
-        La parte 'years' arriva dal DB.
-        """
         if 'assaeroporti' in self._cache:
             return self._cache['assaeroporti']
-
         result = dict(self._default_assaeroporti())
         try:
             db = self._db()
@@ -484,27 +457,20 @@ class ConfigManager:
             if ok and rows:
                 for year, pax, mov, cargo, source in rows:
                     years[str(year)] = {
-                        "passeggeri": pax,
-                        "movimenti": mov,
-                        "cargo_ton": cargo,
-                        "fonte": source or "manuale",
+                        "passeggeri": pax, "movimenti": mov,
+                        "cargo_ton": cargo, "fonte": source or "manuale",
                     }
             result["years"] = years
         except Exception as e:
             logger.error(f"❌ get_assaeroporti_config: {e}")
-
         self._cache['assaeroporti'] = result
         return result
 
     # ------------------------------------------------------------------
-    # SCRITTURA SUL DB (F12a)
+    # SCRITTURA DB
     # ------------------------------------------------------------------
 
     def add_airline(self, prefix, name):
-        """
-        Aggiunge una compagnia alla tabella airlines.
-        Se il codice esiste già, non sovrascrive (come faceva il vecchio JSON).
-        """
         if not prefix or len(prefix) < 2:
             return False
         try:
@@ -513,8 +479,7 @@ class ConfigManager:
                 """INSERT INTO airlines (code, name, source)
                    VALUES (%s, %s, 'auto')
                    ON CONFLICT (code) DO NOTHING""",
-                (prefix, name),
-                fetch=False,
+                (prefix, name), fetch=False,
             )
             if ok:
                 self._cache.pop('airlines', None)
@@ -526,7 +491,6 @@ class ConfigManager:
             return False
 
     def add_destination(self, destination, country):
-        """Aggiunge una destinazione alla tabella countries."""
         if not destination or len(destination) < 2:
             return False
         key = destination.strip().upper()
@@ -536,8 +500,7 @@ class ConfigManager:
                 """INSERT INTO countries (destination, country)
                    VALUES (%s, %s)
                    ON CONFLICT (destination) DO NOTHING""",
-                (key, country),
-                fetch=False,
+                (key, country), fetch=False,
             )
             if ok:
                 self._cache.pop('countries', None)
@@ -549,15 +512,7 @@ class ConfigManager:
             return False
 
     # ------------------------------------------------------------------
-    # SAVE DEPRECATI (i JSON anagrafici non esistono più)
-    # ------------------------------------------------------------------
-
-    def save_assaeroporti_config(self, data):
-        logger.warning("⚠️ save_assaeroporti_config() deprecato: le stats sono nel DB.")
-        return False
-
-    # ------------------------------------------------------------------
-    # SEZIONI DI config_data.json (invariate)
+    # SEZIONI DI config_data.json
     # ------------------------------------------------------------------
 
     def get_data_config(self):
@@ -580,7 +535,12 @@ class ConfigManager:
     def get_weather_config(self):
         return self._section("weather")
 
+    def get_scanner_radar_config(self):
+        """Config dello scanner radar h24 (multi-fonte)."""
+        return self._section("scanner_radar")
+
     def get_scanner_night_config(self):
+        """Retrocompatibilità con il vecchio scanner notturno."""
         return self._section("scanner_night")
 
     def get_scanner_day_config(self):
@@ -602,7 +562,7 @@ class ConfigManager:
         return self._section("export")
 
     # ------------------------------------------------------------------
-    # CONFIGURAZIONI RESIDUE (JSON)
+    # JSON RESIDUI
     # ------------------------------------------------------------------
 
     def get_database_config(self):
@@ -620,5 +580,6 @@ class ConfigManager:
 
     def get_github_config(self):
         return self.configs.get('github', self._default_github())
+
 
 config_manager = ConfigManager()

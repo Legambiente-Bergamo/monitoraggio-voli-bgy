@@ -1,6 +1,18 @@
 """
 bgy_core/bgy_mailer.py - Modulo unificato di invio email.
-Versione 2.5.17
+Versione 2.5.19
+
+Novità v2.5.19 (check 12 backup DB):
+- Aggiunto check 12 "Backup DB" alla lista labels di send_daily_status().
+  La funzione check_backup() è in bgy_scheduler.py e produce la coppia
+  (ok, msg) che viene renderizzata nell'email di stato.
+
+Novità v2.5.18 (backup DB):
+- Aggiunta send_backup_alert(reason): notifica email immediata in caso di
+  fallimento del backup DB (F18). Bypassa il cooldown (evento critico),
+  rispetta il master switch notifications.enabled e alerts_enabled.
+  Chiamata da bgy_backup_db.ps1 tramite:
+    py -3.12 -c "from bgy_core.bgy_mailer import send_backup_alert; send_backup_alert('...')"
 
 Novità v2.5.13 (distribuzione ritardi):
 - _format_delay_section() mostra la distribuzione dei voli in ritardo
@@ -8,13 +20,11 @@ Novità v2.5.13 (distribuzione ritardi):
 
 Novità v2.5.12 (check 11 servizio DB):
 - Aggiunto check 11 "Servizio Database" alla lista labels.
-- Il messaggio multi-riga viene indentato come gli altri check.
 
 Novità v2.5.11 (statistiche puntualità):
 - _format_stats_section() mostra, dopo i movimenti del giorno:
     * Puntualità: voli in ritardo, ritardo medio, ritardo massimo
     * Cancellati: elenco con callsign, compagnia, destinazione
-- I dati arrivano da stats["delay"] (dict opzionale).
 
 Novità v2.5.10 (Avionio check 10):
 - Aggiunto check 10 "Conferma incrociata Avionio".
@@ -284,6 +294,64 @@ def send_alert(key, subject, body, force=False):
     return success
 
 
+def send_backup_alert(reason):
+    """
+    Notifica email immediata in caso di fallimento del backup DB (F18).
+
+    Bypassa il cooldown (evento critico, non ripetuto).
+    Rispetta il master switch notifications.enabled e alerts_enabled:
+    se l'operatore ha silenziato le notifiche, non manda nulla.
+
+    Chiamata da bgy_backup_db.ps1 tramite:
+        py -3.12 -c "from bgy_core.bgy_mailer import send_backup_alert; send_backup_alert('...')"
+
+    Ritorna True se l'email è stata inviata (o silenziata), False se errore.
+    """
+    if not are_alerts_enabled():
+        logger.info("🔕 Backup alert silenziato (notifications.alerts_enabled=False)")
+        return True
+
+    cfg = _load_mail_config()
+    if not cfg:
+        logger.error("❌ send_backup_alert: configurazione mail non disponibile")
+        return False
+
+    recipients = cfg.get("recipients_daily") or cfg.get("recipients", [])
+    if not recipients:
+        logger.error("❌ send_backup_alert: nessun destinatario configurato")
+        return False
+
+    now = datetime.now()
+    subject = f"🚨 BGY - Backup DB FALLITO - {now.strftime('%d/%m/%Y %H:%M')}"
+
+    body = (
+        f"Il backup automatico del database PostgreSQL è fallito.\n\n"
+        f"Motivo:\n  {reason}\n\n"
+        f"Dettagli:\n"
+        f"  • Data/ora: {now.strftime('%d/%m/%Y %H:%M:%S')}\n"
+        f"  • Log completo: bgy_data/bgy_logs/backup.log\n\n"
+        f"Suggerimenti:\n"
+        f"  1. Verifica che il servizio PostgreSQL sia attivo:\n"
+        f"       Get-Service postgresql-x64-17\n"
+        f"  2. Verifica che il DB sia raggiungibile:\n"
+        f"       py -3.12 -c \"from bgy_core import bgy_db; print(bgy_db.test_connection())\"\n"
+        f"  3. Verifica la connessione internet (per l'upload su Google Drive).\n"
+        f"  4. Verifica che rclone sia configurato:\n"
+        f"       rclone lsd gdrive:\n"
+        f"  5. Verifica lo spazio disponibile su Google Drive:\n"
+        f"       rclone about gdrive:\n\n"
+        f"---\n"
+        f"Notifica automatica generata il "
+        f"{now.strftime('%d/%m/%Y alle %H:%M:%S')}\n"
+        f"{version_string()}"
+    )
+
+    success = _send_smtp(cfg, subject, body, recipients=recipients)
+    if success:
+        logger.info(f"📧 Backup alert inviato: {subject}")
+    return success
+
+
 # =============================================================================
 # EMAIL DI STATO (HTML)
 # =============================================================================
@@ -360,7 +428,7 @@ def send_status_email(subject, body, is_success=True,
 
 
 # =============================================================================
-# FORMATTAZIONE STATISTICHE (v2.5.9)
+# FORMATTAZIONE STATISTICHE
 # =============================================================================
 
 def _format_cat_line(cat_key, cat_label, cat_data):
@@ -450,7 +518,6 @@ def _format_hourly_section(hourly, yesterday_str):
         totale_mov += mov
         totale_rit += rit
 
-        # Mostra solo le ore con almeno un movimento
         if mov == 0:
             continue
 
@@ -533,27 +600,23 @@ def _format_stats_section(stats, yesterday_str):
         lines.append(f"   • TOTALE:     {daily.get('totale', 0):>3}")
         lines.append("")
 
-    # Sezione puntualita + cancellati
     if delay:
         delay_text = _format_delay_section(delay, yesterday_str)
         if delay_text:
             lines.append(delay_text)
 
-    # Sezione distribuzione oraria
     hourly = stats.get("hourly") if stats else None
     if hourly:
         hourly_text = _format_hourly_section(hourly, yesterday_str)
         if hourly_text:
             lines.append(hourly_text)
 
-    # Sezione top compagnie per ritardi
     airlines = stats.get("airlines") if stats else None
     if airlines:
         airlines_text = _format_airlines_section(airlines, yesterday_str)
         if airlines_text:
             lines.append(airlines_text)
 
-    # Sezione destinazioni con ritardi
     destinations = stats.get("destinations") if stats else None
     if destinations:
         dest_text = _format_destinations_section(destinations, yesterday_str)
@@ -668,6 +731,7 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
             ('scanner_day_status', '9) Diagnostica scanner diurno'),
             ('avionio_confronto', '10) Conferma incrociata Avionio'),
             ('db_service', '11) Servizio Database'),
+            ('backup', '12) Backup DB'),
         ]
         for key, label in labels:
             if key in checks:
@@ -711,7 +775,7 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
             all(ok for k, (ok, _) in checks.items()
                 if k not in ('github_sync', 'quality_check',
                              'unresolved_airlines', 'scanner_day_status',
-                             'avionio_confronto', 'db_service'))
+                             'avionio_confronto', 'db_service', 'backup'))
         )
         if not only_sync_error:
             log_path = _get_today_log_path()

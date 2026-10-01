@@ -1,8 +1,9 @@
 ﻿"""
 bgy_scheduler.py - Pianificatore ed Orchestratore automatico.
-Versione 2.6.9
+Versione 2.7.1
+
 - Lock file per impedire doppio avvio
-- Radar notturno: SOLO tra le 23:00 e le 05:59
+- Radar h24 multi-fonte (adsb.lol -> adsb.fi -> OpenSky)
 - Sync DB: recupero automatico degli ultimi 8 giorni
 - Quality check (F11e) integrato nel job giornaliero
 - Statistiche movimenti giorno/notte (F18b) nell'email di stato
@@ -11,31 +12,21 @@ Versione 2.6.9
 - Screenshot tabellone allegati all'email + rotazione 7 giorni (F14c)
 - Recupero automatico scansioni mancate (v2.6.2)
 - Confronto incrociato Avionio (v2.6.4)
+- Check 11 servizio DB (v2.6.6)
+- Statistiche puntualità (v2.6.5)
+- Radar h24 (v2.7.0)
+- Check 12 backup DB (v2.7.1)
 
-Novità v2.6.6 (check 11 servizio DB):
-- Aggiunto check 11 "Servizio Database" nell'email di stato 06:30.
-- Verifica stato servizio PostgreSQL e raggiungibilità DB.
+Novità v2.7.1 (check 12 backup DB):
+- Aggiunto check 12 "Backup DB" nell'email di stato.
+- check_backup() legge bgy_data/bgy_logs/backup.log e verifica che
+  l'ultimo backup sia avvenuto con successo nelle ultime 36 ore.
 
-Novità v2.6.5 (statistiche puntualità):
-- Raccolta statistiche di puntualità via get_daily_delay_stats().
-- Passaggio a send_daily_status(stats={daily, nightly, delay}).
-
-Novità v2.6.4 (Avionio):
-- Esegue scanner Avionio + confronto dopo ogni scansione SACBO
-  (se avionio.run_at_every_scan=true, prima settimana).
-- Al job 06:30 esegue comunque Avionio + confronto come check 10.
-- Check 10 'avionio_confronto' è warning-only: non fa diventare l'email ❌.
-- Cleanup cartella bgy_avionio/ a 7 giorni in coda al job_daily.
-- Configurazione in config_data.json sezione 'avionio'.
-
-Novità v2.6.3:
-- Bump per compatibilità con bgy_db_migrate v2.6.5.
-
-Novità v2.6.2:
-- Recupero automatico scansioni mancate.
-
-Novità v2.6.1:
-- Fix selezione screenshot: ora vengono presi quelli delle 23:00.
+Novità v2.7.0 (radar h24):
+- Sostituito run_night_scan con run_radar_scan.
+- Job radar ogni N minuti h24, senza check notturno.
+- Scansione radar all'avvio sempre (non solo di notte).
+- __init__.py scanner esporta run_radar_scan.
 """
 import os
 import sys
@@ -55,7 +46,7 @@ from bgy_core.bgy_mailer import send_daily_status
 from bgy_core.bgy_dates import is_night_time, night_session_date
 from bgy_reports import (generate_daily_report, generate_nightly_report,
                          send_monthly_report)
-from bgy_scanners import run_day_scan, run_night_scan
+from bgy_scanners import run_day_scan, run_radar_scan
 
 logger = get_logger("Scheduler")
 
@@ -69,6 +60,7 @@ SCANNER_STATUS_FILE = os.path.join(LOGS_DIR, "scanner_day_status.json")
 SCREENSHOTS_DIR = os.path.join(os.path.dirname(LOGS_DIR), "bgy_screenshots")
 RECOVERY_STATE_FILE = os.path.join(LOGS_DIR, "recovery_state.json")
 AVIONIO_DIR = os.path.join(os.path.dirname(LOGS_DIR), "bgy_avionio")
+BACKUP_LOG_FILE = os.path.join(LOGS_DIR, "backup.log")
 
 PREFERRED_SCREENSHOT_HOUR = "23-00"
 
@@ -76,7 +68,9 @@ RECOVERY_DELAY_SEC = 300
 RECOVERY_MIN_GAP_MIN = 60
 RECOVERY_MAX_AGE_DAYS = 7
 
-# Check warning-only (non contano in overall_success)
+# Soglia entro cui il backup DB deve essere stato eseguito (in ore)
+BACKUP_MAX_AGE_HOURS = 36
+
 WARNING_ONLY_CHECKS = {'avionio_confronto'}
 
 
@@ -156,11 +150,10 @@ def acquire_scheduler_lock():
 
 
 # -----------------------------------------------------------------------------
-# AVIONIO (v2.6.4)
+# AVIONIO
 # -----------------------------------------------------------------------------
 
 def _run_avionio_scan():
-    """Esegue lo scanner Avionio (arrivals + departures)."""
     try:
         from bgy_scanners.bgy_scanner_alt import run_scan_alt
         results = run_scan_alt("both")
@@ -174,7 +167,6 @@ def _run_avionio_scan():
 
 
 def _run_avionio_comparison(trigger=""):
-    """Esegue il confronto SACBO vs Avionio. Ritorna (ok, msg)."""
     try:
         from bgy_tools.confronto_sacbo_avionio import run_confronto_summary
         ok, msg = run_confronto_summary()
@@ -187,19 +179,16 @@ def _run_avionio_comparison(trigger=""):
 
 
 def _run_avionio_after_scan(trigger):
-    """Esegue Avionio scan + confronto dopo una scansione SACBO."""
     cfg = _cfg_avionio()
     if not cfg.get("enabled", True):
         return
     if not cfg.get("run_at_every_scan", True):
         return
-
     _run_avionio_scan()
     _run_avionio_comparison(trigger=trigger)
 
 
 def cleanup_old_avionio(days=7):
-    """Rimuove i file Avionio più vecchi di N giorni."""
     try:
         from bgy_scanners.bgy_scanner_alt import cleanup_old_files
         return cleanup_old_files(days=days)
@@ -515,7 +504,6 @@ def check_night_acquisition(date_str):
 def check_scanner_day_status():
     if not os.path.exists(SCANNER_STATUS_FILE):
         return True, "Nessuna scansione registrata"
-
     try:
         with open(SCANNER_STATUS_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -559,6 +547,40 @@ def check_scanner_day_status():
         f"   → Esegui: py -3.12 -m bgy_tools.test_sacbo_stealth"
     )
     return False, msg
+
+
+def check_backup():
+    """
+    Verifica che il backup DB più recente sia recente (< BACKUP_MAX_AGE_HOURS).
+    Legge bgy_data/bgy_logs/backup.log e cerca l'ultima riga
+    'Backup completato con successo.'.
+    """
+    if not os.path.exists(BACKUP_LOG_FILE):
+        return False, "Nessun log di backup trovato"
+
+    last_success = None
+    try:
+        with open(BACKUP_LOG_FILE, "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                if "Backup completato con successo" in line:
+                    parts = line.split(" - ", 1)
+                    if parts:
+                        last_success = parts[0].strip()
+    except Exception as e:
+        return False, f"Errore lettura log backup: {str(e)[:80]}"
+
+    if not last_success:
+        return False, "Nessun backup completato con successo nel log"
+
+    try:
+        success_dt = datetime.strptime(last_success, "%Y-%m-%d %H:%M:%S")
+        age_hours = (datetime.now() - success_dt).total_seconds() / 3600
+        if age_hours > BACKUP_MAX_AGE_HOURS:
+            return False, (f"Ultimo backup OK: {last_success} "
+                           f"({age_hours:.1f}h fa, soglia {BACKUP_MAX_AGE_HOURS}h)")
+        return True, f"Backup OK: {last_success} ({age_hours:.1f}h fa)"
+    except Exception as e:
+        return False, f"Errore parsing timestamp backup: {str(e)[:80]}"
 
 
 # -----------------------------------------------------------------------------
@@ -707,11 +729,12 @@ def job_recovery_scan(slot_key=None):
         logger.error(f"❌ Errore recupero {slot_key}: {e}")
 
 
-def job_radar_night_scan():
-    now = datetime.now()
-    if not is_night_time(now):
-        return
-    run_night_scan(check_night_window=True)
+def job_radar_scan():
+    """Scansione radar h24. Nessun check notturno."""
+    try:
+        run_radar_scan()
+    except Exception as e:
+        logger.error(f"❌ Eccezione scansione radar: {e}")
 
 
 def job_daily():
@@ -887,18 +910,29 @@ def job_daily():
     try:
         from bgy_core import bgy_db_service
         status, status_msg = bgy_db_service.get_service_status()
-        db_ok, db_msg = bgy_db_service.is_db_reachable()
-        db_svc_ok = (status == "Running" and db_ok)
+        db_ok2, db_msg2 = bgy_db_service.is_db_reachable()
+        db_svc_ok = (status == "Running" and db_ok2)
         if db_svc_ok:
             db_svc_msg = f"OK ({status}, DB raggiungibile)"
         else:
             db_svc_msg = (f"Servizio: {status}\n"
-                          f"DB raggiungibile: {db_ok}\n"
-                          f"Dettaglio: {db_msg[:100]}")
+                          f"DB raggiungibile: {db_ok2}\n"
+                          f"Dettaglio: {db_msg2[:100]}")
         logger.info(f"{'✅' if db_svc_ok else '⚠️'} {db_svc_msg}")
     except Exception as e:
         db_svc_msg = f"Errore verifica servizio DB: {e}"
         logger.error(f"❌ {db_svc_msg}")
+
+    logger.info("-" * 60)
+    logger.info("💾 Verifica backup DB...")
+    bk_ok = True
+    bk_msg = "Non tentato"
+    try:
+        bk_ok, bk_msg = check_backup()
+        logger.info(f"{'✅' if bk_ok else '❌'} {bk_msg}")
+    except Exception as e:
+        bk_msg = f"Errore verifica backup: {e}"
+        logger.error(f"❌ {bk_msg}")
 
     checks = {
         'sacbo_acquisition': (sacbo_acq_ok, sacbo_acq_msg),
@@ -912,6 +946,7 @@ def job_daily():
         'scanner_day_status': (sc_ok, sc_msg),
         'avionio_confronto': (av_ok, av_msg),
         'db_service': (db_svc_ok, db_svc_msg),
+        'backup': (bk_ok, bk_msg),
     }
 
     overall_success = all(
@@ -977,13 +1012,13 @@ def setup_scheduler():
             logger.info(f"🌙 Scansione SACBO notturna alle {t}")
 
     interval = config.get("night_scan_interval_minutes", 2)
-    schedule.every(interval).minutes.do(job_radar_night_scan)
-    logger.info(f"📡 Scansione RADAR ogni {interval} minuti, SOLO 23:00-05:59")
+    schedule.every(interval).minutes.do(job_radar_scan)
+    logger.info(f"📡 Scansione RADAR ogni {interval} minuti, h24")
 
     report_time = config.get("daily_report_time", "06:30")
     schedule.every().day.at(report_time).do(job_daily)
     logger.info(f"📊 Report + sync + quality + compagnie + diagnostica "
-                f"+ Avionio + screenshot + email alle {report_time}")
+                f"+ Avionio + screenshot + backup + email alle {report_time}")
 
     logger.info("=" * 50)
     logger.info("✅ Scheduler configurato e in esecuzione...")
@@ -1002,10 +1037,12 @@ def run_scheduler_loop():
     except Exception as e:
         logger.error(f"Errore check recovery startup: {e}")
 
-    now = datetime.now()
-    if is_night_time(now):
-        logger.info("🌙 Avvio scansione radar immediata all'avvio...")
-        job_radar_night_scan()
+    logger.info("📡 Avvio scansione radar immediata all'avvio...")
+    try:
+        job_radar_scan()
+    except Exception as e:
+        logger.error(f"Errore scansione radar iniziale: {e}")
+
     while True:
         schedule.run_pending()
         time.sleep(1)
