@@ -1,18 +1,19 @@
 """
 bgy_core/bgy_mailer.py - Modulo unificato di invio email.
-Versione 2.5.19
+Versione 2.5.20
+
+Novità v2.5.20 (avviso import notturno):
+- Se il check 'quality_check' ha un errore, la sezione "MOVIMENTI DELLA NOTTE"
+  mostra un avviso esplicito: "Dati notturni potenzialmente incompleti".
+- 'backup' aggiunto a WARNING_ONLY_CHECKS: un fallimento del backup DB
+  non colora l'email di rosso, ma è segnalato nel corpo.
 
 Novità v2.5.19 (check 12 backup DB):
 - Aggiunto check 12 "Backup DB" alla lista labels di send_daily_status().
-  La funzione check_backup() è in bgy_scheduler.py e produce la coppia
-  (ok, msg) che viene renderizzata nell'email di stato.
 
 Novità v2.5.18 (backup DB):
 - Aggiunta send_backup_alert(reason): notifica email immediata in caso di
-  fallimento del backup DB (F18). Bypassa il cooldown (evento critico),
-  rispetta il master switch notifications.enabled e alerts_enabled.
-  Chiamata da bgy_backup_db.ps1 tramite:
-    py -3.12 -c "from bgy_core.bgy_mailer import send_backup_alert; send_backup_alert('...')"
+  fallimento del backup DB (F18).
 
 Novità v2.5.13 (distribuzione ritardi):
 - _format_delay_section() mostra la distribuzione dei voli in ritardo
@@ -28,9 +29,7 @@ Novità v2.5.11 (statistiche puntualità):
 
 Novità v2.5.10 (Avionio check 10):
 - Aggiunto check 10 "Conferma incrociata Avionio".
-- Il check 10 è "warning-only": se fallisce, l'email resta ✅ nell'oggetto
-  ma mostra il warning nel corpo.
-- Definite WARNING_ONLY_CHECKS per escludere questi check da all_ok.
+- Il check 10 è "warning-only".
 
 Novità v2.5.9 (sconfinamenti gravi + anomalie):
 - _format_stats_section() mostra tre sezioni dedicate.
@@ -75,7 +74,9 @@ COOLDOWN_FILE = os.path.join(LOGS_DIR, "notifier_cooldown.json")
 DEFAULT_COOLDOWN_MIN = 30
 
 # Check che non fanno diventare l'email ❌ se falliscono
-WARNING_ONLY_CHECKS = {'avionio_confronto'}
+# Nota: 'backup' e 'avionio_confronto' non impediscono al sistema di funzionare,
+# sono informativi. Un loro fallimento resta visibile nel corpo dell'email.
+WARNING_ONLY_CHECKS = {'avionio_confronto', 'backup'}
 
 
 # =============================================================================
@@ -299,8 +300,7 @@ def send_backup_alert(reason):
     Notifica email immediata in caso di fallimento del backup DB (F18).
 
     Bypassa il cooldown (evento critico, non ripetuto).
-    Rispetta il master switch notifications.enabled e alerts_enabled:
-    se l'operatore ha silenziato le notifiche, non manda nulla.
+    Rispetta il master switch notifications.enabled e alerts_enabled.
 
     Chiamata da bgy_backup_db.ps1 tramite:
         py -3.12 -c "from bgy_core.bgy_mailer import send_backup_alert; send_backup_alert('...')"
@@ -374,6 +374,7 @@ body {{ font-family: Arial; line-height: 1.6; color: #333; max-width: 700px; mar
 .status-box {{ padding: 15px 20px; border-radius: 8px; text-align: center; font-size: 18px; font-weight: bold; background: {status_color}22; border: 2px solid {status_color}; color: {status_color}; margin-bottom: 20px; }}
 .footer {{ background: #2c3e50; color: #ecf0f1; padding: 18px 25px; border-radius: 0 0 12px 12px; text-align: center; font-size: 12px; }}
 .body-text {{ white-space: pre-wrap; font-family: monospace; font-size: 13px; background: white; border: 1px solid #ddd; border-radius: 8px; padding: 15px; }}
+.alert {{ background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px 15px; margin: 10px 0; border-radius: 4px; }}
 </style></head>
 <body>
 <div class="header"><h1>✈️ BGY Monitoring Suite</h1></div>
@@ -468,7 +469,6 @@ def _format_delay_section(delay, yesterday_str):
     lines.append(f"   • In anticipo:     {in_ant:>3}")
     lines.append("")
 
-    # Distribuzione per fasce (Fase 2)
     fasce = delay.get("fasce", {})
     if fasce:
         lines.append("   📊 Distribuzione per fascia di ritardo:")
@@ -586,12 +586,25 @@ def _format_destinations_section(destinations, yesterday_str):
     return "\n".join(lines)
 
 
-def _format_stats_section(stats, yesterday_str):
+def _format_stats_section(stats, yesterday_str, checks=None):
+    """
+    Formatta la sezione statistiche.
+
+    Se checks è passato e il check 'quality_check' ha un errore,
+    viene mostrato un avviso nella sezione notturna.
+    """
     lines = []
 
     daily = stats.get("daily") if stats else None
     nightly = stats.get("nightly") if stats else None
     delay = stats.get("delay") if stats else None
+
+    # Determina se l'import notturno è fallito (per l'avviso)
+    qc_errore = False
+    if checks and 'quality_check' in checks:
+        ok, msg = checks['quality_check']
+        if not ok and msg and 'Coerenza CSV vs DB' in msg:
+            qc_errore = True
 
     if daily:
         lines.append(f"📊 MOVIMENTI DEL GIORNO ({yesterday_str})")
@@ -624,6 +637,13 @@ def _format_stats_section(stats, yesterday_str):
             lines.append(dest_text)
 
     if nightly:
+        # Avviso esplicito se l'import notturno è fallito
+        if qc_errore:
+            lines.append("⚠️  ATTENZIONE: l'import notturno nel DB è fallito.")
+            lines.append("   I conteggi notturni qui sotto potrebbero essere 0")
+            lines.append("   o incompleti. Vedi il check 7 per i dettagli.")
+            lines.append("")
+
         lines.append(f"🌙 MOVIMENTI DELLA NOTTE ({yesterday_str})")
         for cat_key, cat_label in (("passeggeri", "Passeggeri"),
                                     ("cargo", "Cargo"),
@@ -747,7 +767,7 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
                     if key == 'quality_check':
                         parts.append(msg)
                     elif key in ('unresolved_airlines', 'scanner_day_status',
-                                 'avionio_confronto', 'db_service'):
+                                 'avionio_confronto', 'db_service', 'backup'):
                         for line in msg.split('\n'):
                             parts.append(f"   {line}")
                     else:
@@ -755,7 +775,7 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
                 parts.append("")
 
     if stats:
-        stats_text = _format_stats_section(stats, yesterday_str)
+        stats_text = _format_stats_section(stats, yesterday_str, checks=checks)
         if stats_text:
             parts.append("━" * 37)
             parts.append("")

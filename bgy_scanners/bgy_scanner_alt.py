@@ -1,10 +1,10 @@
 """
 bgy_scanners/bgy_scanner_alt.py - Scanner alternativo (Avionio).
-Versione 0.1.1
+Versione 0.2.0
 
 Scopo:
   - Fornire una fonte alternativa di confronto per i dati SACBO.
-  - NON sostituisce lo scanner principale (bgy_scanner_day.py).
+  - FARE DA FALLBACK quando SACBO è irraggiungibile (Cloudflare, sito giù).
   - I dati sono salvati in bgy_data/bgy_avionio/ (rotazione 7 giorni).
 
 Fonte: https://www.avionio.com/en/airport/bgy/{arrivals,departures}
@@ -12,9 +12,17 @@ Fonte: https://www.avionio.com/en/airport/bgy/{arrivals,departures}
 Struttura tabella HTML:
     Time | Date | IATA | Origin/Destination | Flight | Airline | Status
 
+Novità v0.2.0 (failover SACBO):
+- Aggiunta fetch_as_scan_rows(): ritorna i voli Avionio nel formato
+  compatibile con scan_*.csv di SACBO, con fonte_scan='avionio'.
+  Usata da bgy_scanner_day.py come fallback quando Cloudflare blocca SACBO.
+- Aggiunta STATUS_MAP: traduzione degli stati inglesi Avionio in italiano
+  compatibile con la logica di _classify_volo() in bgy_report_night.py.
+- Aggiunta _avionio_effective_time(): stima orario_effettivo in base allo
+  stato (Avionio non fornisce un campo separato).
+
 Novità v0.1.1:
 - Fix _normalize_callsign: 'FR3403' → 'FR 3403' (era 'FR3 403').
-  Regex ora distingue IATA (2 char) da ICAO (3 lettere).
 
 Uso:
     py -3.12 -m bgy_scanners.bgy_scanner_alt
@@ -63,6 +71,53 @@ FIELDNAMES = [
     "compagnia_aerea", "codice_iata", "data", "fonte",
 ]
 
+# Traduzione stati Avionio (inglese) → stati SACBO (italiano)
+# Usata da _classify_volo() in bgy_report_night.py per la classificazione.
+# Gli stati in italiano devono contenere le chiavi cercate da:
+#   STATI_A_TERRA = ('IMBARCO', 'IN RITARDO')
+#   STATI_OPERATI = ('DECOLLATO', 'ATTERRATO', 'ARRIVATO', 'IN VOLO', 'PARTITO')
+STATUS_MAP = {
+    # Stati "a terra"
+    "boarding": "Imbarco in corso",
+    "boarding closed": "Imbarco chiuso",
+    "gate closed": "Imbarco chiuso",
+    "gate open": "Operativo",
+    "last call": "Imbarco ultima chiamata",
+    "check-in": "Operativo",
+    "check in": "Operativo",
+    "checkin": "Operativo",
+    "delayed": "In ritardo",
+    "estimated": "Operativo",
+    "scheduled": "Operativo",
+    "on time": "Operativo",
+    "on-time": "Operativo",
+    # Stati "operati"
+    "departed": "Decollato",
+    "took off": "Decollato",
+    "tookoff": "Decollato",
+    "airborne": "In volo",
+    "en route": "In volo",
+    "landed": "Atterrato",
+    "arrived": "Atterrato",
+    "arrival": "Atterrato",
+    # Stati terminali
+    "cancelled": "Cancellato",
+    "canceled": "Cancellato",
+    "diverted": "Dirottato",
+    "unknown": "Operativo",
+    "": "Operativo",
+}
+
+# Stati che NON hanno orario effettivo (volo non ancora operato)
+STATI_PRE_OPERATIVI = (
+    "operativo", "imbarco", "check-in", "stimato", "scheduled",
+)
+
+# Stati che sono già operati (hanno un orario effettivo)
+STATI_POST_OPERATIVI = (
+    "decollato", "atterrato", "arrivato", "in volo", "partito",
+)
+
 
 # -----------------------------------------------------------------------------
 # UTILITY
@@ -89,6 +144,49 @@ def _is_valid_time(hhmm):
     if not hhmm:
         return False
     return bool(re.match(r'^\d{1,2}:\d{2}$', str(hhmm).strip()))
+
+
+def _translate_status(status):
+    """Traduce lo stato Avionio in italiano SACBO-compatibile."""
+    if not status:
+        return "Operativo"
+    s = str(status).strip().lower()
+    # Cerca corrispondenza esatta nella mappa
+    if s in STATUS_MAP:
+        return STATUS_MAP[s]
+    # Cerca corrispondenza parziale (es. "Landed 10:35" → "Atterrato")
+    for key, value in STATUS_MAP.items():
+        if key and key in s:
+            return value
+    # Fallback: mantieni lo status originale
+    return str(status).strip()
+
+
+def _avionio_effective_time(status_translated, orario_schedulato):
+    """
+    Stima l'orario effettivo da uno stato Avionio.
+
+    Avionio non fornisce un campo separato di orario effettivo. La logica:
+      - Se lo stato è post-operativo (decollato/atterrato/...), non possiamo
+        sapere l'orario esatto: lasciamo vuoto.
+      - Se lo stato è pre-operativo (operativo/imbarco/...), assumiamo
+        che l'orario effettivo sia uguale a quello schedulato (volo in orario).
+      - Se lo stato è "In ritardo" o "Cancellato", lasciamo vuoto.
+    """
+    s = str(status_translated).strip().lower()
+
+    if any(k in s for k in ("cancellat", "cancelled", "canceled", "dirottat", "diverted")):
+        return ""
+
+    if any(k in s for k in ("in ritardo", "delayed")):
+        return ""
+
+    if any(k in s for k in ("decollato", "atterrato", "arrivato", "in volo", "partito")):
+        # Operato, ma orario effettivo non disponibile
+        return ""
+
+    # Pre-operativo: assume orario in linea con lo schedulato
+    return orario_schedulato if _is_valid_time(orario_schedulato) else ""
 
 
 # -----------------------------------------------------------------------------
@@ -262,6 +360,59 @@ def fetch_all():
     arr = fetch_avionio(AVIONIO_ARRIVALS, "arrivals")
     dep = fetch_avionio(AVIONIO_DEPARTURES, "departures")
     return arr, dep
+
+
+def fetch_as_scan_rows():
+    """
+    Ritorna i voli Avionio nel formato compatibile con scan_*.csv di SACBO.
+
+    Lista di dict con le colonne:
+        callsign_volo, tipo_movimento, destinazione_origine,
+        orario_schedulato, orario_effettivo, stato_volo, fonte_scan
+
+    Usata da bgy_scanner_day.py come fallback quando SACBO è irraggiungibile.
+
+    Nota: gli stati Avionio sono tradotti in italiano SACBO-compatibile.
+    L'orario effettivo è stimato in base allo stato (Avionio non lo fornisce).
+    """
+    arr, dep = fetch_all()
+    rows = []
+
+    for fl in (arr or []):
+        stato_tradotto = _translate_status(fl.get("stato_volo", ""))
+        orario_eff = _avionio_effective_time(
+            stato_tradotto, fl.get("orario_schedulato", "")
+        )
+        rows.append({
+            "callsign_volo": fl.get("callsign_volo", ""),
+            "tipo_movimento": fl.get("tipo_movimento", "A"),
+            "destinazione_origine": fl.get("destinazione_origine", ""),
+            "orario_schedulato": fl.get("orario_schedulato", ""),
+            "orario_effettivo": orario_eff,
+            "stato_volo": stato_tradotto,
+            "fonte_scan": "avionio",
+        })
+
+    for fl in (dep or []):
+        stato_tradotto = _translate_status(fl.get("stato_volo", ""))
+        orario_eff = _avionio_effective_time(
+            stato_tradotto, fl.get("orario_schedulato", "")
+        )
+        rows.append({
+            "callsign_volo": fl.get("callsign_volo", ""),
+            "tipo_movimento": fl.get("tipo_movimento", "D"),
+            "destinazione_origine": fl.get("destinazione_origine", ""),
+            "orario_schedulato": fl.get("orario_schedulato", ""),
+            "orario_effettivo": orario_eff,
+            "stato_volo": stato_tradotto,
+            "fonte_scan": "avionio",
+        })
+
+    logger.info(
+        f"📦 Avionio → scan rows: {len(rows)} voli "
+        f"({len(arr or [])} arrivi + {len(dep or [])} partenze)"
+    )
+    return rows
 
 
 # -----------------------------------------------------------------------------

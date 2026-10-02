@@ -1,6 +1,6 @@
 ﻿"""
 bgy_scheduler.py - Pianificatore ed Orchestratore automatico.
-Versione 2.7.1
+Versione 2.7.2
 
 - Lock file per impedire doppio avvio
 - Radar h24 multi-fonte (adsb.lol -> adsb.fi -> OpenSky)
@@ -16,17 +16,29 @@ Versione 2.7.1
 - Statistiche puntualità (v2.6.5)
 - Radar h24 (v2.7.0)
 - Check 12 backup DB (v2.7.1)
+- Avviso scansioni da fonte alternativa Avionio (v2.7.2)
+
+Novità v2.7.2 (failover SACBO → Avionio):
+- check_sacbo_acquisition() legge la colonna fonte_scan dei CSV di
+  scansione e conta quante sono da Avionio. Se > 0, il messaggio
+  del check 1 include un avviso "N scansioni su M da fonte alternativa
+  (Avionio)". Il check resta OK (le scansioni sono state eseguite).
+- Il log del job giornaliero riporta il numero di scansioni alternative.
 
 Novità v2.7.1 (check 12 backup DB):
 - Aggiunto check 12 "Backup DB" nell'email di stato.
-- check_backup() legge bgy_data/bgy_logs/backup.log e verifica che
-  l'ultimo backup sia avvenuto con successo nelle ultime 36 ore.
 
 Novità v2.7.0 (radar h24):
 - Sostituito run_night_scan con run_radar_scan.
 - Job radar ogni N minuti h24, senza check notturno.
-- Scansione radar all'avvio sempre (non solo di notte).
-- __init__.py scanner esporta run_radar_scan.
+- Scansione radar all'avvio sempre.
+
+Novità v2.6.6 (check 11 servizio DB).
+Novità v2.6.5 (statistiche puntualità).
+Novità v2.6.4 (Avionio).
+Novità v2.6.3 (bump compatibilità).
+Novità v2.6.2 (recupero automatico).
+Novità v2.6.1 (fix selezione screenshot).
 """
 import os
 import sys
@@ -71,7 +83,7 @@ RECOVERY_MAX_AGE_DAYS = 7
 # Soglia entro cui il backup DB deve essere stato eseguito (in ore)
 BACKUP_MAX_AGE_HOURS = 36
 
-WARNING_ONLY_CHECKS = {'avionio_confronto'}
+WARNING_ONLY_CHECKS = {'avionio_confronto', 'backup'}
 
 
 def _cfg_avionio():
@@ -399,6 +411,24 @@ def _get_scheduler_start_time(target_date_str):
     return None
 
 
+def _read_fonte_scan_from_csv(filepath):
+    """
+    Legge la colonna fonte_scan dal primo record di un CSV di scansione.
+    Ritorna 'sacbo' se la colonna non esiste (retrocompatibilità).
+    """
+    try:
+        with open(filepath, "r", encoding="utf-8-sig", newline="") as f:
+            reader = __import__("csv").DictReader(f)
+            for row in reader:
+                fonte = (row.get("fonte_scan") or "").strip().lower()
+                if fonte in ("sacbo", "avionio"):
+                    return fonte
+                return "sacbo"
+    except Exception:
+        pass
+    return "sacbo"
+
+
 def _classifica_scansione(expected_time, scan_date, scheduler_start):
     scan_date_norm = scan_date
     scan_date_clean = scan_date.replace("-", "")
@@ -410,7 +440,8 @@ def _classifica_scansione(expected_time, scan_date, scheduler_start):
     ]
     for fp in candidates:
         if os.path.exists(fp):
-            return "eseguita", None
+            fonte = _read_fonte_scan_from_csv(fp)
+            return "eseguita", fonte
     if scheduler_start is not None:
         try:
             exp_dt = datetime.strptime(f"{scan_date} {expected_time}", "%Y-%m-%d %H:%M")
@@ -426,25 +457,49 @@ def _classifica_scansione(expected_time, scan_date, scheduler_start):
 # -----------------------------------------------------------------------------
 
 def check_sacbo_acquisition(date_str):
+    """
+    Check 1 del job giornaliero.
+
+    Ritorna (ok, msg). Il messaggio include:
+    - Numero di scansioni eseguite / attese
+    - Dettaglio delle saltate (sistema spento)
+    - Dettaglio delle mancanti (errore)
+    - v2.7.2: numero di scansioni da fonte alternativa (Avionio)
+    """
     config = config_manager.get_data_config()
     expected_times = config.get("scan_schedules", ["02:00", "06:00", "10:00", "14:00", "18:00", "22:00"])
     scheduler_start = _get_scheduler_start_time(date_str)
     eseguite, saltate, mancanti = [], [], []
+    fonti = {"sacbo": 0, "avionio": 0}
+
     for t in expected_times:
         stato, info = _classifica_scansione(t, date_str, scheduler_start)
         if stato == "eseguita":
             eseguite.append(t)
+            if info in ("sacbo", "avionio"):
+                fonti[info] += 1
         elif stato == "saltata":
             saltate.append((t, info))
         else:
             mancanti.append(t)
+
     totale = len(expected_times)
     parti = [f"Eseguite {len(eseguite)}/{totale} scansioni diurne"]
+
     if saltate:
         dettagli = ", ".join([f"{t} (sistema spento fino a {avvio})" for t, avvio in saltate])
         parti.append(f"saltate {len(saltate)}: {dettagli}")
     if mancanti:
         parti.append(f"MANCANTI {len(mancanti)}: {', '.join(mancanti)}")
+
+    # v2.7.2: avviso scansioni da fonte alternativa
+    n_avionio = fonti.get("avionio", 0)
+    if n_avionio > 0:
+        parti.append(
+            f"⚠️ {n_avionio} scansioni su {len(eseguite)} da fonte "
+            f"alternativa (Avionio) — copertura parziale"
+        )
+
     msg = ". ".join(parti)
     return (len(mancanti) == 0), msg
 
@@ -464,16 +519,21 @@ def check_night_acquisition(date_str):
     next_day = (date_obj + timedelta(days=1)).strftime("%Y-%m-%d")
     scheduler_start = _get_scheduler_start_time(date_str)
     eseguite, saltate, mancanti = [], [], []
+    fonti = {"sacbo": 0, "avionio": 0}
+
     for t in night_times:
         hh = int(t.split(":")[0])
         scan_date = date_str if hh >= 12 else next_day
         stato, info = _classifica_scansione(t, scan_date, scheduler_start)
         if stato == "eseguita":
             eseguite.append(t)
+            if info in ("sacbo", "avionio"):
+                fonti[info] += 1
         elif stato == "saltata":
             saltate.append((t, info))
         else:
             mancanti.append(t)
+
     radar_file = _find_radar_file(date_str)
     radar_ok = False
     radar_msg = ""
@@ -497,6 +557,11 @@ def check_night_acquisition(date_str):
     if mancanti:
         parti.append(f"MANCANTI {len(mancanti)}: {', '.join(mancanti)}")
     parti.append(radar_msg)
+
+    n_avionio = fonti.get("avionio", 0)
+    if n_avionio > 0:
+        parti.append(f"⚠️ {n_avionio} scansioni notturne da Avionio")
+
     msg = ". ".join(parti)
     return (len(mancanti) == 0 and radar_ok), msg
 
@@ -518,12 +583,18 @@ def check_scanner_day_status():
     n_a = int(data.get("n_arrivi", 0))
     is_recovery = bool(data.get("is_recovery", False))
     recovered_slot = data.get("recovered_slot")
+    fonte = data.get("fonte_scan", "sacbo")
+    fallback_attivato = bool(data.get("fallback_attivato", False))
 
     if is_recovery:
         suffix = (f" — 🔄 Recupero di {recovered_slot}"
                   if recovered_slot else " — 🔄 Recupero")
     else:
         suffix = f" — ultima scansione {ts}"
+
+    if fonte == "avionio":
+        return True, (f"⚠️ OK da FONTE ALTERNATIVA (Avionio) "
+                      f"({n_d} D + {n_a} A){suffix}")
 
     if challenge and clicked and changed and n_d > 0 and n_a > 0:
         return True, f"OK ({n_d} D + {n_a} A){suffix}"

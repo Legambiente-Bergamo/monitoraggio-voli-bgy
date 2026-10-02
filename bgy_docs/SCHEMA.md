@@ -1,7 +1,7 @@
 # SCHEMA.md — Contratti dati BGY Monitoring Suite
 
-**Versione**: 2.9.5
-**Data**: 30 settembre 2026
+**Versione**: 2.9.6
+**Data**: 1 ottobre 2026
 
 Documento di riferimento per **tutti i formati di interscambio** tra moduli.
 Se cambi un nome di colonna, un tipo o un valore di enumerazione, **aggiorna questo file**.
@@ -12,7 +12,8 @@ Se cambi un nome di colonna, un tipo o un valore di enumerazione, **aggiorna que
 
 | Versione | Data | Modifiche |
 |---|---|---|
-| **2.9.5** | 2026-09-30 | Radar h24: aggiunta `fonte` in `radar_*.csv`; `radar_*.csv` è ora cumulativo per **giorno solare**; `sessione_notturna` in DB è nullable. Aggiunta `notte_categoria` e `direzione_sacbo` in `report_nightly_*.csv`. Aggiunti i valori `sconfinamento`, `sconfinamento_grave`, `anomalia`, `Passeggeri (radar)`, `Charter (...)`. Aggiunta sezione `scanner_radar` in `config_data.json`. Aggiunta sezione `database_service`. Aggiornati valori di `scan_schedules` (6 scansioni). |
+| **2.9.6** | 2026-10-01 | Failover SACBO → Avionio: nuova colonna `scans.source` (VARCHAR(20), default `'sacbo'`); nuovo campo `fonte_scan` in `scan_*.csv` (valori `'sacbo'`/`'avionio'`). Rimosso `bgy_scanner_night.py` (codice morto, sostituito da `bgy_scanner_radar.py`). |
+| 2.9.5 | 2026-09-30 | Radar h24: aggiunta `fonte` in `radar_*.csv`; `radar_*.csv` è ora cumulativo per **giorno solare**; `sessione_notturna` in DB è nullable. Aggiunta `notte_categoria` e `direzione_sacbo` in `report_nightly_*.csv`. |
 | 2.9.0 | 2026-09-28 | Aggiunta `notte_categoria` (valori iniziali: `regolare`, `sconfinamento`). |
 | 2.8.5 | 2026-09-24 | Aggiunta `direzione_sacbo` in `report_nightly_*.csv`. |
 | 2.7.0 | 2026-09-18 | Introdotta la deduplica radar a 15 min. |
@@ -24,19 +25,20 @@ Se cambi un nome di colonna, un tipo o un valore di enumerazione, **aggiorna que
 
 | Categoria | Pattern | Esempio |
 |---|---|---|
-| Scansione SACBO (raw) | `scan_YYYY-MM-DD_HH-MM.csv` | `scan_2026-09-30_10-00.csv` |
-| Radar h24 (raw, cumulativo per giorno solare) | `radar_YYYY-MM-DD.csv` | `radar_2026-09-30.csv` |
-| Riepilogo test parallelo (temporaneo) | `radar_test_YYYY-MM-DD_HH-MM.json` | `radar_test_2026-09-30_11-12.json` |
-| Report giornaliero diurno | `report_daily_YYYY-MM-DD.csv` | `report_daily_2026-09-30.csv` |
-| Report giornaliero notturno | `report_nightly_YYYY-MM-DD.csv` | `report_nightly_2026-09-29.csv` |
-| Meteo notturno | `meteo_YYYY-MM-DD.csv` | `meteo_2026-09-29.csv` |
+| Scansione SACBO (raw) | `scan_YYYY-MM-DD_HH-MM.csv` | `scan_2026-10-01_10-00.csv` |
+| Radar h24 (raw, cumulativo per giorno solare) | `radar_YYYY-MM-DD.csv` | `radar_2026-10-01.csv` |
+| Riepilogo test parallelo (temporaneo) | `radar_test_YYYY-MM-DD_HH-MM.json` | `radar_test_2026-10-01_11-12.json` |
+| Report giornaliero diurno | `report_daily_YYYY-MM-DD.csv` | `report_daily_2026-10-01.csv` |
+| Report giornaliero notturno | `report_nightly_YYYY-MM-DD.csv` | `report_nightly_2026-09-30.csv` |
+| Meteo notturno | `meteo_YYYY-MM-DD.csv` | `meteo_2026-09-30.csv` |
 | Report mensile diurno | `report_monthly_daily_YYYY-MM.csv` | `report_monthly_daily_2026-09.csv` |
 | Report mensile notturno | `report_monthly_nightly_YYYY-MM.csv` | `report_monthly_nightly_2026-09.csv` |
 | Report annuale diurno | `report_yearly_daily_YYYY.csv` | `report_yearly_daily_2026.csv` |
 | Report annuale notturno | `report_yearly_nightly_YYYY.csv` | `report_yearly_nightly_2026.csv` |
-| Screenshot tabellone Partenze | `board_dep_YYYY-MM-DD_HH-MM.png` | `board_dep_2026-09-30_23-00.png` |
-| Screenshot tabellone Arrivi | `board_arr_YYYY-MM-DD_HH-MM.png` | `board_arr_2026-09-30_23-00.png` |
-| Log applicativo | `bgy_app_YYYY-MM-DD.log` | `bgy_app_2026-09-30.log` |
+| Screenshot tabellone Partenze | `board_dep_YYYY-MM-DD_HH-MM.png` | `board_dep_2026-10-01_23-00.png` |
+| Screenshot tabellone Arrivi | `board_arr_YYYY-MM-DD_HH-MM.png` | `board_arr_2026-10-01_23-00.png` |
+| Log applicativo | `bgy_app_YYYY-MM-DD.log` | `bgy_app_2026-10-01.log` |
+| File Avionio (confronto/fallback) | `avionio_{arrivals,departures}_YYYY-MM-DD_HH-MM.csv` | `avionio_arrivals_2026-10-01_06-30.csv` |
 
 **Regola data di sessione notturna**: nel naming di `radar_*.csv`, `report_nightly_*.csv` e `meteo_*.csv`, la data è quella di **inizio** sessione (il giorno delle 23:00), non quella di fine.
 
@@ -44,7 +46,7 @@ Se cambi un nome di colonna, un tipo o un valore di enumerazione, **aggiorna que
 
 ---
 
-## 2. Formato `scan_*.csv` (SACBO diurno)
+## 2. Formato `scan_*.csv` (SACBO diurno, con fallback Avionio)
 
 Prodotto da: `bgy_scanners/bgy_scanner_day.py`
 Letto da: `bgy_reports/bgy_report_day.py`, `bgy_reports/bgy_report_night.py`, `bgy_core/bgy_db_migrate.py`
@@ -53,15 +55,21 @@ Codifica: UTF-8 con BOM (`utf-8-sig`).
 
 | Colonna | Tipo | Note |
 |---|---|---|
-| `callsign_volo` | str | Es. `FR1234` |
+| `callsign_volo` | str | Es. `FR1234` (SACBO) o `FR 1234` (Avionio) |
 | `tipo_movimento` | str | `A` (atterraggio) o `D` (decollo) |
-| `destinazione_origine` | str | Città o aeroporto (destinazione se D, origine se A) |
+| `destinazione_origine` | str | Città o aeroporto |
 | `orario_schedulato` | str | `HH:MM` |
-| `orario_effettivo` | str | `HH:MM` |
-| `stato_volo` | str | Testo da SACBO (es. `Operativo`, `Atterrato`, `In Ritardo`, `Imbarco Chiuso`, `Cancellato`) |
+| `orario_effettivo` | str | `HH:MM` — vuoto se fonte Avionio non fornisce l'orario effettivo |
+| `stato_volo` | str | Vedi Sezione 8.6 (traduzione Avionio) |
 | `scan_timestamp` | str | `YYYY-MM-DD HH:MM:SS` (istante di scansione) |
+| `fonte_scan` | str | `sacbo` o `avionio` — **novità v2.9.6** |
 
-**Nota**: il file è la **fotografia del tabellone a un istante preciso**. Lo stesso volo può comparire in più scansioni con STIMA diversa. La deduplica avviene a valle, nel report.
+**Nota su `fonte_scan`**: 
+- `sacbo` = scansione eseguita sul tabellone ufficiale (caso normale).
+- `avionio` = fallback attivato perché SACBO era irraggiungibile (Cloudflare).
+- Il valore è letto da `bgy_db_migrate.import_scan_file()` e scritto in `scans.source`.
+
+**Nota su SACBO vs Avionio**: il file `scan_*.csv` ha sempre la stessa struttura, indipendentemente dalla fonte. La colonna `fonte_scan` è l'unico indicatore della provenienza. La copertura di Avionio è limitata alle prossime 4-6 ore: in caso di fallback, i voli oltre quella finestra non sono presenti.
 
 ---
 
@@ -94,6 +102,8 @@ Codifica: UTF-8 con BOM (`utf-8-sig`).
 - Se `timestamp.hour < 6` → data del giorno precedente.
 - Altrimenti → `NULL`.
 
+**Nota sul reimport (v2.7.2)**: il file è cumulativo. Ad ogni `sync_date()`, `import_radar_file()` confronta righe CSV vs righe DB. Se il CSV è cresciuto (caso normale durante la giornata), cancella le righe DB per quella data e reimporta tutto. Il file viene "chiuso" quando lo scanner inizia il giorno successivo.
+
 ---
 
 ## 4. Formato `report_daily_*.csv`
@@ -117,7 +127,7 @@ Codifica: UTF-8.
 | `minuti_ritardo` | int | Positivo = ritardo, negativo = anticipo |
 | `stato_ritardo` | str | `In Orario`, `Ritardo (+N min)`, `In Anticipo (N min)`, `N/D` |
 
-**Nota su `minuti_ritardo`**: calcolato dalla differenza tra `orario_effettivo` e `orario_schedulato`. Gestisce lo scavalcamento di mezzanotte (se il volo è schedulato 23:30 ed effettivo 00:15, il ritardo è 45 min, non -23h15m).
+**Nota su `minuti_ritardo`**: calcolato dalla differenza tra `orario_effettivo` e `orario_schedulato`. Gestisce lo scavalcamento di mezzanotte.
 
 ---
 
@@ -152,6 +162,10 @@ Codifica: UTF-8.
 | `stima_passeggeri` | int | Posti × load factor |
 | `stima_rumore_db` | int | dB massimo tra le 8 centraline ARPA |
 
+**Vincolo DB**: `uniq_nightly_flight` (indice UNIQUE parziale) su `(data_riferimento, callsign, orario_schedulato)` con `WHERE orario_schedulato IS NOT NULL`. Le righe con `orario_schedulato` vuoto (radar non matchati) non sono soggette al vincolo.
+
+**Nota deduplica (v2.8.11)**: prima della scrittura del CSV, `_dedup_by_key()` rimuove duplicati su `(callsign, orario_schedulato)` tenendo la riga con priorità: `is_scheduled=True` > fase più specifica (`Atterraggio` > `Decollo` > `Avvicinamento`) > timestamp più recente. Previene le violazioni del vincolo DB.
+
 ---
 
 ## 6. Formato `meteo_*.csv`
@@ -181,16 +195,18 @@ Letto da: `bgy_scheduler.py` (check 9 del job giornaliero)
 
 ```json
 {
-  "timestamp": "2026-09-30 12:00:15",
+  "timestamp": "2026-10-01 12:00:15",
   "challenge_superato": true,
   "tab_arrivi_cliccato": true,
   "body_arrivi_cambiato": true,
   "n_decolli": 62,
   "n_arrivi": 61,
-  "screenshot_dep": "bgy_data/bgy_screenshots/board_dep_2026-09-30_12-00.png",
-  "screenshot_arr": "bgy_data/bgy_screenshots/board_arr_2026-09-30_12-00.png",
+  "screenshot_dep": "bgy_data/bgy_screenshots/board_dep_2026-10-01_12-00.png",
+  "screenshot_arr": "bgy_data/bgy_screenshots/board_arr_2026-10-01_12-00.png",
   "is_recovery": false,
   "recovered_slot": null,
+  "fonte_scan": "sacbo",
+  "fallback_attivato": false,
   "messaggio": "Scanner diurno OK (62 D + 61 A)"
 }
 Campi:
@@ -206,21 +222,19 @@ screenshot_dep	str|null	Path screenshot Partenze
 screenshot_arr	str|null	Path screenshot Arrivi
 is_recovery	bool	True se è una scansione di recupero
 recovered_slot	str|null	Slot originale mancato (YYYY-MM-DD HH:MM)
+fonte_scan	str	Novità v2.9.6: sacbo o avionio
+fallback_attivato	bool	Novità v2.9.6: True se Avionio è stato usato come fallback
 messaggio	str	Messaggio human-readable
 7.2 bgy_data/bgy_logs/scheduler.lock
-File di testo con il PID dello scheduler attivo. Usato da:
-
-Scheduler stesso, per impedire doppio avvio.
-
-Supervisor esterno (bgy_supervisor.ps1), per verificare se lo scheduler è vivo.
+File di testo con il PID dello scheduler attivo.
 
 7.3 bgy_data/bgy_logs/notifier_cooldown.json
 Stato dei cooldown delle notifiche email.
 
 json
 {
-  "radar_missing": "2026-09-30T02:15:00",
-  "opensky_429": "2026-09-30T03:45:00"
+  "radar_missing": "2026-10-01T02:15:00",
+  "opensky_429": "2026-10-01T03:45:00"
 }
 7.4 bgy_data/bgy_logs/recovery_state.json
 Stato dei recuperi di scansioni mancate.
@@ -228,8 +242,8 @@ Stato dei recuperi di scansioni mancate.
 json
 {
   "attempted": [
-    "2026-09-30 06:00",
-    "2026-09-30 10:00"
+    "2026-10-01 06:00",
+    "2026-10-01 10:00"
   ]
 }
 7.5 bgy_data/bgy_logs/watchdog_state.json
@@ -237,8 +251,8 @@ Ultimo check del watchdog.
 
 json
 {
-  "last_check": "2026-09-30T11:12:30",
-  "next_check": "2026-09-30T11:17:30",
+  "last_check": "2026-10-01T11:12:30",
+  "next_check": "2026-10-01T11:17:30",
   "manual": false,
   "results": {
     "sacbo": {"ok": true, "msg": "..."},
@@ -262,7 +276,18 @@ Log dello script bgy_supervisor.ps1. Formato testuale:
 text
 YYYY-MM-DD HH:MM:SS - Scheduler NON attivo (PID: 12345). Avvio la suite...
 YYYY-MM-DD HH:MM:SS - Suite avviata.
-7.8 bgy_data/bgy_logs/coverage_log.txt
+7.8 bgy_data/bgy_logs/backup.log
+Log del backup DB (F18). Formato testuale:
+
+text
+YYYY-MM-DD HH:MM:SS - Avvio backup DB: <path>
+YYYY-MM-DD HH:MM:SS - pg_dump completato.
+YYYY-MM-DD HH:MM:SS - Verifica integrità OK.
+YYYY-MM-DD HH:MM:SS - Upload su Google Drive: gdrive:BGY_Backup
+YYYY-MM-DD HH:MM:SS - Upload completato.
+YYYY-MM-DD HH:MM:SS - Retention remota su Google Drive...
+YYYY-MM-DD HH:MM:SS - Backup completato con successo.
+7.9 bgy_data/bgy_logs/coverage_log.txt
 Log della raccolta copertura radar (temporaneo). Formato:
 
 text
@@ -300,6 +325,23 @@ Valore	Significato
 D	Decollo (dal tabellone SACBO)
 A	Atterraggio (dal tabellone SACBO)
 "" (vuoto)	Volo non presente sul tabellone SACBO
+8.6 stato_volo — traduzione Avionio → SACBO (v2.9.6)
+Quando lo scanner diurno usa Avionio come fallback, gli stati inglesi di Avionio vengono tradotti in italiano SACBO-compatibile. La traduzione è definita in bgy_scanner_alt.STATUS_MAP.
+
+Stato Avionio	Stato tradotto	Riconosciuto da _classify_volo
+Boarding	Imbarco in corso	Sì (stato "a terra")
+Boarding closed, Gate closed	Imbarco chiuso	Sì (stato "a terra")
+Last call	Imbarco ultima chiamata	Sì (stato "a terra")
+Delayed	In ritardo	Sì (stato "a terra")
+Scheduled, Estimated, On time	Operativo	No (ambiguo)
+Departed, Took off	Decollato	Sì (stato operato)
+Airborne, En route	In volo	Sì (stato operato)
+Landed, Arrived	Atterrato	Sì (stato operato)
+Cancelled, Canceled	Cancellato	Sì (volo escluso)
+Diverted	Dirottato	Non gestito
+Unknown, ""	Operativo	No
+Nota: la traduzione è necessaria perché _classify_volo() in bgy_report_night.py cerca le chiavi IMBARCO, IN RITARDO (stati "a terra") e DECOLLATO, ATTERRATO, ARRIVATO, IN VOLO, PARTITO (stati operati). Gli stati Avionio tradotti contengono queste chiavi.
+
 9. File di configurazione JSON
 9.1 bgy_config/config_data.json
 Configurazione generale (versionabile su Git, non contiene credenziali).
@@ -335,7 +377,16 @@ daily_status_enabled	bool	true	Abilita email di stato 06:30 e report mensili/ann
 cooldown_minutes	int	30	Tempo minimo tra due notifiche della stessa chiave
 unresolved_airlines_days	int	30	Giorni minimi per considerare una compagnia placeholder "da risolvere"
 unresolved_airlines_min_occorrenze	int	1	Occorrenze minime per considerare una compagnia placeholder "da risolvere"
-9.3 bgy_config/config_mail.json
+9.3 Sezione avionio
+Campo	Tipo	Default	Note
+enabled	bool	true	Abilita lo scanner Avionio
+run_at_every_scan	bool	true	Esegui Avionio + confronto dopo ogni scansione SACBO
+retention_days	int	7	Giorni di conservazione file Avionio
+time_tolerance_min	int	15	Tolleranza matching orari SACBO vs Avionio
+http_timeout_sec	int	20	Timeout HTTP
+Nota: run_at_every_scan va disattivato dopo la prima settimana di osservazione (previsto il 6/10/2026). Dopo quella data, Avionio viene eseguito solo nel job 06:30 (check 10).
+
+9.4 bgy_config/config_mail.json
 Credenziali SMTP. Non versionato.
 
 json
@@ -350,7 +401,7 @@ json
     "recipients_monthly": ["info@legambientebergamo.it"],
     "recipients_yearly": ["info@legambientebergamo.it"]
 }
-9.4 bgy_config/config_opensky.json
+9.5 bgy_config/config_opensky.json
 Credenziali OpenSky. Non versionato.
 
 json
@@ -358,7 +409,7 @@ json
     "opensky_username": "",
     "opensky_password": ""
 }
-9.5 bgy_config/config_github.json
+9.6 bgy_config/config_github.json
 Token GitHub per il push. Non versionato.
 
 json
@@ -373,7 +424,7 @@ json
     "push_timeout_seconds": 300,
     "pull_timeout_seconds": 60
 }
-9.6 bgy_config/config_database.json
+9.7 bgy_config/config_database.json
 Connessione PostgreSQL. Non versionato.
 
 json
@@ -387,7 +438,7 @@ json
     "connect_timeout": 10,
     "application_name": "BGY Monitoring Suite"
 }
-9.7 bgy_config/config_wordpress.json
+9.8 bgy_config/config_wordpress.json
 Credenziali WordPress (F17, non ancora attivo). Non versionato.
 
 json
@@ -398,7 +449,7 @@ json
     "app_password": "..."
 }
 10. Schema database PostgreSQL
-Il DB bgy_monitoring contiene 17 tabelle (v2.9.5).
+Il DB bgy_monitoring contiene 17 tabelle (v2.9.6).
 
 10.1 Tabelle operative (6)
 10.1.1 scans
@@ -407,10 +458,11 @@ Metadata delle scansioni SACBO.
 Colonna	Tipo	Note
 id	BIGSERIAL PK	
 scan_timestamp	TIMESTAMP	
-file_name	TEXT UNIQUE	Es. scan_2026-09-30_10-00.csv
+file_name	TEXT UNIQUE	Es. scan_2026-10-01_10-00.csv
 data_riferimento	DATE	
 tipo	VARCHAR(10)	diurno o notturno
 righe_importate	INTEGER	
+source	VARCHAR(20)	Novità v2.9.6: sacbo (default) o avionio
 imported_at	TIMESTAMP	
 10.1.2 flights_sacbo
 Voli estratti dalle scansioni.
@@ -516,7 +568,7 @@ Deduplica flights_sacbo per presentare un report giornaliero pulito. Usata dal t
 Colonne: id, data_riferimento, callsign_volo, tipo_movimento, destinazione_origine, orario_schedulato, orario_effettivo, stato_volo, scan_timestamp.
 
 10.4 Schema updates idempotenti
-La funzione apply_schema_updates() in bgy_db_migrate.py esegue ALTER TABLE ... ADD COLUMN IF NOT EXISTS a ogni sync_date(). Questo permette al DB di adeguarsi automaticamente alle nuove versioni del codice.
+La funzione apply_schema_updates() in bgy_db_migrate.py esegue ALTER TABLE ... ADD COLUMN IF NOT EXISTS a ogni sync_date().
 
 Update attualmente applicati:
 
@@ -526,6 +578,7 @@ ALTER TABLE nightly_reports ADD COLUMN IF NOT EXISTS notte_categoria VARCHAR(30)
 ALTER TABLE radar_detections ADD COLUMN IF NOT EXISTS fonte TEXT;
 ALTER TABLE radar_detections ADD COLUMN IF NOT EXISTS data_riferimento DATE;
 ALTER TABLE radar_detections ALTER COLUMN sessione_notturna DROP NOT NULL;
+ALTER TABLE scans ADD COLUMN IF NOT EXISTS source VARCHAR(20) DEFAULT 'sacbo';
 11. Convenzioni generali
 Encoding file CSV: UTF-8 con BOM (utf-8-sig).
 

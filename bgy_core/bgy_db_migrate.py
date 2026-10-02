@@ -1,22 +1,45 @@
 """
 bgy_core/bgy_db_migrate.py - Import e sincronizzazione CSV -> PostgreSQL.
-Versione 2.7.0
+Versione 2.7.3
 
 Modulo unificato che contiene:
   - Funzioni di import per ogni tipo di file (scan, radar, meteo, nightly)
   - Parser per il formato vecchio di scan_*.csv
   - Logica di migrazione storica completa
   - Logica di sincronizzazione incrementale
-  - Quality check esteso: 28 check (F11e + F14b)
-  - Statistiche movimenti giornalieri e notturni (F18b + sconfinamenti)
+  - Quality check esteso: 28 check
+  - Statistiche movimenti giornalieri e notturni
   - Check compagnie placeholder irrisolte (F14)
-  - Check anomalie notturne (v2.6.5)
+  - Check anomalie notturne
+
+Novità v2.7.3 (failover SACBO → Avionio):
+- Colonna scans.source VARCHAR(20) DEFAULT 'sacbo' (schema update idempotente).
+- import_scan_file() legge la colonna fonte_scan del CSV (se presente) e la
+  scrive in scans.source. Default 'sacbo' per retrocompatibilità.
+- Log esplicito: "Importato [new] scan_*.csv (fonte: avionio)".
+
+Novità v2.7.2 (fix reimport radar cumulativo):
+- import_radar_file() confronta righe CSV vs righe DB. Se il file è
+  cresciuto dopo l'import iniziale (radar h24 cumulativo), cancella le
+  righe DB per quella data e reimporta tutto.
+
+Novità v2.7.1 (fix import nightly duplicati):
+- INSERT nightly con ON CONFLICT DO NOTHING sul vincolo uniq_nightly_flight.
+- execute_many() ora ritorna il rowcount reale.
+- import_nightly_file() logga quanti duplicati sono stati scartati.
 
 Novità v2.7.0 (radar h24):
 - radar_detections: nuove colonne fonte e data_riferimento.
-- sessione_notturna ora è nullable (valorizzata solo per rilevamenti 23:00-05:59).
-- import_radar_file() deriva data_riferimento dal timestamp di ogni riga,
-  calcola sessione_notturna dal timestamp, legge fonte dal CSV.
+- sessione_notturna ora è nullable.
+
+Novità v2.6.7 (distribuzione ritardi).
+Novità v2.6.6 (statistiche puntualità).
+Novità v2.6.5 (anomalie + sconfinamenti gravi).
+Novità v2.6.4 (sconfinamenti).
+Novità v2.6.3 (F14).
+Novità v2.6.2 (fix check 15, 20).
+Novità v2.6.1 (fix bug _effective_from).
+Novità v2.6.0 (quality check esteso).
 """
 import os
 import sys
@@ -68,10 +91,7 @@ def _reset_stats():
 
 
 def apply_schema_updates():
-    """
-    Applica gli aggiornamenti di schema idempotenti.
-    Tutti gli ALTER sono ADD COLUMN IF NOT EXISTS: sicuri da rieseguire.
-    """
+    """Aggiornamenti di schema idempotenti."""
     global _schema_updates_applied
     if _schema_updates_applied:
         return True
@@ -82,6 +102,7 @@ def apply_schema_updates():
         "ALTER TABLE radar_detections ADD COLUMN IF NOT EXISTS fonte TEXT",
         "ALTER TABLE radar_detections ADD COLUMN IF NOT EXISTS data_riferimento DATE",
         "ALTER TABLE radar_detections ALTER COLUMN sessione_notturna DROP NOT NULL",
+        "ALTER TABLE scans ADD COLUMN IF NOT EXISTS source VARCHAR(20) DEFAULT 'sacbo'",
     ]
     for sql in updates:
         ok, result = bgy_db.execute_query(sql, fetch=False)
@@ -272,10 +293,16 @@ def parse_old_scan_row(row):
 
 
 # =============================================================================
-# IMPORT: SCAN
+# IMPORT: SCAN (v2.7.3)
 # =============================================================================
 
 def import_scan_file(filepath):
+    """
+    Importa un file scan_*.csv nel DB.
+
+    v2.7.3: legge la colonna 'fonte_scan' del CSV (se presente) e la
+    scrive in scans.source. Default 'sacbo' se mancante (retrocompatibile).
+    """
     filename = os.path.basename(filepath)
     date_str, time_str, tipo = parse_date_from_scan_filename(filename)
     if not date_str:
@@ -307,6 +334,15 @@ def import_scan_file(filepath):
         return False, None
     if fmt == "old":
         stats["scans_old_format"] += 1
+
+    # v2.7.3: leggi fonte_scan dal primo record (tutti i record hanno lo stesso valore)
+    fonte_scan = "sacbo"
+    if csv_rows and "fonte_scan" in csv_rows[0]:
+        fonte_scan = safe_str(csv_rows[0].get("fonte_scan"), "sacbo") or "sacbo"
+        if fonte_scan not in ("sacbo", "avionio"):
+            logger.warning(f"⚠️ fonte_scan '{fonte_scan}' non riconosciuto, uso 'sacbo'")
+            fonte_scan = "sacbo"
+
     scan_ts = None
     for r in csv_rows:
         ts = safe_timestamp(r.get("scan_timestamp"))
@@ -315,10 +351,11 @@ def import_scan_file(filepath):
             break
     if not scan_ts:
         scan_ts = f"{date_str} {time_str}:00"
+
     ok, result = bgy_db.execute_query(
-        """INSERT INTO scans (scan_timestamp, file_name, data_riferimento, tipo, righe_importate)
-           VALUES (%s, %s, %s, %s, %s) RETURNING id""",
-        (scan_ts, filename, date_str, tipo, len(csv_rows)))
+        """INSERT INTO scans (scan_timestamp, file_name, data_riferimento, tipo, righe_importate, source)
+           VALUES (%s, %s, %s, %s, %s, %s) RETURNING id""",
+        (scan_ts, filename, date_str, tipo, len(csv_rows), fonte_scan))
     if not ok:
         logger.error(f"Errore insert scan {filename}: {result}")
         stats["errors"] += 1
@@ -362,22 +399,22 @@ def import_scan_file(filepath):
         else:
             logger.error(f"Errore insert flights per {filename}: {result}")
             stats["errors"] += 1
-    logger.info(f"✅ Importato [{fmt}] {filename}: scan_id={scan_id}, {total_inserted} voli")
+
+    fonte_tag = ""
+    if fonte_scan == "avionio":
+        fonte_tag = " (fonte: avionio)"
+    logger.info(f"✅ Importato [{fmt}] {filename}: scan_id={scan_id}, "
+                f"{total_inserted} voli{fonte_tag}")
     stats["scans_imported"] += 1
     stats["flights_imported"] += total_inserted
     return True, total_inserted
 
 
 # =============================================================================
-# IMPORT: RADAR (v2.7.0)
+# IMPORT: RADAR (v2.7.2)
 # =============================================================================
 
 def _radar_session_date_from_ts(ts_str):
-    """
-    Data di sessione notturna da un timestamp.
-    Se l'ora è >= 23 o < 6, ritorna la data di inizio sessione (giorno solare).
-    Altrimenti ritorna None.
-    """
     try:
         dt = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S")
     except ValueError:
@@ -393,35 +430,47 @@ def _radar_session_date_from_ts(ts_str):
 
 
 def import_radar_file(filepath):
+    """
+    Importa un file radar_*.csv nel DB.
+
+    v2.7.2: confronta righe CSV vs righe DB. Se il file è cresciuto,
+    DELETE + INSERT.
+    """
     filename = os.path.basename(filepath)
     date_str = parse_radar_filename(filename)
     if not date_str:
         logger.warning(f"File radar non riconosciuto: {filename}")
         return False, None
 
-    # Deduplica: il file è cumulativo per giorno solare.
-    ok, rows = bgy_db.execute_query(
-        "SELECT COUNT(1) FROM radar_detections WHERE data_riferimento = %s",
-        (date_str,))
-    if ok and rows and rows[0][0] > 0:
-        logger.info(f"⏭️ Già importato: {filename} ({rows[0][0]} righe)")
-        stats["scans_skipped"] += 1
-        return False, None
-
     csv_rows = read_csv_rows(filepath)
     if not csv_rows:
         return False, None
+
+    n_csv = len(csv_rows)
+
+    ok, rows = bgy_db.execute_query(
+        "SELECT COUNT(1) FROM radar_detections WHERE data_riferimento = %s",
+        (date_str,))
+    n_db = rows[0][0] if ok and rows else 0
+
+    if n_db >= n_csv:
+        logger.info(f"⏭️ Già importato: {filename} (DB={n_db}, CSV={n_csv})")
+        stats["scans_skipped"] += 1
+        return False, None
+
+    if n_db > 0 and n_db < n_csv:
+        logger.info(f"🔄 File radar cresciuto: DB={n_db} → CSV={n_csv}, reimporto")
+        bgy_db.execute_query(
+            "DELETE FROM radar_detections WHERE data_riferimento = %s",
+            (date_str,), fetch=False)
 
     params = []
     for r in csv_rows:
         ts = safe_timestamp(r.get("timestamp"))
         if not ts:
             continue
-        # data_riferimento = giorno solare del timestamp
         data_rif = ts[:10]
-        # sessione_notturna: calcolata dal timestamp
         sessione = _radar_session_date_from_ts(ts)
-        # fonte dal CSV (retrocompatibilità: "unknown" se assente)
         fonte = safe_str(r.get("fonte"), "unknown")
         params.append((
             ts, safe_str(r.get("callsign"), ""), safe_str(r.get("icao24"), ""),
@@ -447,7 +496,12 @@ def import_radar_file(filepath):
         else:
             logger.error(f"Errore insert radar {filename}: {result}")
             stats["errors"] += 1
-    logger.info(f"✅ Importato {filename}: {total} rilevamenti radar")
+
+    if n_db > 0:
+        logger.info(f"✅ Reimportato {filename}: {total} rilevamenti radar "
+                    f"(sostituite {n_db} righe precedenti)")
+    else:
+        logger.info(f"✅ Importato {filename}: {total} rilevamenti radar")
     stats["radar_imported"] += total
     return True, total
 
@@ -502,7 +556,7 @@ def import_meteo_file(filepath):
 
 
 # =============================================================================
-# IMPORT: NIGHTLY
+# IMPORT: NIGHTLY (v2.7.1)
 # =============================================================================
 
 def import_nightly_file(filepath):
@@ -543,7 +597,9 @@ def import_nightly_file(filepath):
             safe_int(r.get("stima_passeggeri"), 0), safe_int(r.get("stima_rumore_db"), 0)))
     if not params:
         return False, None
-    total = 0
+
+    total_inserted = 0
+    total_conflicts = 0
     for i in range(0, len(params), BATCH_SIZE):
         batch = params[i:i+BATCH_SIZE]
         ok, result = bgy_db.execute_many(
@@ -554,15 +610,26 @@ def import_nightly_file(filepath):
                 pista, fase_volo, direzione, quota_ft, rotta_deg, distanza_km,
                 paese, matched_score, stima_passeggeri, stima_rumore_db)
                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                       %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""", batch)
+                       %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+               ON CONFLICT (data_riferimento, callsign, orario_schedulato)
+               WHERE orario_schedulato IS NOT NULL
+               DO NOTHING""", batch)
         if ok:
-            total += len(batch)
+            inserted_batch = result if isinstance(result, int) else len(batch)
+            conflicts_batch = len(batch) - inserted_batch
+            total_inserted += inserted_batch
+            total_conflicts += conflicts_batch
         else:
             logger.error(f"Errore insert nightly {filename}: {result}")
             stats["errors"] += 1
-    logger.info(f"✅ Importato {filename}: {total} voli notturni")
-    stats["nightly_imported"] += total
-    return True, total
+
+    if total_conflicts > 0:
+        logger.info(f"🧹 Importato {filename}: {total_inserted} voli notturni "
+                    f"({total_conflicts} duplicati scartati)")
+    else:
+        logger.info(f"✅ Importato {filename}: {total_inserted} voli notturni")
+    stats["nightly_imported"] += total_inserted
+    return True, total_inserted
 
 
 # =============================================================================
@@ -808,9 +875,7 @@ def get_daily_stats(date_str):
 
 
 def get_nightly_stats(date_str):
-    """
-    Statistiche movimenti notturni, divise per categoria.
-    """
+    """Statistiche movimenti notturni, divise per categoria."""
     empty = {
         "passeggeri": {"decolli": 0, "atterraggi": 0, "totale": 0},
         "cargo": {"decolli": 0, "atterraggi": 0, "totale": 0},

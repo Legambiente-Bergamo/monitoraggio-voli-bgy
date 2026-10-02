@@ -1,18 +1,23 @@
 """
 bgy_scanners/bgy_scanner_day.py - Scanner diurno per il tabellone SACBO.
-Versione 2.5.9
+Versione 2.6.0
 
 - URL, timeout, attese, scroll, user-agent: da config_data.json (scanner_day)
 - Naming file: scan_YYYY-MM-DD_HH-MM.csv (via bgy_dates)
+- Failover automatico su Avionio se SACBO è irraggiungibile (Cloudflare)
+
+Novità v2.6.0 (failover SACBO → Avionio):
+- Se Cloudflare blocca lo scanner dopo il retry di fetch_board_data(),
+  il sistema chiama fetch_as_scan_rows() di bgy_scanner_alt e produce
+  un scan_*.csv equivalente, con fonte_scan='avionio'.
+- Aggiunta colonna fonte_scan in scan_*.csv (valori: 'sacbo' | 'avionio').
+- scanner_day_status.json include ora il campo fonte_scan.
+- Il messaggio finale del check 9 distingue le due fonti.
+- Il fallback copre solo le prossime 4-6 ore di voli (limite Avionio),
+  quindi l'email di stato avverte se la copertura è parziale.
 
 Novità v2.5.9 (recupero scansioni mancate):
-- run_scan() accetta parametri is_recovery (bool) e recovered_slot (str).
-- Quando is_recovery=True, scanner_day_status.json include:
-    * "is_recovery": true
-    * "recovered_slot": "YYYY-MM-DD HH:MM" (slot originale mancato)
-- Il file CSV viene nominato con il timestamp attuale (non quello dello slot),
-  per non confondere la sequenza cronologica.
-- Il check 9 dell'email di stato mostra "🔄 Recupero di XX:XX" quando applicabile.
+- run_scan() accetta parametri is_recovery e recovered_slot.
 
 Novità v2.5.8 (screenshot full-board):
 - _capture_screenshot() cattura l'INTERO tabellone, non solo il viewport.
@@ -20,18 +25,11 @@ Novità v2.5.8 (screenshot full-board):
 Novità v2.5.7 (screenshot puliti):
 - _hide_extra_elements() nasconde via JS gli elementi estranei al tabellone.
 
-Novità v2.5.6 (screenshot full-board):
-- Strategia a cascata per la cattura dello screenshot.
-
-Novità v2.5.5 (screenshot):
-- Salvataggio di due screenshot del tabellone per ogni scansione.
-
 Novità v2.5.4 (diagnostica Cloudflare):
 - Lo scanner scrive bgy_data/bgy_logs/scanner_day_status.json.
 
 Fix v2.5.3:
 - Stealth mode con playwright-stealth v2.0.0+ (classe Stealth).
-- Rimozione overlay (banner cookie iubenda + alert-popup).
 
 Fix v2.5.2:
 - Safety net in run_scan() contro duplicazione D/A.
@@ -68,6 +66,10 @@ logger = get_logger("ScannerDay")
 STATUS_FILE = os.path.join(LOGS_DIR, "scanner_day_status.json")
 SCREENSHOTS_DIR = os.path.join(os.path.dirname(LOGS_DIR), "bgy_screenshots")
 
+# Numero di tentativi massimi su SACBO prima di passare ad Avionio.
+# Ogni tentativo è ~5 minuti di Chromium. Non alzare oltre 2 senza motivo.
+MAX_SACBO_ATTEMPTS = 2
+
 
 _scan_status = {
     "timestamp": None,
@@ -80,6 +82,8 @@ _scan_status = {
     "screenshot_arr": None,
     "is_recovery": False,
     "recovered_slot": None,
+    "fonte_scan": "sacbo",
+    "fallback_attivato": False,
     "messaggio": "",
 }
 
@@ -95,6 +99,8 @@ def _reset_scan_status(is_recovery=False, recovered_slot=None):
     _scan_status["screenshot_arr"] = None
     _scan_status["is_recovery"] = bool(is_recovery)
     _scan_status["recovered_slot"] = recovered_slot
+    _scan_status["fonte_scan"] = "sacbo"
+    _scan_status["fallback_attivato"] = False
     _scan_status["messaggio"] = (
         f"Recupero scansione {recovered_slot} in corso"
         if is_recovery else "Scansione avviata"
@@ -360,9 +366,17 @@ def _capture_screenshot(page, movement_type):
         return None
 
 
-@retry_on_failure(max_retries=3, delay=2)
+@retry_on_failure(max_retries=1, delay=2)
 def fetch_board_data():
-    """Acquisisce i dati del tabellone usando Playwright."""
+    """
+    Acquisisce i dati del tabellone usando Playwright.
+
+    Ritorna un DataFrame vuoto se:
+      - Il challenge Cloudflare non viene superato (fallback ad Avionio).
+      - Nessun volo viene estratto dal tabellone (no fallback).
+
+    Lo stato del challenge è registrato in _scan_status['challenge_superato'].
+    """
     cfg = _cfg()
     all_flights = []
     urls = cfg.get("urls", [])
@@ -404,6 +418,8 @@ def fetch_board_data():
                 except Exception as e:
                     logger.warning(f"Impossibile applicare stealth: {e}")
 
+            challenge_failed_all = True
+
             for entry in urls:
                 try:
                     url, mov_type = entry
@@ -435,6 +451,7 @@ def fetch_board_data():
                         )
                         continue
 
+                    challenge_failed_all = False
                     _scan_status["challenge_superato"] = True
                     _dismiss_overlays(page)
                     page.wait_for_timeout(1000)
@@ -499,6 +516,11 @@ def fetch_board_data():
                     logger.error(f"Errore ({mov_type}): {e}")
 
             browser.close()
+
+            if challenge_failed_all:
+                _scan_status["challenge_superato"] = False
+                logger.error("❌ Challenge Cloudflare fallito per tutte le URL")
+
     except Exception as e:
         logger.error(f"Errore Playwright: {e}")
         _scan_status["messaggio"] = f"Errore Playwright: {str(e)[:120]}"
@@ -533,9 +555,38 @@ def _sanity_check_d_a(df):
     return df, False
 
 
+def _fallback_to_avionio():
+    """
+    Fallback quando SACBO è irraggiungibile.
+    Chiama bgy_scanner_alt.fetch_as_scan_rows() e ritorna un DataFrame
+    nel formato di scan_*.csv, con fonte_scan='avionio'.
+    """
+    logger.warning("🔄 SACBO non disponibile, attivo fallback Avionio...")
+    try:
+        from bgy_scanners.bgy_scanner_alt import fetch_as_scan_rows
+        rows = fetch_as_scan_rows()
+        if not rows:
+            logger.error("❌ Fallback Avionio: nessun dato disponibile")
+            return pd.DataFrame()
+
+        df = pd.DataFrame(rows)
+        _scan_status["fonte_scan"] = "avionio"
+        _scan_status["fallback_attivato"] = True
+        logger.info(f"✅ Fallback Avionio: {len(df)} voli recuperati")
+        return df
+    except Exception as e:
+        logger.error(f"❌ Errore fallback Avionio: {e}")
+        return pd.DataFrame()
+
+
 def _componi_messaggio_finale(n_d, n_a):
     """Compone il messaggio human-readable per l'email di stato."""
     prefix = "Recupero scanner diurno" if _scan_status.get("is_recovery") else "Scanner diurno"
+    fonte = _scan_status.get("fonte_scan", "sacbo")
+
+    if fonte == "avionio":
+        return (f"{prefix} OK da FONTE ALTERNATIVA (Avionio) "
+                f"({n_d} D + {n_a} A) — copertura parziale")
 
     if not _scan_status["challenge_superato"]:
         return "Cloudflare ha bloccato lo scanner: challenge non superato"
@@ -554,7 +605,14 @@ def run_scan(is_recovery=False, recovered_slot=None):
     """
     Esegue la scansione diurna.
 
-    Parametri (v2.5.9):
+    Flusso:
+      1. Tenta SACBO (fetch_board_data, con retry interno).
+      2. Se il challenge Cloudflare fallisce, tenta di nuovo (fino a
+         MAX_SACBO_ATTEMPTS tentativi totali).
+      3. Se tutti i tentativi SACBO falliscono, chiama _fallback_to_avionio().
+      4. Salva scan_*.csv con la colonna fonte_scan corretta.
+
+    Parametri:
       - is_recovery (bool): True se questa è una scansione di recupero.
       - recovered_slot (str): slot originale mancato (YYYY-MM-DD HH:MM).
     """
@@ -567,11 +625,43 @@ def run_scan(is_recovery=False, recovered_slot=None):
     _reset_scan_status(is_recovery=is_recovery, recovered_slot=recovered_slot)
 
     try:
-        df = fetch_board_data()
+        df = pd.DataFrame()
+        sacbo_attempts = 0
+
+        while sacbo_attempts < MAX_SACBO_ATTEMPTS and df.empty:
+            sacbo_attempts += 1
+            logger.info(f"📡 Tentativo SACBO {sacbo_attempts}/{MAX_SACBO_ATTEMPTS}...")
+            df = fetch_board_data()
+
+            if not df.empty:
+                break
+
+            # Se il challenge è stato superato ma non ci sono voli,
+            # è un problema diverso (tabella vuota). Non ritentare.
+            if _scan_status.get("challenge_superato"):
+                logger.warning(
+                    "⚠️ Challenge superato ma nessun volo estratto. "
+                    "Non ritento (possibile tabella vuota)."
+                )
+                break
+
+            logger.warning(
+                f"⚠️ Tentativo {sacbo_attempts}/{MAX_SACBO_ATTEMPTS} fallito "
+                f"(Cloudflare non superato)"
+            )
+
+        # Fallback ad Avionio se tutti i tentativi SACBO hanno fallito
+        if df.empty and not _scan_status.get("challenge_superato"):
+            df = _fallback_to_avionio()
+
         if df.empty:
-            logger.error("❌ Nessun dato acquisito")
-            _write_scan_status("Nessun dato acquisito dal tabellone")
+            logger.error("❌ Nessun dato acquisito né da SACBO né da Avionio")
+            _write_scan_status("Nessun dato acquisito dal tabellone né da Avionio")
             return None
+
+        # Assicura che la colonna fonte_scan esista
+        if "fonte_scan" not in df.columns:
+            df["fonte_scan"] = _scan_status.get("fonte_scan", "sacbo")
 
         df, sanity_changed = _sanity_check_d_a(df)
 
@@ -603,7 +693,8 @@ def run_scan(is_recovery=False, recovered_slot=None):
         else:
             _scan_status["messaggio"] = _componi_messaggio_finale(n_d, n_a)
 
-        logger.info(f"✅ Scansione completata: {len(df)} voli (D={n_d}, A={n_a})")
+        logger.info(f"✅ Scansione completata: {len(df)} voli "
+                    f"(D={n_d}, A={n_a}, fonte={_scan_status['fonte_scan']})")
         _write_scan_status()
         return out_file
 

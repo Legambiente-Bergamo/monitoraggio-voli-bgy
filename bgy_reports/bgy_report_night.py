@@ -1,6 +1,6 @@
 """
 bgy_reports/bgy_report_night.py - Report notturno integrato (SACBO + OpenSky).
-Versione 2.8.10
+Versione 2.8.11
 
 Modello logico:
 - Il TABELLONE SACBO è la fonte primaria per i voli PASSEGGERI.
@@ -23,41 +23,35 @@ Categorie notte (colonna notte_categoria):
                               a 02:00 o 05:00 (problema operativo)
   - ''                      : voli radar non matchati
 
-Visibilità:
-  - Visibili di default: Passeggeri, Cargo, Charter (di cui 'regolare',
-    'sconfinamento', 'sconfinamento_grave', 'anomalia')
-  - Opt-in (checkbox GUI): Passeggeri (radar), Non identificato
+Novità v2.8.11 (fix duplicati notte):
+- Aggiunta _dedup_by_key() prima della scrittura del CSV.
+  Il problema: due match radar per lo stesso volo schedulato producono
+  due righe con la stessa chiave (callsign, orario_schedulato), violando
+  il vincolo univoco uniq_nightly_flight del DB.
+  Il fix: deduplica su (callsign, orario_schedulato) tenendo la riga
+  "migliore" secondo la priorità:
+    1. is_scheduled=True (preferisci gli schedulati ai radar-only)
+    2. Fase più specifica (Atterraggio > Decollo > Avvicinamento > altro)
+    3. Timestamp più recente (a parità di fase)
 
-Novità v2.8.10 (sconfinamento grave ≥ 1h):
-- Aggiunta categoria 'sconfinamento_grave' per voli con ritardo >= 60 min.
-- Il ritardo è calcolato in modo diverso in base ai dati disponibili:
-    * Criterio A: delay = stima_sacbo - sched (esatto)
-    * Criterio B con radar: delay = timestamp_radar - sched (esatto)
-    * Criterio B senza radar: delay_lower_bound = 23:00 - sched
-      (minimo noto, il volo era ancora a terra alle 23:00)
-- Nel dubbio (delay_lower_bound < 60 ma ritardo reale ignoto) → non grave.
-- Aggiornato il messaggio finale: "sconfinamenti N (di cui M gravi)".
-- Log diagnostico: per ogni sconfinamento da Criterio B, indica se
-  confermato da radar e il delay calcolato.
+Novità v2.8.10 (sconfinamento grave >= 1h):
+- Aggiunta categoria 'sconfinamento_grave'.
 
 Novità v2.8.9 (criterio B + anomalie):
-- Criterio B: voli con stato "a terra" (IMBARCO, IN RITARDO) al baseline
-  che SPARISCONO dalle scansioni successive.
-- Categoria 'anomalia': voli ancora a tabellone a 02:00 o 05:00.
-- Radar come conferma per gli sconfinamenti da Criterio B.
+- Criterio B + categoria 'anomalia'.
 
 Novità v2.8.8:
 - Fix bug FR 3530 (STIMA transitoria a mezzanotte).
 - Deduplica prima della classificazione (baseline 23:00).
 
 Novità v2.8.7:
-- Colonna notte_categoria ('regolare' | 'sconfinamento').
+- Colonna notte_categoria.
 
 Novità v2.8.6:
-- Caricamento scansioni SACBO del giorno successivo (00:00-05:59).
+- Caricamento scansioni SACBO del giorno successivo.
 
 Novità v2.8.5:
-- Colonna direzione_sacbo (D/A).
+- Colonna direzione_sacbo.
 
 Novità v2.8.3:
 - PAX e rumore calcolati solo sui Visibili.
@@ -185,7 +179,6 @@ def _minutes_since_sched(sched, effective):
     eff_min = _time_to_minutes(effective)
     if sched_min is None or eff_min is None:
         return None
-    # Se effective è prima di sched, ha superato mezzanotte
     if eff_min < sched_min:
         eff_min += 24 * 60
     return eff_min - sched_min
@@ -272,6 +265,46 @@ def _extract_callsign_digits(callsign):
     if not callsign:
         return ''
     return re.sub(r'\D', '', str(callsign))
+
+
+def _normalize_key_string(value):
+    """
+    Normalizza una stringa per l'uso come chiave di confronto.
+    Rimuove whitespace Unicode (inclusi non-breaking space, zero-width),
+    caratteri di controllo, e converte in minuscolo.
+
+    Fix v2.8.11: necessaria per gestire CSV SACBO che possono contenere
+    caratteri invisibili che sfuggono al .strip() standard.
+    """
+    if value is None:
+        return ''
+    s = str(value)
+    # Rimuovi tutti i tipi di whitespace Unicode + zero-width + control
+    s = re.sub(r'[\s\u00A0\u200B\u200C\u200D\uFEFF\u2028\u2029]+', '', s)
+    return s.strip().upper()
+
+
+def _normalize_callsign(callsign):
+    """
+    Normalizza un callsign rimuovendo spazi e caratteri invisibili.
+    Mantiene lettere, cifre e slash.
+    """
+    if not callsign:
+        return ''
+    s = str(callsign)
+    s = re.sub(r'[\s\u00A0\u200B\u200C\u200D\uFEFF]+', '', s)
+    return s.strip().upper()
+
+
+def _normalize_hhmm(hhmm):
+    """
+    Normalizza un orario HH:MM rimuovendo spazi e caratteri invisibili.
+    """
+    if not hhmm:
+        return ''
+    s = str(hhmm)
+    s = re.sub(r'[\s\u00A0\u200B\u200C\u200D\uFEFF]+', '', s)
+    return s.strip()
 
 
 def _radar_confirms_flight(callsign, radar_df):
@@ -365,7 +398,6 @@ def _classify_volo(records, radar_df=None):
             if stima and not _is_in_sconfinamento_effective(stima):
                 return None
 
-        # Calcola delay esatto dalla STIMA
         delay = _minutes_since_sched(sched, stima_ref)
         if delay is not None and delay >= SCONFINAMENTO_GRAVE_MIN:
             return 'sconfinamento_grave'
@@ -383,7 +415,6 @@ def _classify_volo(records, radar_df=None):
     callsign = records[0].get('callsign_volo', '')
     delay = None
 
-    # Prova radar per delay esatto
     if radar_df is not None and callsign:
         confirmed, radar_ts = _radar_confirms_flight(callsign, radar_df)
         if confirmed and radar_ts:
@@ -396,7 +427,6 @@ def _classify_volo(records, radar_df=None):
             except Exception as e:
                 logger.debug(f"Errore parsing timestamp radar per {callsign}: {e}")
 
-    # Se radar non conferma, usa lower bound = 23:00 - sched
     if delay is None:
         delay = _minutes_since_sched(sched, '23:00')
         if radar_df is not None and callsign:
@@ -459,15 +489,23 @@ def load_scheduled_flights(date_str, radar_df=None):
             df = pd.read_csv(filepath)
             df = normalize_scan_columns(df)
             for _, row in df.iterrows():
-                sched = row.get('orario_schedulato')
-                if not sched:
+                sched_raw = row.get('orario_schedulato')
+                if not sched_raw:
                     continue
-                cs = str(row.get('callsign_volo', '')).strip()
-                key = (cs, str(sched).strip())
+                cs_raw = row.get('callsign_volo', '')
+
+                # Fix v2.8.11: normalizza callsign e sched per la chiave
+                cs_norm = _normalize_callsign(cs_raw)
+                sched_norm = _normalize_hhmm(sched_raw)
+
+                if not cs_norm or not sched_norm:
+                    continue
+
+                key = (cs_norm, sched_norm)
                 flights[key].append({
                     'scan_time': scan_time,
-                    'callsign_volo': cs,
-                    'orario_schedulato': str(sched).strip(),
+                    'callsign_volo': cs_norm,
+                    'orario_schedulato': sched_norm,
                     'orario_effettivo': row.get('orario_effettivo'),
                     'stato_volo': row.get('stato_volo'),
                     'tipo_movimento': row.get('tipo_movimento'),
@@ -570,6 +608,89 @@ def _is_phase_compatible(direzione_sacbo, fase_volo):
     if direzione_sacbo == 'A':
         return fase_volo in ('Atterraggio', 'Avvicinamento')
     return False
+
+
+def _phase_priority(fase_volo):
+    """
+    Priorità per la deduplica: più alto = più specifico.
+    Atterraggio è la fase finale (più informativa dell'Avvicinamento).
+    """
+    priorities = {
+        'Atterraggio': 4,
+        'Decollo': 3,
+        'Avvicinamento': 2,
+        'Non rilevato': 1,
+        'N/D': 0,
+        '': 0,
+    }
+    return priorities.get(str(fase_volo).strip(), 1)
+
+
+def _dedup_by_key(df):
+    """
+    Fix v2.8.11: deduplica le righe per (callsign, orario_schedulato).
+    Il vincolo univoco del DB 'uniq_nightly_flight' richiede che non ci
+    siano due righe con la stessa chiave (callsign, orario_schedulato).
+
+    Priorità di selezione:
+      1. is_scheduled=True (preferisci schedulati a radar-only)
+      2. Fase più specifica (Atterraggio > Decollo > Avvicinamento)
+      3. Timestamp più recente (a parità di fase)
+
+    Le righe senza orario_schedulato (radar-only) NON vengono deduplicate
+    qui, perché il vincolo del DB ha WHERE orario_schedulato IS NOT NULL.
+    """
+    if df.empty:
+        return df
+
+    # Separa righe con e senza orario_schedulato
+    has_sched_mask = df['orario_schedulato'].apply(
+        lambda x: bool(str(x).strip()) if pd.notna(x) else False
+    )
+    with_sched = df[has_sched_mask].copy()
+    without_sched = df[~has_sched_mask].copy()
+
+    if with_sched.empty:
+        return df
+
+    # Normalizza la chiave per la deduplica
+    with_sched['_key_cs'] = with_sched['callsign'].apply(_normalize_callsign)
+    with_sched['_key_sched'] = with_sched['orario_schedulato'].apply(_normalize_hhmm)
+    with_sched['_is_sched_priority'] = with_sched['is_scheduled'].apply(
+        lambda x: 1 if x is True or str(x).lower() == 'true' else 0
+    )
+    with_sched['_phase_priority'] = with_sched['fase_volo'].apply(_phase_priority)
+    with_sched['_ts_priority'] = with_sched['timestamp'].apply(
+        lambda t: str(t) if pd.notna(t) and str(t).strip() else ''
+    )
+
+    # Ordina per priorità decrescente (is_scheduled, fase, timestamp)
+    with_sched = with_sched.sort_values(
+        by=['_is_sched_priority', '_phase_priority', '_ts_priority'],
+        ascending=[False, False, False]
+    )
+
+    # Deduplica tenendo la prima riga per chiave
+    before = len(with_sched)
+    with_sched = with_sched.drop_duplicates(
+        subset=['_key_cs', '_key_sched'], keep='first'
+    )
+    after = len(with_sched)
+    removed = before - after
+
+    if removed > 0:
+        logger.info(f"🧹 Deduplicati {removed} voli con chiave duplicata "
+                    f"(callsign, orario_schedulato)")
+
+    # Pulisci colonne di lavoro
+    with_sched = with_sched.drop(columns=[
+        '_key_cs', '_key_sched', '_is_sched_priority',
+        '_phase_priority', '_ts_priority'
+    ])
+
+    # Ricombina
+    result = pd.concat([with_sched, without_sched], ignore_index=True)
+    return result
 
 
 def match_flights(scheduled_df, radar_df, session_date):
@@ -927,6 +1048,15 @@ def generate_nightly_report(date_str=None):
         logger.warning(f"⚠️ Nessun dato per {date_norm}")
         return None, f"Nessun dato per {date_norm}"
 
+    # Fix v2.8.11: deduplica finale prima di scrivere il CSV
+    # per evitare violazioni del vincolo uniq_nightly_flight
+    before_dedup = len(result_df)
+    result_df = _dedup_by_key(result_df)
+    after_dedup = len(result_df)
+    if before_dedup != after_dedup:
+        logger.info(f"🧹 Deduplica finale: {before_dedup} → {after_dedup} righe "
+                    f"({before_dedup - after_dedup} rimosse)")
+
     os.makedirs(OUTPUT_CSV_DIR, exist_ok=True)
     out_path = os.path.join(OUTPUT_CSV_DIR, report_nightly_filename(date_norm))
 
@@ -1001,7 +1131,6 @@ def generate_nightly_report(date_str=None):
         logger.warning(f"Errore salvataggio meteo: {e}")
         meteo_msg = ", errore meteo"
 
-    # Messaggio finale
     sconf_tot = n_sconfinamenti + n_sconfinamenti_gravi
     sconf_msg = ""
     if sconf_tot > 0:

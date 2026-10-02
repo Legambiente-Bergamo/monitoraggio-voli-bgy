@@ -1,12 +1,14 @@
 """
 bgy_core/bgy_db.py - Modulo di accesso al database PostgreSQL.
-Versione 2.6.0
+Versione 2.6.1
 
 - Fix: execute_query() gestisce correttamente INSERT ... RETURNING
 - Fix: execute_query() usa cur.description per capire se la query ritorna righe
+- Novità v2.6.1: execute_many() ritorna cur.rowcount (righe effettivamente
+  modificate/inserite), non len(params_list). Necessario per contare i
+  duplicati scartati dal ON CONFLICT DO NOTHING nell'import notturno.
 - Novità v2.6.0: SCHEMA_SQL aggiornato per radar h24 (fonte, data_riferimento,
-  sessione_notturna nullable). Compatibile con installazioni esistenti
-  grazie ad apply_schema_updates() in bgy_db_migrate.py.
+  sessione_notturna nullable).
 """
 import os
 import sys
@@ -260,6 +262,7 @@ def apply_schema():
 def execute_query(sql, params=None, fetch=True):
     """
     Esegue una query SQL.
+
     - Se la query ritorna righe (SELECT, INSERT/UPDATE/DELETE ... RETURNING),
       ritorna (True, rows).
     - Altrimenti ritorna (True, rowcount).
@@ -290,14 +293,23 @@ def execute_query(sql, params=None, fetch=True):
 
 
 def execute_many(sql, params_list):
+    """
+    Esegue una lista di INSERT/UPDATE.
+
+    Ritorna (True, righe_effettivamente_modificate) dove righe_effettivamente_modificate
+    è il rowcount aggregato di tutti i batch. Con ON CONFLICT DO NOTHING, questo
+    è il numero di righe realmente inserite (esclude i conflitti scartati).
+    """
     conn = get_connection()
     if conn is None:
         return False, "DB non disponibile"
     try:
+        total_rowcount = 0
         with conn.cursor() as cur:
             cur.executemany(sql, params_list)
+            total_rowcount = cur.rowcount
         conn.commit()
-        return True, len(params_list)
+        return True, total_rowcount
     except Exception as e:
         conn.rollback()
         logger.error(f"Errore executemany: {e}")
