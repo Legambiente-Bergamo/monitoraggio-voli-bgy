@@ -1,6 +1,6 @@
 """
 bgy_core/bgy_db_migrate.py - Import e sincronizzazione CSV -> PostgreSQL.
-Versione 2.8.0
+Versione 2.8.3
 
 Modulo unificato che contiene:
   - Funzioni di import per ogni tipo di file (scan, radar, meteo, nightly)
@@ -11,6 +11,18 @@ Modulo unificato che contiene:
   - Statistiche movimenti giornalieri e notturni
   - Check compagnie placeholder irrisolte (F14)
   - Check anomalie notturne
+
+
+
+Novità v2.8.3:
+- Check 12 "Bilanciamento D/A nightly": sotto 25 movimenti totali,
+  qualsiasi sbilanciamento è warning. Sopra, ratio/zero severi.
+
+Novità v2.8.2:
+- Check 12: monodirezionale sotto 25 = warning.
+
+Novità v2.8.1:
+- Check 28: warning invece di errore.
 
 Novità v2.8.0 (classificazione unificata "Non classificato"):
 - get_nightly_stats(): aggiunta sezione 'non_classificato' tra i visibili.
@@ -1443,6 +1455,12 @@ def _qc_bilanciamento_daily(date_from, date_to, thresholds):
 
 
 def _qc_bilanciamento_nightly(date_from, date_to, thresholds):
+    """
+    v2.8.3: sotto SOGLIA_TOTALE_ALTO (25 movimenti) il check è tollerante:
+    qualsiasi sbilanciamento è warning, non errore. Solo con totale alto
+    (>= 25) una direzione a zero o un ratio fuori soglia sono errori.
+    BGY ha notti fisiologicamente sbilanciate (es. 19 movimenti con 2 D e 17 A).
+    """
     ok, rows = bgy_db.execute_query(
         """SELECT data_riferimento,
                   COUNT(*) FILTER (WHERE direzione_sacbo = 'D'
@@ -1461,23 +1479,41 @@ def _qc_bilanciamento_nightly(date_from, date_to, thresholds):
         (date_from, date_to))
     if not ok:
         return True, False, 0, 0, [f"Errore: {rows}"]
+
     rmin, rmax = thresholds["nightly_da_ratio_min"], thresholds["nightly_da_ratio_max"]
+    SOGLIA_TOTALE_ALTO = 25
+
     errori, warnings = [], []
     for data, d, a in rows or []:
-        if a == 0 and d == 0:
+        totale = d + a
+        if totale == 0:
             continue
-        if a == 0:
-            errori.append(f"{data}: D={d}, A=0")
+
+        # Sotto la soglia: tutto è warning
+        if totale < SOGLIA_TOTALE_ALTO:
+            if a == 0 or d == 0:
+                warnings.append(f"{data}: monodirezionale (D={d}, A={a}, tot={totale})")
+            else:
+                ratio = d / a
+                if ratio < rmin or ratio > rmax:
+                    warnings.append(
+                        f"{data}: ratio={ratio:.2f} (D={d}, A={a}, tot={totale})"
+                    )
             continue
+
+        # Sopra la soglia: soglie severe
+        if a == 0 or d == 0:
+            errori.append(f"{data}: monodirezionale (D={d}, A={a}, tot={totale})")
+            continue
+
         ratio = d / a
         if ratio < rmin or ratio > rmax:
             errori.append(f"{data}: ratio={ratio:.2f} (D={d}, A={a})")
         elif ratio < rmin * 1.2 or ratio > rmax * 0.8:
             warnings.append(f"{data}: ratio={ratio:.2f}")
+
     return len(errori) == 0, len(warnings) > 0, len(errori), f"{rmin}–{rmax}", \
-        [f"❌ {e}" for e in errori[:3]] + [f"⚠️ {w}" for w in warnings[:2]]
-
-
+        [f"❌ {e}" for e in errori[:3]] + [f"⚠️ {w}" for w in warnings[:3]]
 def _qc_daily_presenti(date_from, date_to):
     ok, rows = bgy_db.execute_query(
         """SELECT DISTINCT s.data_riferimento
@@ -1773,7 +1809,13 @@ def _qc_data_futura(date_from, date_to):
     return len(rows) == 0, False, len(rows), oggi, dettagli
 
 
+
 def _qc_anomalie_notturne(date_from, date_to):
+    """
+    v2.8.1: ritorna warning (non errore) quando ci sono anomalie.
+    Le anomalie sono dati reali e il loro conteggio è informativo,
+    non indica un problema del sistema.
+    """
     ok, rows = bgy_db.execute_query(
         """SELECT data_riferimento, callsign, orario_schedulato, direzione_sacbo
            FROM nightly_reports
@@ -1787,7 +1829,9 @@ def _qc_anomalie_notturne(date_from, date_to):
     dettagli = [
         f"{r[0]} {r[1]} ({r[3]}) sched={r[2]}" for r in rows[:5]
     ]
-    return len(rows) == 0, False, len(rows), 0, dettagli
+    n = len(rows)
+    # v2.8.1: warning invece di errore
+    return True, (n > 0), n, 0, dettagli
 
 
 # =============================================================================
