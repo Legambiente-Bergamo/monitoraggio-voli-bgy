@@ -1,45 +1,48 @@
 """
 bgy_core/bgy_db_migrate.py - Import e sincronizzazione CSV -> PostgreSQL.
-Versione 2.7.3
+Versione 2.8.0
 
 Modulo unificato che contiene:
   - Funzioni di import per ogni tipo di file (scan, radar, meteo, nightly)
   - Parser per il formato vecchio di scan_*.csv
   - Logica di migrazione storica completa
   - Logica di sincronizzazione incrementale
-  - Quality check esteso: 28 check
+  - Quality check esteso: 27 check attivi (rimosso check 22)
   - Statistiche movimenti giornalieri e notturni
   - Check compagnie placeholder irrisolte (F14)
   - Check anomalie notturne
 
+Novità v2.8.0 (classificazione unificata "Non classificato"):
+- get_nightly_stats(): aggiunta sezione 'non_classificato' tra i visibili.
+  Sconfinamenti e anomalie ora includono anche i voli non classificati.
+- Nuova get_non_classified_flights(date_str): lista dei voli con
+  tipo_movimento = 'Non classificato' per l'email del mattino.
+- Check 16 "Cargo non in lista": usa classify_callsign() invece di
+  is_cargo_flight() (rispetta gli override per callsign).
+- VISIBLE_FILTER_SQL: include 'Non classificato' tra i visibili.
+
+Novità v2.7.5:
+- Check 18 "File meteo mancanti": esclude le date senza report notturno
+  (notti non monitorate).
+
+Novità v2.7.4:
+- Rimosso check 22 "Orario fuori fascia".
+- Check 12 "Bilanciamento D/A nightly": esclude date antecedenti al 26/09/2026.
+
 Novità v2.7.3 (failover SACBO → Avionio):
 - Colonna scans.source VARCHAR(20) DEFAULT 'sacbo' (schema update idempotente).
-- import_scan_file() legge la colonna fonte_scan del CSV (se presente) e la
-  scrive in scans.source. Default 'sacbo' per retrocompatibilità.
+- import_scan_file() legge la colonna fonte_scan del CSV (se presente).
 - Log esplicito: "Importato [new] scan_*.csv (fonte: avionio)".
 
 Novità v2.7.2 (fix reimport radar cumulativo):
-- import_radar_file() confronta righe CSV vs righe DB. Se il file è
-  cresciuto dopo l'import iniziale (radar h24 cumulativo), cancella le
-  righe DB per quella data e reimporta tutto.
+- import_radar_file() confronta righe CSV vs righe DB.
 
 Novità v2.7.1 (fix import nightly duplicati):
 - INSERT nightly con ON CONFLICT DO NOTHING sul vincolo uniq_nightly_flight.
-- execute_many() ora ritorna il rowcount reale.
-- import_nightly_file() logga quanti duplicati sono stati scartati.
 
 Novità v2.7.0 (radar h24):
 - radar_detections: nuove colonne fonte e data_riferimento.
 - sessione_notturna ora è nullable.
-
-Novità v2.6.7 (distribuzione ritardi).
-Novità v2.6.6 (statistiche puntualità).
-Novità v2.6.5 (anomalie + sconfinamenti gravi).
-Novità v2.6.4 (sconfinamenti).
-Novità v2.6.3 (F14).
-Novità v2.6.2 (fix check 15, 20).
-Novità v2.6.1 (fix bug _effective_from).
-Novità v2.6.0 (quality check esteso).
 """
 import os
 import sys
@@ -103,6 +106,15 @@ def apply_schema_updates():
         "ALTER TABLE radar_detections ADD COLUMN IF NOT EXISTS data_riferimento DATE",
         "ALTER TABLE radar_detections ALTER COLUMN sessione_notturna DROP NOT NULL",
         "ALTER TABLE scans ADD COLUMN IF NOT EXISTS source VARCHAR(20) DEFAULT 'sacbo'",
+        # v2.8.0: tabella override per callsign (introdotta dalla migrazione 2026-10-02)
+        """CREATE TABLE IF NOT EXISTS callsign_classifications (
+            callsign VARCHAR(10) PRIMARY KEY,
+            categoria VARCHAR(30) NOT NULL,
+            nome_compagnia VARCHAR(100),
+            note TEXT,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        )""",
     ]
     for sql in updates:
         ok, result = bgy_db.execute_query(sql, fetch=False)
@@ -293,16 +305,10 @@ def parse_old_scan_row(row):
 
 
 # =============================================================================
-# IMPORT: SCAN (v2.7.3)
+# IMPORT: SCAN
 # =============================================================================
 
 def import_scan_file(filepath):
-    """
-    Importa un file scan_*.csv nel DB.
-
-    v2.7.3: legge la colonna 'fonte_scan' del CSV (se presente) e la
-    scrive in scans.source. Default 'sacbo' se mancante (retrocompatibile).
-    """
     filename = os.path.basename(filepath)
     date_str, time_str, tipo = parse_date_from_scan_filename(filename)
     if not date_str:
@@ -335,7 +341,6 @@ def import_scan_file(filepath):
     if fmt == "old":
         stats["scans_old_format"] += 1
 
-    # v2.7.3: leggi fonte_scan dal primo record (tutti i record hanno lo stesso valore)
     fonte_scan = "sacbo"
     if csv_rows and "fonte_scan" in csv_rows[0]:
         fonte_scan = safe_str(csv_rows[0].get("fonte_scan"), "sacbo") or "sacbo"
@@ -411,7 +416,7 @@ def import_scan_file(filepath):
 
 
 # =============================================================================
-# IMPORT: RADAR (v2.7.2)
+# IMPORT: RADAR
 # =============================================================================
 
 def _radar_session_date_from_ts(ts_str):
@@ -430,12 +435,6 @@ def _radar_session_date_from_ts(ts_str):
 
 
 def import_radar_file(filepath):
-    """
-    Importa un file radar_*.csv nel DB.
-
-    v2.7.2: confronta righe CSV vs righe DB. Se il file è cresciuto,
-    DELETE + INSERT.
-    """
     filename = os.path.basename(filepath)
     date_str = parse_radar_filename(filename)
     if not date_str:
@@ -556,7 +555,7 @@ def import_meteo_file(filepath):
 
 
 # =============================================================================
-# IMPORT: NIGHTLY (v2.7.1)
+# IMPORT: NIGHTLY
 # =============================================================================
 
 def import_nightly_file(filepath):
@@ -875,22 +874,30 @@ def get_daily_stats(date_str):
 
 
 def get_nightly_stats(date_str):
-    """Statistiche movimenti notturni, divise per categoria."""
+    """
+    Statistiche movimenti notturni, divise per categoria.
+
+    v2.8.0: aggiunta categoria 'non_classificato'.
+    Sconfinamenti e anomalie includono anche i voli non classificati.
+    """
     empty = {
         "passeggeri": {"decolli": 0, "atterraggi": 0, "totale": 0},
         "cargo": {"decolli": 0, "atterraggi": 0, "totale": 0},
         "charter": {"decolli": 0, "atterraggi": 0, "totale": 0},
+        "non_classificato": {"decolli": 0, "atterraggi": 0, "totale": 0},
         "regolari": {"decolli": 0, "atterraggi": 0, "totale": 0},
         "sconfinamenti": {
             "passeggeri": {"decolli": 0, "atterraggi": 0, "totale": 0},
             "cargo": {"decolli": 0, "atterraggi": 0, "totale": 0},
             "charter": {"decolli": 0, "atterraggi": 0, "totale": 0},
+            "non_classificato": {"decolli": 0, "atterraggi": 0, "totale": 0},
             "totale": 0,
         },
         "sconfinamenti_gravi": {
             "passeggeri": {"decolli": 0, "atterraggi": 0, "totale": 0},
             "cargo": {"decolli": 0, "atterraggi": 0, "totale": 0},
             "charter": {"decolli": 0, "atterraggi": 0, "totale": 0},
+            "non_classificato": {"decolli": 0, "atterraggi": 0, "totale": 0},
             "totale": 0,
         },
         "anomalie": {"totale": 0, "dettagli": []},
@@ -903,6 +910,7 @@ def get_nightly_stats(date_str):
                 WHEN tipo_movimento = 'Passeggeri' THEN 'passeggeri'
                 WHEN tipo_movimento LIKE 'Cargo%%' THEN 'cargo'
                 WHEN tipo_movimento LIKE 'Charter%%' THEN 'charter'
+                WHEN tipo_movimento = 'Non classificato' THEN 'non_classificato'
                 ELSE 'altro'
               END AS categoria,
               COALESCE(
@@ -919,14 +927,15 @@ def get_nightly_stats(date_str):
            WHERE data_riferimento = %s
              AND (tipo_movimento = 'Passeggeri'
                   OR tipo_movimento LIKE 'Cargo%%'
-                  OR tipo_movimento LIKE 'Charter%%')
+                  OR tipo_movimento LIKE 'Charter%%'
+                  OR tipo_movimento = 'Non classificato')
            GROUP BY 1, 2, 3""", (date_str,))
     if not ok:
         logger.warning(f"get_nightly_stats: errore query ({rows})")
         return empty
 
     for categoria, direzione, notte_cat, n in rows or []:
-        if categoria not in ("passeggeri", "cargo", "charter"):
+        if categoria not in ("passeggeri", "cargo", "charter", "non_classificato"):
             continue
         d = str(direzione).strip().upper()
         is_d = (d == 'D')
@@ -981,6 +990,39 @@ def get_nightly_stats(date_str):
                 })
 
     return empty
+
+
+def get_non_classified_flights(date_str):
+    """
+    v2.8.0: ritorna la lista dei voli non classificati per una data.
+    Usata dal mailer per la sezione "VOLI NON CLASSIFICATI" nell'email.
+
+    Ritorna una lista di dict con:
+      callsign, direzione_sacbo, orario_schedulato,
+      compagnia_aerea, fase_volo, is_scheduled
+    """
+    ok, rows = bgy_db.execute_query(
+        """SELECT callsign, direzione_sacbo, orario_schedulato,
+                  compagnia_aerea, fase_volo, is_scheduled
+           FROM nightly_reports
+           WHERE data_riferimento = %s
+             AND tipo_movimento = 'Non classificato'
+           ORDER BY orario_schedulato""", (date_str,))
+    if not ok:
+        logger.warning(f"get_non_classified_flights: errore query ({rows})")
+        return []
+
+    result = []
+    for cs, dir_sacbo, sched, comp, fase, is_sched in rows or []:
+        result.append({
+            "callsign": cs or "?",
+            "direzione_sacbo": dir_sacbo or "?",
+            "orario_schedulato": str(sched) if sched else "?",
+            "compagnia_aerea": comp or "N/D",
+            "fase_volo": fase or "?",
+            "is_scheduled": bool(is_sched),
+        })
+    return result
 
 
 # =============================================================================
@@ -1170,10 +1212,12 @@ DEFAULT_THRESHOLDS = {
 
 DEFAULT_REFERENCE_DATE = "2026-10-01"
 
+# v2.8.0: include 'Non classificato' tra i visibili
 VISIBLE_FILTER_SQL = (
     "(tipo_movimento = 'Passeggeri' "
     " OR tipo_movimento LIKE 'Cargo%%' "
-    " OR tipo_movimento LIKE 'Charter%%')")
+    " OR tipo_movimento LIKE 'Charter%%' "
+    " OR tipo_movimento = 'Non classificato')")
 
 
 def _get_quality_config():
@@ -1407,9 +1451,11 @@ def _qc_bilanciamento_nightly(date_from, date_to, thresholds):
                                      OR (direzione_sacbo IS NULL AND fase_volo IN ('Atterraggio', 'Avvicinamento'))) AS a
            FROM nightly_reports
            WHERE data_riferimento BETWEEN %s AND %s
+             AND data_riferimento >= '2026-09-26'
              AND (tipo_movimento = 'Passeggeri'
                   OR tipo_movimento LIKE 'Cargo%%'
-                  OR tipo_movimento LIKE 'Charter%%')
+                  OR tipo_movimento LIKE 'Charter%%'
+                  OR tipo_movimento = 'Non classificato')
            GROUP BY data_riferimento
            ORDER BY data_riferimento""",
         (date_from, date_to))
@@ -1510,6 +1556,10 @@ def _qc_onetime_airlines(date_from, date_to, thresholds):
 
 
 def _qc_cargo_non_in_lista(date_from, date_to):
+    """
+    v2.8.0: usa classify_callsign() invece di is_cargo_flight().
+    Questo rispetta gli override per callsign (tabella callsign_classifications).
+    """
     ok, rows = bgy_db.execute_query(
         """SELECT DISTINCT callsign FROM nightly_reports
            WHERE data_riferimento BETWEEN %s AND %s
@@ -1518,12 +1568,14 @@ def _qc_cargo_non_in_lista(date_from, date_to):
     if not ok:
         return True, False, 0, 0, [f"Errore: {rows}"]
     try:
-        from bgy_core import is_cargo_flight
+        from bgy_core.bgy_update_rules import classify_callsign
         non_cargo = []
         for r in rows or []:
             cs = str(r[0]).strip()
-            is_c, _ = is_cargo_flight(cs)
-            if not is_c:
+            if not cs:
+                continue
+            categoria, _ = classify_callsign(cs)
+            if categoria != 'Cargo':
                 non_cargo.append(cs)
         dettagli = [f"{c}" for c in non_cargo[:5]]
         return len(non_cargo) == 0, False, len(non_cargo), 0, dettagli
@@ -1551,6 +1603,10 @@ def _qc_file_radar_mancanti(date_from, date_to):
 
 
 def _qc_file_meteo_mancanti(date_from, date_to):
+    """
+    v2.7.5: esclude le date in cui la notte non è stata monitorata
+    (nessun report notturno e nessun dato in nightly_reports).
+    """
     start = datetime.strptime(date_from, "%Y-%m-%d").date()
     end = datetime.strptime(date_to, "%Y-%m-%d").date()
     missing = []
@@ -1563,6 +1619,15 @@ def _qc_file_meteo_mancanti(date_from, date_to):
                 "SELECT COUNT(*) FROM weather_hourly WHERE data_riferimento = %s",
                 (ds,))
             if not ok or not rows or rows[0][0] == 0:
+                nightly_path = os.path.join(OUTPUT_CSV_DIR, f"report_nightly_{ds}.csv")
+                if not os.path.exists(nightly_path):
+                    ok2, rows2 = bgy_db.execute_query(
+                        "SELECT COUNT(*) FROM nightly_reports WHERE data_riferimento = %s",
+                        (ds,))
+                    if not ok2 or not rows2 or rows2[0][0] == 0:
+                        logger.info(f"⏭️ Check meteo: salto {ds} (notte non monitorata)")
+                        d += timedelta(days=1)
+                        continue
                 missing.append(ds)
         d += timedelta(days=1)
     missing = [m for m in missing if m >= "2026-09-01"]
@@ -1620,21 +1685,6 @@ def _qc_destinazione_mancante(date_from, date_to, thresholds):
     return pct < pct_soglia, pct >= pct_soglia * 0.8, pct, pct_soglia, [f"{zero}/{tot}"]
 
 
-def _qc_orario_fuori_fascia(date_from, date_to):
-    ok, rows = bgy_db.execute_query(
-        """SELECT data_riferimento, callsign, orario_schedulato
-           FROM nightly_reports
-           WHERE data_riferimento BETWEEN %s AND %s
-             AND orario_schedulato IS NOT NULL
-             AND EXTRACT(HOUR FROM orario_schedulato) BETWEEN 7 AND 22
-           ORDER BY data_riferimento DESC LIMIT 10""",
-        (date_from, date_to))
-    if not ok:
-        return True, False, 0, 0, [f"Errore: {rows}"]
-    dettagli = [f"{r[0]} {r[1]} @{r[2]}" for r in rows[:5]]
-    return len(rows) == 0, False, len(rows), 0, dettagli
-
-
 def _qc_radar_senza_timestamp(date_from, date_to):
     ok, rows = bgy_db.execute_query(
         """SELECT callsign, data_riferimento
@@ -1672,7 +1722,8 @@ def _qc_pax_medio(date_from, date_to, thresholds):
         """SELECT AVG(stima_passeggeri) AS media, COUNT(*) AS tot
            FROM nightly_reports
            WHERE data_riferimento BETWEEN %s AND %s
-             AND tipo_movimento = 'Passeggeri'
+             AND (tipo_movimento = 'Passeggeri'
+                  OR tipo_movimento LIKE 'Charter%%')
              AND stima_passeggeri > 0
              AND modello_aereo IS NOT NULL
              AND modello_aereo != ''
@@ -1787,7 +1838,6 @@ def run_quality_check(days=7, dry_run=False):
         (19, "Report daily mancanti", lambda: _qc_report_daily_mancanti(date_from, date_to), True),
         (20, "Scansioni SACBO complete", lambda: _qc_scansioni_complete(date_from, date_to), True),
         (21, "Destinazione mancante", lambda: _qc_destinazione_mancante(date_from, date_to, thresholds), True),
-        (22, "Orario fuori fascia", lambda: _qc_orario_fuori_fascia(date_from, date_to), True),
         (23, "Radar senza timestamp", lambda: _qc_radar_senza_timestamp(date_from, date_to), True),
         (24, "Match incoerente", lambda: _qc_match_incoerente(date_from, date_to), True),
         (25, "PAX medio per volo", lambda: _qc_pax_medio(date_from, date_to, thresholds), True),

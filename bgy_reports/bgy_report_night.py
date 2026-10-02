@@ -1,60 +1,28 @@
 """
-bgy_reports/bgy_report_night.py - Report notturno integrato (SACBO + OpenSky).
-Versione 2.8.11
+bgy_reports/bgy_report_night.py - Report notturno integrato (SACBO + radar).
+Versione 2.9.3
 
 Modello logico:
-- Il TABELLONE SACBO è la fonte primaria per i voli PASSEGGERI.
-- Il RADAR arricchisce i passeggeri + identifica Cargo e Charter.
+- Nessuna presunzione "tabellone = passeggeri".
+- Ogni volo è classificato in modo indipendente dalla fonte tramite
+  classify_callsign() di bgy_update_rules.
 
-Categorie finali:
-  1. Passeggeri        — dal tabellone (con o senza match radar)
-  2. Cargo (Nome)      — radar + _cargo_airlines
-  3. Charter (Nome)    — radar + _charter_airlines
-  4. Passeggeri (radar) — radar + compagnia di linea fuori tabellone
-  5. Non identificato  — radar + callsign ignoto
+Novità v2.9.3 (fix match per prefisso ICAO):
+- Il callsign SACBO è in formato IATA ('FR 2864') e contiene il numero
+  commerciale del volo.
+- Il callsign radar è in formato ICAO ('RYR4787', 'RYR519Q') e contiene
+  un callsign radio operativo che NON coincide con il numero del volo.
+- Il match per callsign completo è quindi impossibile.
+- Soluzione: confronto per PREFISSO ICAO (3 lettere).
+  SACBO 'FR 2864' -> IATA 'FR' -> ICAO 'RYR'
+  Radar 'RYR4787' -> prefisso 'RYR'
+  Match valido se prefissi coincidono + finestra temporale + fase.
+  Questo esclude match tra compagnie diverse (es. FR vs SRR).
 
-Categorie notte (colonna notte_categoria):
-  - 'regolare'              : orario_schedulato in fascia 23:00-05:59
-  - 'sconfinamento'         : schedulato fuori fascia, operante in fascia,
-                              con ritardo < 60 min (slittamento serale)
-  - 'sconfinamento_grave'   : schedulato fuori fascia, operante in fascia,
-                              con ritardo >= 60 min (slittamento grave)
-  - 'anomalia'              : stato "a terra" al baseline ma ancora presente
-                              a 02:00 o 05:00 (problema operativo)
-  - ''                      : voli radar non matchati
-
-Novità v2.8.11 (fix duplicati notte):
-- Aggiunta _dedup_by_key() prima della scrittura del CSV.
-  Il problema: due match radar per lo stesso volo schedulato producono
-  due righe con la stessa chiave (callsign, orario_schedulato), violando
-  il vincolo univoco uniq_nightly_flight del DB.
-  Il fix: deduplica su (callsign, orario_schedulato) tenendo la riga
-  "migliore" secondo la priorità:
-    1. is_scheduled=True (preferisci gli schedulati ai radar-only)
-    2. Fase più specifica (Atterraggio > Decollo > Avvicinamento > altro)
-    3. Timestamp più recente (a parità di fase)
-
-Novità v2.8.10 (sconfinamento grave >= 1h):
-- Aggiunta categoria 'sconfinamento_grave'.
-
-Novità v2.8.9 (criterio B + anomalie):
-- Criterio B + categoria 'anomalia'.
-
-Novità v2.8.8:
-- Fix bug FR 3530 (STIMA transitoria a mezzanotte).
-- Deduplica prima della classificazione (baseline 23:00).
-
-Novità v2.8.7:
-- Colonna notte_categoria.
-
-Novità v2.8.6:
-- Caricamento scansioni SACBO del giorno successivo.
-
-Novità v2.8.5:
-- Colonna direzione_sacbo.
-
-Novità v2.8.3:
-- PAX e rumore calcolati solo sui Visibili.
+Novità v2.9.2 (fix tentativo match callsign completo).
+Novità v2.9.1 (verifica callsign, troppo severa).
+Novità v2.9.0 (classificazione unificata).
+Novità v2.8.x (invariate).
 """
 import os
 import re
@@ -67,6 +35,9 @@ from bgy_core import (
     get_airline, get_country, get_aircraft_model,
     is_cargo_flight, is_charter_flight, load_rules, get_logger,
     estimate_passengers,
+)
+from bgy_core.bgy_update_rules import (
+    classify_callsign, iata_to_icao_prefix, get_iata_to_icao_map,
 )
 from bgy_core.bgy_paths import RAW_DIR, OUTPUT_CSV_DIR
 from bgy_core.bgy_dates import (
@@ -87,15 +58,11 @@ RADAR_DEDUP_WINDOW_MIN = 15
 
 BGY_PHASES = ('Atterraggio', 'Decollo', 'Avvicinamento')
 
-PLACEHOLDER_PREFIX = 'Compagnia '
-PLACEHOLDER_VALUES = {'N/D', 'Non identificato', ''}
-
 NIGHT_START_HOUR = 23
 NIGHT_END_HOUR = 6
 SCONFINAMENTO_START_MIN = 23 * 60 + 1
 SCONFINAMENTO_END_MIN = 6 * 60
 
-# Soglia per "sconfinamento grave" (ritardo >= 60 min)
 SCONFINAMENTO_GRAVE_MIN = 60
 
 SESSION_SCAN_TIMES = ['23-00', '00-00', '00-01', '02-00', '05-00', '06-00']
@@ -104,6 +71,9 @@ SCANSIONE_ANOMALIA = {'02-00', '05-00'}
 
 STATI_A_TERRA = ('IMBARCO', 'IN RITARDO')
 STATI_OPERATI = ('DECOLLATO', 'ATTERRATO', 'ARRIVATO', 'IN VOLO', 'PARTITO')
+
+VISIBLE_CATEGORIES = ('Passeggeri', 'Cargo', 'Charter', 'Non classificato')
+PAX_CATEGORIES = ('Passeggeri', 'Charter')
 
 
 def _cfg():
@@ -170,11 +140,6 @@ def _time_to_minutes(hhmm):
 
 
 def _minutes_since_sched(sched, effective):
-    """
-    Calcola i minuti tra sched e effective, gestendo il passaggio mezzanotte.
-    Es. sched 22:20, effective 00:15 → 115 min.
-    Ritorna None se uno dei due è invalido.
-    """
     sched_min = _time_to_minutes(sched)
     eff_min = _time_to_minutes(effective)
     if sched_min is None or eff_min is None:
@@ -214,9 +179,9 @@ def _is_valid_airline_name(name):
         return False
     if not isinstance(name, str):
         return False
-    if name in PLACEHOLDER_VALUES:
+    if name in {'N/D', 'Non identificato', ''}:
         return False
-    if name.startswith(PLACEHOLDER_PREFIX):
+    if name.startswith('Compagnia '):
         return False
     return True
 
@@ -267,28 +232,7 @@ def _extract_callsign_digits(callsign):
     return re.sub(r'\D', '', str(callsign))
 
 
-def _normalize_key_string(value):
-    """
-    Normalizza una stringa per l'uso come chiave di confronto.
-    Rimuove whitespace Unicode (inclusi non-breaking space, zero-width),
-    caratteri di controllo, e converte in minuscolo.
-
-    Fix v2.8.11: necessaria per gestire CSV SACBO che possono contenere
-    caratteri invisibili che sfuggono al .strip() standard.
-    """
-    if value is None:
-        return ''
-    s = str(value)
-    # Rimuovi tutti i tipi di whitespace Unicode + zero-width + control
-    s = re.sub(r'[\s\u00A0\u200B\u200C\u200D\uFEFF\u2028\u2029]+', '', s)
-    return s.strip().upper()
-
-
 def _normalize_callsign(callsign):
-    """
-    Normalizza un callsign rimuovendo spazi e caratteri invisibili.
-    Mantiene lettere, cifre e slash.
-    """
     if not callsign:
         return ''
     s = str(callsign)
@@ -297,9 +241,6 @@ def _normalize_callsign(callsign):
 
 
 def _normalize_hhmm(hhmm):
-    """
-    Normalizza un orario HH:MM rimuovendo spazi e caratteri invisibili.
-    """
     if not hhmm:
         return ''
     s = str(hhmm)
@@ -307,18 +248,93 @@ def _normalize_hhmm(hhmm):
     return s.strip()
 
 
+# -----------------------------------------------------------------------------
+# CONVERSIONE CALLSIGN SACBO → PREFISSO ICAO (v2.9.3)
+# -----------------------------------------------------------------------------
+
+def _split_iata_callsign(callsign_norm):
+    """
+    Splitta un callsign IATA (es. 'FR2864', 'W43136', 'RK3219')
+    in (prefisso_iata, numero_volo).
+    Ritorna (prefix, number) o (None, None).
+    """
+    if not callsign_norm:
+        return None, None
+    for pref_len in (2, 3):
+        if len(callsign_norm) <= pref_len:
+            continue
+        prefix = callsign_norm[:pref_len]
+        number = callsign_norm[pref_len:]
+        if not any(c.isalpha() for c in prefix):
+            continue
+        if not number.isdigit():
+            continue
+        return prefix, number
+    return None, None
+
+
+def _icao_prefix_from_sacbo(callsign_sacbo):
+    """
+    Estrae il prefisso ICAO (3 lettere) dal callsign SACBO (IATA).
+
+    Esempi:
+        'FR 2864'  -> 'RYR'
+        'W4 3136'  -> 'WMT'
+        'RK 3219'  -> 'RUK'
+        'BZ 155'   -> 'BPA' (o altro se in mappa)
+        'XX 1234'  -> None (prefisso IATA non in mappa)
+
+    Ritorna stringa 3-lettere o None.
+    """
+    if not callsign_sacbo:
+        return None
+    cs_norm = _normalize_callsign(callsign_sacbo)
+    if not cs_norm:
+        return None
+    prefix_iata, number = _split_iata_callsign(cs_norm)
+    if not prefix_iata:
+        return None
+    prefix_icao = iata_to_icao_prefix(prefix_iata)
+    if not prefix_icao:
+        return None
+    return prefix_icao.upper()
+
+
+def _icao_prefix_from_radar(callsign_radar):
+    """
+    Estrae il prefisso ICAO (prime 3 lettere) dal callsign radar.
+    Esempi: 'RYR4787' -> 'RYR', 'WMT994' -> 'WMT', 'SRR6402' -> 'SRR'.
+    Ritorna None se il callsign è troppo corto.
+    """
+    if not callsign_radar:
+        return None
+    cs = _normalize_callsign(callsign_radar)
+    if len(cs) < 3:
+        return None
+    return cs[:3]
+
+
+# -----------------------------------------------------------------------------
+# CLASSIFICAZIONE VOLO
+# -----------------------------------------------------------------------------
+
+def _tipo_movimento_from_callsign(callsign, source):
+    categoria, nome = classify_callsign(callsign)
+    if categoria == 'Cargo':
+        return f'Cargo ({nome})' if nome else 'Cargo (N/D)'
+    if categoria == 'Charter':
+        return f'Charter ({nome})' if nome else 'Charter (N/D)'
+    if categoria == 'Passeggeri':
+        return 'Passeggeri' if source == 'sacbo' else 'Passeggeri (radar)'
+    return 'Non classificato'
+
+
 def _radar_confirms_flight(callsign, radar_df):
-    """
-    Verifica se il radar ha una traccia corrispondente al callsign.
-    Ritorna (bool, timestamp_str_or_None).
-    """
     if radar_df is None or radar_df.empty:
         return False, None
-
     callsign_digits = _extract_callsign_digits(callsign)
     if not callsign_digits:
         return False, None
-
     try:
         for _, row in radar_df.iterrows():
             radar_cs = str(row.get('callsign', '')).strip()
@@ -329,31 +345,18 @@ def _radar_confirms_flight(callsign, radar_df):
                 return True, str(row.get('timestamp', ''))
     except Exception as e:
         logger.debug(f"Errore radar confirm per {callsign}: {e}")
-
     return False, None
 
 
 def _classify_volo(records, radar_df=None):
-    """
-    Classifica un volo in base ai suoi record.
-
-    Categorie ritornate:
-      - 'regolare'              : sched in fascia 23:00-05:59
-      - 'sconfinamento'         : sched fuori fascia, delay < 60 min
-      - 'sconfinamento_grave'   : sched fuori fascia, delay >= 60 min
-      - 'anomalia'              : sched fuori fascia, ancora presente a 02:00/05:00
-      - None                    : escluso
-    """
     if not records:
         return None
 
     sched = records[0]['orario_schedulato']
 
-    # 1. Sched in fascia → regolare
     if _is_in_night_schedule(sched):
         return 'regolare'
 
-    # 2. Baseline: prima scansione non di mezzanotte
     ref = None
     ref_index = None
     for i, r in enumerate(records):
@@ -367,7 +370,6 @@ def _classify_volo(records, radar_df=None):
         ref = records[0]
         ref_index = 0
 
-    # 3. Stato al baseline
     stato_ref = str(ref.get('stato_volo', '')).upper()
     is_operato = any(s in stato_ref for s in STATI_OPERATI)
     is_a_terra = any(s in stato_ref for s in STATI_A_TERRA)
@@ -375,43 +377,35 @@ def _classify_volo(records, radar_df=None):
     if is_operato:
         return None
 
-    # 4. CANCELLATO in qualsiasi scansione → escludi
     for r in records:
         stato = str(r.get('stato_volo', '')).upper()
         if 'CANCELLAT' in stato or 'CANCEL' in stato:
             return None
 
-    # 5. Scansioni successive al baseline (non mezzanotte)
     scansioni_succ = [
         r['scan_time'] for r in records[ref_index + 1:]
         if r['scan_time'] not in MEZZANOTTE_SCANS
     ]
 
-    # 6. Criterio A: STIMA in fascia al baseline
     stima_ref = ref.get('orario_effettivo')
     if stima_ref and _is_in_sconfinamento_effective(stima_ref):
-        # Verifica rientro ritardo
         for r in records[ref_index + 1:]:
             if r['scan_time'] in MEZZANOTTE_SCANS:
                 continue
             stima = r.get('orario_effettivo')
             if stima and not _is_in_sconfinamento_effective(stima):
                 return None
-
         delay = _minutes_since_sched(sched, stima_ref)
         if delay is not None and delay >= SCONFINAMENTO_GRAVE_MIN:
             return 'sconfinamento_grave'
         return 'sconfinamento'
 
-    # 7. Criterio B: stato "a terra" al baseline
     if not is_a_terra:
         return None
 
-    # 7a. Anomalia: ancora presente a 02:00 o 05:00
     if any(t in SCANSIONE_ANOMALIA for t in scansioni_succ):
         return 'anomalia'
 
-    # 7b. Sparito dopo 00:01 → sconfinamento (calcola delay)
     callsign = records[0].get('callsign_volo', '')
     delay = None
 
@@ -455,11 +449,9 @@ def load_scheduled_flights(date_str, radar_df=None):
         for f in os.listdir(RAW_DIR):
             if not f.startswith("scan_") or not f.endswith(".csv"):
                 continue
-
             scan_time = _extract_scan_time(f)
             if not scan_time or scan_time not in SESSION_SCAN_TIMES:
                 continue
-
             if f.startswith(f"scan_{date_norm}_") or f.startswith(f"scan_{date_clean}_"):
                 try:
                     hh = int(scan_time.split("-")[0])
@@ -493,14 +485,10 @@ def load_scheduled_flights(date_str, radar_df=None):
                 if not sched_raw:
                     continue
                 cs_raw = row.get('callsign_volo', '')
-
-                # Fix v2.8.11: normalizza callsign e sched per la chiave
                 cs_norm = _normalize_callsign(cs_raw)
                 sched_norm = _normalize_hhmm(sched_raw)
-
                 if not cs_norm or not sched_norm:
                     continue
-
                 key = (cs_norm, sched_norm)
                 flights[key].append({
                     'scan_time': scan_time,
@@ -529,7 +517,6 @@ def load_scheduled_flights(date_str, radar_df=None):
         if categoria is None:
             n_esclusi += 1
             continue
-
         row_dict = None
         for r in reversed(records):
             stima = r.get('orario_effettivo')
@@ -538,7 +525,6 @@ def load_scheduled_flights(date_str, radar_df=None):
                 break
         if row_dict is None:
             row_dict = records[-1].copy()
-
         row_dict.pop('scan_time', None)
         direzione = str(row_dict.get('tipo_movimento', '')).strip().upper()[:1]
         row_dict['direzione_sacbo'] = direzione
@@ -611,10 +597,6 @@ def _is_phase_compatible(direzione_sacbo, fase_volo):
 
 
 def _phase_priority(fase_volo):
-    """
-    Priorità per la deduplica: più alto = più specifico.
-    Atterraggio è la fase finale (più informativa dell'Avvicinamento).
-    """
     priorities = {
         'Atterraggio': 4,
         'Decollo': 3,
@@ -627,33 +609,15 @@ def _phase_priority(fase_volo):
 
 
 def _dedup_by_key(df):
-    """
-    Fix v2.8.11: deduplica le righe per (callsign, orario_schedulato).
-    Il vincolo univoco del DB 'uniq_nightly_flight' richiede che non ci
-    siano due righe con la stessa chiave (callsign, orario_schedulato).
-
-    Priorità di selezione:
-      1. is_scheduled=True (preferisci schedulati a radar-only)
-      2. Fase più specifica (Atterraggio > Decollo > Avvicinamento)
-      3. Timestamp più recente (a parità di fase)
-
-    Le righe senza orario_schedulato (radar-only) NON vengono deduplicate
-    qui, perché il vincolo del DB ha WHERE orario_schedulato IS NOT NULL.
-    """
     if df.empty:
         return df
-
-    # Separa righe con e senza orario_schedulato
     has_sched_mask = df['orario_schedulato'].apply(
         lambda x: bool(str(x).strip()) if pd.notna(x) else False
     )
     with_sched = df[has_sched_mask].copy()
     without_sched = df[~has_sched_mask].copy()
-
     if with_sched.empty:
         return df
-
-    # Normalizza la chiave per la deduplica
     with_sched['_key_cs'] = with_sched['callsign'].apply(_normalize_callsign)
     with_sched['_key_sched'] = with_sched['orario_schedulato'].apply(_normalize_hhmm)
     with_sched['_is_sched_priority'] = with_sched['is_scheduled'].apply(
@@ -663,32 +627,23 @@ def _dedup_by_key(df):
     with_sched['_ts_priority'] = with_sched['timestamp'].apply(
         lambda t: str(t) if pd.notna(t) and str(t).strip() else ''
     )
-
-    # Ordina per priorità decrescente (is_scheduled, fase, timestamp)
     with_sched = with_sched.sort_values(
         by=['_is_sched_priority', '_phase_priority', '_ts_priority'],
         ascending=[False, False, False]
     )
-
-    # Deduplica tenendo la prima riga per chiave
     before = len(with_sched)
     with_sched = with_sched.drop_duplicates(
         subset=['_key_cs', '_key_sched'], keep='first'
     )
     after = len(with_sched)
     removed = before - after
-
     if removed > 0:
         logger.info(f"🧹 Deduplicati {removed} voli con chiave duplicata "
                     f"(callsign, orario_schedulato)")
-
-    # Pulisci colonne di lavoro
     with_sched = with_sched.drop(columns=[
         '_key_cs', '_key_sched', '_is_sched_priority',
         '_phase_priority', '_ts_priority'
     ])
-
-    # Ricombina
     result = pd.concat([with_sched, without_sched], ignore_index=True)
     return result
 
@@ -726,7 +681,9 @@ def match_flights(scheduled_df, radar_df, session_date):
         scheduled_df['paese'] = 'N/D'
         scheduled_df['matched_score'] = 0
         scheduled_df['callsign'] = scheduled_df['callsign_volo']
-        scheduled_df['tipo_movimento'] = 'Passeggeri'
+        scheduled_df['tipo_movimento'] = scheduled_df['callsign_volo'].apply(
+            lambda cs: _tipo_movimento_from_callsign(cs, source='sacbo')
+        )
         return _enrich_final(scheduled_df)
 
     sched = scheduled_df.copy()
@@ -743,11 +700,20 @@ def match_flights(scheduled_df, radar_df, session_date):
 
     matched = []
     used_radar_idx = set()
+    n_match_ok = 0
+    n_match_rejected_prefix = 0
+    n_match_prefix_unknown = 0
 
     for _, s in sched.iterrows():
         sched_min = s['_sched_min']
         direzione = s.get('direzione_sacbo', '')
         categoria = s.get('notte_categoria', '')
+        callsign_sched = s.get('callsign_volo', '')
+        cs_sacbo_norm = _normalize_callsign(callsign_sched)
+        tipo_mov = _tipo_movimento_from_callsign(callsign_sched, source='sacbo')
+
+        # v2.9.3: prefisso ICAO atteso dal SACBO
+        prefix_sacbo = _icao_prefix_from_sacbo(callsign_sched)
 
         if sched_min is None:
             combined = dict(s)
@@ -761,8 +727,8 @@ def match_flights(scheduled_df, radar_df, session_date):
             combined['distanza_km'] = 0
             combined['paese'] = 'N/D'
             combined['matched_score'] = 0
-            combined['callsign'] = combined.get('callsign_volo', '')
-            combined['tipo_movimento'] = 'Passeggeri'
+            combined['callsign'] = cs_sacbo_norm
+            combined['tipo_movimento'] = tipo_mov
             combined['notte_categoria'] = categoria
             matched.append(combined)
             continue
@@ -782,6 +748,17 @@ def match_flights(scheduled_df, radar_df, session_date):
             fase = str(r.get('fase_volo', '') or '')
             if not _is_phase_compatible(direzione, fase):
                 continue
+
+            # v2.9.3: match per prefisso ICAO
+            prefix_radar = _icao_prefix_from_radar(r.get('callsign', ''))
+            if prefix_sacbo is None:
+                # Prefisso IATA sconosciuto: nessun match possibile
+                n_match_prefix_unknown += 1
+                continue
+            if prefix_radar is None or prefix_sacbo != prefix_radar:
+                n_match_rejected_prefix += 1
+                continue
+
             delta = abs(r_min - sched_min)
             if best_delta is None or delta < best_delta:
                 best_delta = delta
@@ -793,9 +770,12 @@ def match_flights(scheduled_df, radar_df, session_date):
             combined = {**s.to_dict(), **r.to_dict()}
             combined['is_scheduled'] = True
             combined['matched_score'] = 100
-            combined['tipo_movimento'] = 'Passeggeri'
+            combined['tipo_movimento'] = tipo_mov
             combined['notte_categoria'] = categoria
+            combined['callsign_radar'] = r.get('callsign', '')
+            combined['callsign'] = cs_sacbo_norm
             matched.append(combined)
+            n_match_ok += 1
         else:
             combined = dict(s)
             combined['is_scheduled'] = True
@@ -808,10 +788,15 @@ def match_flights(scheduled_df, radar_df, session_date):
             combined['distanza_km'] = 0
             combined['paese'] = 'N/D'
             combined['matched_score'] = 0
-            combined['callsign'] = combined.get('callsign_volo', '')
-            combined['tipo_movimento'] = 'Passeggeri'
+            combined['callsign'] = cs_sacbo_norm
+            combined['tipo_movimento'] = tipo_mov
             combined['notte_categoria'] = categoria
             matched.append(combined)
+
+    if n_match_ok > 0 or n_match_rejected_prefix > 0 or n_match_prefix_unknown > 0:
+        logger.info(f"🔗 Match radar: {n_match_ok} confermati, "
+                    f"{n_match_rejected_prefix} rifiutati per prefisso diverso, "
+                    f"{n_match_prefix_unknown} senza prefisso ICAO mappato")
 
     unmatched = radar[~radar.index.isin(used_radar_idx)].copy()
     unmatched = _dedup_radar_by_callsign(unmatched)
@@ -831,19 +816,16 @@ def match_flights(scheduled_df, radar_df, session_date):
 def _classify_unmatched_radar(radar_df):
     if radar_df.empty:
         return radar_df
-
     classified = []
     skipped_phase = 0
-    counts = {'cargo': 0, 'charter': 0, 'pax_radar': 0, 'non_id': 0}
+    counts = {'cargo': 0, 'charter': 0, 'pax_radar': 0, 'non_class': 0}
 
     for _, row in radar_df.iterrows():
         cs = str(row.get('callsign', '') or '').strip()
         fase = str(row.get('fase_volo', '') or '').strip()
-
         if fase not in BGY_PHASES:
             skipped_phase += 1
             continue
-
         row_dict = row.to_dict()
         row_dict['is_scheduled'] = False
         row_dict['orario_schedulato'] = ''
@@ -858,29 +840,19 @@ def _classify_unmatched_radar(radar_df):
                 row_dict['direzione_sacbo'] = 'A'
             else:
                 row_dict['direzione_sacbo'] = '?'
-
-        cargo, cargo_airline = is_cargo_flight(cs)
-        if cargo:
-            row_dict['tipo_movimento'] = f'Cargo ({cargo_airline})'
+        categoria, nome = classify_callsign(cs)
+        if categoria == 'Cargo':
+            row_dict['tipo_movimento'] = f'Cargo ({nome})' if nome else 'Cargo (N/D)'
             counts['cargo'] += 1
-            classified.append(row_dict)
-            continue
-
-        charter, charter_airline = is_charter_flight(cs)
-        if charter:
-            row_dict['tipo_movimento'] = f'Charter ({charter_airline})'
+        elif categoria == 'Charter':
+            row_dict['tipo_movimento'] = f'Charter ({nome})' if nome else 'Charter (N/D)'
             counts['charter'] += 1
-            classified.append(row_dict)
-            continue
-
-        airline_name = get_airline(cs) if cs else 'N/D'
-        if _is_valid_airline_name(airline_name):
+        elif categoria == 'Passeggeri':
             row_dict['tipo_movimento'] = 'Passeggeri (radar)'
             counts['pax_radar'] += 1
         else:
-            row_dict['tipo_movimento'] = 'Non identificato'
-            counts['non_id'] += 1
-
+            row_dict['tipo_movimento'] = 'Non classificato'
+            counts['non_class'] += 1
         classified.append(row_dict)
 
     if skipped_phase > 0:
@@ -890,9 +862,8 @@ def _classify_unmatched_radar(radar_df):
             f"📊 Radar non matchati: Cargo={counts['cargo']}, "
             f"Charter={counts['charter']}, "
             f"Passeggeri radar={counts['pax_radar']}, "
-            f"Non id={counts['non_id']}"
+            f"Non classificato={counts['non_class']}"
         )
-
     if not classified:
         return pd.DataFrame()
     return pd.DataFrame(classified)
@@ -901,10 +872,8 @@ def _classify_unmatched_radar(radar_df):
 def _dedup_radar_by_callsign(radar_df):
     if radar_df.empty or 'callsign' not in radar_df.columns:
         return radar_df
-
     before = len(radar_df)
     df = radar_df.copy()
-
     try:
         ts_series = pd.to_datetime(df['timestamp'])
         ts_min = (ts_series.astype('int64') // 60_000_000_000)
@@ -912,12 +881,10 @@ def _dedup_radar_by_callsign(radar_df):
     except Exception as e:
         logger.warning(f"Deduplica radar: impossibile calcolare la finestra: {e}")
         return radar_df
-
     df = df.sort_values('timestamp').drop_duplicates(
         subset=['callsign', '_window'], keep='first'
     )
     df = df.drop(columns=['_window'])
-
     after = len(df)
     if before != after:
         logger.info(
@@ -943,7 +910,6 @@ def _enrich_final(df):
 
     if 'direzione_sacbo' not in df.columns:
         df['direzione_sacbo'] = ''
-
     if 'notte_categoria' not in df.columns:
         df['notte_categoria'] = ''
     else:
@@ -974,6 +940,14 @@ def _enrich_final(df):
     df['stato_destinazione'] = df.apply(resolve_country, axis=1)
 
     def _pax(row):
+        tipo = str(row.get('tipo_movimento', '') or '').strip()
+        is_pax_category = (
+            tipo == 'Passeggeri'
+            or tipo == 'Passeggeri (radar)'
+            or tipo.startswith('Charter')
+        )
+        if not is_pax_category:
+            return 0
         modello = row.get('modello_aereo', 'N/D')
         if not modello or modello == 'N/D':
             return 0
@@ -1048,8 +1022,6 @@ def generate_nightly_report(date_str=None):
         logger.warning(f"⚠️ Nessun dato per {date_norm}")
         return None, f"Nessun dato per {date_norm}"
 
-    # Fix v2.8.11: deduplica finale prima di scrivere il CSV
-    # per evitare violazioni del vincolo uniq_nightly_flight
     before_dedup = len(result_df)
     result_df = _dedup_by_key(result_df)
     after_dedup = len(result_df)
@@ -1077,42 +1049,59 @@ def generate_nightly_report(date_str=None):
     result_df[final_columns].to_csv(out_path, index=False, encoding='utf-8-sig')
 
     total = len(result_df)
-    pax = len(result_df[result_df['tipo_movimento'] == 'Passeggeri']) if 'tipo_movimento' in result_df.columns else 0
-    cargo = len(result_df[result_df['tipo_movimento'].str.startswith('Cargo', na=False)]) if 'tipo_movimento' in result_df.columns else 0
-    charter = len(result_df[result_df['tipo_movimento'].str.startswith('Charter', na=False)]) if 'tipo_movimento' in result_df.columns else 0
-    pax_radar = len(result_df[result_df['tipo_movimento'] == 'Passeggeri (radar)']) if 'tipo_movimento' in result_df.columns else 0
-    non_id = len(result_df[result_df['tipo_movimento'] == 'Non identificato']) if 'tipo_movimento' in result_df.columns else 0
+    tm = result_df['tipo_movimento'].fillna('') if 'tipo_movimento' in result_df.columns else pd.Series([''] * total)
+
+    pax = int((tm == 'Passeggeri').sum())
+    cargo = int(tm.str.startswith('Cargo', na=False).sum())
+    charter = int(tm.str.startswith('Charter', na=False).sum())
+    non_class = int((tm == 'Non classificato').sum())
+    pax_radar = int((tm == 'Passeggeri (radar)').sum())
+
+    visibili = pax + cargo + charter + non_class
+    optin = pax_radar
 
     n_sconfinamenti = 0
     n_sconfinamenti_gravi = 0
     n_anomalie = 0
     if 'notte_categoria' in result_df.columns:
-        passeggeri_mask = result_df['tipo_movimento'] == 'Passeggeri'
+        visibili_mask = tm.apply(
+            lambda x: isinstance(x, str) and (
+                x == 'Passeggeri'
+                or x == 'Non classificato'
+                or x.startswith('Cargo')
+                or x.startswith('Charter')
+            )
+        )
         n_sconfinamenti = int(
-            ((result_df['notte_categoria'] == 'sconfinamento') & passeggeri_mask).sum()
+            ((result_df['notte_categoria'] == 'sconfinamento') & visibili_mask).sum()
         )
         n_sconfinamenti_gravi = int(
-            ((result_df['notte_categoria'] == 'sconfinamento_grave') & passeggeri_mask).sum()
+            ((result_df['notte_categoria'] == 'sconfinamento_grave') & visibili_mask).sum()
         )
         n_anomalie = int(
-            ((result_df['notte_categoria'] == 'anomalia') & passeggeri_mask).sum()
+            ((result_df['notte_categoria'] == 'anomalia') & visibili_mask).sum()
         )
 
-    visibili = pax + cargo + charter
-
-    visibili_mask = result_df['tipo_movimento'].apply(
+    visibili_pax_mask = tm.apply(
         lambda x: isinstance(x, str) and (
             x == 'Passeggeri'
+            or x.startswith('Charter')
+        )
+    )
+    visibili_pax_df = result_df[visibili_pax_mask]
+    pax_tot = int(visibili_pax_df['stima_passeggeri'].sum()) if 'stima_passeggeri' in visibili_pax_df.columns else 0
+
+    visibili_all_mask = tm.apply(
+        lambda x: isinstance(x, str) and (
+            x == 'Passeggeri'
+            or x == 'Non classificato'
             or x.startswith('Cargo')
             or x.startswith('Charter')
         )
-    ) if 'tipo_movimento' in result_df.columns else pd.Series(False, index=result_df.index)
-    visibili_df = result_df[visibili_mask]
-
-    pax_tot = int(visibili_df['stima_passeggeri'].sum()) if 'stima_passeggeri' in visibili_df.columns else 0
-
-    if 'stima_rumore_db' in visibili_df.columns:
-        rumore_df = visibili_df[visibili_df['stima_rumore_db'] > 0]
+    )
+    rumore_df = result_df[visibili_all_mask]
+    if 'stima_rumore_db' in rumore_df.columns:
+        rumore_df = rumore_df[rumore_df['stima_rumore_db'] > 0]
         rumore_count = len(rumore_df)
         rumore_max = int(rumore_df['stima_rumore_db'].max()) if rumore_count > 0 else 0
     else:
@@ -1142,9 +1131,8 @@ def generate_nightly_report(date_str=None):
 
     msg = (f"✅ Report notturno: {total} voli "
            f"(Visibili: {visibili} = Passeggeri {pax} + Cargo {cargo} "
-           f"+ Charter {charter}{sconf_msg}{anomalie_msg} | "
-           f"Opt-in: {pax_radar + non_id} = Passeggeri radar {pax_radar} "
-           f"+ Non id {non_id} | "
+           f"+ Charter {charter} + Non classificato {non_class}{sconf_msg}{anomalie_msg} | "
+           f"Opt-in: {optin} = Passeggeri radar {pax_radar} | "
            f"PAX stimati: {pax_tot}, "
            f"Rumore su {rumore_count} voli, max {rumore_max} dB"
            f"{meteo_msg})")

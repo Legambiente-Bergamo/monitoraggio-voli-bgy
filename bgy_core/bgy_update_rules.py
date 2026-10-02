@@ -1,11 +1,20 @@
 """
 bgy_core/bgy_update_rules.py - Arricchimento dati da regole JSON.
-Versione 2.6.1
-- Aggiunto supporto OpenFlights per lookup compagnie aeree
-- Mappa IATA -> ICAO caricata da config_rules_airlines.json
-- extract_callsign_prefix gestisce prefissi misti (W4, W6, 3F, V7)
-- get_airline() controlla OpenFlights prima di auto-aggiungere
-- Aggiunta _charter_airlines e is_charter_flight()
+Versione 2.7.1
+
+Novità v2.7.1:
+- Aggiunta iata_to_icao_prefix(iata_code): converte un prefisso IATA
+  (2-3 char, es. 'FR', 'W4') nel prefisso ICAO corrispondente (es. 'RYR').
+  Usata dal report notturno per normalizzare i callsign SACBO (IATA)
+  al formato dei callsign radar (ICAO) prima del match.
+- Aggiunta get_iata_to_icao_map(): ritorna una copia della mappa
+  caricata (utile per debug e per costruire reverse map nel chiamante).
+
+Novità v2.7.0:
+- classify_callsign(): classificazione unificata.
+
+Novità v2.6.1:
+- Supporto OpenFlights, mapping IATA→ICAO, extract_callsign_prefix.
 """
 import os
 import requests
@@ -28,9 +37,37 @@ _DEFAULT_LOAD_FACTOR = 0.85
 _NOISE_STATIONS = {}
 _NOISE_CURVES = {}
 _DEFAULT_NOISE_CURVES = {}
+_CALLSIGN_OVERRIDES = {}
 
 _OPENFLIGHTS_DATA = {}
 _OPENFLIGHTS_LOADED = False
+
+PLACEHOLDER_PREFIX = 'Compagnia '
+PLACEHOLDER_VALUES = {'N/D', 'Non identificato', ''}
+
+
+def _load_callsign_overrides_from_db():
+    try:
+        from bgy_core import bgy_db
+        if not bgy_db.is_enabled():
+            return {}
+        ok, rows = bgy_db.execute_query(
+            "SELECT callsign, categoria, nome_compagnia "
+            "FROM callsign_classifications"
+        )
+        if not ok:
+            return {}
+        result = {}
+        for cs, cat, nome in rows or []:
+            if cs:
+                result[cs.strip().upper()] = {
+                    'categoria': (cat or '').strip(),
+                    'nome_compagnia': (nome or '').strip(),
+                }
+        return result
+    except Exception as e:
+        logger.warning(f"Impossibile caricare callsign_classifications: {e}")
+        return {}
 
 
 def load_rules():
@@ -38,6 +75,7 @@ def load_rules():
     global _AIRLINES, _COUNTRIES, _AIRCRAFT_MODELS, _CARGO_AIRLINES, _CHARTER_AIRLINES, _IATA_TO_ICAO
     global _SEATS, _LOAD_FACTORS, _DEFAULT_LOAD_FACTOR
     global _NOISE_STATIONS, _NOISE_CURVES, _DEFAULT_NOISE_CURVES
+    global _CALLSIGN_OVERRIDES
 
     raw_airlines = dict(config_manager.get_airlines())
 
@@ -61,6 +99,8 @@ def load_rules():
     _DEFAULT_NOISE_CURVES = curves_data.pop("_default", {})
     _NOISE_CURVES = curves_data
 
+    _CALLSIGN_OVERRIDES = _load_callsign_overrides_from_db()
+
     logger.info(
         f"📚 Regole caricate: {len(_AIRLINES)} compagnie, "
         f"{len(_COUNTRIES)} destinazioni, "
@@ -71,7 +111,8 @@ def load_rules():
         f"{len(_SEATS)} posti, "
         f"{len(_LOAD_FACTORS)} load factors, "
         f"{len(_NOISE_STATIONS)} centraline, "
-        f"{len(_NOISE_CURVES)} curve NPD"
+        f"{len(_NOISE_CURVES)} curve NPD, "
+        f"{len(_CALLSIGN_OVERRIDES)} override callsign"
     )
 
 
@@ -79,6 +120,86 @@ def reload_rules():
     config_manager.reload_rules()
     load_rules()
     logger.info("🔄 Regole ricaricate")
+
+
+# -----------------------------------------------------------------------------
+# VALIDAZIONE NOME COMPAGNIA
+# -----------------------------------------------------------------------------
+
+def _is_valid_airline_name(name):
+    if not name or not isinstance(name, str):
+        return False
+    if name in PLACEHOLDER_VALUES:
+        return False
+    if name.startswith(PLACEHOLDER_PREFIX):
+        return False
+    return True
+
+
+# -----------------------------------------------------------------------------
+# CLASSIFICAZIONE UNIFICATA
+# -----------------------------------------------------------------------------
+
+def classify_callsign(callsign):
+    """
+    Classifica un callsign in modo deterministico e indipendente dalla fonte.
+
+    Ritorna (categoria, nome_compagnia) dove categoria ∈ {
+        'Passeggeri', 'Cargo', 'Charter', 'Non classificato'
+    }
+    """
+    if not callsign or not isinstance(callsign, str):
+        return 'Non classificato', None
+    cs = callsign.strip().upper()
+    if not cs:
+        return 'Non classificato', None
+
+    if cs in _CALLSIGN_OVERRIDES:
+        ov = _CALLSIGN_OVERRIDES[cs]
+        return ov['categoria'], (ov['nome_compagnia'] or None)
+
+    is_c, cargo_name = is_cargo_flight(cs)
+    if is_c:
+        return 'Cargo', cargo_name
+
+    is_ch, chart_name = is_charter_flight(cs)
+    if is_ch:
+        return 'Charter', chart_name
+
+    airline_name = get_airline(cs)
+    if _is_valid_airline_name(airline_name):
+        return 'Passeggeri', airline_name
+
+    return 'Non classificato', None
+
+
+# -----------------------------------------------------------------------------
+# CONVERSIONE IATA <-> ICAO (v2.7.1)
+# -----------------------------------------------------------------------------
+
+def iata_to_icao_prefix(iata_code):
+    """
+    Converte un prefisso IATA (2-3 char) nel prefisso ICAO corrispondente.
+
+    Esempi:
+        'FR' -> 'RYR' (Ryanair)
+        'W4' -> 'WMT' (Wizz Air Malta)
+        'W6' -> 'WZZ' (Wizz Air)
+        'RK' -> 'RUK' (Ryanair UK)
+
+    Ritorna None se la conversione non è disponibile.
+    """
+    if not iata_code or not isinstance(iata_code, str):
+        return None
+    code = iata_code.strip().upper()
+    if not code:
+        return None
+    return _IATA_TO_ICAO.get(code)
+
+
+def get_iata_to_icao_map():
+    """Ritorna una copia della mappa IATA→ICAO caricata."""
+    return dict(_IATA_TO_ICAO)
 
 
 # -----------------------------------------------------------------------------
@@ -259,7 +380,6 @@ def is_cargo_flight(callsign):
 
 
 def is_charter_flight(callsign):
-    """Ritorna (bool, nome_charter) se il callsign è di una compagnia charter nota."""
     if not callsign or not isinstance(callsign, str):
         return False, None
     prefix3 = callsign.strip().upper()[:3]

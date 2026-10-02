@@ -1,44 +1,35 @@
 ﻿"""
 bgy_scheduler.py - Pianificatore ed Orchestratore automatico.
-Versione 2.7.2
+Versione 2.8.0
 
 - Lock file per impedire doppio avvio
 - Radar h24 multi-fonte (adsb.lol -> adsb.fi -> OpenSky)
 - Sync DB: recupero automatico degli ultimi 8 giorni
 - Quality check (F11e) integrato nel job giornaliero
-- Statistiche movimenti giorno/notte (F18b) nell'email di stato
-- Verifica compagnie da risolvere (F14) nell'email di stato
-- Diagnostica scanner diurno Cloudflare (F14b) nell'email di stato
+- Email di stato con: problemi check + movimenti notte + voli non classificati
+- Verifica compagnie da risolvere (F14)
+- Diagnostica scanner diurno Cloudflare (F14b)
 - Screenshot tabellone allegati all'email + rotazione 7 giorni (F14c)
 - Recupero automatico scansioni mancate (v2.6.2)
 - Confronto incrociato Avionio (v2.6.4)
 - Check 11 servizio DB (v2.6.6)
-- Statistiche puntualità (v2.6.5)
 - Radar h24 (v2.7.0)
 - Check 12 backup DB (v2.7.1)
 - Avviso scansioni da fonte alternativa Avionio (v2.7.2)
+- Passaggio flag night_import_failed al mailer (v2.7.3)
 
-Novità v2.7.2 (failover SACBO → Avionio):
-- check_sacbo_acquisition() legge la colonna fonte_scan dei CSV di
-  scansione e conta quante sono da Avionio. Se > 0, il messaggio
-  del check 1 include un avviso "N scansioni su M da fonte alternativa
-  (Avionio)". Il check resta OK (le scansioni sono state eseguite).
-- Il log del job giornaliero riporta il numero di scansioni alternative.
+Novità v2.8.0 (email semplificata + non classificati):
+- Raccolta statistiche semplificata: solo nightly + non_classified.
+  Rimossi: get_daily_stats, get_daily_delay_stats, get_hourly_distribution,
+  get_top_airlines_delays, get_top_destinations_delays.
+- send_daily_status() ora riceve anche non_classified_flights.
+- Log del job giornaliero più snello.
 
-Novità v2.7.1 (check 12 backup DB):
-- Aggiunto check 12 "Backup DB" nell'email di stato.
+Novità v2.7.3:
+- job_daily() determina night_import_failed dal check 10.
 
-Novità v2.7.0 (radar h24):
-- Sostituito run_night_scan con run_radar_scan.
-- Job radar ogni N minuti h24, senza check notturno.
-- Scansione radar all'avvio sempre.
-
-Novità v2.6.6 (check 11 servizio DB).
-Novità v2.6.5 (statistiche puntualità).
-Novità v2.6.4 (Avionio).
-Novità v2.6.3 (bump compatibilità).
-Novità v2.6.2 (recupero automatico).
-Novità v2.6.1 (fix selezione screenshot).
+Novità v2.7.2:
+- check_sacbo_acquisition() conta scansioni da fonte alternativa.
 """
 import os
 import sys
@@ -80,7 +71,6 @@ RECOVERY_DELAY_SEC = 300
 RECOVERY_MIN_GAP_MIN = 60
 RECOVERY_MAX_AGE_DAYS = 7
 
-# Soglia entro cui il backup DB deve essere stato eseguito (in ore)
 BACKUP_MAX_AGE_HOURS = 36
 
 WARNING_ONLY_CHECKS = {'avionio_confronto', 'backup'}
@@ -412,10 +402,6 @@ def _get_scheduler_start_time(target_date_str):
 
 
 def _read_fonte_scan_from_csv(filepath):
-    """
-    Legge la colonna fonte_scan dal primo record di un CSV di scansione.
-    Ritorna 'sacbo' se la colonna non esiste (retrocompatibilità).
-    """
     try:
         with open(filepath, "r", encoding="utf-8-sig", newline="") as f:
             reader = __import__("csv").DictReader(f)
@@ -457,15 +443,6 @@ def _classifica_scansione(expected_time, scan_date, scheduler_start):
 # -----------------------------------------------------------------------------
 
 def check_sacbo_acquisition(date_str):
-    """
-    Check 1 del job giornaliero.
-
-    Ritorna (ok, msg). Il messaggio include:
-    - Numero di scansioni eseguite / attese
-    - Dettaglio delle saltate (sistema spento)
-    - Dettaglio delle mancanti (errore)
-    - v2.7.2: numero di scansioni da fonte alternativa (Avionio)
-    """
     config = config_manager.get_data_config()
     expected_times = config.get("scan_schedules", ["02:00", "06:00", "10:00", "14:00", "18:00", "22:00"])
     scheduler_start = _get_scheduler_start_time(date_str)
@@ -492,7 +469,6 @@ def check_sacbo_acquisition(date_str):
     if mancanti:
         parti.append(f"MANCANTI {len(mancanti)}: {', '.join(mancanti)}")
 
-    # v2.7.2: avviso scansioni da fonte alternativa
     n_avionio = fonti.get("avionio", 0)
     if n_avionio > 0:
         parti.append(
@@ -621,11 +597,6 @@ def check_scanner_day_status():
 
 
 def check_backup():
-    """
-    Verifica che il backup DB più recente sia recente (< BACKUP_MAX_AGE_HOURS).
-    Legge bgy_data/bgy_logs/backup.log e cerca l'ultima riga
-    'Backup completato con successo.'.
-    """
     if not os.path.exists(BACKUP_LOG_FILE):
         return False, "Nessun log di backup trovato"
 
@@ -815,20 +786,25 @@ def job_daily():
 
     yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 
+    # --- 1. Acquisizione SACBO diurna ---
     sacbo_acq_ok, sacbo_acq_msg = check_sacbo_acquisition(yesterday)
     logger.info(f"{'✅' if sacbo_acq_ok else '❌'} Acquisizione SACBO diurna ({yesterday}): {sacbo_acq_msg}")
 
+    # --- 2. Elaborazione report diurno ---
     daily_path, daily_msg = generate_daily_report(yesterday)
     daily_ok = daily_path is not None and os.path.exists(daily_path)
     logger.info(f"{'✅' if daily_ok else '❌'} Elaborazione SACBO ({yesterday}): {daily_msg}")
 
+    # --- 3. Acquisizione notturna ---
     night_acq_ok, night_acq_msg = check_night_acquisition(yesterday)
     logger.info(f"{'✅' if night_acq_ok else '❌'} Acquisizione notturna ({yesterday}): {night_acq_msg}")
 
+    # --- 4. Arricchimento notturno ---
     nightly_path, nightly_msg = generate_nightly_report(yesterday)
     nightly_ok = nightly_path is not None and os.path.exists(nightly_path)
     logger.info(f"{'✅' if nightly_ok else '❌'} Arricchimento notturno ({yesterday}): {nightly_msg}")
 
+    # --- 5. Sync GitHub ---
     logger.info("-" * 60)
     logger.info("📤 Avvio sincronizzazione GitHub...")
     try:
@@ -842,6 +818,7 @@ def job_daily():
         sync_msg = f"Eccezione: {e}"
         logger.error(f"❌ Errore sync GitHub: {e}")
 
+    # --- 6. Sync Database ---
     logger.info("-" * 60)
     logger.info("🗄️  Avvio sincronizzazione Database (ultimi 8 giorni)...")
     db_ok = False
@@ -867,10 +844,12 @@ def job_daily():
         db_msg = f"Eccezione: {e}"
         logger.error(f"❌ Errore sync DB: {e}")
 
+    # --- 7. Quality check ---
     logger.info("-" * 60)
     logger.info("🔍 Avvio quality check (ultimi 7 giorni)...")
     qc_ok = False
     qc_msg = "Non tentato"
+    night_import_failed = False
     try:
         from bgy_core.bgy_db_migrate import run_quality_check
         qc_result = run_quality_check(days=7)
@@ -878,13 +857,21 @@ def job_daily():
         qc_warnings = qc_result["riepilogo"]["warning"]
         qc_ok = qc_errori == 0
         qc_msg = qc_result["testo_email"]
+        for check in qc_result.get("checks", []):
+            if check.get("id") == 10 and not check.get("ok", True):
+                night_import_failed = True
+                break
         logger.info(f"{'✅' if qc_ok else '⚠️'} Quality check: "
                     f"{qc_result['riepilogo']['ok']} OK, "
                     f"{qc_warnings} warning, {qc_errori} errori")
+        if night_import_failed:
+            logger.warning("⚠️ Rilevato errore di coerenza CSV vs DB: "
+                           "l'import notturno potrebbe essere incompleto")
     except Exception as e:
         qc_msg = f"Errore quality check: {e}"
         logger.error(f"❌ {qc_msg}")
 
+    # --- 8. Compagnie da risolvere ---
     logger.info("-" * 60)
     logger.info("🏢 Verifica compagnie da risolvere...")
     ua_ok = True
@@ -902,6 +889,7 @@ def job_daily():
         ua_msg = f"Errore verifica compagnie: {e}"
         logger.error(f"❌ {ua_msg}")
 
+    # --- 9. Diagnostica scanner diurno ---
     logger.info("-" * 60)
     logger.info("🩺 Diagnostica scanner diurno...")
     sc_ok = True
@@ -914,6 +902,7 @@ def job_daily():
         sc_msg = f"Errore diagnostica scanner: {e}"
         logger.error(f"❌ {sc_msg}")
 
+    # --- 10. Confronto Avionio ---
     logger.info("-" * 60)
     logger.info("🔍 Confronto incrociato Avionio...")
     av_ok = True
@@ -932,33 +921,23 @@ def job_daily():
         av_msg = f"Errore confronto Avionio: {e}"
         logger.error(f"❌ {av_msg}")
 
+    # --- 11. Statistiche notturne + voli non classificati ---
     logger.info("-" * 60)
-    logger.info("📊 Raccolta statistiche movimenti...")
-    stats_data = {"daily": None, "nightly": None, "delay": None, "hourly": None, "airlines": None, "destinations": None}
+    logger.info("📊 Raccolta statistiche notturne...")
+    stats_data = {"nightly": None}
+    non_classified_flights = []
     try:
-        from bgy_core.bgy_db_migrate import (get_daily_stats, get_nightly_stats,
-                                              get_daily_delay_stats,
-                                              get_hourly_distribution,
-                                              get_top_airlines_delays,
-                                              get_top_destinations_delays)
-        stats_data["daily"] = get_daily_stats(yesterday)
+        from bgy_core.bgy_db_migrate import (get_nightly_stats,
+                                              get_non_classified_flights)
         stats_data["nightly"] = get_nightly_stats(yesterday)
-        stats_data["delay"] = get_daily_delay_stats(yesterday)
-        stats_data["hourly"] = get_hourly_distribution(yesterday)
-        stats_data["airlines"] = get_top_airlines_delays(yesterday, top_n=5)
-        stats_data["destinations"] = get_top_destinations_delays(yesterday)
-        d = stats_data["delay"]
-        n_ore = sum(1 for h in stats_data["hourly"].values()
-                    if h["d_total"] + h["a_total"] > 0)
-        logger.info(f"✅ Statistiche raccolte: "
-                    f"giorno={stats_data['daily']['totale']} mov, "
-                    f"notte={stats_data['nightly']['totale']} mov, "
-                    f"ritardi={d['in_ritardo']}, "
-                    f"cancellati={d['cancellati_count']}, "
-                    f"ore_attive={n_ore}")
+        non_classified_flights = get_non_classified_flights(yesterday)
+        n_night = stats_data["nightly"]["totale"] if stats_data["nightly"] else 0
+        logger.info(f"✅ Statistiche raccolte: notte={n_night} mov, "
+                    f"non classificati={len(non_classified_flights)}")
     except Exception as e:
         logger.error(f"❌ Errore raccolta statistiche: {e}")
 
+    # --- 12. Screenshot tabellone ---
     logger.info("-" * 60)
     logger.info(f"📸 Raccolta screenshot tabellone (sessione {yesterday}, 23:00)...")
     screenshot_paths = []
@@ -974,6 +953,7 @@ def job_daily():
     except Exception as e:
         logger.error(f"❌ Errore raccolta screenshot: {e}")
 
+    # --- 13. Verifica servizio Database ---
     logger.info("-" * 60)
     logger.info("🗄️  Verifica servizio Database...")
     db_svc_ok = True
@@ -994,6 +974,7 @@ def job_daily():
         db_svc_msg = f"Errore verifica servizio DB: {e}"
         logger.error(f"❌ {db_svc_msg}")
 
+    # --- 14. Verifica backup DB ---
     logger.info("-" * 60)
     logger.info("💾 Verifica backup DB...")
     bk_ok = True
@@ -1005,6 +986,7 @@ def job_daily():
         bk_msg = f"Errore verifica backup: {e}"
         logger.error(f"❌ {bk_msg}")
 
+    # --- Riepilogo check ---
     checks = {
         'sacbo_acquisition': (sacbo_acq_ok, sacbo_acq_msg),
         'sacbo_processing': (daily_ok, daily_msg),
@@ -1029,9 +1011,17 @@ def job_daily():
     logger.info(f"📋 ESITO COMPLESSIVO: {'✅ TUTTO OK' if overall_success else '❌ PROBLEMI RILEVATI'}")
     logger.info("-" * 60)
 
-    send_daily_status(overall_success, "", checks=checks, stats=stats_data,
-                      screenshot_paths=screenshot_paths)
+    # --- Invio email ---
+    send_daily_status(
+        overall_success, "",
+        checks=checks,
+        stats=stats_data,
+        screenshot_paths=screenshot_paths,
+        night_import_failed=night_import_failed,
+        non_classified_flights=non_classified_flights,
+    )
 
+    # --- Pulizie ---
     logger.info("-" * 60)
     logger.info("🧹 Pulizia screenshot vecchi (>7 giorni)...")
     try:

@@ -1,57 +1,35 @@
 """
 bgy_core/bgy_mailer.py - Modulo unificato di invio email.
-Versione 2.5.20
+Versione 2.6.0
 
-Novità v2.5.20 (avviso import notturno):
-- Se il check 'quality_check' ha un errore, la sezione "MOVIMENTI DELLA NOTTE"
-  mostra un avviso esplicito: "Dati notturni potenzialmente incompleti".
-- 'backup' aggiunto a WARNING_ONLY_CHECKS: un fallimento del backup DB
-  non colora l'email di rosso, ma è segnalato nel corpo.
+Novità v2.6.0 (email semplificata + voli non classificati):
+- La sezione check mostra SOLO i problemi (❌ KO e ⚠️ WARN).
+  Le righe ✅ OK sono state rimosse: il soggetto [OK]/[KO] basta.
+- Rimossa la sezione "MOVIMENTI DEL GIORNO".
+- Rimossa la sezione "PUNTUALITÀ".
+- Aggiunta la sezione "⚠️ VOLI NON CLASSIFICATI (N)" con la lista
+  dei callsign non riconosciuti (parametro non_classified_flights).
+- La sezione "MOVIMENTI DELLA NOTTE" include la categoria
+  "Non classificato" (visibile).
+- send_daily_status() accetta non_classified_flights.
 
-Novità v2.5.19 (check 12 backup DB):
-- Aggiunto check 12 "Backup DB" alla lista labels di send_daily_status().
+Novità v2.5.21 (fix avviso import notturno):
+- send_daily_status() accetta parametro night_import_failed.
 
-Novità v2.5.18 (backup DB):
-- Aggiunta send_backup_alert(reason): notifica email immediata in caso di
-  fallimento del backup DB (F18).
-
-Novità v2.5.13 (distribuzione ritardi):
-- _format_delay_section() mostra la distribuzione dei voli in ritardo
-  per fasce: <5, 5-10, 10-15, 15-30, 30-60, >60 minuti.
-
-Novità v2.5.12 (check 11 servizio DB):
-- Aggiunto check 11 "Servizio Database" alla lista labels.
-
-Novità v2.5.11 (statistiche puntualità):
-- _format_stats_section() mostra, dopo i movimenti del giorno:
-    * Puntualità: voli in ritardo, ritardo medio, ritardo massimo
-    * Cancellati: elenco con callsign, compagnia, destinazione
-
-Novità v2.5.10 (Avionio check 10):
-- Aggiunto check 10 "Conferma incrociata Avionio".
-- Il check 10 è "warning-only".
-
-Novità v2.5.9 (sconfinamenti gravi + anomalie):
-- _format_stats_section() mostra tre sezioni dedicate.
-
-Novità v2.5.8 (sconfinamenti):
-- _format_stats_section() mostra sezione 🚨 SCONFINAMENTI.
-
-Novità v2.5.7 (F14c):
-- send_daily_status() accetta parametro `screenshot_paths`.
-
-Novità v2.5.6 (F14b):
-- send_daily_status() mostra anche il check 9.
-
-Novità v2.5.5 (F14):
-- send_daily_status() mostra anche il check 8.
-
-Novità v2.5.4:
-- send_daily_status() accetta parametro `stats`.
-- Gradiente header bianco → azzurro → blu scuro (F18c).
-
-Novità v2.5.2:
-- Flag di silenziamento (notifications.enabled/alerts_enabled/daily_status_enabled)
+Novità v2.5.20 (avviso import notturno).
+Novità v2.5.19 (check 12 backup DB).
+Novità v2.5.18 (backup DB - send_backup_alert).
+Novità v2.5.13 (distribuzione ritardi).
+Novità v2.5.12 (check 11 servizio DB).
+Novità v2.5.11 (statistiche puntualità).
+Novità v2.5.10 (Avionio check 10).
+Novità v2.5.9 (sconfinamenti gravi + anomalie).
+Novità v2.5.8 (sconfinamenti).
+Novità v2.5.7 (F14c screenshot).
+Novità v2.5.6 (F14b check 9).
+Novità v2.5.5 (F14 check 8).
+Novità v2.5.4 (stats + header).
+Novità v2.5.2 (flag di silenziamento).
 """
 import os
 import json
@@ -74,8 +52,6 @@ COOLDOWN_FILE = os.path.join(LOGS_DIR, "notifier_cooldown.json")
 DEFAULT_COOLDOWN_MIN = 30
 
 # Check che non fanno diventare l'email ❌ se falliscono
-# Nota: 'backup' e 'avionio_confronto' non impediscono al sistema di funzionare,
-# sono informativi. Un loro fallimento resta visibile nel corpo dell'email.
 WARNING_ONLY_CHECKS = {'avionio_confronto', 'backup'}
 
 
@@ -301,11 +277,6 @@ def send_backup_alert(reason):
 
     Bypassa il cooldown (evento critico, non ripetuto).
     Rispetta il master switch notifications.enabled e alerts_enabled.
-
-    Chiamata da bgy_backup_db.ps1 tramite:
-        py -3.12 -c "from bgy_core.bgy_mailer import send_backup_alert; send_backup_alert('...')"
-
-    Ritorna True se l'email è stata inviata (o silenziata), False se errore.
     """
     if not are_alerts_enabled():
         logger.info("🔕 Backup alert silenziato (notifications.alerts_enabled=False)")
@@ -432,7 +403,7 @@ def send_status_email(subject, body, is_success=True,
 # FORMATTAZIONE STATISTICHE
 # =============================================================================
 
-def _format_cat_line(cat_key, cat_label, cat_data):
+def _format_cat_line(cat_label, cat_data):
     """Riga singola categoria."""
     d = cat_data.get("decolli", 0)
     a = cat_data.get("atterraggi", 0)
@@ -441,278 +412,232 @@ def _format_cat_line(cat_key, cat_label, cat_data):
     return f"   {cat_label}: D={d:>3}  A={a:>3}  (tot {d + a})"
 
 
-def _format_delay_section(delay, yesterday_str):
-    """Formatta la sezione puntualità + cancellati + distribuzione fasce."""
-    if not delay:
+def _format_nightly_section(nightly, yesterday_str, night_import_failed):
+    """
+    Formatta la sezione movimenti notturni con le 4 categorie visibili:
+    Passeggeri, Cargo, Charter, Non classificato.
+    """
+    if not nightly:
         return ""
 
     lines = []
-    totale = delay.get("totale_voli", 0)
-    if totale == 0:
-        return ""
 
-    in_rit = delay.get("in_ritardo", 0)
-    in_oro = delay.get("in_orario", 0)
-    in_ant = delay.get("in_anticipo", 0)
-    medio = delay.get("ritardo_medio", 0.0)
-    massimo = delay.get("ritardo_massimo", 0)
-    canc_count = delay.get("cancellati_count", 0)
-
-    pct = round(100.0 * in_rit / totale, 1) if totale > 0 else 0.0
-
-    lines.append(f"⏱️  PUNTUALITÀ ({yesterday_str})")
-    lines.append(f"   • Voli in ritardo: {in_rit:>3}  ({pct}%)")
-    if in_rit > 0:
-        lines.append(f"   • Ritardo medio:   {medio} min")
-        lines.append(f"   • Ritardo massimo: {massimo} min")
-    lines.append(f"   • In orario:       {in_oro:>3}")
-    lines.append(f"   • In anticipo:     {in_ant:>3}")
-    lines.append("")
-
-    fasce = delay.get("fasce", {})
-    if fasce:
-        lines.append("   📊 Distribuzione per fascia di ritardo:")
-        for nome, count in fasce.items():
-            if count > 0:
-                barra = "█" * min(count, 30)
-                lines.append(f"     • {nome:<10} {count:>3}  {barra}")
+    if night_import_failed:
+        lines.append("⚠️  ATTENZIONE: l'import notturno nel DB è fallito.")
+        lines.append("   I conteggi notturni qui sotto potrebbero essere 0")
+        lines.append("   o incompleti. Vedi il check 7 per i dettagli.")
         lines.append("")
 
-    if canc_count > 0:
-        lines.append(f"❌ CANCELLATI: {canc_count}")
-        for c in delay.get("cancellati", [])[:20]:
-            lines.append(f"   • {c.get('callsign', '?')} "
-                         f"({c.get('compagnia', '?')} -> {c.get('destinazione', '?')})")
-        if canc_count > 20:
-            lines.append(f"   ... e altri {canc_count - 20}")
+    lines.append(f"🌙 MOVIMENTI DELLA NOTTE ({yesterday_str})")
+
+    # 4 categorie visibili
+    for cat_key, cat_label in (
+        ("passeggeri", "Passeggeri"),
+        ("cargo", "Cargo"),
+        ("charter", "Charter"),
+        ("non_classificato", "Non classificato"),
+    ):
+        cat = nightly.get(cat_key, {})
+        d = cat.get("decolli", 0)
+        a = cat.get("atterraggi", 0)
+        t = cat.get("totale", 0)
+        lines.append(f"   {cat_label}:")
+        lines.append(f"     • Decolli:    {d:>3}")
+        lines.append(f"     • Atterraggi: {a:>3}")
+        lines.append(f"     • Sub-totale: {t:>3}")
+
+    lines.append("   ─────────────────────")
+    lines.append(f"   TOTALE NOTTE: {nightly.get('totale', 0)}")
+    lines.append("")
+
+    # Sconfinamenti
+    sconf = nightly.get("sconfinamenti", {})
+    sconf_tot = sconf.get("totale", 0)
+    if sconf_tot > 0:
+        lines.append("🚨 SCONFINAMENTI")
+        lines.append("   (voli schedulati fuori fascia, ritardo < 1h)")
+        for cat_key, cat_label in (
+            ("passeggeri", "Passeggeri"),
+            ("cargo", "Cargo"),
+            ("charter", "Charter"),
+            ("non_classificato", "Non classificato"),
+        ):
+            line = _format_cat_line(cat_label, sconf.get(cat_key, {}))
+            if line:
+                lines.append(line)
+        lines.append("   ─────────────────────")
+        lines.append(f"   TOTALE SCONFINAMENTI: {sconf_tot}")
+        lines.append("")
+
+    # Sconfinamenti gravi
+    sconf_gravi = nightly.get("sconfinamenti_gravi", {})
+    sconf_gravi_tot = sconf_gravi.get("totale", 0)
+    if sconf_gravi_tot > 0:
+        lines.append("🚨🚨 SCONFINAMENTI GRAVI")
+        lines.append("   (voli schedulati fuori fascia, ritardo >= 1h)")
+        for cat_key, cat_label in (
+            ("passeggeri", "Passeggeri"),
+            ("cargo", "Cargo"),
+            ("charter", "Charter"),
+            ("non_classificato", "Non classificato"),
+        ):
+            line = _format_cat_line(cat_label, sconf_gravi.get(cat_key, {}))
+            if line:
+                lines.append(line)
+        lines.append("   ─────────────────────")
+        lines.append(f"   TOTALE GRAVI: {sconf_gravi_tot}")
+        lines.append("")
+
+    # Anomalie
+    anomalie = nightly.get("anomalie", {})
+    anom_tot = anomalie.get("totale", 0)
+    if anom_tot > 0:
+        lines.append("⚠️  ANOMALIE NOTTURNE")
+        lines.append("   (voli a tabellone 3+ ore dopo lo sched)")
+        dettagli = anomalie.get("dettagli", [])
+        for d in dettagli[:10]:
+            lines.append(
+                f"   • {d.get('callsign', '?')} "
+                f"({d.get('direzione_sacbo', '?')}) "
+                f"sched={d.get('orario_schedulato', '?')}"
+            )
+        if len(dettagli) > 10:
+            lines.append(f"   ... e altre {len(dettagli) - 10} anomalie")
+        lines.append("   ─────────────────────")
+        lines.append(f"   TOTALE ANOMALIE: {anom_tot}")
         lines.append("")
 
     return "\n".join(lines)
 
 
-def _format_hourly_section(hourly, yesterday_str):
-    """Formatta la distribuzione oraria dei movimenti (tabella unica)."""
-    if not hourly:
+def _format_non_classified_section(non_classified_flights):
+    """
+    Sezione "VOLI NON CLASSIFICATI" con la lista dei callsign.
+    """
+    if not non_classified_flights:
         return ""
 
+    n = len(non_classified_flights)
     lines = []
-    lines.append(f"⏰ DISTRIBUZIONE ORARIA ({yesterday_str})")
-    lines.append("   Nota: ritardi dichiarati da SACBO (STIMA).")
-    lines.append("")
-    lines.append("   Fascia oraria      Movimenti   Ritardi")
-    lines.append("   ───────────────    ─────────   ───────")
+    lines.append(f"⚠️  VOLI NON CLASSIFICATI ({n}):")
+    lines.append("   (callsign non riconosciuti: da classificare)")
 
-    totale_mov = 0
-    totale_rit = 0
+    for f in non_classified_flights[:30]:
+        cs = f.get("callsign", "?")
+        direzione = f.get("direzione_sacbo", "?")
+        sched = f.get("orario_schedulato", "?")
+        comp = f.get("compagnia_aerea", "N/D")
+        fase = f.get("fase_volo", "?")
+        # Mostra la fase solo se utile (radar)
+        fase_tag = f" [{fase}]" if fase and fase not in ("Non rilevato", "?", "") else ""
+        lines.append(f"   • {cs} ({direzione}) sched={sched} — {comp}{fase_tag}")
 
-    for ora in sorted(hourly.keys()):
-        h = hourly[ora]
-        d_tot = h.get("d_total", 0)
-        d_rit = h.get("d_delayed", 0)
-        a_tot = h.get("a_total", 0)
-        a_rit = h.get("a_delayed", 0)
-
-        mov = d_tot + a_tot
-        rit = d_rit + a_rit
-
-        totale_mov += mov
-        totale_rit += rit
-
-        if mov == 0:
-            continue
-
-        fascia = f"{ora}:00 - {ora}:59"
-        lines.append(f"   {fascia:<17}    {mov:>7}   {rit:>7}")
-
-    lines.append("   ───────────────    ─────────   ───────")
-    lines.append(f"   {'TOTALE':<17}    {totale_mov:>7}   {totale_rit:>7}")
-    lines.append("")
-
-    return "\n".join(lines)
-
-
-def _format_airlines_section(airlines, yesterday_str):
-    """Formatta la sezione top compagnie per ritardi."""
-    if not airlines:
-        return ""
-
-    lines = []
-    lines.append(f"✈️  TOP COMPAGNIE PER RITARDI ({yesterday_str})")
-    lines.append("")
-    lines.append("   Compagnia              Ritardi   Medio    Max    Voli")
-    lines.append("   ────────────────────   ───────   ──────   ────   ────")
-
-    for a in airlines:
-        nome = str(a.get("compagnia", "?"))[:20]
-        delayed = a.get("delayed", 0)
-        total = a.get("total", 0)
-        avg = a.get("avg_delay", 0.0)
-        maxd = a.get("max_delay", 0)
-
-        lines.append(
-            f"   {nome:<22} {delayed:>5}   {avg:>5} min   "
-            f"{maxd:>4}   {total:>4}"
-        )
+    if n > 30:
+        lines.append(f"   ... e altri {n - 30} voli non classificati")
 
     lines.append("")
     return "\n".join(lines)
 
 
-def _format_destinations_section(destinations, yesterday_str):
-    """Formatta la sezione destinazioni/origini con ritardi (tutte)."""
-    if not destinations:
-        return ""
-
-    lines = []
-    lines.append(f"🌍 DESTINAZIONI CON RITARDI ({yesterday_str})")
-    lines.append(f"   Totale: {len(destinations)} destinazioni con almeno 1 ritardo")
-    lines.append("")
-    lines.append("   Destinazione           Ritardi   Medio    Max    Voli")
-    lines.append("   ────────────────────   ───────   ──────   ────   ────")
-
-    for d in destinations:
-        nome = str(d.get("destinazione", "?"))[:20]
-        delayed = d.get("delayed", 0)
-        total = d.get("total", 0)
-        avg = d.get("avg_delay", 0.0)
-        maxd = d.get("max_delay", 0)
-
-        lines.append(
-            f"   {nome:<22} {delayed:>5}   {avg:>5} min   "
-            f"{maxd:>4}   {total:>4}"
-        )
-
-    lines.append("")
-    return "\n".join(lines)
-
-
-def _format_stats_section(stats, yesterday_str, checks=None):
+def _format_stats_section(stats, yesterday_str, night_import_failed=False,
+                          non_classified_flights=None):
     """
     Formatta la sezione statistiche.
-
-    Se checks è passato e il check 'quality_check' ha un errore,
-    viene mostrato un avviso nella sezione notturna.
+    v2.6.0: solo notturno + non classificati.
     """
     lines = []
-
-    daily = stats.get("daily") if stats else None
     nightly = stats.get("nightly") if stats else None
-    delay = stats.get("delay") if stats else None
-
-    # Determina se l'import notturno è fallito (per l'avviso)
-    qc_errore = False
-    if checks and 'quality_check' in checks:
-        ok, msg = checks['quality_check']
-        if not ok and msg and 'Coerenza CSV vs DB' in msg:
-            qc_errore = True
-
-    if daily:
-        lines.append(f"📊 MOVIMENTI DEL GIORNO ({yesterday_str})")
-        lines.append(f"   • Decolli:    {daily.get('decolli', 0):>3}")
-        lines.append(f"   • Atterraggi: {daily.get('atterraggi', 0):>3}")
-        lines.append(f"   • TOTALE:     {daily.get('totale', 0):>3}")
-        lines.append("")
-
-    if delay:
-        delay_text = _format_delay_section(delay, yesterday_str)
-        if delay_text:
-            lines.append(delay_text)
-
-    hourly = stats.get("hourly") if stats else None
-    if hourly:
-        hourly_text = _format_hourly_section(hourly, yesterday_str)
-        if hourly_text:
-            lines.append(hourly_text)
-
-    airlines = stats.get("airlines") if stats else None
-    if airlines:
-        airlines_text = _format_airlines_section(airlines, yesterday_str)
-        if airlines_text:
-            lines.append(airlines_text)
-
-    destinations = stats.get("destinations") if stats else None
-    if destinations:
-        dest_text = _format_destinations_section(destinations, yesterday_str)
-        if dest_text:
-            lines.append(dest_text)
 
     if nightly:
-        # Avviso esplicito se l'import notturno è fallito
-        if qc_errore:
-            lines.append("⚠️  ATTENZIONE: l'import notturno nel DB è fallito.")
-            lines.append("   I conteggi notturni qui sotto potrebbero essere 0")
-            lines.append("   o incompleti. Vedi il check 7 per i dettagli.")
-            lines.append("")
+        nightly_text = _format_nightly_section(nightly, yesterday_str,
+                                                night_import_failed)
+        if nightly_text:
+            lines.append(nightly_text)
 
-        lines.append(f"🌙 MOVIMENTI DELLA NOTTE ({yesterday_str})")
-        for cat_key, cat_label in (("passeggeri", "Passeggeri"),
-                                    ("cargo", "Cargo"),
-                                    ("charter", "Charter")):
-            cat = nightly.get(cat_key, {})
-            d = cat.get("decolli", 0)
-            a = cat.get("atterraggi", 0)
-            t = cat.get("totale", 0)
-            lines.append(f"   {cat_label}:")
-            lines.append(f"     • Decolli:    {d:>3}")
-            lines.append(f"     • Atterraggi: {a:>3}")
-            lines.append(f"     • Sub-totale: {t:>3}")
-        lines.append(f"   ─────────────────────")
-        lines.append(f"   TOTALE NOTTE: {nightly.get('totale', 0)}")
-        lines.append("")
-
-        sconf = nightly.get("sconfinamenti", {})
-        sconf_tot = sconf.get("totale", 0)
-        if sconf_tot > 0:
-            lines.append("🚨 SCONFINAMENTI")
-            lines.append("   (voli schedulati fuori fascia, ritardo < 1h)")
-            for cat_key, cat_label in (("passeggeri", "Passeggeri"),
-                                        ("cargo", "Cargo"),
-                                        ("charter", "Charter")):
-                line = _format_cat_line(cat_key, cat_label, sconf.get(cat_key, {}))
-                if line:
-                    lines.append(line)
-            lines.append(f"   ─────────────────────")
-            lines.append(f"   TOTALE SCONFINAMENTI: {sconf_tot}")
-            lines.append("")
-
-        sconf_gravi = nightly.get("sconfinamenti_gravi", {})
-        sconf_gravi_tot = sconf_gravi.get("totale", 0)
-        if sconf_gravi_tot > 0:
-            lines.append("🚨🚨 SCONFINAMENTI GRAVI")
-            lines.append("   (voli schedulati fuori fascia, ritardo >= 1h)")
-            for cat_key, cat_label in (("passeggeri", "Passeggeri"),
-                                        ("cargo", "Cargo"),
-                                        ("charter", "Charter")):
-                line = _format_cat_line(cat_key, cat_label, sconf_gravi.get(cat_key, {}))
-                if line:
-                    lines.append(line)
-            lines.append(f"   ─────────────────────")
-            lines.append(f"   TOTALE GRAVI: {sconf_gravi_tot}")
-            lines.append("")
-
-        anomalie = nightly.get("anomalie", {})
-        anom_tot = anomalie.get("totale", 0)
-        if anom_tot > 0:
-            lines.append("⚠️  ANOMALIE NOTTURNE")
-            lines.append("   (voli a tabellone 3+ ore dopo lo sched)")
-            dettagli = anomalie.get("dettagli", [])
-            for d in dettagli[:10]:
-                lines.append(
-                    f"   • {d.get('callsign', '?')} "
-                    f"({d.get('direzione_sacbo', '?')}) "
-                    f"sched={d.get('orario_schedulato', '?')}"
-                )
-            if len(dettagli) > 10:
-                lines.append(f"   ... e altre {len(dettagli) - 10} anomalie")
-            lines.append(f"   ─────────────────────")
-            lines.append(f"   TOTALE ANOMALIE: {anom_tot}")
-            lines.append("")
+    if non_classified_flights:
+        nc_text = _format_non_classified_section(non_classified_flights)
+        if nc_text:
+            lines.append(nc_text)
 
     return "\n".join(lines)
 
 
+# =============================================================================
+# CHECK — RENDERIZZAZIONE PROBLEMI
+# =============================================================================
+
+def _render_problems(checks):
+    """
+    v2.6.0: renderizza SOLO i problemi (❌ KO, ⚠️ WARN).
+    Se non ci sono problemi, ritorna stringa vuota.
+    """
+    if not checks:
+        return ""
+
+    labels = [
+        ('sacbo_acquisition', '1) Acquisizione dati dal tabellone SACBO'),
+        ('sacbo_processing', '2) Elaborazione dati dal tabellone SACBO'),
+        ('night_acquisition', '3) Acquisizione dati notturni (23:00-05:59)'),
+        ('night_enrichment', '4) Arricchimento dati notturni'),
+        ('github_sync', '5) Sincronizzazione GitHub'),
+        ('db_sync', '6) Sincronizzazione Database'),
+        ('quality_check', '7) Verifica qualità dati'),
+        ('unresolved_airlines', '8) Compagnie da risolvere'),
+        ('scanner_day_status', '9) Diagnostica scanner diurno'),
+        ('avionio_confronto', '10) Conferma incrociata Avionio'),
+        ('db_service', '11) Servizio Database'),
+        ('backup', '12) Backup DB'),
+    ]
+
+    problems = []
+
+    for key, label in labels:
+        if key not in checks:
+            continue
+        ok, msg = checks[key]
+        if ok:
+            continue  # v2.6.0: nasconde le righe OK
+
+        # Determina icona
+        if key in WARNING_ONLY_CHECKS:
+            icon = '⚠️'
+            stato = 'WARN'
+        else:
+            icon = '❌'
+            stato = 'KO'
+
+        problems.append(f"{icon} {label}: {stato}")
+
+        if msg:
+            if key == 'quality_check':
+                problems.append(msg)
+            elif key in ('unresolved_airlines', 'scanner_day_status',
+                         'avionio_confronto', 'db_service', 'backup'):
+                for line in msg.split('\n'):
+                    problems.append(f"   {line}")
+            else:
+                problems.append(f"      → {msg}")
+        problems.append("")
+
+    if not problems:
+        return ""
+
+    return "PROBLEMI RILEVATI:\n\n" + "\n".join(problems).rstrip() + "\n"
+
+
+# =============================================================================
+# EMAIL DI STATO GIORNALIERO
+# =============================================================================
+
 def send_daily_status(success=True, details="", checks=None, stats=None,
-                      screenshot_paths=None, force=False):
+                      screenshot_paths=None, force=False,
+                      night_import_failed=False,
+                      non_classified_flights=None):
+    """
+    Invia l'email di stato giornaliero.
+
+    v2.6.0: firma estesa con non_classified_flights (lista di dict).
+    """
     if not force and not is_daily_status_enabled():
         logger.info("🔕 Email di stato giornaliero silenziata")
         return True
@@ -736,46 +661,18 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
 
     parts = []
 
-    if checks:
-        parts.append("Riepilogo processi di monitoraggio:")
-        parts.append("")
-        labels = [
-            ('sacbo_acquisition', '1) Acquisizione dati dal tabellone SACBO'),
-            ('sacbo_processing', '2) Elaborazione dati dal tabellone SACBO'),
-            ('night_acquisition', '3) Acquisizione dati notturni (23:00-05:59)'),
-            ('night_enrichment', '4) Arricchimento dati notturni'),
-            ('github_sync', '5) Sincronizzazione GitHub'),
-            ('db_sync', '6) Sincronizzazione Database'),
-            ('quality_check', '7) Verifica qualità dati'),
-            ('unresolved_airlines', '8) Compagnie da risolvere'),
-            ('scanner_day_status', '9) Diagnostica scanner diurno'),
-            ('avionio_confronto', '10) Conferma incrociata Avionio'),
-            ('db_service', '11) Servizio Database'),
-            ('backup', '12) Backup DB'),
-        ]
-        for key, label in labels:
-            if key in checks:
-                ok, msg = checks[key]
-                icon = '✅' if ok else '❌'
-                stato = 'OK' if ok else 'KO'
-                # Warning-only: icona ⚠️ invece di ❌
-                if key in WARNING_ONLY_CHECKS and not ok:
-                    icon = '⚠️'
-                    stato = 'WARN'
-                parts.append(f"{icon} {label}: {stato}")
-                if msg:
-                    if key == 'quality_check':
-                        parts.append(msg)
-                    elif key in ('unresolved_airlines', 'scanner_day_status',
-                                 'avionio_confronto', 'db_service', 'backup'):
-                        for line in msg.split('\n'):
-                            parts.append(f"   {line}")
-                    else:
-                        parts.append(f"      → {msg}")
-                parts.append("")
+    # v2.6.0: sezione problemi (solo ❌ e ⚠️)
+    problems_text = _render_problems(checks)
+    if problems_text:
+        parts.append(problems_text)
 
+    # v2.6.0: solo statistiche notturne + non classificati
     if stats:
-        stats_text = _format_stats_section(stats, yesterday_str, checks=checks)
+        stats_text = _format_stats_section(
+            stats, yesterday_str,
+            night_import_failed=night_import_failed,
+            non_classified_flights=non_classified_flights,
+        )
         if stats_text:
             parts.append("━" * 37)
             parts.append("")
@@ -785,8 +682,10 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
     if details:
         body += f"\n{details}"
 
+    # Allegati
     attachments = []
 
+    # Log allegato solo se ci sono errori non-GitHub-only
     if not all_ok:
         only_sync_error = (
             checks and
