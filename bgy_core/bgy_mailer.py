@@ -1,6 +1,11 @@
 """
 bgy_core/bgy_mailer.py - Modulo unificato di invio email.
-Versione 2.6.0
+Versione 2.6.1
+
+Novità v2.6.1 (filtro quality check):
+- La sezione "PROBLEMI RILEVATI" non mostra più le righe ✅ del
+  quality check. Vengono mantenute solo ❌ e ⚠️ con i loro dettagli.
+  Il riepilogo finale ("Riepilogo: X OK, Y warning, Z errori") resta.
 
 Novità v2.6.0 (email semplificata + voli non classificati):
 - La sezione check mostra SOLO i problemi (❌ KO e ⚠️ WARN).
@@ -566,9 +571,62 @@ def _format_stats_section(stats, yesterday_str, night_import_failed=False,
 # CHECK — RENDERIZZAZIONE PROBLEMI
 # =============================================================================
 
+def _filter_quality_check_text(msg):
+    """
+    v2.6.1: filtra il testo del quality check per l'email.
+
+    Mantiene:
+      - righe di intestazione (───, ℹ️)
+      - righe ❌ e ⚠️
+      - righe di dettaglio (→) che seguono ❌ o ⚠️
+      - riga finale "Riepilogo: ..."
+
+    Rimuove:
+      - righe ✅
+      - righe di dettaglio (→) che seguono ✅
+    """
+    if not msg:
+        return ""
+
+    out = []
+    keep_details = False
+
+    for line in msg.split("\n"):
+        stripped = line.lstrip()
+
+        # Riga ✅: scarta, e scarta anche i dettagli che la seguono
+        if stripped.startswith("✅"):
+            keep_details = False
+            continue
+
+        # Riga ❌ o ⚠️: mantieni, e abilita i dettagli
+        if stripped.startswith("❌") or stripped.startswith("⚠"):
+            keep_details = True
+            out.append(line)
+            continue
+
+        # Riga dettaglio (→): mantieni solo se segue ❌/⚠️
+        if stripped.startswith("→"):
+            if keep_details:
+                out.append(line)
+            continue
+
+        # Qualsiasi altra riga (header, riepilogo, vuota): mantieni
+        # e disabilita i dettagli (non stanno seguendo un problema)
+        keep_details = False
+        out.append(line)
+
+    # Rimuovi eventuali righe vuote consecutive in coda
+    while out and not out[-1].strip():
+        out.pop()
+
+    return "\n".join(out)
+
+
 def _render_problems(checks):
     """
     v2.6.0: renderizza SOLO i problemi (❌ KO, ⚠️ WARN).
+    v2.6.1: per il quality_check, filtra le righe ✅ dal messaggio.
     Se non ci sono problemi, ritorna stringa vuota.
     """
     if not checks:
@@ -610,7 +668,10 @@ def _render_problems(checks):
 
         if msg:
             if key == 'quality_check':
-                problems.append(msg)
+                # v2.6.1: filtra le righe ✅
+                filtered = _filter_quality_check_text(msg)
+                if filtered:
+                    problems.append(filtered)
             elif key in ('unresolved_airlines', 'scanner_day_status',
                          'avionio_confronto', 'db_service', 'backup'):
                 for line in msg.split('\n'):
