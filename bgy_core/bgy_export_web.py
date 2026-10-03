@@ -269,9 +269,15 @@ def build_web_json(days=90):
     """
     today = datetime.now().date()
     date_to = (today - timedelta(days=1)).strftime("%Y-%m-%d")
-    date_from = (today - timedelta(days=days)).strftime("%Y-%m-%d")
+    date_from_calc = (today - timedelta(days=days)).strftime("%Y-%m-%d")
 
-    logger.info(f"📊 Costruzione JSON web: {date_from} → {date_to} ({days} giorni)")
+    # Filtro periodo di test
+    from bgy_core.bgy_config_manager import config_manager
+    web_cfg = config_manager.get_data_config().get("web_export", {})
+    min_date = web_cfg.get("min_date", "2026-10-01")
+    date_from = max(date_from_calc, min_date)
+
+    logger.info(f"📊 Costruire JSON web: {date_from} → {date_to} (max {days} giorni, min_date={min_date})")
 
     daily = build_daily_data(date_from, date_to)
     nightly = build_nightly_data(date_from, date_to)

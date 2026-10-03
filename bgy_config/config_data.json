@@ -260,5 +260,10 @@
     "down_alert_threshold_min": 15,
     "restart_cooldown_min": 30,
     "max_restart_attempts": 3
+  },
+  "web_export": {
+    "min_date": "2026-09-29",
+    "days_default": 90,
+    "top_airlines_n": 10
   }
 }
