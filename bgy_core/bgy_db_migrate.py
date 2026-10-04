@@ -1,6 +1,6 @@
 """
 bgy_core/bgy_db_migrate.py - Import e sincronizzazione CSV -> PostgreSQL.
-Versione 2.8.3
+Versione 2.8.4
 
 Modulo unificato che contiene:
   - Funzioni di import per ogni tipo di file (scan, radar, meteo, nightly)
@@ -12,7 +12,19 @@ Modulo unificato che contiene:
   - Check compagnie placeholder irrisolte (F14)
   - Check anomalie notturne
 
-
+Novità v2.8.4:
+- import_nightly_file(): reimport se il CSV differisce dal DB.
+  Stessa logica già applicata a import_radar_file(). Se il report
+  notturno viene rigenerato (per fix o rerun), il DB si aggiorna.
+  Log: "🔄 Report notturno cambiato: DB=N → CSV=M, reimporto".
+- _qc_cargo_non_in_lista(): se classify_callsign non è importabile
+  o fallisce durante la classificazione, ritorna ERRORE (non OK
+  silenzioso). Prima il check passava come ✅ anche quando la
+  verifica non veniva eseguita.
+- _qc_bilanciamento_daily() e _qc_bilanciamento_nightly(): il valore
+  mostrato è il numero totale di date problematiche (errori + warning),
+  non solo gli errori. Prima mostrava "0" quando c'erano solo warning.
+- Sistemata indentazione tra _qc_bilanciamento_nightly e _qc_daily_presenti.
 
 Novità v2.8.3:
 - Check 12 "Bilanciamento D/A nightly": sotto 25 movimenti totali,
@@ -571,21 +583,41 @@ def import_meteo_file(filepath):
 # =============================================================================
 
 def import_nightly_file(filepath):
+    """
+    Import del report notturno.
+
+    v2.8.4: confronta righe CSV vs righe DB per la stessa data.
+    Se il CSV è cambiato (rigenerato per fix o rerun), reimporta.
+    Stessa logica già usata da import_radar_file().
+    """
     filename = os.path.basename(filepath)
     date_str = parse_nightly_filename(filename)
     if not date_str:
         logger.warning(f"File report notturno non riconosciuto: {filename}")
         return False, None
-    ok, rows = bgy_db.execute_query(
-        "SELECT COUNT(1) FROM nightly_reports WHERE data_riferimento = %s",
-        (date_str,))
-    if ok and rows and rows[0][0] > 0:
-        logger.info(f"⏭️ Già importato: {filename}")
-        stats["scans_skipped"] += 1
-        return False, None
+
     csv_rows = read_csv_rows(filepath)
     if not csv_rows:
         return False, None
+
+    n_csv = len(csv_rows)
+
+    ok, rows = bgy_db.execute_query(
+        "SELECT COUNT(1) FROM nightly_reports WHERE data_riferimento = %s",
+        (date_str,))
+    n_db = rows[0][0] if ok and rows else 0
+
+    if n_db == n_csv and n_csv > 0:
+        logger.info(f"⏭️ Già importato: {filename} (DB={n_db}, CSV={n_csv})")
+        stats["scans_skipped"] += 1
+        return False, None
+
+    if n_db > 0:
+        logger.info(f"🔄 Report notturno cambiato: DB={n_db} → CSV={n_csv}, reimporto")
+        bgy_db.execute_query(
+            "DELETE FROM nightly_reports WHERE data_riferimento = %s",
+            (date_str,), fetch=False)
+
     params = []
     for r in csv_rows:
         params.append((
@@ -634,7 +666,12 @@ def import_nightly_file(filepath):
             logger.error(f"Errore insert nightly {filename}: {result}")
             stats["errors"] += 1
 
-    if total_conflicts > 0:
+    if n_db > 0:
+        logger.info(f"✅ Reimportato {filename}: {total_inserted} voli notturni "
+                    f"(sostituite {n_db} righe precedenti"
+                    + (f", {total_conflicts} duplicati scartati" if total_conflicts > 0 else "")
+                    + ")")
+    elif total_conflicts > 0:
         logger.info(f"🧹 Importato {filename}: {total_inserted} voli notturni "
                     f"({total_conflicts} duplicati scartati)")
     else:
@@ -1426,6 +1463,10 @@ def _qc_csv_vs_db(date_from, date_to):
 
 
 def _qc_bilanciamento_daily(date_from, date_to, thresholds):
+    """
+    v2.8.4: il valore mostrato è il numero totale di date problematiche
+    (errori + warning), non solo gli errori.
+    """
     ok, rows = bgy_db.execute_query(
         """SELECT data_riferimento,
                   COUNT(*) FILTER (WHERE tipo_movimento = 'D') AS d,
@@ -1450,7 +1491,8 @@ def _qc_bilanciamento_daily(date_from, date_to, thresholds):
             errori.append(f"{data}: ratio={ratio:.2f} (D={d}, A={a})")
         elif ratio < rmin * 1.15 or ratio > rmax * 0.85:
             warnings.append(f"{data}: ratio={ratio:.2f}")
-    return len(errori) == 0, len(warnings) > 0, len(errori), f"{rmin}–{rmax}", \
+    valore_totale = len(errori) + len(warnings)
+    return len(errori) == 0, len(warnings) > 0, valore_totale, f"{rmin}–{rmax}", \
         [f"❌ {e}" for e in errori[:3]] + [f"⚠️ {w}" for w in warnings[:2]]
 
 
@@ -1460,6 +1502,9 @@ def _qc_bilanciamento_nightly(date_from, date_to, thresholds):
     qualsiasi sbilanciamento è warning, non errore. Solo con totale alto
     (>= 25) una direzione a zero o un ratio fuori soglia sono errori.
     BGY ha notti fisiologicamente sbilanciate (es. 19 movimenti con 2 D e 17 A).
+
+    v2.8.4: il valore mostrato è il numero totale di date problematiche
+    (errori + warning), non solo gli errori.
     """
     ok, rows = bgy_db.execute_query(
         """SELECT data_riferimento,
@@ -1512,8 +1557,11 @@ def _qc_bilanciamento_nightly(date_from, date_to, thresholds):
         elif ratio < rmin * 1.2 or ratio > rmax * 0.8:
             warnings.append(f"{data}: ratio={ratio:.2f}")
 
-    return len(errori) == 0, len(warnings) > 0, len(errori), f"{rmin}–{rmax}", \
+    valore_totale = len(errori) + len(warnings)
+    return len(errori) == 0, len(warnings) > 0, valore_totale, f"{rmin}–{rmax}", \
         [f"❌ {e}" for e in errori[:3]] + [f"⚠️ {w}" for w in warnings[:3]]
+
+
 def _qc_daily_presenti(date_from, date_to):
     ok, rows = bgy_db.execute_query(
         """SELECT DISTINCT s.data_riferimento
@@ -1595,6 +1643,10 @@ def _qc_cargo_non_in_lista(date_from, date_to):
     """
     v2.8.0: usa classify_callsign() invece di is_cargo_flight().
     Questo rispetta gli override per callsign (tabella callsign_classifications).
+
+    v2.8.4: se classify_callsign non è importabile o fallisce, ritorna
+    ERRORE (non OK silenzioso). Prima il check passava come ✅ anche
+    quando la verifica non veniva eseguita.
     """
     ok, rows = bgy_db.execute_query(
         """SELECT DISTINCT callsign FROM nightly_reports
@@ -1602,10 +1654,21 @@ def _qc_cargo_non_in_lista(date_from, date_to):
              AND tipo_movimento LIKE 'Cargo%%'""",
         (date_from, date_to))
     if not ok:
-        return True, False, 0, 0, [f"Errore: {rows}"]
+        return False, False, 1, 0, [f"Errore query: {rows}"]
+
     try:
         from bgy_core.bgy_update_rules import classify_callsign
-        non_cargo = []
+    except ImportError as e:
+        logger.error(f"_qc_cargo_non_in_lista: classify_callsign non importabile: {e}")
+        return False, False, 1, 0, [
+            f"classify_callsign non disponibile in bgy_update_rules: {e}"
+        ]
+    except Exception as e:
+        logger.error(f"_qc_cargo_non_in_lista: errore import: {e}")
+        return False, False, 1, 0, [f"Errore import classify_callsign: {e}"]
+
+    non_cargo = []
+    try:
         for r in rows or []:
             cs = str(r[0]).strip()
             if not cs:
@@ -1613,10 +1676,12 @@ def _qc_cargo_non_in_lista(date_from, date_to):
             categoria, _ = classify_callsign(cs)
             if categoria != 'Cargo':
                 non_cargo.append(cs)
-        dettagli = [f"{c}" for c in non_cargo[:5]]
-        return len(non_cargo) == 0, False, len(non_cargo), 0, dettagli
     except Exception as e:
-        return True, False, 0, 0, [f"Errore verifica: {e}"]
+        logger.error(f"_qc_cargo_non_in_lista: errore durante classificazione: {e}")
+        return False, False, 1, 0, [f"Errore durante classificazione: {e}"]
+
+    dettagli = [f"{c}" for c in non_cargo[:5]]
+    return len(non_cargo) == 0, False, len(non_cargo), 0, dettagli
 
 
 def _qc_file_radar_mancanti(date_from, date_to):
@@ -1807,7 +1872,6 @@ def _qc_data_futura(date_from, date_to):
         return True, False, 0, oggi, [f"Errore: {rows}"]
     dettagli = [str(r[0]) for r in rows[:5]]
     return len(rows) == 0, False, len(rows), oggi, dettagli
-
 
 
 def _qc_anomalie_notturne(date_from, date_to):

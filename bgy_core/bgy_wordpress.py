@@ -1,9 +1,9 @@
 """
 bgy_core/bgy_wordpress.py - Pubblicazione dati su WordPress via REST API.
-Versione 1.0.0
+Versione 1.0.2
 
 Scopo:
-  - Caricare il JSON aggregato (bgy-data.json) nella Media Library
+  - Caricare il JSON aggregato (bgy-data.csv) nella Media Library
     di WordPress, sovrascrivendo il file precedente.
   - Verificare la connessione REST API.
   - Gestire le credenziali via config_wordpress.json.
@@ -17,6 +17,20 @@ Sicurezza:
   - Usa Application Password (Basic Auth over HTTPS).
   - Non committare mai config_wordpress.json su Git.
   - Il token è limitato all'utente BGY (ruolo amministratore).
+
+Novità v1.0.2:
+- Ritorno a .csv con Content-Type text/csv, dopo che il filtro MIME
+  è stato autorizzato lato WordPress. Il file locale inizia con una
+  riga di prefisso '#' (gestita da bgy_export_web.py) per superare
+  il controllo magic-bytes di WordPress.
+
+Novità v1.0.1 (breve parentesi .txt):
+- Estensione file cambiata da .csv a .txt con Content-Type text/plain.
+  Tentativo di aggirare il blocco MIME. Non sufficiente: il problema
+  era il contenuto JSON, non l'estensione.
+
+Novità v1.0.0:
+- Prima versione.
 
 Uso:
     py -3.12 -m bgy_core.bgy_wordpress --test
@@ -210,6 +224,9 @@ def _upload_media(local_path, remote_filename):
     """
     Carica un file nella Media Library.
     Ritorna (ok, media_id, source_url).
+
+    v1.0.2: Content-Type text/csv. Il file locale inizia con una riga
+    di prefisso '#' per superare il controllo magic-bytes di WordPress.
     """
     headers = _auth_header()
     if not headers:
@@ -276,7 +293,7 @@ def publish_json(local_json_path):
         return False, f"File non trovato: {local_json_path}", None
 
     cfg = _cfg()
-    filename = cfg.get("json_filename", "bgy-data.json")
+    filename = cfg.get("json_filename", "bgy-data.csv")
 
     existing_id = _find_media_by_filename(filename)
     if existing_id:

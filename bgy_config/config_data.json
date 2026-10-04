@@ -262,7 +262,7 @@
     "max_restart_attempts": 3
   },
   "web_export": {
-    "min_date": "2026-09-29",
+    "min_date": "2026-09-30",
     "days_default": 90,
     "top_airlines_n": 10
   }

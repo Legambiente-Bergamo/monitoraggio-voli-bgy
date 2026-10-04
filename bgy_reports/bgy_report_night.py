@@ -1,24 +1,30 @@
 """
 bgy_reports/bgy_report_night.py - Report notturno integrato (SACBO + radar).
-Versione 2.9.3
+Versione 2.9.7
 
 Modello logico:
 - Nessuna presunzione "tabellone = passeggeri".
 - Ogni volo è classificato in modo indipendente dalla fonte tramite
   classify_callsign() di bgy_update_rules.
 
-Novità v2.9.3 (fix match per prefisso ICAO):
-- Il callsign SACBO è in formato IATA ('FR 2864') e contiene il numero
-  commerciale del volo.
-- Il callsign radar è in formato ICAO ('RYR4787', 'RYR519Q') e contiene
-  un callsign radio operativo che NON coincide con il numero del volo.
-- Il match per callsign completo è quindi impossibile.
-- Soluzione: confronto per PREFISSO ICAO (3 lettere).
-  SACBO 'FR 2864' -> IATA 'FR' -> ICAO 'RYR'
-  Radar 'RYR4787' -> prefisso 'RYR'
-  Match valido se prefissi coincidono + finestra temporale + fase.
-  Questo esclude match tra compagnie diverse (es. FR vs SRR).
+Novità v2.9.7 (matching secondario):
+- Nuovo Livello 1: pattern callsign operativo → volo commerciale.
+  Tabella DB callsign_airline_patterns: MAC→3O, MMO→MT, FIE→3F.
+  Es: MAC455 → 3O455. Match richiede stessa direzione + finestra.
+- Nuovo Livello 2: priorità al numero commerciale nel match principale.
+  Se due radar hanno lo stesso prefisso ICAO in finestra, preferisce
+  quello con lo stesso numero commerciale del volo schedulato.
+  Es: FR5984 → preferisce RYR5984 a RYR91EJ.
+- La logica di direzione resta invariata: D ↔ D, A ↔ A.
+- Log del match esteso: "X confermati (di cui Y per numero, Z per pattern)".
 
+Novità v2.9.6 (fix radar notturno su due file):
+- La sessione notturna copre 23:00 (X) → 06:00 (X+1). Carica
+  radar_X.csv + radar_{X+1}.csv. Il fix risolve il N/D pista al 70%.
+
+Novità v2.9.5 (fix passeggeri-radar gonfiati).
+Novità v2.9.4 (fix falsi sconfinamenti).
+Novità v2.9.3 (fix match per prefisso ICAO).
 Novità v2.9.2 (fix tentativo match callsign completo).
 Novità v2.9.1 (verifica callsign, troppo severa).
 Novità v2.9.0 (classificazione unificata).
@@ -45,6 +51,7 @@ from bgy_core.bgy_dates import (
     night_session_date,
 )
 from bgy_core.bgy_config_manager import config_manager
+from bgy_core import bgy_db
 from bgy_utils.bgy_utils_meteo import save_night_weather
 
 logger = get_logger("ReportNight")
@@ -54,6 +61,7 @@ BGY_LON = 9.7042
 
 MATCH_WINDOW_BEFORE_MIN = 30
 MATCH_WINDOW_AFTER_MIN = 180
+MATCH_WINDOW_WIDE_BEFORE_MIN = 180
 RADAR_DEDUP_WINDOW_MIN = 15
 
 BGY_PHASES = ('Atterraggio', 'Decollo', 'Avvicinamento')
@@ -65,6 +73,9 @@ SCONFINAMENTO_END_MIN = 6 * 60
 
 SCONFINAMENTO_GRAVE_MIN = 60
 
+DAY_START_HOUR = 6
+DAY_END_HOUR = 23
+
 SESSION_SCAN_TIMES = ['23-00', '00-00', '00-01', '02-00', '05-00', '06-00']
 MEZZANOTTE_SCANS = {'00-00', '00-01'}
 SCANSIONE_ANOMALIA = {'02-00', '05-00'}
@@ -75,9 +86,59 @@ STATI_OPERATI = ('DECOLLATO', 'ATTERRATO', 'ARRIVATO', 'IN VOLO', 'PARTITO')
 VISIBLE_CATEGORIES = ('Passeggeri', 'Cargo', 'Charter', 'Non classificato')
 PAX_CATEGORIES = ('Passeggeri', 'Charter')
 
+# Cache pattern
+_callsign_patterns_cache = None
+_inverted_patterns_cache = None
+
 
 def _cfg():
     return config_manager.get_report_night_config()
+
+
+# -----------------------------------------------------------------------------
+# PATTERNS
+# -----------------------------------------------------------------------------
+
+def _load_callsign_patterns():
+    """Carica i pattern callsign dalla tabella DB. Cache in memoria."""
+    global _callsign_patterns_cache
+    if _callsign_patterns_cache is not None:
+        return _callsign_patterns_cache
+    try:
+        ok, rows = bgy_db.execute_query(
+            "SELECT pattern, airline_iata FROM callsign_airline_patterns")
+        if not ok:
+            logger.warning(f"Errore caricamento callsign_airline_patterns: {rows}")
+            _callsign_patterns_cache = {}
+            return {}
+        _callsign_patterns_cache = {
+            str(r[0]).strip().upper(): str(r[1]).strip().upper()
+            for r in (rows or [])
+        }
+        if _callsign_patterns_cache:
+            logger.info(f"📚 Patterns callsign caricati: "
+                        f"{len(_callsign_patterns_cache)} voci "
+                        f"({', '.join(_callsign_patterns_cache.keys())})")
+        else:
+            logger.info("📚 Nessun pattern callsign in DB")
+        return _callsign_patterns_cache
+    except Exception as e:
+        logger.warning(f"Errore lettura callsign_airline_patterns: {e}")
+        _callsign_patterns_cache = {}
+        return {}
+
+
+def _get_inverted_patterns():
+    """{'MAC': '3O'} → {'3O': ['MAC']}"""
+    global _inverted_patterns_cache
+    if _inverted_patterns_cache is not None:
+        return _inverted_patterns_cache
+    patterns = _load_callsign_patterns()
+    inv = {}
+    for pattern, iata in patterns.items():
+        inv.setdefault(iata, []).append(pattern)
+    _inverted_patterns_cache = inv
+    return inv
 
 
 # -----------------------------------------------------------------------------
@@ -158,9 +219,35 @@ def _timestamp_to_minutes_session(ts, session_date):
         return None
     base = pd.to_datetime(f"{session_date} 23:00:00")
     diff = (dt - base).total_seconds() / 60
-    if diff < -30:
+    if diff < -MATCH_WINDOW_BEFORE_MIN:
         return None
     return int(diff)
+
+
+def _timestamp_to_minutes_session_wide(ts, session_date):
+    if not ts:
+        return None
+    try:
+        dt = pd.to_datetime(ts)
+    except Exception:
+        return None
+    base = pd.to_datetime(f"{session_date} 23:00:00")
+    diff = (dt - base).total_seconds() / 60
+    if diff < -MATCH_WINDOW_WIDE_BEFORE_MIN:
+        return None
+    return int(diff)
+
+
+def _is_timestamp_in_night(ts, session_date):
+    if not ts:
+        return False
+    try:
+        dt = pd.to_datetime(ts)
+    except Exception:
+        return False
+    base = pd.to_datetime(f"{session_date} 23:00:00")
+    end = base + pd.Timedelta(hours=7)
+    return base <= dt < end
 
 
 def _scheduled_minutes_from_session(hhmm, session_date):
@@ -171,19 +258,9 @@ def _scheduled_minutes_from_session(hhmm, session_date):
         return mins - 23 * 60
     if mins < 6 * 60:
         return mins + 60
+    if mins >= 18 * 60:
+        return mins - 23 * 60
     return None
-
-
-def _is_valid_airline_name(name):
-    if not name:
-        return False
-    if not isinstance(name, str):
-        return False
-    if name in {'N/D', 'Non identificato', ''}:
-        return False
-    if name.startswith('Compagnia '):
-        return False
-    return True
 
 
 def _is_in_night_schedule(hhmm):
@@ -249,15 +326,10 @@ def _normalize_hhmm(hhmm):
 
 
 # -----------------------------------------------------------------------------
-# CONVERSIONE CALLSIGN SACBO → PREFISSO ICAO (v2.9.3)
+# CONVERSIONE CALLSIGN
 # -----------------------------------------------------------------------------
 
 def _split_iata_callsign(callsign_norm):
-    """
-    Splitta un callsign IATA (es. 'FR2864', 'W43136', 'RK3219')
-    in (prefisso_iata, numero_volo).
-    Ritorna (prefix, number) o (None, None).
-    """
     if not callsign_norm:
         return None, None
     for pref_len in (2, 3):
@@ -274,18 +346,6 @@ def _split_iata_callsign(callsign_norm):
 
 
 def _icao_prefix_from_sacbo(callsign_sacbo):
-    """
-    Estrae il prefisso ICAO (3 lettere) dal callsign SACBO (IATA).
-
-    Esempi:
-        'FR 2864'  -> 'RYR'
-        'W4 3136'  -> 'WMT'
-        'RK 3219'  -> 'RUK'
-        'BZ 155'   -> 'BPA' (o altro se in mappa)
-        'XX 1234'  -> None (prefisso IATA non in mappa)
-
-    Ritorna stringa 3-lettere o None.
-    """
     if not callsign_sacbo:
         return None
     cs_norm = _normalize_callsign(callsign_sacbo)
@@ -301,17 +361,75 @@ def _icao_prefix_from_sacbo(callsign_sacbo):
 
 
 def _icao_prefix_from_radar(callsign_radar):
-    """
-    Estrae il prefisso ICAO (prime 3 lettere) dal callsign radar.
-    Esempi: 'RYR4787' -> 'RYR', 'WMT994' -> 'WMT', 'SRR6402' -> 'SRR'.
-    Ritorna None se il callsign è troppo corto.
-    """
     if not callsign_radar:
         return None
     cs = _normalize_callsign(callsign_radar)
     if len(cs) < 3:
         return None
     return cs[:3]
+
+
+def _extract_icao_number(callsign):
+    """
+    Ritorna (prefisso_icao, numero) dal callsign radar.
+    Es: 'RYR5984' → ('RYR', '5984'), 'MAC455' → ('MAC', '455').
+    Ritorna (None, None) se non riesce.
+    """
+    cs = _normalize_callsign(callsign)
+    if len(cs) < 4:
+        return None, None
+    prefix = cs[:3]
+    m = re.search(r'(\d+)$', cs)
+    if not m:
+        return None, None
+    return prefix, m.group(1)
+
+
+def _extract_iata_number(callsign_sacbo):
+    """Da '3O455' ritorna ('3O', '455')."""
+    cs = _normalize_callsign(callsign_sacbo)
+    if not cs:
+        return None, None
+    prefix, number = _split_iata_callsign(cs)
+    return prefix, number
+
+
+# -----------------------------------------------------------------------------
+# MATCH RADAR PER CLASSIFICAZIONE
+# -----------------------------------------------------------------------------
+
+def _find_radar_match_ts(callsign_sacbo, direzione_sacbo, sched, radar_df,
+                          session_date):
+    if radar_df is None or radar_df.empty:
+        return None
+    prefix_sacbo = _icao_prefix_from_sacbo(callsign_sacbo)
+    if not prefix_sacbo:
+        return None
+    sched_min = _scheduled_minutes_from_session(sched, session_date)
+    if sched_min is None:
+        return None
+    low = sched_min - MATCH_WINDOW_WIDE_BEFORE_MIN
+    high = sched_min + MATCH_WINDOW_AFTER_MIN
+
+    best_ts = None
+    best_delta = None
+
+    for _, r in radar_df.iterrows():
+        prefix_radar = _icao_prefix_from_radar(r.get('callsign', ''))
+        if prefix_radar != prefix_sacbo:
+            continue
+        fase = str(r.get('fase_volo', '') or '')
+        if not _is_phase_compatible(direzione_sacbo, fase):
+            continue
+        r_min = _timestamp_to_minutes_session_wide(r.get('timestamp'), session_date)
+        if r_min is None or r_min < low or r_min > high:
+            continue
+        delta = abs(r_min - sched_min)
+        if best_delta is None or delta < best_delta:
+            best_delta = delta
+            best_ts = r.get('timestamp')
+
+    return best_ts
 
 
 # -----------------------------------------------------------------------------
@@ -348,11 +466,13 @@ def _radar_confirms_flight(callsign, radar_df):
     return False, None
 
 
-def _classify_volo(records, radar_df=None):
+def _classify_volo(records, radar_df=None, session_date=None):
     if not records:
         return None
 
     sched = records[0]['orario_schedulato']
+    callsign = records[0].get('callsign_volo', '')
+    direzione_sacbo = str(records[0].get('tipo_movimento', '')).strip().upper()[:1]
 
     if _is_in_night_schedule(sched):
         return 'regolare'
@@ -387,6 +507,26 @@ def _classify_volo(records, radar_df=None):
         if r['scan_time'] not in MEZZANOTTE_SCANS
     ]
 
+    radar_ts = None
+    if radar_df is not None and callsign and session_date:
+        radar_ts = _find_radar_match_ts(
+            callsign, direzione_sacbo, sched, radar_df, session_date
+        )
+
+    if radar_ts:
+        try:
+            radar_dt = pd.to_datetime(radar_ts)
+            radar_hour = radar_dt.hour
+            if DAY_START_HOUR <= radar_hour < DAY_END_HOUR:
+                logger.info(
+                    f"⏭️  {callsign}: radar conferma operatività alle "
+                    f"{radar_dt.strftime('%H:%M')} (< 23:00), "
+                    f"non è sconfinamento"
+                )
+                return None
+        except Exception as e:
+            logger.debug(f"Errore parsing timestamp radar per {callsign}: {e}")
+
     stima_ref = ref.get('orario_effettivo')
     if stima_ref and _is_in_sconfinamento_effective(stima_ref):
         for r in records[ref_index + 1:]:
@@ -406,20 +546,17 @@ def _classify_volo(records, radar_df=None):
     if any(t in SCANSIONE_ANOMALIA for t in scansioni_succ):
         return 'anomalia'
 
-    callsign = records[0].get('callsign_volo', '')
     delay = None
 
-    if radar_df is not None and callsign:
-        confirmed, radar_ts = _radar_confirms_flight(callsign, radar_df)
-        if confirmed and radar_ts:
-            try:
-                radar_dt = pd.to_datetime(radar_ts)
-                radar_hhmm = radar_dt.strftime('%H:%M')
-                delay = _minutes_since_sched(sched, radar_hhmm)
-                logger.info(f"✅ Sconfinamento {callsign} confermato da radar "
-                            f"({radar_ts}, delay {delay} min)")
-            except Exception as e:
-                logger.debug(f"Errore parsing timestamp radar per {callsign}: {e}")
+    if radar_ts:
+        try:
+            radar_dt = pd.to_datetime(radar_ts)
+            radar_hhmm = radar_dt.strftime('%H:%M')
+            delay = _minutes_since_sched(sched, radar_hhmm)
+            logger.info(f"✅ Sconfinamento {callsign} confermato da radar "
+                        f"({radar_ts}, delay {delay} min)")
+        except Exception as e:
+            logger.debug(f"Errore parsing timestamp radar per {callsign}: {e}")
 
     if delay is None:
         delay = _minutes_since_sched(sched, '23:00')
@@ -513,7 +650,9 @@ def load_scheduled_flights(date_str, radar_df=None):
     n_esclusi = 0
 
     for key, records in flights.items():
-        categoria = _classify_volo(records, radar_df=radar_df)
+        categoria = _classify_volo(
+            records, radar_df=radar_df, session_date=date_norm
+        )
         if categoria is None:
             n_esclusi += 1
             continue
@@ -571,17 +710,35 @@ def normalize_scan_columns(df):
 
 def load_radar_data(date_str):
     date_norm = normalize_date(date_str)
-    filepath = _find_scan_file_for_date(date_norm)
-    if filepath:
-        try:
-            df = pd.read_csv(filepath)
-            logger.info(f"📡 Caricati {len(df)} dati radar da {os.path.basename(filepath)}")
-            return df
-        except Exception as e:
-            logger.warning(f"Errore lettura radar: {e}")
-    else:
-        logger.info(f"📡 Nessun file radar per {date_norm}")
-    return pd.DataFrame()
+    next_date = (datetime.strptime(date_norm, "%Y-%m-%d")
+                 + timedelta(days=1)).strftime("%Y-%m-%d")
+
+    files_to_load = [
+        (date_norm, _find_scan_file_for_date(date_norm)),
+        (next_date, _find_scan_file_for_date(next_date)),
+    ]
+
+    dfs = []
+    for label, filepath in files_to_load:
+        if filepath:
+            try:
+                df = pd.read_csv(filepath)
+                logger.info(f"📡 Caricati {len(df)} dati radar da "
+                            f"{os.path.basename(filepath)} ({label})")
+                dfs.append(df)
+            except Exception as e:
+                logger.warning(f"Errore lettura radar {filepath}: {e}")
+        else:
+            logger.info(f"📡 Nessun file radar per {label}")
+
+    if not dfs:
+        logger.info(f"📡 Nessun dato radar disponibile per la sessione {date_norm}")
+        return pd.DataFrame()
+
+    combined = pd.concat(dfs, ignore_index=True)
+    logger.info(f"📡 Totale radar sessione: {len(combined)} rilevamenti "
+                f"({len(dfs)} file)")
+    return combined
 
 
 # -----------------------------------------------------------------------------
@@ -648,6 +805,53 @@ def _dedup_by_key(df):
     return result
 
 
+def _try_pattern_match_for_sched(sched_callsign, direzione_sacbo,
+                                  sched_min, low, high, radar,
+                                  used_radar_idx, inv_patterns):
+    """
+    Livello 1: cerca un radar con pattern callsign noto.
+    Es: sched '3O455' → IATA '3O' → patterns_for_iata['3O'] = ['MAC']
+        → cerco radar 'MAC455' in finestra + fase compatibile.
+    Ritorna (best_idx, best_delta) o (None, None).
+    """
+    if not sched_callsign:
+        return None, None
+    iata_sched, num_sched = _extract_iata_number(sched_callsign)
+    if not iata_sched or not num_sched:
+        return None, None
+    patterns_for_iata = inv_patterns.get(iata_sched.upper(), [])
+    if not patterns_for_iata:
+        return None, None
+
+    best_idx = None
+    best_delta = None
+
+    for idx, r in radar.iterrows():
+        if idx in used_radar_idx:
+            continue
+        r_min = r['_radar_min']
+        if r_min is None or r_min < low or r_min > high:
+            continue
+        fase = str(r.get('fase_volo', '') or '')
+        if not _is_phase_compatible(direzione_sacbo, fase):
+            continue
+
+        prefix_radar, num_radar = _extract_icao_number(r.get('callsign', ''))
+        if not prefix_radar or not num_radar:
+            continue
+        if prefix_radar.upper() not in [p.upper() for p in patterns_for_iata]:
+            continue
+        if num_radar != num_sched:
+            continue
+
+        delta = abs(r_min - sched_min)
+        if best_delta is None or delta < best_delta:
+            best_delta = delta
+            best_idx = idx
+
+    return best_idx, best_delta
+
+
 def match_flights(scheduled_df, radar_df, session_date):
     if scheduled_df.empty and radar_df.empty:
         return pd.DataFrame()
@@ -662,6 +866,10 @@ def match_flights(scheduled_df, radar_df, session_date):
         radar_df['direzione_sacbo'] = ''
         radar_df['notte_categoria'] = ''
         radar_df['matched_score'] = 0
+        radar_df = radar_df[
+            radar_df['timestamp'].apply(
+                lambda t: _is_timestamp_in_night(t, session_date))
+        ].copy()
         radar_df = _dedup_radar_by_callsign(radar_df)
         classified = _classify_unmatched_radar(radar_df)
         if classified.empty:
@@ -698,9 +906,14 @@ def match_flights(scheduled_df, radar_df, session_date):
 
     radar = radar[radar['_radar_min'].notna()].copy()
 
+    patterns = _load_callsign_patterns()
+    inv_patterns = _get_inverted_patterns()
+
     matched = []
     used_radar_idx = set()
     n_match_ok = 0
+    n_match_num = 0
+    n_match_pattern = 0
     n_match_rejected_prefix = 0
     n_match_prefix_unknown = 0
 
@@ -712,8 +925,8 @@ def match_flights(scheduled_df, radar_df, session_date):
         cs_sacbo_norm = _normalize_callsign(callsign_sched)
         tipo_mov = _tipo_movimento_from_callsign(callsign_sched, source='sacbo')
 
-        # v2.9.3: prefisso ICAO atteso dal SACBO
         prefix_sacbo = _icao_prefix_from_sacbo(callsign_sched)
+        _, num_sched = _extract_iata_number(callsign_sched)
 
         if sched_min is None:
             combined = dict(s)
@@ -738,6 +951,8 @@ def match_flights(scheduled_df, radar_df, session_date):
 
         best_idx = None
         best_delta = None
+        best_num_idx = None
+        best_num_delta = None
 
         for idx, r in radar.iterrows():
             if idx in used_radar_idx:
@@ -749,10 +964,8 @@ def match_flights(scheduled_df, radar_df, session_date):
             if not _is_phase_compatible(direzione, fase):
                 continue
 
-            # v2.9.3: match per prefisso ICAO
             prefix_radar = _icao_prefix_from_radar(r.get('callsign', ''))
             if prefix_sacbo is None:
-                # Prefisso IATA sconosciuto: nessun match possibile
                 n_match_prefix_unknown += 1
                 continue
             if prefix_radar is None or prefix_sacbo != prefix_radar:
@@ -760,9 +973,39 @@ def match_flights(scheduled_df, radar_df, session_date):
                 continue
 
             delta = abs(r_min - sched_min)
-            if best_delta is None or delta < best_delta:
-                best_delta = delta
-                best_idx = idx
+
+            _, num_radar = _extract_icao_number(r.get('callsign', ''))
+            is_num_match = (
+                num_sched is not None
+                and num_radar is not None
+                and num_sched == num_radar
+            )
+
+            if is_num_match:
+                if best_num_delta is None or delta < best_num_delta:
+                    best_num_delta = delta
+                    best_num_idx = idx
+            else:
+                if best_delta is None or delta < best_delta:
+                    best_delta = delta
+                    best_idx = idx
+
+        used_num_match = False
+        if best_num_idx is not None:
+            best_idx = best_num_idx
+            best_delta = best_num_delta
+            used_num_match = True
+
+        used_pattern_match = False
+        if best_idx is None:
+            pat_idx, pat_delta = _try_pattern_match_for_sched(
+                callsign_sched, direzione, sched_min, low, high,
+                radar, used_radar_idx, inv_patterns
+            )
+            if pat_idx is not None:
+                best_idx = pat_idx
+                best_delta = pat_delta
+                used_pattern_match = True
 
         if best_idx is not None:
             used_radar_idx.add(best_idx)
@@ -776,6 +1019,10 @@ def match_flights(scheduled_df, radar_df, session_date):
             combined['callsign'] = cs_sacbo_norm
             matched.append(combined)
             n_match_ok += 1
+            if used_num_match:
+                n_match_num += 1
+            if used_pattern_match:
+                n_match_pattern += 1
         else:
             combined = dict(s)
             combined['is_scheduled'] = True
@@ -793,12 +1040,23 @@ def match_flights(scheduled_df, radar_df, session_date):
             combined['notte_categoria'] = categoria
             matched.append(combined)
 
-    if n_match_ok > 0 or n_match_rejected_prefix > 0 or n_match_prefix_unknown > 0:
-        logger.info(f"🔗 Match radar: {n_match_ok} confermati, "
-                    f"{n_match_rejected_prefix} rifiutati per prefisso diverso, "
-                    f"{n_match_prefix_unknown} senza prefisso ICAO mappato")
+    logger.info(f"🔗 Match radar: {n_match_ok} confermati "
+                f"(di cui {n_match_num} per numero, "
+                f"{n_match_pattern} per pattern), "
+                f"{n_match_rejected_prefix} rifiutati per prefisso, "
+                f"{n_match_prefix_unknown} senza prefisso ICAO")
 
     unmatched = radar[~radar.index.isin(used_radar_idx)].copy()
+    before_night_filter = len(unmatched)
+    unmatched = unmatched[
+        unmatched['timestamp'].apply(
+            lambda t: _is_timestamp_in_night(t, session_date))
+    ].copy()
+    after_night_filter = len(unmatched)
+    if before_night_filter != after_night_filter:
+        logger.info(f"⏭️  Esclusi {before_night_filter - after_night_filter} "
+                    f"radar unmatched fuori fascia notturna")
+
     unmatched = _dedup_radar_by_callsign(unmatched)
     classified = _classify_unmatched_radar(unmatched)
 

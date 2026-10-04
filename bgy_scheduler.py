@@ -1,6 +1,6 @@
 ﻿"""
 bgy_scheduler.py - Pianificatore ed Orchestratore automatico.
-Versione 2.8.0
+Versione 2.8.1
 
 - Lock file per impedire doppio avvio
 - Radar h24 multi-fonte (adsb.lol -> adsb.fi -> OpenSky)
@@ -17,6 +17,13 @@ Versione 2.8.0
 - Check 12 backup DB (v2.7.1)
 - Avviso scansioni da fonte alternativa Avionio (v2.7.2)
 - Passaggio flag night_import_failed al mailer (v2.7.3)
+- Esportazione dati web F17 (v2.8.1)
+
+Novità v2.8.1 (F17 WordPress):
+- job_daily() chiama export_and_publish() dopo send_daily_status().
+  Rigenera il JSON aggregato (bgy-data.csv) e lo pubblica su WordPress.
+  Se WordPress è disabilitato in config, salva solo il JSON locale.
+  L'esito NON influenza overall_success: è un'operazione accessoria.
 
 Novità v2.8.0 (email semplificata + non classificati):
 - Raccolta statistiche semplificata: solo nightly + non_classified.
@@ -80,6 +87,14 @@ def _cfg_avionio():
     try:
         cfg = config_manager.get_data_config()
         return cfg.get("avionio", {}) or {}
+    except Exception:
+        return {}
+
+
+def _cfg_web_export():
+    try:
+        cfg = config_manager.get_data_config()
+        return cfg.get("web_export", {}) or {}
     except Exception:
         return {}
 
@@ -197,6 +212,38 @@ def cleanup_old_avionio(days=7):
     except Exception as e:
         logger.error(f"Errore cleanup Avionio: {e}")
         return 0
+
+
+# -----------------------------------------------------------------------------
+# WEB EXPORT (F17)
+# -----------------------------------------------------------------------------
+
+def job_web_export():
+    """
+    Rigenera il JSON aggregato (bgy-data.csv) e lo pubblica su WordPress.
+    F17 - Opzione A: JSON statico su Media Library, niente DB esposto.
+
+    Non influenza l'esito complessivo del job giornaliero: se fallisce,
+    viene loggato un errore ma il job prosegue.
+    """
+    logger.info("-" * 60)
+    logger.info("🌐 Esportazione dati web (F17)...")
+
+    web_cfg = _cfg_web_export()
+    days = int(web_cfg.get("days_default", 90))
+
+    try:
+        from bgy_core.bgy_export_web import export_and_publish
+        ok, msg = export_and_publish(days=days)
+        if ok:
+            logger.info(f"✅ Web export: {msg}")
+        else:
+            logger.error(f"❌ Web export: {msg}")
+        return ok, msg
+    except Exception as e:
+        msg = f"Eccezione: {e}"
+        logger.error(f"❌ Web export: {msg}")
+        return False, msg
 
 
 # -----------------------------------------------------------------------------
@@ -1021,6 +1068,9 @@ def job_daily():
         non_classified_flights=non_classified_flights,
     )
 
+    # --- 15. Esportazione dati web (F17) ---
+    job_web_export()
+
     # --- Pulizie ---
     logger.info("-" * 60)
     logger.info("🧹 Pulizia screenshot vecchi (>7 giorni)...")
@@ -1079,7 +1129,7 @@ def setup_scheduler():
     report_time = config.get("daily_report_time", "06:30")
     schedule.every().day.at(report_time).do(job_daily)
     logger.info(f"📊 Report + sync + quality + compagnie + diagnostica "
-                f"+ Avionio + screenshot + backup + email alle {report_time}")
+                f"+ Avionio + screenshot + backup + email + web export alle {report_time}")
 
     logger.info("=" * 50)
     logger.info("✅ Scheduler configurato e in esecuzione...")
