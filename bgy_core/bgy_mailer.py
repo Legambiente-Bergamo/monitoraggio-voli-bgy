@@ -1,26 +1,18 @@
 """
 bgy_core/bgy_mailer.py - Modulo unificato di invio email.
-Versione 2.6.1
+Versione 2.7.0
 
-Novità v2.6.1 (filtro quality check):
-- La sezione "PROBLEMI RILEVATI" non mostra più le righe ✅ del
-  quality check. Vengono mantenute solo ❌ e ⚠️ con i loro dettagli.
-  Il riepilogo finale ("Riepilogo: X OK, Y warning, Z errori") resta.
+Novità v2.7.0 (movimenti borderline):
+- Nuova sezione "MOVIMENTI BORDERLINE" nell'email del mattino.
+  Legge il file borderline_YYYY-MM-DD.csv e mostra i voli schedulati
+  in fascia notturna ma operati fuori dalla finestra 23:01-05:59.
+  Categorie: decollo/atterraggio anticipato/posticipato.
+- Principio documentato: il rumore conta solo se prodotto tra le 23:01
+  e le 05:59.
 
-Novità v2.6.0 (email semplificata + voli non classificati):
-- La sezione check mostra SOLO i problemi (❌ KO e ⚠️ WARN).
-  Le righe ✅ OK sono state rimosse: il soggetto [OK]/[KO] basta.
-- Rimossa la sezione "MOVIMENTI DEL GIORNO".
-- Rimossa la sezione "PUNTUALITÀ".
-- Aggiunta la sezione "⚠️ VOLI NON CLASSIFICATI (N)" con la lista
-  dei callsign non riconosciuti (parametro non_classified_flights).
-- La sezione "MOVIMENTI DELLA NOTTE" include la categoria
-  "Non classificato" (visibile).
-- send_daily_status() accetta non_classified_flights.
-
-Novità v2.5.21 (fix avviso import notturno):
-- send_daily_status() accetta parametro night_import_failed.
-
+Novità v2.6.1 (filtro quality check).
+Novità v2.6.0 (email semplificata + voli non classificati).
+Novità v2.5.21 (fix avviso import notturno).
 Novità v2.5.20 (avviso import notturno).
 Novità v2.5.19 (check 12 backup DB).
 Novità v2.5.18 (backup DB - send_backup_alert).
@@ -37,6 +29,7 @@ Novità v2.5.4 (stats + header).
 Novità v2.5.2 (flag di silenziamento).
 """
 import os
+import csv
 import json
 import smtplib
 from email.mime.text import MIMEText
@@ -46,7 +39,7 @@ from email.utils import formataddr
 from datetime import datetime
 
 from bgy_core.bgy_logger import get_logger
-from bgy_core.bgy_paths import LOGS_DIR
+from bgy_core.bgy_paths import LOGS_DIR, OUTPUT_CSV_DIR
 from bgy_core.bgy_config_manager import config_manager
 from bgy_core.bgy_version import version_string
 from bgy_core.bgy_logger import _get_today_log_path
@@ -56,7 +49,6 @@ logger = get_logger("Mailer")
 COOLDOWN_FILE = os.path.join(LOGS_DIR, "notifier_cooldown.json")
 DEFAULT_COOLDOWN_MIN = 30
 
-# Check che non fanno diventare l'email ❌ se falliscono
 WARNING_ONLY_CHECKS = {'avionio_confronto', 'backup'}
 
 
@@ -277,12 +269,6 @@ def send_alert(key, subject, body, force=False):
 
 
 def send_backup_alert(reason):
-    """
-    Notifica email immediata in caso di fallimento del backup DB (F18).
-
-    Bypassa il cooldown (evento critico, non ripetuto).
-    Rispetta il master switch notifications.enabled e alerts_enabled.
-    """
     if not are_alerts_enabled():
         logger.info("🔕 Backup alert silenziato (notifications.alerts_enabled=False)")
         return True
@@ -409,7 +395,6 @@ def send_status_email(subject, body, is_success=True,
 # =============================================================================
 
 def _format_cat_line(cat_label, cat_data):
-    """Riga singola categoria."""
     d = cat_data.get("decolli", 0)
     a = cat_data.get("atterraggi", 0)
     if d == 0 and a == 0:
@@ -418,10 +403,6 @@ def _format_cat_line(cat_label, cat_data):
 
 
 def _format_nightly_section(nightly, yesterday_str, night_import_failed):
-    """
-    Formatta la sezione movimenti notturni con le 4 categorie visibili:
-    Passeggeri, Cargo, Charter, Non classificato.
-    """
     if not nightly:
         return ""
 
@@ -435,7 +416,6 @@ def _format_nightly_section(nightly, yesterday_str, night_import_failed):
 
     lines.append(f"🌙 MOVIMENTI DELLA NOTTE ({yesterday_str})")
 
-    # 4 categorie visibili
     for cat_key, cat_label in (
         ("passeggeri", "Passeggeri"),
         ("cargo", "Cargo"),
@@ -455,7 +435,6 @@ def _format_nightly_section(nightly, yesterday_str, night_import_failed):
     lines.append(f"   TOTALE NOTTE: {nightly.get('totale', 0)}")
     lines.append("")
 
-    # Sconfinamenti
     sconf = nightly.get("sconfinamenti", {})
     sconf_tot = sconf.get("totale", 0)
     if sconf_tot > 0:
@@ -474,7 +453,6 @@ def _format_nightly_section(nightly, yesterday_str, night_import_failed):
         lines.append(f"   TOTALE SCONFINAMENTI: {sconf_tot}")
         lines.append("")
 
-    # Sconfinamenti gravi
     sconf_gravi = nightly.get("sconfinamenti_gravi", {})
     sconf_gravi_tot = sconf_gravi.get("totale", 0)
     if sconf_gravi_tot > 0:
@@ -493,7 +471,6 @@ def _format_nightly_section(nightly, yesterday_str, night_import_failed):
         lines.append(f"   TOTALE GRAVI: {sconf_gravi_tot}")
         lines.append("")
 
-    # Anomalie
     anomalie = nightly.get("anomalie", {})
     anom_tot = anomalie.get("totale", 0)
     if anom_tot > 0:
@@ -516,9 +493,6 @@ def _format_nightly_section(nightly, yesterday_str, night_import_failed):
 
 
 def _format_non_classified_section(non_classified_flights):
-    """
-    Sezione "VOLI NON CLASSIFICATI" con la lista dei callsign.
-    """
     if not non_classified_flights:
         return ""
 
@@ -533,7 +507,6 @@ def _format_non_classified_section(non_classified_flights):
         sched = f.get("orario_schedulato", "?")
         comp = f.get("compagnia_aerea", "N/D")
         fase = f.get("fase_volo", "?")
-        # Mostra la fase solo se utile (radar)
         fase_tag = f" [{fase}]" if fase and fase not in ("Non rilevato", "?", "") else ""
         lines.append(f"   • {cs} ({direzione}) sched={sched} — {comp}{fase_tag}")
 
@@ -544,12 +517,94 @@ def _format_non_classified_section(non_classified_flights):
     return "\n".join(lines)
 
 
+# -----------------------------------------------------------------------------
+# BORDERLINE (v2.7.0)
+# -----------------------------------------------------------------------------
+
+def _load_borderline_flights(session_date_str):
+    """
+    v2.7.0: legge il file borderline_YYYY-MM-DD.csv della sessione.
+    Ritorna lista di dict (vuota se il file non esiste).
+    """
+    if not session_date_str:
+        return []
+
+    path = os.path.join(OUTPUT_CSV_DIR, f"borderline_{session_date_str}.csv")
+    if not os.path.exists(path):
+        return []
+
+    rows = []
+    try:
+        with open(path, "r", encoding="utf-8-sig", newline="") as f:
+            reader = csv.DictReader(f)
+            for r in reader:
+                rows.append(r)
+    except Exception as e:
+        logger.warning(f"Errore lettura {path}: {e}")
+        return []
+
+    return rows
+
+
+def _format_borderline_section(borderline_flights):
+    """
+    v2.7.0: formatta la sezione "MOVIMENTI BORDERLINE".
+
+    Principio: il rumore conta solo se prodotto tra le 23:01 e le 05:59.
+    I voli schedulati in fascia ma operati fuori sono borderline.
+    """
+    if not borderline_flights:
+        return ""
+
+    n = len(borderline_flights)
+    lines = []
+    lines.append(f"⚠️  MOVIMENTI BORDERLINE ({n}):")
+    lines.append("   Schedulati in fascia notturna (>= 23:00 o < 06:00)")
+    lines.append("   ma operati fuori dalla finestra 23:01-05:59.")
+    lines.append("   NON conteggiati come movimenti notturni (niente rumore).")
+    lines.append("")
+
+    # Raggruppa per categoria
+    by_cat = {}
+    for r in borderline_flights:
+        cat = r.get("categoria_borderline", "altro") or "altro"
+        by_cat.setdefault(cat, []).append(r)
+
+    # Ordina le categorie per un ordine di lettura gradevole
+    order = [
+        "decollo anticipato", "decollo posticipato",
+        "atterraggio anticipato", "atterraggio posticipato",
+        "movimento anticipato", "movimento posticipato",
+        "borderline altro",
+    ]
+    all_cats = [c for c in order if c in by_cat]
+    for c in by_cat:
+        if c not in all_cats:
+            all_cats.append(c)
+
+    for cat in all_cats:
+        items = by_cat[cat]
+        lines.append(f"   ▸ {cat.upper()} ({len(items)}):")
+        for r in items:
+            cs = r.get("callsign", "?")
+            comp = r.get("compagnia_aerea", "N/D")
+            sched = r.get("orario_schedulato", "?")
+            ts = r.get("timestamp", "?")
+            dir_s = r.get("direzione_sacbo", "?")
+            lines.append(
+                f"     • {cs} ({comp}, {dir_s}) sched {sched} → op {ts}"
+            )
+        lines.append("")
+
+    lines.append("   Nota: il rumore notturno si calcola solo tra le 23:01 e le 05:59.")
+    lines.append("")
+
+    return "\n".join(lines)
+
+
 def _format_stats_section(stats, yesterday_str, night_import_failed=False,
-                          non_classified_flights=None):
-    """
-    Formatta la sezione statistiche.
-    v2.6.0: solo notturno + non classificati.
-    """
+                          non_classified_flights=None,
+                          borderline_flights=None):
     lines = []
     nightly = stats.get("nightly") if stats else None
 
@@ -558,6 +613,11 @@ def _format_stats_section(stats, yesterday_str, night_import_failed=False,
                                                 night_import_failed)
         if nightly_text:
             lines.append(nightly_text)
+
+    if borderline_flights:
+        bl_text = _format_borderline_section(borderline_flights)
+        if bl_text:
+            lines.append(bl_text)
 
     if non_classified_flights:
         nc_text = _format_non_classified_section(non_classified_flights)
@@ -572,63 +632,31 @@ def _format_stats_section(stats, yesterday_str, night_import_failed=False,
 # =============================================================================
 
 def _filter_quality_check_text(msg):
-    """
-    v2.6.1: filtra il testo del quality check per l'email.
-
-    Mantiene:
-      - righe di intestazione (───, ℹ️)
-      - righe ❌ e ⚠️
-      - righe di dettaglio (→) che seguono ❌ o ⚠️
-      - riga finale "Riepilogo: ..."
-
-    Rimuove:
-      - righe ✅
-      - righe di dettaglio (→) che seguono ✅
-    """
     if not msg:
         return ""
-
     out = []
     keep_details = False
-
     for line in msg.split("\n"):
         stripped = line.lstrip()
-
-        # Riga ✅: scarta, e scarta anche i dettagli che la seguono
         if stripped.startswith("✅"):
             keep_details = False
             continue
-
-        # Riga ❌ o ⚠️: mantieni, e abilita i dettagli
         if stripped.startswith("❌") or stripped.startswith("⚠"):
             keep_details = True
             out.append(line)
             continue
-
-        # Riga dettaglio (→): mantieni solo se segue ❌/⚠️
         if stripped.startswith("→"):
             if keep_details:
                 out.append(line)
             continue
-
-        # Qualsiasi altra riga (header, riepilogo, vuota): mantieni
-        # e disabilita i dettagli (non stanno seguendo un problema)
         keep_details = False
         out.append(line)
-
-    # Rimuovi eventuali righe vuote consecutive in coda
     while out and not out[-1].strip():
         out.pop()
-
     return "\n".join(out)
 
 
 def _render_problems(checks):
-    """
-    v2.6.0: renderizza SOLO i problemi (❌ KO, ⚠️ WARN).
-    v2.6.1: per il quality_check, filtra le righe ✅ dal messaggio.
-    Se non ci sono problemi, ritorna stringa vuota.
-    """
     if not checks:
         return ""
 
@@ -648,27 +676,21 @@ def _render_problems(checks):
     ]
 
     problems = []
-
     for key, label in labels:
         if key not in checks:
             continue
         ok, msg = checks[key]
         if ok:
-            continue  # v2.6.0: nasconde le righe OK
-
-        # Determina icona
+            continue
         if key in WARNING_ONLY_CHECKS:
             icon = '⚠️'
             stato = 'WARN'
         else:
             icon = '❌'
             stato = 'KO'
-
         problems.append(f"{icon} {label}: {stato}")
-
         if msg:
             if key == 'quality_check':
-                # v2.6.1: filtra le righe ✅
                 filtered = _filter_quality_check_text(msg)
                 if filtered:
                     problems.append(filtered)
@@ -693,11 +715,13 @@ def _render_problems(checks):
 def send_daily_status(success=True, details="", checks=None, stats=None,
                       screenshot_paths=None, force=False,
                       night_import_failed=False,
-                      non_classified_flights=None):
+                      non_classified_flights=None,
+                      borderline_flights=None):
     """
     Invia l'email di stato giornaliero.
 
-    v2.6.0: firma estesa con non_classified_flights (lista di dict).
+    v2.7.0: parametro borderline_flights (lista di dict letta da
+    borderline_YYYY-MM-DD.csv). Se None, prova a leggere dal file.
     """
     if not force and not is_daily_status_enabled():
         logger.info("🔕 Email di stato giornaliero silenziata")
@@ -719,20 +743,24 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
     from datetime import timedelta
     yesterday_dt = datetime.now() - timedelta(days=1)
     yesterday_str = yesterday_dt.strftime("%d/%m/%Y")
+    yesterday_iso = yesterday_dt.strftime("%Y-%m-%d")
+
+    # v2.7.0: se il chiamante non passa i borderline, prova a leggerli
+    if borderline_flights is None:
+        borderline_flights = _load_borderline_flights(yesterday_iso)
 
     parts = []
 
-    # v2.6.0: sezione problemi (solo ❌ e ⚠️)
     problems_text = _render_problems(checks)
     if problems_text:
         parts.append(problems_text)
 
-    # v2.6.0: solo statistiche notturne + non classificati
     if stats:
         stats_text = _format_stats_section(
             stats, yesterday_str,
             night_import_failed=night_import_failed,
             non_classified_flights=non_classified_flights,
+            borderline_flights=borderline_flights,
         )
         if stats_text:
             parts.append("━" * 37)
@@ -743,10 +771,8 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
     if details:
         body += f"\n{details}"
 
-    # Allegati
     attachments = []
 
-    # Log allegato solo se ci sono errori non-GitHub-only
     if not all_ok:
         only_sync_error = (
             checks and
@@ -798,7 +824,6 @@ def send_email_with_attachments(attachment_paths, subject=None,
 
 
 def send_test_email():
-    """Invia un'email di test (ignora tutti i flag). Ritorna (bool, msg)."""
     now = datetime.now()
     subject = f"🧪 Email di test BGY - {now.strftime('%d/%m/%Y %H:%M')}"
     body = (

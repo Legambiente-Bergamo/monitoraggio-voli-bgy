@@ -1,16 +1,24 @@
 """
 bgy_scanners/bgy_scanner_radar.py - Scanner radar h24 multi-fonte.
-Versione 1.0.0
+Versione 1.1.1
 
-- Cascata: adsb.lol -> adsb.fi -> OpenSky
-- Modalità test parallelo: interroga tutte le fonti e salva un riepilogo
-- Parser per airplanes.live incluso ma disattivato di default
-- Finestra h24 (nessun check notturno)
-- Bounding box, coordinate, soglie, UA, timeout: da config_data.json (scanner_radar)
+Novità v1.1.1 (04/10/2026):
+- detect_runway_and_phase(): esclude RWY 16 e RWY 34 (piste dismesse).
+  Queste piste non esistono più a BGY ma il classificatore le assegnava
+  erroneamente a voli in virata con track 160-190° o 340-10°.
+
+Novità v1.1.0 (fix classificazione fase):
+- Aggiunto campo baro_rate (velocità verticale) in tutti i parser.
+- detect_runway_and_phase(): usa baro_rate per disambiguare "Avvicinamento"
+  in "Decollo" quando l'aereo è in salita netta (>500 ft/min).
+  Questo risolve il bug per cui un decollo a 6.5 km / 2025 ft con
+  track 135° veniva classificato come "Avvicinamento" e quindi
+  direzione 'A' nel report notturno (caso NSZ2941, 2/10/2026).
+- Fix implicito: baro_rate ora è una colonna del CSV radar.
 
 Novità v1.0.0:
 - Primo rilascio. Sostituisce bgy_scanner_night.py.
-- Aggiunta colonna 'fonte' ai rilevamenti (per tracciare la sorgente).
+- Aggiunta colonna 'fonte' ai rilevamenti.
 - Salvataggio cumulativo giornaliero (radar_YYYY-MM-DD.csv).
 """
 import os
@@ -39,18 +47,12 @@ except Exception:
     pass
 
 
-# -----------------------------------------------------------------------------
-# CONFIG
-# -----------------------------------------------------------------------------
+BARO_RATE_THRESHOLD_FPM = 500
+
 
 def _cfg():
-    """Ritorna la config scanner_radar con default applicati."""
     return config_manager.get_scanner_radar_config()
 
-
-# -----------------------------------------------------------------------------
-# UTILITY
-# -----------------------------------------------------------------------------
 
 def load_opensky_credentials():
     if os.path.exists(CONFIG_OPENSKY):
@@ -64,19 +66,22 @@ def load_opensky_credentials():
 
 
 def _get_session_date(now):
-    """Data del giorno solare corrente."""
     return now.strftime("%Y-%m-%d")
 
 
 def _bearing_in_range(bearing, low, high):
-    """Gestisce il wrap-around (es. RWY 34: 340-10)."""
     if low <= high:
         return low <= bearing <= high
     return bearing >= low or bearing <= high
 
 
-def detect_runway_and_phase(lat, lon, track, alt, cfg):
-    """Determina pista, fase, direzione e distanza da BGY."""
+def detect_runway_and_phase(lat, lon, track, alt, cfg, baro_rate=None):
+    """
+    Determina pista, fase, direzione e distanza da BGY.
+
+    baro_rate: velocità verticale in ft/min (positiva = salita,
+               negativa = discesa). None se non disponibile.
+    """
     if lat is None or lon is None:
         return "N/D", "N/D", "N/D", 999
 
@@ -84,17 +89,29 @@ def detect_runway_and_phase(lat, lon, track, alt, cfg):
     bgy_lon = cfg["bgy_lon"]
     max_distance = cfg["max_distance_km"]
     thresholds = cfg["phase_thresholds"]
-    runways = cfg["runway_bearings"]
-
+    runways = {
+    k: v for k, v in cfg["runway_bearings"].items()
+    if k not in ("RWY 16", "RWY 34")
+}
     distance = haversine(lat, lon, bgy_lat, bgy_lon)
     alt_val = alt if alt is not None else 0
 
     if distance < thresholds["landing_max_distance_km"] \
             and alt_val < thresholds["landing_max_altitude_ft"]:
-        phase = "Atterraggio" if (track is not None and track > 180) else "Decollo"
+        # Vicino e basso: atterraggio o decollo in corso.
+        if baro_rate is not None and abs(baro_rate) > BARO_RATE_THRESHOLD_FPM:
+            phase = "Decollo" if baro_rate > 0 else "Atterraggio"
+        else:
+            phase = "Atterraggio" if (track is not None and track > 180) else "Decollo"
     elif distance < thresholds["approach_max_distance_km"] \
             and alt_val < thresholds["approach_max_altitude_ft"]:
-        phase = "Avvicinamento"
+        # Fascia intermedia: ambigua. Usiamo baro_rate per disambiguare.
+        if baro_rate is not None and baro_rate > BARO_RATE_THRESHOLD_FPM:
+            # Salita netta → è un decollo in partenza, non un avvicinamento
+            phase = "Decollo"
+        else:
+            # Discesa o livellato → avvicinamento
+            phase = "Avvicinamento"
     elif distance < max_distance:
         phase = "Sorvolo"
     else:
@@ -148,10 +165,6 @@ def _http_get_robusto(url, timeout=15, auth=None):
         return None, False
 
 
-# -----------------------------------------------------------------------------
-# FETCH: ADSB.LOL
-# -----------------------------------------------------------------------------
-
 def _fetch_adsblol():
     cfg = _cfg()
     url = (f"https://api.adsb.lol/v2/point/"
@@ -179,10 +192,6 @@ def _fetch_adsblol():
     logger.info(f"📡 adsb.lol: ricevuti {len(aircraft)} stati (primaria)")
     return _parse_adsb_generic(aircraft, "adsb.lol")
 
-
-# -----------------------------------------------------------------------------
-# FETCH: ADSB.FI
-# -----------------------------------------------------------------------------
 
 def _fetch_adsbfi():
     cfg = _cfg()
@@ -212,10 +221,6 @@ def _fetch_adsbfi():
     return _parse_adsb_generic(aircraft, "adsb.fi")
 
 
-# -----------------------------------------------------------------------------
-# FETCH: AIRPLANES.LIVE (disattivato di default)
-# -----------------------------------------------------------------------------
-
 def _fetch_airplaneslive():
     cfg = _cfg()
     if not cfg.get("airplanes_live_enabled", False):
@@ -239,10 +244,6 @@ def _fetch_airplaneslive():
     logger.info(f"📡 airplanes.live: ricevuti {len(aircraft)} stati (fallback 2)")
     return _parse_adsb_generic(aircraft, "airplanes.live")
 
-
-# -----------------------------------------------------------------------------
-# FETCH: OPENSKY
-# -----------------------------------------------------------------------------
 
 def _fetch_opensky():
     cfg = _cfg()
@@ -282,6 +283,10 @@ def _fetch_opensky():
 
 
 def _parse_opensky(states):
+    """
+    Nota: OpenSky restituisce baro_altitude in metri.
+    Viene convertita in piedi (1 m = 3.28084 ft) per coerenza.
+    """
     cfg = _cfg()
     max_distance = cfg["max_distance_km"]
     now = datetime.now()
@@ -301,8 +306,20 @@ def _parse_opensky(states):
         if icao24 is None:
             continue
 
+        alt_m = s[7]
+        alt_ft = int(alt_m * 3.28084) if alt_m is not None else 0
+
+        vrate_ms = s[11] if len(s) > 11 else None
+        if vrate_ms is not None:
+            try:
+                baro_rate = int(float(vrate_ms) * 196.85)  # m/s -> ft/min
+            except (ValueError, TypeError):
+                baro_rate = None
+        else:
+            baro_rate = None
+
         runway, direction, phase, distance = detect_runway_and_phase(
-            s[6], s[5], s[10], s[7], cfg)
+            s[6], s[5], s[10], alt_ft, cfg, baro_rate=baro_rate)
         if distance > max_distance:
             discarded_far += 1
             continue
@@ -314,10 +331,11 @@ def _parse_opensky(states):
             "pista": runway,
             "fase_volo": phase,
             "direzione": direction,
-            "quota_ft": int(s[7]) if s[7] else 0,
+            "quota_ft": alt_ft,
             "rotta_deg": float(s[10]) if s[10] else 0,
             "distanza_km": round(distance, 2),
             "paese": s[2] or "N/D",
+            "baro_rate": baro_rate if baro_rate is not None else 0,
             "fonte": "opensky",
         })
 
@@ -327,10 +345,6 @@ def _parse_opensky(states):
         logger.debug(f"🗑️ Scartati {discarded_unknown} stati senza callsign/posizione")
     return flights
 
-
-# -----------------------------------------------------------------------------
-# PARSER GENERICO (adsb.lol, adsb.fi, airplanes.live)
-# -----------------------------------------------------------------------------
 
 def _parse_adsb_generic(aircraft, source_name):
     cfg = _cfg()
@@ -349,6 +363,7 @@ def _parse_adsb_generic(aircraft, source_name):
         lon = ac.get("lon")
         alt = ac.get("alt_baro")
         track = ac.get("track") or ac.get("calc_track")
+        baro_rate = ac.get("baro_rate") or ac.get("geom_rate")
 
         if icao24 is None or lat is None or lon is None:
             discarded_unknown += 1
@@ -367,8 +382,13 @@ def _parse_adsb_generic(aircraft, source_name):
         except (ValueError, TypeError):
             track_deg = None
 
+        try:
+            baro_rate_fpm = int(baro_rate) if baro_rate is not None else None
+        except (ValueError, TypeError):
+            baro_rate_fpm = None
+
         runway, direction, phase, distance = detect_runway_and_phase(
-            lat, lon, track_deg, alt_ft, cfg)
+            lat, lon, track_deg, alt_ft, cfg, baro_rate=baro_rate_fpm)
         if distance > max_distance:
             discarded_far += 1
             continue
@@ -384,6 +404,7 @@ def _parse_adsb_generic(aircraft, source_name):
             "rotta_deg": track_deg if track_deg is not None else 0,
             "distanza_km": round(distance, 2),
             "paese": ac.get("country") or "N/D",
+            "baro_rate": baro_rate_fpm if baro_rate_fpm is not None else 0,
             "fonte": source_name,
         })
 
@@ -394,15 +415,7 @@ def _parse_adsb_generic(aircraft, source_name):
     return flights
 
 
-# -----------------------------------------------------------------------------
-# MODALITÀ TEST PARALLELO
-# -----------------------------------------------------------------------------
-
 def _run_parallel_test():
-    """
-    Interroga tutte le fonti disponibili in parallelo e salva un riepilogo.
-    Usato solo per misurare la copertura, non per la produzione.
-    """
     logger.info("=" * 60)
     logger.info("🧪 MODALITÀ TEST PARALLELO - Interrogo tutte le fonti")
     logger.info("=" * 60)
@@ -425,7 +438,6 @@ def _run_parallel_test():
             logger.error(f"  {name}: errore - {e}")
             results[name] = {"count": 0, "flights": [], "error": str(e)}
 
-    # Salva riepilogo
     now = datetime.now()
     session_date = _get_session_date(now)
     summary_file = os.path.join(
@@ -442,7 +454,6 @@ def _run_parallel_test():
     except Exception as e:
         logger.error(f"Errore salvataggio riepilogo test: {e}")
 
-    # Log dettagliato
     logger.info("-" * 60)
     logger.info("RIEPILOGO COPERTURA:")
     for name, r in results.items():
@@ -452,21 +463,8 @@ def _run_parallel_test():
     return results
 
 
-# -----------------------------------------------------------------------------
-# SCANSIONE PRINCIPALE
-# -----------------------------------------------------------------------------
-
 @retry_on_failure(max_retries=2, delay=2)
 def run_radar_scan(parallel_test=False):
-    """
-    Esegue la scansione radar.
-
-    Parametri:
-      - parallel_test (bool): se True, interroga tutte le fonti in parallelo
-        e salva un riepilogo. Non salva il CSV di produzione.
-
-    Ritorna il path del file CSV salvato, o None.
-    """
     cfg = _cfg()
     now = datetime.now()
 
@@ -479,7 +477,6 @@ def run_radar_scan(parallel_test=False):
 
     session_date = _get_session_date(now)
 
-    # Cascata: adsb.lol -> adsb.fi -> airplanes.live -> OpenSky
     flights = _fetch_adsblol()
     source = "adsb.lol"
     if not flights:
@@ -515,7 +512,6 @@ def run_radar_scan(parallel_test=False):
     else:
         df = df_new
 
-    # Deduplica: stesso icao24 nella stessa finestra di 2 minuti
     if "icao24" in df.columns and "timestamp" in df.columns:
         before = len(df)
         df["_ts_min"] = pd.to_datetime(df["timestamp"]).dt.floor("2min")

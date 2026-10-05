@@ -1,38 +1,35 @@
 """
 bgy_reports/bgy_report_night.py - Report notturno integrato (SACBO + radar).
-Versione 2.9.7
+Versione 2.9.14
 
-Modello logico:
-- Nessuna presunzione "tabellone = passeggeri".
-- Ogni volo è classificato in modo indipendente dalla fonte tramite
-  classify_callsign() di bgy_update_rules.
+Novità v2.9.14 (04/10/2026):
+- _split_borderline_flights(): separa i voli schedulati in fascia notturna
+  (>= 23:00 o < 06:00) ma operati fuori dalla finestra 23:01-05:59.
+  Questi "movimenti borderline" NON sono movimenti notturni e vanno esclusi
+  dal report principale (niente rumore, niente KPI).
+- Vengono scritti in un CSV dedicato (giornaliero + cumulativo mensile):
+    bgy_data/bgy_output/bgy_csv/borderline_YYYY-MM-DD.csv
+    bgy_data/bgy_output/bgy_csv/borderline_YYYY-MM.csv
+- _categorize_borderline(): assegna categoria ('decollo anticipato',
+  'decollo posticipato', 'atterraggio anticipato', 'atterraggio posticipato').
 
-Novità v2.9.7 (matching secondario):
-- Nuovo Livello 1: pattern callsign operativo → volo commerciale.
-  Tabella DB callsign_airline_patterns: MAC→3O, MMO→MT, FIE→3F.
-  Es: MAC455 → 3O455. Match richiede stessa direzione + finestra.
-- Nuovo Livello 2: priorità al numero commerciale nel match principale.
-  Se due radar hanno lo stesso prefisso ICAO in finestra, preferisce
-  quello con lo stesso numero commerciale del volo schedulato.
-  Es: FR5984 → preferisce RYR5984 a RYR91EJ.
-- La logica di direzione resta invariata: D ↔ D, A ↔ A.
-- Log del match esteso: "X confermati (di cui Y per numero, Z per pattern)".
+Principio documentato:
+- Il rumore conta solo se prodotto tra le 23:01 e le 05:59.
+- Un volo schedulato in fascia ma operato fuori è un "borderline" e va
+  tracciato separatamente.
 
-Novità v2.9.6 (fix radar notturno su due file):
-- La sessione notturna copre 23:00 (X) → 06:00 (X+1). Carica
-  radar_X.csv + radar_{X+1}.csv. Il fix risolve il N/D pista al 70%.
-
-Novità v2.9.5 (fix passeggeri-radar gonfiati).
-Novità v2.9.4 (fix falsi sconfinamenti).
-Novità v2.9.3 (fix match per prefisso ICAO).
-Novità v2.9.2 (fix tentativo match callsign completo).
-Novità v2.9.1 (verifica callsign, troppo severa).
-Novità v2.9.0 (classificazione unificata).
-Novità v2.8.x (invariate).
+Novità v2.9.13: fix out-of-window (post match_flights).
+Novità v2.9.12: prima versione del fix (deprecata).
+Novità v2.9.11: fix _propagate_runway_in_session (pd.isna).
+Novità v2.9.10: raggruppa per solo callsign.
+Novità v2.9.9: prima versione del fix propagazione pista.
+Novità v2.9.8: esclusione voli pomeridiani da anomalie.
+Novità v2.9.7: pattern callsign + priorità numero commerciale.
 """
 import os
 import re
 import math
+import csv
 from collections import defaultdict
 import pandas as pd
 from datetime import datetime, timedelta
@@ -86,7 +83,6 @@ STATI_OPERATI = ('DECOLLATO', 'ATTERRATO', 'ARRIVATO', 'IN VOLO', 'PARTITO')
 VISIBLE_CATEGORIES = ('Passeggeri', 'Cargo', 'Charter', 'Non classificato')
 PAX_CATEGORIES = ('Passeggeri', 'Charter')
 
-# Cache pattern
 _callsign_patterns_cache = None
 _inverted_patterns_cache = None
 
@@ -100,7 +96,6 @@ def _cfg():
 # -----------------------------------------------------------------------------
 
 def _load_callsign_patterns():
-    """Carica i pattern callsign dalla tabella DB. Cache in memoria."""
     global _callsign_patterns_cache
     if _callsign_patterns_cache is not None:
         return _callsign_patterns_cache
@@ -129,7 +124,6 @@ def _load_callsign_patterns():
 
 
 def _get_inverted_patterns():
-    """{'MAC': '3O'} → {'3O': ['MAC']}"""
     global _inverted_patterns_cache
     if _inverted_patterns_cache is not None:
         return _inverted_patterns_cache
@@ -370,11 +364,6 @@ def _icao_prefix_from_radar(callsign_radar):
 
 
 def _extract_icao_number(callsign):
-    """
-    Ritorna (prefisso_icao, numero) dal callsign radar.
-    Es: 'RYR5984' → ('RYR', '5984'), 'MAC455' → ('MAC', '455').
-    Ritorna (None, None) se non riesce.
-    """
     cs = _normalize_callsign(callsign)
     if len(cs) < 4:
         return None, None
@@ -386,7 +375,6 @@ def _extract_icao_number(callsign):
 
 
 def _extract_iata_number(callsign_sacbo):
-    """Da '3O455' ritorna ('3O', '455')."""
     cs = _normalize_callsign(callsign_sacbo)
     if not cs:
         return None, None
@@ -473,6 +461,15 @@ def _classify_volo(records, radar_df=None, session_date=None):
     sched = records[0]['orario_schedulato']
     callsign = records[0].get('callsign_volo', '')
     direzione_sacbo = str(records[0].get('tipo_movimento', '')).strip().upper()[:1]
+
+    sched_min_check = _time_to_minutes(sched)
+    if sched_min_check is not None:
+        if 6 * 60 <= sched_min_check < 17 * 60:
+            logger.debug(
+                f"⏭️  {callsign}: schedulato {sched} (pieno giorno), "
+                f"fuori scope sessione notturna"
+            )
+            return None
 
     if _is_in_night_schedule(sched):
         return 'regolare'
@@ -708,6 +705,63 @@ def normalize_scan_columns(df):
     return df
 
 
+def _propagate_runway_in_session(radar_df):
+    if radar_df.empty or 'callsign' not in radar_df.columns:
+        return radar_df
+    if 'pista' not in radar_df.columns:
+        return radar_df
+
+    df = radar_df.copy()
+
+    def _clean_pista(p):
+        if p is None:
+            return ""
+        try:
+            if pd.isna(p):
+                return ""
+        except (TypeError, ValueError):
+            pass
+        s = str(p).strip()
+        if s in ("", "N/D", "nan", "None", "NaN"):
+            return ""
+        return s
+
+    df['_pista_clean'] = df['pista'].apply(_clean_pista)
+
+    pista_map = {}
+    for _, row in df.iterrows():
+        cs = str(row.get('callsign', '') or '').strip().upper()
+        if not cs:
+            continue
+        if cs in pista_map:
+            continue
+        p = row['_pista_clean']
+        if p in ('RWY 28', 'RWY 10'):
+            pista_map[cs] = p
+
+    n_filled = 0
+    for idx, row in df.iterrows():
+        if row['_pista_clean']:
+            continue
+        cs = str(row.get('callsign', '') or '').strip().upper()
+        if not cs:
+            continue
+        p = pista_map.get(cs)
+        if p:
+            df.at[idx, 'pista'] = p
+            n_filled += 1
+
+    df = df.drop(columns=['_pista_clean'])
+
+    if n_filled > 0:
+        logger.info(f"📡 Propagazione pista: {n_filled} rilevamenti N/D "
+                    f"hanno ereditato la pista dal callsign")
+    else:
+        logger.info("📡 Propagazione pista: nessun rilevamento da propagare")
+
+    return df
+
+
 def load_radar_data(date_str):
     date_norm = normalize_date(date_str)
     next_date = (datetime.strptime(date_norm, "%Y-%m-%d")
@@ -738,6 +792,9 @@ def load_radar_data(date_str):
     combined = pd.concat(dfs, ignore_index=True)
     logger.info(f"📡 Totale radar sessione: {len(combined)} rilevamenti "
                 f"({len(dfs)} file)")
+
+    combined = _propagate_runway_in_session(combined)
+
     return combined
 
 
@@ -808,12 +865,6 @@ def _dedup_by_key(df):
 def _try_pattern_match_for_sched(sched_callsign, direzione_sacbo,
                                   sched_min, low, high, radar,
                                   used_radar_idx, inv_patterns):
-    """
-    Livello 1: cerca un radar con pattern callsign noto.
-    Es: sched '3O455' → IATA '3O' → patterns_for_iata['3O'] = ['MAC']
-        → cerco radar 'MAC455' in finestra + fase compatibile.
-    Ritorna (best_idx, best_delta) o (None, None).
-    """
     if not sched_callsign:
         return None, None
     iata_sched, num_sched = _extract_iata_number(sched_callsign)
@@ -1264,6 +1315,169 @@ def _enrich_final(df):
 
 
 # -----------------------------------------------------------------------------
+# BORDERLINE (v2.9.14)
+# -----------------------------------------------------------------------------
+
+def _split_borderline_flights(result_df):
+    """
+    v2.9.14: separa i voli schedulati in fascia notturna (>= 23:00 o < 06:00)
+    ma operati fuori dalla finestra 23:01-05:59.
+
+    Questi "borderline" NON sono movimenti notturni: il rumore da loro
+    prodotto non è rumore notturno, e non devono apparire nei KPI.
+
+    Ritorna (df_ok, df_borderline, n_esclusi).
+    """
+    if result_df.empty:
+        return result_df, result_df.iloc[0:0], 0
+
+    if 'orario_schedulato' not in result_df.columns:
+        return result_df, result_df.iloc[0:0], 0
+    if 'timestamp' not in result_df.columns:
+        return result_df, result_df.iloc[0:0], 0
+
+    def _is_borderline(row):
+        sched = row.get('orario_schedulato')
+        ts = row.get('timestamp')
+        if not sched or pd.isna(sched):
+            return False
+        if not ts or pd.isna(ts) or str(ts).strip() == '':
+            return False
+
+        sched_min = _time_to_minutes(sched)
+        if sched_min is None:
+            return False
+        # Solo voli schedulati in fascia notturna
+        if not (sched_min >= 23 * 60 or sched_min < 6 * 60):
+            return False
+
+        try:
+            ts_dt = pd.to_datetime(ts)
+        except Exception:
+            return False
+
+        # Finestra "vera" del rumore notturno: 23:01 - 05:59
+        h = ts_dt.hour
+        m = ts_dt.minute
+        minutes = h * 60 + m
+
+        # In finestra: 23:01 <= minuti < 06:00 → 1381 <= m < 360 (ciclo)
+        # Uso: notturno = (m >= 1381) or (m < 360)
+        in_window = (minutes >= 1381) or (minutes < 360)
+        return not in_window
+
+    mask = result_df.apply(_is_borderline, axis=1)
+    n_excluded = int(mask.sum())
+    df_borderline = result_df[mask].copy()
+    df_ok = result_df[~mask].reset_index(drop=True)
+
+    return df_ok, df_borderline, n_excluded
+
+
+def _categorize_borderline(row):
+    """
+    Ritorna una stringa che descrive il tipo di borderline.
+    Categorie:
+    - 'decollo posticipato' (sched in fascia, decollo dopo 06:00)
+    - 'decollo anticipato'  (sched in fascia, decollo prima di 23:01)
+    - 'atterraggio posticipato'
+    - 'atterraggio anticipato'
+    - 'borderline altro'
+    """
+    sched = row.get('orario_schedulato')
+    ts = row.get('timestamp')
+    direzione = str(row.get('direzione_sacbo', '') or '').upper()
+
+    if not sched or not ts:
+        return 'borderline altro'
+
+    sched_min = _time_to_minutes(sched)
+    try:
+        ts_dt = pd.to_datetime(ts)
+    except Exception:
+        return 'borderline altro'
+
+    ts_min = ts_dt.hour * 60 + ts_dt.minute
+
+    # Anticipato se operato < 23:01 (cioè tra 00:00 e 23:00 di oggi)
+    # Posticipato se operato >= 06:00 (e < 23:00)
+    anticipato = (ts_min < 1381) and (ts_min >= 360)  # 06:00-22:59
+    posticipato = (ts_min < 1381) and (ts_min >= 360)  # stessa condizione
+
+    # In realtà la distinzione anticipato/posticipato dipende dal momento
+    # della schedulazione:
+    # - sched >= 23:00 (sera) e operato < 23:00 → anticipato
+    # - sched < 06:00 (mattina) e operato >= 06:00 → posticipato
+    if sched_min >= 23 * 60:
+        tipo = 'anticipato' if (ts_min >= 360 and ts_min < 1381) else 'altro'
+    elif sched_min < 6 * 60:
+        tipo = 'posticipato' if (ts_min >= 360 and ts_min < 1381) else 'altro'
+    else:
+        tipo = 'altro'
+
+    if direzione == 'D':
+        return f'decollo {tipo}'.strip()
+    if direzione == 'A':
+        return f'atterraggio {tipo}'.strip()
+    return f'movimento {tipo}'.strip()
+
+
+def _write_borderline_files(date_norm, df_borderline):
+    """
+    Scrive i borderline in:
+    - bgy_data/bgy_output/bgy_csv/borderline_YYYY-MM-DD.csv
+    - bgy_data/bgy_output/bgy_csv/borderline_YYYY-MM.csv (cumulativo)
+    """
+    if df_borderline.empty:
+        logger.info("📋 Nessun borderline da registrare")
+        return None
+
+    os.makedirs(OUTPUT_CSV_DIR, exist_ok=True)
+
+    # Colonne ordinate
+    cols = [
+        'data_riferimento', 'callsign', 'compagnia_aerea', 'tipo_movimento',
+        'direzione_sacbo', 'orario_schedulato', 'timestamp',
+        'fase_volo', 'pista', 'categoria_borderline',
+    ]
+    df_out = df_borderline.copy()
+    df_out['data_riferimento'] = date_norm
+    df_out['categoria_borderline'] = df_out.apply(_categorize_borderline, axis=1)
+
+    for c in cols:
+        if c not in df_out.columns:
+            df_out[c] = ''
+
+    df_out = df_out[cols].copy()
+
+    # File giornaliero
+    daily_path = os.path.join(OUTPUT_CSV_DIR, f"borderline_{date_norm}.csv")
+    df_out.to_csv(daily_path, index=False, encoding='utf-8-sig')
+    logger.info(f"📋 Borderline registrati: {daily_path} ({len(df_out)} casi)")
+
+    # File cumulativo mensile
+    ym = date_norm[:7]
+    monthly_path = os.path.join(OUTPUT_CSV_DIR, f"borderline_{ym}.csv")
+
+    # Se esiste, carica e rimuovi eventuali righe della stessa data (reimport)
+    if os.path.exists(monthly_path):
+        try:
+            old = pd.read_csv(monthly_path)
+            old = old[old['data_riferimento'] != date_norm]
+            df_all = pd.concat([old, df_out], ignore_index=True)
+        except Exception as e:
+            logger.warning(f"Errore lettura {monthly_path}: {e}. Ricreo.")
+            df_all = df_out
+    else:
+        df_all = df_out
+
+    df_all.to_csv(monthly_path, index=False, encoding='utf-8-sig')
+    logger.info(f"📋 Borderline cumulativo mensile: {monthly_path}")
+
+    return daily_path
+
+
+# -----------------------------------------------------------------------------
 # GENERAZIONE
 # -----------------------------------------------------------------------------
 
@@ -1279,6 +1493,22 @@ def generate_nightly_report(date_str=None):
     if result_df.empty:
         logger.warning(f"⚠️ Nessun dato per {date_norm}")
         return None, f"Nessun dato per {date_norm}"
+
+    # v2.9.14: separa i borderline (schedulati in fascia, operati fuori)
+    result_df, df_borderline, n_borderline = _split_borderline_flights(result_df)
+
+    # Log dettagliato dei borderline
+    for _, row in df_borderline.iterrows():
+        cs = row.get('callsign', '?')
+        sched = row.get('orario_schedulato', '?')
+        ts = row.get('timestamp', '?')
+        cat = _categorize_borderline(row)
+        logger.info(
+            f"⚠️  BORDERLINE {cs}: sched {sched} → operato {ts} ({cat})"
+        )
+
+    # Scrivi i file borderline
+    _write_borderline_files(date_norm, df_borderline)
 
     before_dedup = len(result_df)
     result_df = _dedup_by_key(result_df)
@@ -1386,10 +1616,11 @@ def generate_nightly_report(date_str=None):
         else:
             sconf_msg = f", sconfinamenti {sconf_tot}"
     anomalie_msg = f", anomalie {n_anomalie}" if n_anomalie > 0 else ""
+    borderline_msg = (f", borderline {n_borderline}" if n_borderline > 0 else "")
 
     msg = (f"✅ Report notturno: {total} voli "
            f"(Visibili: {visibili} = Passeggeri {pax} + Cargo {cargo} "
-           f"+ Charter {charter} + Non classificato {non_class}{sconf_msg}{anomalie_msg} | "
+           f"+ Charter {charter} + Non classificato {non_class}{sconf_msg}{anomalie_msg}{borderline_msg} | "
            f"Opt-in: {optin} = Passeggeri radar {pax_radar} | "
            f"PAX stimati: {pax_tot}, "
            f"Rumore su {rumore_count} voli, max {rumore_max} dB"

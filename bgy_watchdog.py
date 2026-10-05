@@ -1,9 +1,16 @@
 """
 bgy_watchdog.py - Watchdog per il controllo anomalie BGY Monitoring Suite.
-Versione 2.6.0
+Versione 2.6.1
 
-- Doppio check prima di riavviare lo scheduler (evita falsi positivi)
-- Messaggi di alert letti da bgy_config/config_alert_messages.json
+Novità v2.6.1:
+- check_radar(): fix falso allarme a inizio giornata.
+  Se il file radar di oggi non esiste ancora ma:
+    (a) l'ora è < 00:05 (primo scan del giorno non ancora eseguito), oppure
+    (b) lo scanner radar è attivo di recente (log fresco),
+  allora non viene inviata la notifica radar_missing.
+  Il falso allarme si verificava perché il watchdog gira alle 00:00,
+  mentre il primo scan radar del giorno parte alle 00:01:59 (dopo
+  lo scan SACBO notturno delle 00:01).
 
 Novità v2.6.0 (radar h24):
 - check_radar() riscritto per funzionare h24: il file radar_YYYY-MM-DD.csv
@@ -55,6 +62,13 @@ DEFAULT_SCAN_SCHEDULES = ["02:00", "06:00", "10:00", "14:00", "18:00", "22:00"]
 # Radar h24: se il file non è aggiornato da più di X minuti, è un problema.
 DEFAULT_RADAR_STALE_MIN = 10
 DEFAULT_RADAR_MISSING_GRACE_MIN = 15
+
+# v2.6.1: tolleranza per il primo scan del giorno.
+# Il watchdog gira alle 00:00, ma il primo scan radar del giorno parte
+# alle 00:01:59 (dopo lo scan SACBO notturno delle 00:01). Quindi se
+# siamo nei primi minuti della giornata, il file radar non esiste ancora
+# ed è fisiologico.
+RADAR_STARTUP_TOLERANCE_MIN = 5
 
 
 def _cfg():
@@ -232,6 +246,24 @@ def _is_radar_recently_active(now, window_sec=300, min_hits=1):
         return False
 
 
+def _is_radar_file_fresh_today(now):
+    """
+    Verifica se il file radar del giorno è già stato aggiornato di recente,
+    anche se il nome è quello di ieri (cambio data a mezzanotte).
+    """
+    try:
+        if not os.path.isdir(RAW_DIR):
+            return False
+        today = now.strftime("%Y-%m-%d")
+        f_today = os.path.join(RAW_DIR, f"radar_{today}.csv")
+        if os.path.exists(f_today):
+            mtime = datetime.fromtimestamp(os.path.getmtime(f_today))
+            return (now - mtime).total_seconds() < 300
+        return False
+    except Exception:
+        return False
+
+
 # =============================================================================
 # CHECK 1 - SACBO
 # =============================================================================
@@ -314,8 +346,10 @@ def check_radar():
     Logica:
       1. Cerca radar_YYYY-MM-DD.csv (o il vecchio nome).
       2. Se non esiste:
-         a. Se lo scheduler è partito da meno di grace_min, OK.
-         b. Altrimenti, allarme radar_missing.
+         a. Se l'ora è < 00:05, OK (primo scan del giorno non ancora eseguito).
+         b. Se lo scanner radar è attivo di recente (log fresco), OK.
+         c. Se lo scheduler è partito da meno di grace_min, OK.
+         d. Altrimenti, allarme radar_missing.
       3. Se esiste ma è fermo da più di radar_stale_min:
          a. Se lo scanner radar è ancora attivo nel log, OK (nessun aereo).
          b. Altrimenti, allarme radar_stale.
@@ -337,7 +371,29 @@ def check_radar():
             if os.path.exists(old_file):
                 radar_file = old_file
             else:
-                # Grace period all'avvio
+                # v2.6.1 — Fix falso allarme a inizio giornata.
+                # Il watchdog gira alle 00:00, ma il primo scan radar del
+                # giorno parte alle 00:01:59 (dopo lo scan SACBO notturno).
+                # Quindi se siamo nei primi minuti della giornata, il file
+                # non esiste ancora ed è fisiologico.
+
+                # (a) tolleranza inizio giornata
+                minutes_since_midnight = now.hour * 60 + now.minute
+                if minutes_since_midnight < RADAR_STARTUP_TOLERANCE_MIN:
+                    msg = (f"Radar non ancora creato "
+                           f"({now.strftime('%H:%M')}, inizio giornata, "
+                           f"tolleranza {RADAR_STARTUP_TOLERANCE_MIN} min)")
+                    logger.info(f"ℹ️  {msg}")
+                    return True, msg
+
+                # (b) scanner radar attivo di recente → il file è in arrivo
+                if _is_radar_recently_active(now, window_sec=log_window, min_hits=1):
+                    msg = ("Radar non ancora creato per oggi ma scanner "
+                           "attivo (file in arrivo)")
+                    logger.info(f"ℹ️  {msg}")
+                    return True, msg
+
+                # (c) grace period all'avvio
                 scheduler_start = _get_scheduler_start_time(now)
                 if scheduler_start is not None:
                     minutes_since_start = (now - scheduler_start).total_seconds() / 60
@@ -346,6 +402,7 @@ def check_radar():
                                       f"({int(minutes_since_start)} min dall'avvio, "
                                       f"grace period {grace_min} min)")
 
+                # (d) allarme reale
                 msg = f"File radar mancante per oggi ({today})"
                 _send_alert("radar_missing",
                             sessione=today,
@@ -741,6 +798,7 @@ def watchdog_loop():
     logger.info(f"Intervallo: {interval}s")
     logger.info(f"Radar stale threshold: {cfg.get('radar_stale_min', DEFAULT_RADAR_STALE_MIN)} min (h24)")
     logger.info(f"Radar missing grace: {cfg.get('radar_missing_grace_min', DEFAULT_RADAR_MISSING_GRACE_MIN)} min")
+    logger.info(f"Radar startup tolerance: {RADAR_STARTUP_TOLERANCE_MIN} min")
     logger.info(f"Admin: {bgy_db_service.is_admin()}")
     logger.info("=" * 50)
     try:
