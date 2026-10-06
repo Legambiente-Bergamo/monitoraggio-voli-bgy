@@ -1,30 +1,27 @@
 """
 bgy_reports/bgy_report_night.py - Report notturno integrato (SACBO + radar).
-Versione 2.9.14
+Versione 2.9.15
 
-Novità v2.9.14 (04/10/2026):
-- _split_borderline_flights(): separa i voli schedulati in fascia notturna
-  (>= 23:00 o < 06:00) ma operati fuori dalla finestra 23:01-05:59.
-  Questi "movimenti borderline" NON sono movimenti notturni e vanno esclusi
-  dal report principale (niente rumore, niente KPI).
-- Vengono scritti in un CSV dedicato (giornaliero + cumulativo mensile):
-    bgy_data/bgy_output/bgy_csv/borderline_YYYY-MM-DD.csv
-    bgy_data/bgy_output/bgy_csv/borderline_YYYY-MM.csv
-- _categorize_borderline(): assegna categoria ('decollo anticipato',
-  'decollo posticipato', 'atterraggio anticipato', 'atterraggio posticipato').
+Novità v2.9.15 (05/10/2026):
+- Finestra notturna stringente: 23:00:00 - 05:59:59 (senza tolleranze).
+  Il rumore notturno si calcola SOLO per movimenti operati dentro questa
+  finestra. Un movimento operato alle 22:59:59 o alle 06:00:00 è fuori.
+- _split_borderline_flights() e _categorize_borderline() aggiornati.
+- Il check usa ore/minuti/secondi, non solo minuti.
 
-Principio documentato:
-- Il rumore conta solo se prodotto tra le 23:01 e le 05:59.
-- Un volo schedulato in fascia ma operato fuori è un "borderline" e va
-  tracciato separatamente.
-
-Novità v2.9.13: fix out-of-window (post match_flights).
+Novità v2.9.14: sistema borderline.
+Novità v2.9.13: fix out-of-window post match_flights.
 Novità v2.9.12: prima versione del fix (deprecata).
 Novità v2.9.11: fix _propagate_runway_in_session (pd.isna).
 Novità v2.9.10: raggruppa per solo callsign.
 Novità v2.9.9: prima versione del fix propagazione pista.
 Novità v2.9.8: esclusione voli pomeridiani da anomalie.
 Novità v2.9.7: pattern callsign + priorità numero commerciale.
+
+Principio documentato:
+- Il rumore conta solo se prodotto tra le 23:00:00 e le 05:59:59.
+- Un volo schedulato in fascia ma operato fuori è un "borderline" e va
+  tracciato separatamente.
 """
 import os
 import re
@@ -72,6 +69,10 @@ SCONFINAMENTO_GRAVE_MIN = 60
 
 DAY_START_HOUR = 6
 DAY_END_HOUR = 23
+
+# v2.9.15: finestra stringente 23:00:00 - 05:59:59
+NIGHT_WINDOW_START_SEC = 23 * 3600          # 82800
+NIGHT_WINDOW_END_SEC = 6 * 3600             # 21600
 
 SESSION_SCAN_TIMES = ['23-00', '00-00', '00-01', '02-00', '05-00', '06-00']
 MEZZANOTTE_SCANS = {'00-00', '00-01'}
@@ -233,6 +234,9 @@ def _timestamp_to_minutes_session_wide(ts, session_date):
 
 
 def _is_timestamp_in_night(ts, session_date):
+    """
+    v2.9.15: finestra stringente 23:00:00 <= ts < 06:00:00.
+    """
     if not ts:
         return False
     try:
@@ -242,6 +246,19 @@ def _is_timestamp_in_night(ts, session_date):
     base = pd.to_datetime(f"{session_date} 23:00:00")
     end = base + pd.Timedelta(hours=7)
     return base <= dt < end
+
+
+def _seconds_of_day(dt):
+    """Secondi dalla mezzanotte di un datetime."""
+    return dt.hour * 3600 + dt.minute * 60 + dt.second
+
+
+def _is_in_night_window_dt(dt):
+    """
+    v2.9.15: True se dt è nella finestra 23:00:00 - 05:59:59 (stringente).
+    """
+    sec = _seconds_of_day(dt)
+    return (sec >= NIGHT_WINDOW_START_SEC) or (sec < NIGHT_WINDOW_END_SEC)
 
 
 def _scheduled_minutes_from_session(hhmm, session_date):
@@ -1315,16 +1332,19 @@ def _enrich_final(df):
 
 
 # -----------------------------------------------------------------------------
-# BORDERLINE (v2.9.14)
+# BORDERLINE (v2.9.15)
 # -----------------------------------------------------------------------------
 
 def _split_borderline_flights(result_df):
     """
-    v2.9.14: separa i voli schedulati in fascia notturna (>= 23:00 o < 06:00)
-    ma operati fuori dalla finestra 23:01-05:59.
+    v2.9.15: separa i voli schedulati in fascia notturna (>= 23:00 o < 06:00)
+    ma operati fuori dalla finestra 23:00:00 - 05:59:59.
 
-    Questi "borderline" NON sono movimenti notturni: il rumore da loro
-    prodotto non è rumore notturno, e non devono apparire nei KPI.
+    Finestra stringente (senza tolleranze):
+      - 23:00:00 incluso
+      - 05:59:59 incluso
+      - 06:00:00 escluso
+      - 22:59:59 escluso
 
     Ritorna (df_ok, df_borderline, n_esclusi).
     """
@@ -1347,7 +1367,6 @@ def _split_borderline_flights(result_df):
         sched_min = _time_to_minutes(sched)
         if sched_min is None:
             return False
-        # Solo voli schedulati in fascia notturna
         if not (sched_min >= 23 * 60 or sched_min < 6 * 60):
             return False
 
@@ -1356,14 +1375,7 @@ def _split_borderline_flights(result_df):
         except Exception:
             return False
 
-        # Finestra "vera" del rumore notturno: 23:01 - 05:59
-        h = ts_dt.hour
-        m = ts_dt.minute
-        minutes = h * 60 + m
-
-        # In finestra: 23:01 <= minuti < 06:00 → 1381 <= m < 360 (ciclo)
-        # Uso: notturno = (m >= 1381) or (m < 360)
-        in_window = (minutes >= 1381) or (minutes < 360)
+        in_window = _is_in_night_window_dt(ts_dt)
         return not in_window
 
     mask = result_df.apply(_is_borderline, axis=1)
@@ -1376,13 +1388,7 @@ def _split_borderline_flights(result_df):
 
 def _categorize_borderline(row):
     """
-    Ritorna una stringa che descrive il tipo di borderline.
-    Categorie:
-    - 'decollo posticipato' (sched in fascia, decollo dopo 06:00)
-    - 'decollo anticipato'  (sched in fascia, decollo prima di 23:01)
-    - 'atterraggio posticipato'
-    - 'atterraggio anticipato'
-    - 'borderline altro'
+    v2.9.15: ritorna una stringa che descrive il tipo di borderline.
     """
     sched = row.get('orario_schedulato')
     ts = row.get('timestamp')
@@ -1397,21 +1403,13 @@ def _categorize_borderline(row):
     except Exception:
         return 'borderline altro'
 
-    ts_min = ts_dt.hour * 60 + ts_dt.minute
+    is_anticipato = (sched_min is not None and sched_min >= 23 * 60)
+    is_posticipato = (sched_min is not None and sched_min < 6 * 60)
 
-    # Anticipato se operato < 23:01 (cioè tra 00:00 e 23:00 di oggi)
-    # Posticipato se operato >= 06:00 (e < 23:00)
-    anticipato = (ts_min < 1381) and (ts_min >= 360)  # 06:00-22:59
-    posticipato = (ts_min < 1381) and (ts_min >= 360)  # stessa condizione
-
-    # In realtà la distinzione anticipato/posticipato dipende dal momento
-    # della schedulazione:
-    # - sched >= 23:00 (sera) e operato < 23:00 → anticipato
-    # - sched < 06:00 (mattina) e operato >= 06:00 → posticipato
-    if sched_min >= 23 * 60:
-        tipo = 'anticipato' if (ts_min >= 360 and ts_min < 1381) else 'altro'
-    elif sched_min < 6 * 60:
-        tipo = 'posticipato' if (ts_min >= 360 and ts_min < 1381) else 'altro'
+    if is_anticipato:
+        tipo = 'anticipato'
+    elif is_posticipato:
+        tipo = 'posticipato'
     else:
         tipo = 'altro'
 
@@ -1423,18 +1421,12 @@ def _categorize_borderline(row):
 
 
 def _write_borderline_files(date_norm, df_borderline):
-    """
-    Scrive i borderline in:
-    - bgy_data/bgy_output/bgy_csv/borderline_YYYY-MM-DD.csv
-    - bgy_data/bgy_output/bgy_csv/borderline_YYYY-MM.csv (cumulativo)
-    """
     if df_borderline.empty:
         logger.info("📋 Nessun borderline da registrare")
         return None
 
     os.makedirs(OUTPUT_CSV_DIR, exist_ok=True)
 
-    # Colonne ordinate
     cols = [
         'data_riferimento', 'callsign', 'compagnia_aerea', 'tipo_movimento',
         'direzione_sacbo', 'orario_schedulato', 'timestamp',
@@ -1450,16 +1442,13 @@ def _write_borderline_files(date_norm, df_borderline):
 
     df_out = df_out[cols].copy()
 
-    # File giornaliero
     daily_path = os.path.join(OUTPUT_CSV_DIR, f"borderline_{date_norm}.csv")
     df_out.to_csv(daily_path, index=False, encoding='utf-8-sig')
     logger.info(f"📋 Borderline registrati: {daily_path} ({len(df_out)} casi)")
 
-    # File cumulativo mensile
     ym = date_norm[:7]
     monthly_path = os.path.join(OUTPUT_CSV_DIR, f"borderline_{ym}.csv")
 
-    # Se esiste, carica e rimuovi eventuali righe della stessa data (reimport)
     if os.path.exists(monthly_path):
         try:
             old = pd.read_csv(monthly_path)
@@ -1494,10 +1483,8 @@ def generate_nightly_report(date_str=None):
         logger.warning(f"⚠️ Nessun dato per {date_norm}")
         return None, f"Nessun dato per {date_norm}"
 
-    # v2.9.14: separa i borderline (schedulati in fascia, operati fuori)
     result_df, df_borderline, n_borderline = _split_borderline_flights(result_df)
 
-    # Log dettagliato dei borderline
     for _, row in df_borderline.iterrows():
         cs = row.get('callsign', '?')
         sched = row.get('orario_schedulato', '?')
@@ -1507,7 +1494,6 @@ def generate_nightly_report(date_str=None):
             f"⚠️  BORDERLINE {cs}: sched {sched} → operato {ts} ({cat})"
         )
 
-    # Scrivi i file borderline
     _write_borderline_files(date_norm, df_borderline)
 
     before_dedup = len(result_df)

@@ -1,72 +1,36 @@
 """
 bgy_core/bgy_db_migrate.py - Import e sincronizzazione CSV -> PostgreSQL.
-Versione 2.8.4
+Versione 2.8.5
 
 Modulo unificato che contiene:
   - Funzioni di import per ogni tipo di file (scan, radar, meteo, nightly)
   - Parser per il formato vecchio di scan_*.csv
   - Logica di migrazione storica completa
   - Logica di sincronizzazione incrementale
-  - Quality check esteso: 27 check attivi (rimosso check 22)
+  - Quality check esteso: 27 check attivi
   - Statistiche movimenti giornalieri e notturni
   - Check compagnie placeholder irrisolte (F14)
   - Check anomalie notturne
 
-Novità v2.8.4:
-- import_nightly_file(): reimport se il CSV differisce dal DB.
-  Stessa logica già applicata a import_radar_file(). Se il report
-  notturno viene rigenerato (per fix o rerun), il DB si aggiorna.
-  Log: "🔄 Report notturno cambiato: DB=N → CSV=M, reimporto".
-- _qc_cargo_non_in_lista(): se classify_callsign non è importabile
-  o fallisce durante la classificazione, ritorna ERRORE (non OK
-  silenzioso). Prima il check passava come ✅ anche quando la
-  verifica non veniva eseguita.
-- _qc_bilanciamento_daily() e _qc_bilanciamento_nightly(): il valore
-  mostrato è il numero totale di date problematiche (errori + warning),
-  non solo gli errori. Prima mostrava "0" quando c'erano solo warning.
-- Sistemata indentazione tra _qc_bilanciamento_nightly e _qc_daily_presenti.
+Novità v2.8.5 (05/10/2026):
+- Nuovo flag CLI --force: forza il reimport di tutti i file anche se
+  il numero di righe nel DB coincide con il CSV.
+- Variabile globale _FORCE_REIMPORT: le funzioni import_*_file() la
+  leggono e saltano il check di esistenza se True.
+- sync_date() e sync_last_n_days() accettano parametro force=False.
+- Uso: py -3.12 -m bgy_core.bgy_db_migrate --date 2026-10-04 --force
 
-Novità v2.8.3:
-- Check 12 "Bilanciamento D/A nightly": sotto 25 movimenti totali,
-  qualsiasi sbilanciamento è warning. Sopra, ratio/zero severi.
-
-Novità v2.8.2:
-- Check 12: monodirezionale sotto 25 = warning.
-
-Novità v2.8.1:
-- Check 28: warning invece di errore.
-
-Novità v2.8.0 (classificazione unificata "Non classificato"):
-- get_nightly_stats(): aggiunta sezione 'non_classificato' tra i visibili.
-  Sconfinamenti e anomalie ora includono anche i voli non classificati.
-- Nuova get_non_classified_flights(date_str): lista dei voli con
-  tipo_movimento = 'Non classificato' per l'email del mattino.
-- Check 16 "Cargo non in lista": usa classify_callsign() invece di
-  is_cargo_flight() (rispetta gli override per callsign).
-- VISIBLE_FILTER_SQL: include 'Non classificato' tra i visibili.
-
-Novità v2.7.5:
-- Check 18 "File meteo mancanti": esclude le date senza report notturno
-  (notti non monitorate).
-
-Novità v2.7.4:
-- Rimosso check 22 "Orario fuori fascia".
-- Check 12 "Bilanciamento D/A nightly": esclude date antecedenti al 26/09/2026.
-
-Novità v2.7.3 (failover SACBO → Avionio):
-- Colonna scans.source VARCHAR(20) DEFAULT 'sacbo' (schema update idempotente).
-- import_scan_file() legge la colonna fonte_scan del CSV (se presente).
-- Log esplicito: "Importato [new] scan_*.csv (fonte: avionio)".
-
-Novità v2.7.2 (fix reimport radar cumulativo):
-- import_radar_file() confronta righe CSV vs righe DB.
-
-Novità v2.7.1 (fix import nightly duplicati):
-- INSERT nightly con ON CONFLICT DO NOTHING sul vincolo uniq_nightly_flight.
-
-Novità v2.7.0 (radar h24):
-- radar_detections: nuove colonne fonte e data_riferimento.
-- sessione_notturna ora è nullable.
+Novità v2.8.4: reimport se CSV differisce da DB.
+Novità v2.8.3: bilanciamento nightly sotto 25 movimenti = warning.
+Novità v2.8.2: check 12 monodirezionale sotto 25 = warning.
+Novità v2.8.1: check 28 warning invece di errore.
+Novità v2.8.0: classificazione unificata "Non classificato".
+Novità v2.7.5: check 18 esclude date non monitorate.
+Novità v2.7.4: rimossi check 22, filtri date pre-26/09.
+Novità v2.7.3: failover SACBO -> Avionio.
+Novità v2.7.2: fix reimport radar cumulativo.
+Novità v2.7.1: fix import nightly duplicati.
+Novità v2.7.0: radar h24.
 """
 import os
 import sys
@@ -86,6 +50,9 @@ from bgy_core import bgy_db
 logger = get_logger("DBMigrate")
 
 BATCH_SIZE = 500
+
+# v2.8.5: flag globale per forzare il reimport
+_FORCE_REIMPORT = False
 
 EXPECTED_NEW_COLUMNS = {
     "callsign_volo", "tipo_movimento", "destinazione_origine",
@@ -130,7 +97,6 @@ def apply_schema_updates():
         "ALTER TABLE radar_detections ADD COLUMN IF NOT EXISTS data_riferimento DATE",
         "ALTER TABLE radar_detections ALTER COLUMN sessione_notturna DROP NOT NULL",
         "ALTER TABLE scans ADD COLUMN IF NOT EXISTS source VARCHAR(20) DEFAULT 'sacbo'",
-        # v2.8.0: tabella override per callsign (introdotta dalla migrazione 2026-10-02)
         """CREATE TABLE IF NOT EXISTS callsign_classifications (
             callsign VARCHAR(10) PRIMARY KEY,
             categoria VARCHAR(30) NOT NULL,
@@ -338,21 +304,35 @@ def import_scan_file(filepath):
     if not date_str:
         logger.warning(f"File scan non riconosciuto: {filename}")
         return False, None
+
     ok, rows = bgy_db.execute_query(
         "SELECT s.id, "
         "  (SELECT COUNT(1) FROM flights_sacbo f WHERE f.scan_id = s.id) AS n_flights "
         "FROM scans s WHERE s.file_name = %s", (filename,))
+
     if ok and rows:
         scan_id_existing, n_flights = rows[0]
         if n_flights and n_flights > 0:
-            logger.info(f"⏭️ Già importato: {filename} "
-                        f"(scan_id={scan_id_existing}, {n_flights} voli)")
-            stats["scans_skipped"] += 1
-            return False, None
+            if not _FORCE_REIMPORT:
+                logger.info(f"⏭️ Già importato: {filename} "
+                            f"(scan_id={scan_id_existing}, {n_flights} voli)")
+                stats["scans_skipped"] += 1
+                return False, None
+            else:
+                logger.info(f"🔄 Force reimport: rimuovo scan_id={scan_id_existing} "
+                            f"({filename}, {n_flights} voli)")
+                bgy_db.execute_query(
+                    "DELETE FROM flights_sacbo WHERE scan_id = %s",
+                    (scan_id_existing,), fetch=False)
+                bgy_db.execute_query(
+                    "DELETE FROM scans WHERE id = %s",
+                    (scan_id_existing,), fetch=False)
+                stats["scans_recovered"] += 1
         else:
             logger.warning(f"⚠️ Record scan orfano (id={scan_id_existing}), lo rimuovo: {filename}")
             bgy_db.execute_query("DELETE FROM scans WHERE id = %s", (scan_id_existing,))
             stats["scans_recovered"] += 1
+
     csv_rows = read_csv_rows(filepath)
     if not csv_rows:
         logger.warning(f"File vuoto: {filename}")
@@ -476,16 +456,23 @@ def import_radar_file(filepath):
         (date_str,))
     n_db = rows[0][0] if ok and rows else 0
 
-    if n_db >= n_csv:
-        logger.info(f"⏭️ Già importato: {filename} (DB={n_db}, CSV={n_csv})")
-        stats["scans_skipped"] += 1
-        return False, None
+    if not _FORCE_REIMPORT:
+        if n_db >= n_csv:
+            logger.info(f"⏭️ Già importato: {filename} (DB={n_db}, CSV={n_csv})")
+            stats["scans_skipped"] += 1
+            return False, None
 
-    if n_db > 0 and n_db < n_csv:
-        logger.info(f"🔄 File radar cresciuto: DB={n_db} → CSV={n_csv}, reimporto")
-        bgy_db.execute_query(
-            "DELETE FROM radar_detections WHERE data_riferimento = %s",
-            (date_str,), fetch=False)
+        if n_db > 0 and n_db < n_csv:
+            logger.info(f"🔄 File radar cresciuto: DB={n_db} → CSV={n_csv}, reimporto")
+            bgy_db.execute_query(
+                "DELETE FROM radar_detections WHERE data_riferimento = %s",
+                (date_str,), fetch=False)
+    else:
+        if n_db > 0:
+            logger.info(f"🔄 Force reimport: rimuovo {n_db} righe radar per {date_str}")
+            bgy_db.execute_query(
+                "DELETE FROM radar_detections WHERE data_riferimento = %s",
+                (date_str,), fetch=False)
 
     params = []
     for r in csv_rows:
@@ -539,13 +526,26 @@ def import_meteo_file(filepath):
     if not date_str:
         logger.warning(f"File meteo non riconosciuto: {filename}")
         return False, None
-    ok, rows = bgy_db.execute_query(
-        "SELECT COUNT(1) FROM weather_hourly WHERE data_riferimento = %s",
-        (date_str,))
-    if ok and rows and rows[0][0] > 0:
-        logger.info(f"⏭️ Già importato: {filename}")
-        stats["scans_skipped"] += 1
-        return False, None
+
+    if not _FORCE_REIMPORT:
+        ok, rows = bgy_db.execute_query(
+            "SELECT COUNT(1) FROM weather_hourly WHERE data_riferimento = %s",
+            (date_str,))
+        if ok and rows and rows[0][0] > 0:
+            logger.info(f"⏭️ Già importato: {filename}")
+            stats["scans_skipped"] += 1
+            return False, None
+    else:
+        ok, rows = bgy_db.execute_query(
+            "SELECT COUNT(1) FROM weather_hourly WHERE data_riferimento = %s",
+            (date_str,))
+        n_db = rows[0][0] if ok and rows else 0
+        if n_db > 0:
+            logger.info(f"🔄 Force reimport: rimuovo {n_db} righe meteo per {date_str}")
+            bgy_db.execute_query(
+                "DELETE FROM weather_hourly WHERE data_riferimento = %s",
+                (date_str,), fetch=False)
+
     csv_rows = read_csv_rows(filepath)
     if not csv_rows:
         return False, None
@@ -588,7 +588,8 @@ def import_nightly_file(filepath):
 
     v2.8.4: confronta righe CSV vs righe DB per la stessa data.
     Se il CSV è cambiato (rigenerato per fix o rerun), reimporta.
-    Stessa logica già usata da import_radar_file().
+
+    v2.8.5: se _FORCE_REIMPORT è True, salta il check e reimporta sempre.
     """
     filename = os.path.basename(filepath)
     date_str = parse_nightly_filename(filename)
@@ -607,16 +608,23 @@ def import_nightly_file(filepath):
         (date_str,))
     n_db = rows[0][0] if ok and rows else 0
 
-    if n_db == n_csv and n_csv > 0:
-        logger.info(f"⏭️ Già importato: {filename} (DB={n_db}, CSV={n_csv})")
-        stats["scans_skipped"] += 1
-        return False, None
+    if not _FORCE_REIMPORT:
+        if n_db == n_csv and n_csv > 0:
+            logger.info(f"⏭️ Già importato: {filename} (DB={n_db}, CSV={n_csv})")
+            stats["scans_skipped"] += 1
+            return False, None
 
-    if n_db > 0:
-        logger.info(f"🔄 Report notturno cambiato: DB={n_db} → CSV={n_csv}, reimporto")
-        bgy_db.execute_query(
-            "DELETE FROM nightly_reports WHERE data_riferimento = %s",
-            (date_str,), fetch=False)
+        if n_db > 0:
+            logger.info(f"🔄 Report notturno cambiato: DB={n_db} → CSV={n_csv}, reimporto")
+            bgy_db.execute_query(
+                "DELETE FROM nightly_reports WHERE data_riferimento = %s",
+                (date_str,), fetch=False)
+    else:
+        if n_db > 0:
+            logger.info(f"🔄 Force reimport: rimuovo {n_db} righe nightly per {date_str}")
+            bgy_db.execute_query(
+                "DELETE FROM nightly_reports WHERE data_riferimento = %s",
+                (date_str,), fetch=False)
 
     params = []
     for r in csv_rows:
@@ -715,7 +723,12 @@ def list_files_for_date(date_str):
             "meteo": meteo_files, "nightly": nightly_files}
 
 
-def sync_date(date_str):
+def sync_date(date_str, force=False):
+    global _FORCE_REIMPORT
+
+    if force:
+        _FORCE_REIMPORT = True
+
     if not bgy_db.is_enabled():
         logger.warning("⚠️ DB non abilitato in config_database.json, sync saltato")
         return None
@@ -725,7 +738,7 @@ def sync_date(date_str):
         return None
     apply_schema_updates()
     logger.info("=" * 60)
-    logger.info(f"SYNC DB per la data: {date_str}")
+    logger.info(f"SYNC DB per la data: {date_str}" + (" [FORCE]" if force else ""))
     logger.info("=" * 60)
     files = list_files_for_date(date_str)
     total_files = sum(len(v) for v in files.values())
@@ -768,19 +781,19 @@ def sync_date(date_str):
     return result
 
 
-def sync_yesterday():
+def sync_yesterday(force=False):
     yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-    return sync_date(yesterday)
+    return sync_date(yesterday, force=force)
 
 
-def sync_last_n_days(n):
+def sync_last_n_days(n, force=False):
     today = datetime.now().date()
     results = {}
     for i in range(n):
         d = today - timedelta(days=i)
         date_str = d.strftime("%Y-%m-%d")
         logger.info(f"\n--- Sincronizzazione {date_str} ---")
-        r = sync_date(date_str)
+        r = sync_date(date_str, force=force)
         if r:
             results[date_str] = r
     return results
@@ -923,12 +936,6 @@ def get_daily_stats(date_str):
 
 
 def get_nightly_stats(date_str):
-    """
-    Statistiche movimenti notturni, divise per categoria.
-
-    v2.8.0: aggiunta categoria 'non_classificato'.
-    Sconfinamenti e anomalie includono anche i voli non classificati.
-    """
     empty = {
         "passeggeri": {"decolli": 0, "atterraggi": 0, "totale": 0},
         "cargo": {"decolli": 0, "atterraggi": 0, "totale": 0},
@@ -1042,14 +1049,6 @@ def get_nightly_stats(date_str):
 
 
 def get_non_classified_flights(date_str):
-    """
-    v2.8.0: ritorna la lista dei voli non classificati per una data.
-    Usata dal mailer per la sezione "VOLI NON CLASSIFICATI" nell'email.
-
-    Ritorna una lista di dict con:
-      callsign, direzione_sacbo, orario_schedulato,
-      compagnia_aerea, fase_volo, is_scheduled
-    """
     ok, rows = bgy_db.execute_query(
         """SELECT callsign, direzione_sacbo, orario_schedulato,
                   compagnia_aerea, fase_volo, is_scheduled
@@ -1073,10 +1072,6 @@ def get_non_classified_flights(date_str):
         })
     return result
 
-
-# =============================================================================
-# TOP DESTINAZIONI PER RITARDI
-# =============================================================================
 
 def get_top_destinations_delays(date_str):
     csv_path = os.path.join(OUTPUT_CSV_DIR, f"report_daily_{date_str}.csv")
@@ -1123,10 +1118,6 @@ def get_top_destinations_delays(date_str):
     result.sort(key=lambda x: (-x["delayed"], -x["avg_delay"]))
     return result
 
-
-# =============================================================================
-# TOP COMPAGNIE PER RITARDI
-# =============================================================================
 
 def get_top_airlines_delays(date_str, top_n=5):
     csv_path = os.path.join(OUTPUT_CSV_DIR, f"report_daily_{date_str}.csv")
@@ -1177,10 +1168,6 @@ def get_top_airlines_delays(date_str, top_n=5):
     result.sort(key=lambda x: (-x["delayed"], -x["avg_delay"]))
     return result[:top_n]
 
-
-# =============================================================================
-# DISTRIBUZIONE ORARIA
-# =============================================================================
 
 def get_hourly_distribution(date_str):
     empty_hour = {"d_total": 0, "d_delayed": 0, "a_total": 0, "a_delayed": 0}
@@ -1261,7 +1248,6 @@ DEFAULT_THRESHOLDS = {
 
 DEFAULT_REFERENCE_DATE = "2026-10-01"
 
-# v2.8.0: include 'Non classificato' tra i visibili
 VISIBLE_FILTER_SQL = (
     "(tipo_movimento = 'Passeggeri' "
     " OR tipo_movimento LIKE 'Cargo%%' "
@@ -1463,10 +1449,6 @@ def _qc_csv_vs_db(date_from, date_to):
 
 
 def _qc_bilanciamento_daily(date_from, date_to, thresholds):
-    """
-    v2.8.4: il valore mostrato è il numero totale di date problematiche
-    (errori + warning), non solo gli errori.
-    """
     ok, rows = bgy_db.execute_query(
         """SELECT data_riferimento,
                   COUNT(*) FILTER (WHERE tipo_movimento = 'D') AS d,
@@ -1497,15 +1479,6 @@ def _qc_bilanciamento_daily(date_from, date_to, thresholds):
 
 
 def _qc_bilanciamento_nightly(date_from, date_to, thresholds):
-    """
-    v2.8.3: sotto SOGLIA_TOTALE_ALTO (25 movimenti) il check è tollerante:
-    qualsiasi sbilanciamento è warning, non errore. Solo con totale alto
-    (>= 25) una direzione a zero o un ratio fuori soglia sono errori.
-    BGY ha notti fisiologicamente sbilanciate (es. 19 movimenti con 2 D e 17 A).
-
-    v2.8.4: il valore mostrato è il numero totale di date problematiche
-    (errori + warning), non solo gli errori.
-    """
     ok, rows = bgy_db.execute_query(
         """SELECT data_riferimento,
                   COUNT(*) FILTER (WHERE direzione_sacbo = 'D'
@@ -1534,7 +1507,6 @@ def _qc_bilanciamento_nightly(date_from, date_to, thresholds):
         if totale == 0:
             continue
 
-        # Sotto la soglia: tutto è warning
         if totale < SOGLIA_TOTALE_ALTO:
             if a == 0 or d == 0:
                 warnings.append(f"{data}: monodirezionale (D={d}, A={a}, tot={totale})")
@@ -1546,7 +1518,6 @@ def _qc_bilanciamento_nightly(date_from, date_to, thresholds):
                     )
             continue
 
-        # Sopra la soglia: soglie severe
         if a == 0 or d == 0:
             errori.append(f"{data}: monodirezionale (D={d}, A={a}, tot={totale})")
             continue
@@ -1640,14 +1611,6 @@ def _qc_onetime_airlines(date_from, date_to, thresholds):
 
 
 def _qc_cargo_non_in_lista(date_from, date_to):
-    """
-    v2.8.0: usa classify_callsign() invece di is_cargo_flight().
-    Questo rispetta gli override per callsign (tabella callsign_classifications).
-
-    v2.8.4: se classify_callsign non è importabile o fallisce, ritorna
-    ERRORE (non OK silenzioso). Prima il check passava come ✅ anche
-    quando la verifica non veniva eseguita.
-    """
     ok, rows = bgy_db.execute_query(
         """SELECT DISTINCT callsign FROM nightly_reports
            WHERE data_riferimento BETWEEN %s AND %s
@@ -1704,10 +1667,6 @@ def _qc_file_radar_mancanti(date_from, date_to):
 
 
 def _qc_file_meteo_mancanti(date_from, date_to):
-    """
-    v2.7.5: esclude le date in cui la notte non è stata monitorata
-    (nessun report notturno e nessun dato in nightly_reports).
-    """
     start = datetime.strptime(date_from, "%Y-%m-%d").date()
     end = datetime.strptime(date_to, "%Y-%m-%d").date()
     missing = []
@@ -1875,11 +1834,6 @@ def _qc_data_futura(date_from, date_to):
 
 
 def _qc_anomalie_notturne(date_from, date_to):
-    """
-    v2.8.1: ritorna warning (non errore) quando ci sono anomalie.
-    Le anomalie sono dati reali e il loro conteggio è informativo,
-    non indica un problema del sistema.
-    """
     ok, rows = bgy_db.execute_query(
         """SELECT data_riferimento, callsign, orario_schedulato, direzione_sacbo
            FROM nightly_reports
@@ -1894,7 +1848,6 @@ def _qc_anomalie_notturne(date_from, date_to):
         f"{r[0]} {r[1]} ({r[3]}) sched={r[2]}" for r in rows[:5]
     ]
     n = len(rows)
-    # v2.8.1: warning invece di errore
     return True, (n > 0), n, 0, dettagli
 
 
@@ -2212,6 +2165,8 @@ def get_daily_delay_stats(date_str):
 # =============================================================================
 
 def main():
+    global _FORCE_REIMPORT
+
     parser = argparse.ArgumentParser(
         description="Import e sincronizzazione CSV -> PostgreSQL")
     parser.add_argument("--all", action="store_true",
@@ -2222,6 +2177,9 @@ def main():
                         help="Sync degli ultimi N giorni")
     parser.add_argument("--reset", action="store_true",
                         help="Svuota le tabelle prima (solo con --all)")
+    parser.add_argument("--force", action="store_true",
+                        help="Forza il reimport anche se il file è già presente "
+                             "nel DB (v2.8.5)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Solo per quality check: mostra risultati senza contare errori")
     parser.add_argument("--quality-check", action="store_true",
@@ -2229,6 +2187,11 @@ def main():
     parser.add_argument("--days", type=int, default=7,
                         help="Numero di giorni per il quality check (default: 7)")
     args = parser.parse_args()
+
+    if args.force:
+        _FORCE_REIMPORT = True
+        logger.info("⚡ Modalità --force attiva: reimport forzato")
+
     if not bgy_db.is_enabled():
         logger.error("❌ DB non abilitato. Modifica config_database.json")
         sys.exit(1)
@@ -2244,14 +2207,14 @@ def main():
         apply_schema_updates()
         success = migrate_all(reset=args.reset, dry_run=args.dry_run)
     elif args.date:
-        result = sync_date(args.date)
+        result = sync_date(args.date, force=args.force)
         success = result is not None
     elif args.last_n_days:
-        result = sync_last_n_days(args.last_n_days)
+        result = sync_last_n_days(args.last_n_days, force=args.force)
         success = result is not None
     else:
         logger.info("Nessun argomento specificato, sincronizzo ieri")
-        result = sync_yesterday()
+        result = sync_yesterday(force=args.force)
         success = result is not None
     sys.exit(0 if success else 1)
 

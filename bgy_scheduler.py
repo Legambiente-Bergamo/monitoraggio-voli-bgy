@@ -1,9 +1,22 @@
 ﻿"""
 bgy_scheduler.py - Pianificatore ed Orchestratore automatico.
-Versione 2.8.1
+Versione 2.8.2
+
+Novità v2.8.2 (radar 1 min di notte):
+- job_radar_scan(): intervallo adattivo. In fascia notturna (23:00-06:00)
+  esegue ogni minuto; di giorno esegue solo ai minuti pari (0, 2, 4, ...)
+  per mantenere 2 minuti. Lo scheduler pianifica il job ogni 1 minuto.
+- setup_scheduler(): legge night_scan_interval_minutes (default 1) e
+  day_scan_interval_minutes (default 2), usa min() come base di schedule.
+- Import: aggiunta is_night_time.
+
+Novità v2.8.1 (F17 WordPress): job_daily() chiama export_and_publish().
+Novità v2.8.0 (email semplificata + non classificati).
+Novità v2.7.3: night_import_failed dal check 10.
+Novità v2.7.2: check_sacbo_acquisition() conta scansioni Avionio.
 
 - Lock file per impedire doppio avvio
-- Radar h24 multi-fonte (adsb.lol -> adsb.fi -> OpenSky)
+- Radar h24 multi-fonte (adsb.lol -> adsb.fi -> airplanes.live -> OpenSky)
 - Sync DB: recupero automatico degli ultimi 8 giorni
 - Quality check (F11e) integrato nel job giornaliero
 - Email di stato con: problemi check + movimenti notte + voli non classificati
@@ -18,25 +31,6 @@ Versione 2.8.1
 - Avviso scansioni da fonte alternativa Avionio (v2.7.2)
 - Passaggio flag night_import_failed al mailer (v2.7.3)
 - Esportazione dati web F17 (v2.8.1)
-
-Novità v2.8.1 (F17 WordPress):
-- job_daily() chiama export_and_publish() dopo send_daily_status().
-  Rigenera il JSON aggregato (bgy-data.csv) e lo pubblica su WordPress.
-  Se WordPress è disabilitato in config, salva solo il JSON locale.
-  L'esito NON influenza overall_success: è un'operazione accessoria.
-
-Novità v2.8.0 (email semplificata + non classificati):
-- Raccolta statistiche semplificata: solo nightly + non_classified.
-  Rimossi: get_daily_stats, get_daily_delay_stats, get_hourly_distribution,
-  get_top_airlines_delays, get_top_destinations_delays.
-- send_daily_status() ora riceve anche non_classified_flights.
-- Log del job giornaliero più snello.
-
-Novità v2.7.3:
-- job_daily() determina night_import_failed dal check 10.
-
-Novità v2.7.2:
-- check_sacbo_acquisition() conta scansioni da fonte alternativa.
 """
 import os
 import sys
@@ -819,8 +813,23 @@ def job_recovery_scan(slot_key=None):
 
 
 def job_radar_scan():
-    """Scansione radar h24. Nessun check notturno."""
+    """
+    Scansione radar h24 ad intervallo adattivo.
+
+    v2.8.2: la scansione è schedulata ogni 1 minuto, ma:
+    - In fascia notturna (23:00-06:00): esegue ogni minuto
+    - In fascia diurna: esegue solo ai minuti pari (0, 2, 4, ...)
+      per mantenere l'intervallo effettivo di 2 minuti
+
+    Questo riduce il consumo API diurno senza perdere risoluzione
+    notturna (dove serve per catturare decolli cargo e sconfinamenti).
+    """
     try:
+        now = datetime.now()
+        is_night = is_night_time(now)
+        if not is_night and (now.minute % 2 != 0):
+            logger.debug(f"⏭️ Radar skip (diurno, minuto {now.minute} dispari)")
+            return
         run_radar_scan()
     except Exception as e:
         logger.error(f"❌ Eccezione scansione radar: {e}")
@@ -1122,9 +1131,19 @@ def setup_scheduler():
             schedule.every().day.at(t).do(job_sacbo_night_scan, slot=t)
             logger.info(f"🌙 Scansione SACBO notturna alle {t}")
 
-    interval = config.get("night_scan_interval_minutes", 2)
-    schedule.every(interval).minutes.do(job_radar_scan)
-    logger.info(f"📡 Scansione RADAR ogni {interval} minuti, h24")
+    # v2.8.2: intervallo adattivo. Il job viene schedulato ogni 1 minuto,
+    # ma job_radar_scan() filtra i minuti dispari diurni per mantenere 2 min.
+    night_interval = int(config.get("night_scan_interval_minutes", 1))
+    day_interval = int(config.get("day_scan_interval_minutes", 2))
+    base_interval = min(night_interval, day_interval)
+
+    if base_interval < 1:
+        base_interval = 1
+        logger.warning(f"⚠️ Intervallo radar base non valido, forzo a 1 min")
+
+    schedule.every(base_interval).minutes.do(job_radar_scan)
+    logger.info(f"📡 Scansione RADAR ogni {night_interval} min (notte 23:00-06:00) / "
+                f"{day_interval} min (giorno) - schedule base: {base_interval} min")
 
     report_time = config.get("daily_report_time", "06:30")
     schedule.every().day.at(report_time).do(job_daily)

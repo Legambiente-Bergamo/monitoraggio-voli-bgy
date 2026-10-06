@@ -1,25 +1,17 @@
 """
 bgy_scanners/bgy_scanner_radar.py - Scanner radar h24 multi-fonte.
-Versione 1.1.1
+Versione 1.1.2
 
-Novità v1.1.1 (04/10/2026):
-- detect_runway_and_phase(): esclude RWY 16 e RWY 34 (piste dismesse).
-  Queste piste non esistono più a BGY ma il classificatore le assegnava
-  erroneamente a voli in virata con track 160-190° o 340-10°.
+Novità v1.1.2 (radar 1 min di notte):
+- Dedup: da floor("2min") a floor("1min"). Supporta lo scheduling
+  adattivo (1 min notte / 2 min giorno) introdotto in bgy_scheduler v2.8.2.
+  Due scansioni ravvicinate (es. 23:00:30 e 23:01:30) ora finiscono in
+  finestre distinte e non si scartano a vicenda.
+- Docstring aggiornata. Nessun'altra modifica funzionale.
 
-Novità v1.1.0 (fix classificazione fase):
-- Aggiunto campo baro_rate (velocità verticale) in tutti i parser.
-- detect_runway_and_phase(): usa baro_rate per disambiguare "Avvicinamento"
-  in "Decollo" quando l'aereo è in salita netta (>500 ft/min).
-  Questo risolve il bug per cui un decollo a 6.5 km / 2025 ft con
-  track 135° veniva classificato come "Avvicinamento" e quindi
-  direzione 'A' nel report notturno (caso NSZ2941, 2/10/2026).
-- Fix implicito: baro_rate ora è una colonna del CSV radar.
-
-Novità v1.0.0:
-- Primo rilascio. Sostituisce bgy_scanner_night.py.
-- Aggiunta colonna 'fonte' ai rilevamenti.
-- Salvataggio cumulativo giornaliero (radar_YYYY-MM-DD.csv).
+Novità v1.1.1: esclusi RWY 16 e RWY 34 da detect_runway_and_phase().
+Novità v1.1.0: baro_rate + conversione OpenSky m→ft.
+Novità v1.0.0: primo rilascio.
 """
 import os
 import sys
@@ -278,7 +270,7 @@ def _fetch_opensky():
         logger.warning("⚠️ OpenSky: formato inatteso")
         return None
 
-    logger.info(f"📡 OpenSky: ricevuti {len(states)} stati (fallback 2)")
+    logger.info(f"📡 OpenSky: ricevuti {len(states)} stati (fallback 3)")
     return _parse_opensky(states)
 
 
@@ -514,7 +506,9 @@ def run_radar_scan(parallel_test=False):
 
     if "icao24" in df.columns and "timestamp" in df.columns:
         before = len(df)
-        df["_ts_min"] = pd.to_datetime(df["timestamp"]).dt.floor("2min")
+        # v1.1.2: floor a 1 minuto (era 2 min). Supporta la schedulazione
+        # adattiva 1 min notte / 2 min giorno di bgy_scheduler v2.8.2.
+        df["_ts_min"] = pd.to_datetime(df["timestamp"]).dt.floor("1min")
         df = df.drop_duplicates(subset=["icao24", "_ts_min"], keep="first")
         df = df.drop(columns=["_ts_min"])
         removed = before - len(df)

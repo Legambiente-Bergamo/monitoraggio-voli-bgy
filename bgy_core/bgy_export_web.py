@@ -1,12 +1,26 @@
 """
 bgy_core/bgy_export_web.py - Esportazione dati aggregati per il web (F17).
-Versione 1.2.10
+Versione 1.2.12
+
+Novità v1.2.12 (05/10/2026):
+- Cargo, charter e non classificati radar-only (is_scheduled=FALSE) ora
+  contribuiscono alle KPI di dettaglio D_cargo/A_cargo, D_charter/A_charter,
+  D_non_classificato/A_non_classificato. Necessario perché SACBO non pubblica
+  cargo: tutti i cargo sono radar-only.
+- _build_by_hour: rimossa la condizione is_scheduled = TRUE. Anche cargo,
+  charter e non classificati radar-only entrano nel grafico orario.
+  I "Passeggeri (radar)" (duplicati del matching) restano esclusi perché
+  la WHERE usa tipo_movimento = 'Passeggeri' (esatto).
+- build_block_night_airlines: rimossa la condizione is_scheduled = TRUE.
+  Le compagnie cargo (Maersk, DHL, ecc.) ora appaiono nel grafico compagnie.
+
+Novità v1.2.11:
+- _build_by_hour() ritorna {by_date: [...], totals: [...]}. Il filtro JS
+  ritaglia la distribuzione oraria sul periodo selezionato.
 
 Novità v1.2.10:
-- build_block_night_movements: aggiunti sconfinamenti_D, sconfinamenti_A,
-  sconfinamenti_gravi_D, sconfinamenti_gravi_A in totals e by_date.
-  Necessari per la nuova riga 3 KPI (decolli sconfinati / atterraggi
-  sconfinati).
+- build_block_night_movements: aggiunti sconfinamenti_D/A,
+  sconfinamenti_gravi_D/A in totals e by_date.
 
 Novità v1.2.9:
 - build_block_destinations_pax: struttura by_date per filtro JS.
@@ -58,6 +72,8 @@ CATEGORY_FILTERS = [
     ("charter", "tipo_movimento LIKE 'Charter%%'"),
     ("non_classificato", "tipo_movimento = 'Non classificato'"),
 ]
+
+CATS_KEYS = ["passeggeri", "cargo", "charter", "non_classificato"]
 
 NIGHT_HOURS = [23, 0, 1, 2, 3, 4, 5]
 
@@ -233,6 +249,12 @@ def build_block_night_movements(date_from, date_to):
         "nd": {"totale": 0, "D": 0, "A": 0},
     }
 
+    # v1.2.12: categorie che contribuiscono alle KPI di dettaglio anche se
+    # radar-only. I passeggeri radar-only sono duplicati del matching e
+    # restano esclusi (tipo_movimento = 'Passeggeri (radar)' non è in questa
+    # lista e non è catturato da _category_from_tipo).
+    RADAR_ONLY_KPI_CATS = ("cargo", "charter", "non_classificato")
+
     for r in rows:
         ds = _date_str(r[0])
         pista, dir_sacbo, fase = r[1], r[2], r[3]
@@ -246,6 +268,8 @@ def build_block_night_movements(date_from, date_to):
         item = by_date_acc.setdefault(ds, _empty_by_date_item(ds))
         item["totale"] += n
         totals["totale"] += n
+
+        cat = _category_from_tipo(tipo_mov)
 
         if is_sched is True:
             item["a_tabellone"] += n
@@ -287,7 +311,6 @@ def build_block_night_movements(date_from, date_to):
             elif notte_cat == "anomalia":
                 item["anomalie"] += n; totals["anomalie"] += n
 
-            cat = _category_from_tipo(tipo_mov)
             if cat and d in ("D", "A"):
                 item[d + "_" + cat] += n
         else:
@@ -296,6 +319,11 @@ def build_block_night_movements(date_from, date_to):
                 item["D_radar"] += n; totals["D_radar"] += n
             elif d == "A":
                 item["A_radar"] += n; totals["A_radar"] += n
+
+            # v1.2.12: cargo/charter/non_classificato radar-only contribuiscono
+            # alle KPI di dettaglio (passeggeri radar esclusi: duplicati).
+            if cat in RADAR_ONLY_KPI_CATS and d in ("D", "A"):
+                item[d + "_" + cat] += n
 
     by_date = [by_date_acc[ds] for ds in sorted(by_date_acc.keys())]
     return {
@@ -333,13 +361,31 @@ def build_block_night_anomalies(date_from, date_to):
     return {"totals": len(items), "items": items}
 
 
+def _empty_hour_slot(hour):
+    """Slot vuoto per una singola ora notturna."""
+    return {
+        "hour": hour,
+        "D": {"passeggeri": 0, "cargo": 0, "charter": 0, "non_classificato": 0, "total": 0},
+        "A": {"passeggeri": 0, "cargo": 0, "charter": 0, "non_classificato": 0, "total": 0},
+    }
+
+
 def _build_by_hour(date_from, date_to):
+    """
+    v1.2.12: rimossa la condizione is_scheduled = TRUE. Anche i movimenti
+    radar-only (cargo, charter, non classificato) entrano nel grafico orario.
+    I passeggeri radar-only restano esclusi perché la WHERE usa
+    tipo_movimento = 'Passeggeri' (esatto, esclude 'Passeggeri (radar)').
+
+    v1.2.11: ritorna {by_date: [{date, hours: [7 slot]}], totals: [7 slot]}.
+    """
     cat_selects = []
     for cat_key, cat_filter in CATEGORY_FILTERS:
         cat_selects.append(f"COUNT(*) FILTER (WHERE {cat_filter}) AS {cat_key}_n")
 
     sql = f"""
         SELECT
+          data_riferimento,
           CASE
             WHEN timestamp IS NOT NULL THEN EXTRACT(HOUR FROM timestamp)
             WHEN orario_schedulato IS NOT NULL THEN EXTRACT(HOUR FROM orario_schedulato)
@@ -355,34 +401,51 @@ def _build_by_hour(date_from, date_to):
           COUNT(*) AS total
         FROM nightly_reports
         WHERE data_riferimento BETWEEN %s AND %s
-          AND is_scheduled = TRUE
           AND (tipo_movimento = 'Passeggeri'
                OR tipo_movimento LIKE 'Cargo%%'
                OR tipo_movimento LIKE 'Charter%%'
                OR tipo_movimento = 'Non classificato')
-        GROUP BY h, dir
-        ORDER BY h, dir
+        GROUP BY data_riferimento, h, dir
+        ORDER BY data_riferimento, h, dir
     """
     rows = _query(sql, (date_from, date_to))
-    data = {}
-    for hour in NIGHT_HOURS:
-        data[hour] = {
-            "hour": hour,
-            "D": {"passeggeri": 0, "cargo": 0, "charter": 0, "non_classificato": 0, "total": 0},
-            "A": {"passeggeri": 0, "cargo": 0, "charter": 0, "non_classificato": 0, "total": 0},
-        }
+
+    by_date_acc = {}
     for r in rows or []:
-        h = int(r[0]) if r[0] is not None else None
-        if h is None or h not in data:
+        ds = _date_str(r[0])
+        h = int(r[1]) if r[1] is not None else None
+        if h is None or h not in NIGHT_HOURS:
             continue
-        d = r[1] or '?'
+        d = r[2] or '?'
         if d not in ('D', 'A'):
             continue
-        cats = ["passeggeri", "cargo", "charter", "non_classificato"]
-        for i, cat in enumerate(cats):
-            data[h][d][cat] += int(r[2 + i] or 0)
-        data[h][d]["total"] += int(r[6] or 0)
-    return [data[h] for h in NIGHT_HOURS]
+        day = by_date_acc.get(ds)
+        if day is None:
+            day = {"date": ds, "hours": {hh: _empty_hour_slot(hh) for hh in NIGHT_HOURS}}
+            by_date_acc[ds] = day
+        for i, cat in enumerate(CATS_KEYS):
+            day["hours"][h][d][cat] += int(r[3 + i] or 0)
+        day["hours"][h][d]["total"] += int(r[7] or 0)
+
+    by_date = []
+    for ds in sorted(by_date_acc.keys()):
+        entry = by_date_acc[ds]
+        hours_list = [entry["hours"][h] for h in NIGHT_HOURS]
+        by_date.append({"date": ds, "hours": hours_list})
+
+    totals = {h: _empty_hour_slot(h) for h in NIGHT_HOURS}
+    for ds in by_date_acc:
+        for h in NIGHT_HOURS:
+            for dir_k in ("D", "A"):
+                src = by_date_acc[ds]["hours"][h][dir_k]
+                dst = totals[h][dir_k]
+                for cat in ("passeggeri", "cargo", "charter", "non_classificato", "total"):
+                    dst[cat] += src[cat]
+
+    return {
+        "by_date": by_date,
+        "totals": [totals[h] for h in NIGHT_HOURS],
+    }
 
 
 def build_block_night_destinations(date_from, date_to, top_n):
@@ -469,6 +532,12 @@ def build_block_destinations_pax(date_from, date_to, top_cities=15, top_countrie
 
 
 def build_block_night_airlines(date_from, date_to, top_n):
+    """
+    v1.2.12: rimossa la condizione is_scheduled = TRUE. Le compagnie cargo
+    (Maersk, DHL, ecc.) che operano radar-only ora compaiono nel grafico.
+    I passeggeri radar-only restano esclusi perché la WHERE usa
+    tipo_movimento = 'Passeggeri' (esatto).
+    """
     dir_case = """
         CASE
           WHEN direzione_sacbo IN ('D', 'A') THEN direzione_sacbo
@@ -484,12 +553,14 @@ def build_block_night_airlines(date_from, date_to, top_n):
                   COUNT(*) AS n
            FROM nightly_reports
            WHERE data_riferimento BETWEEN %s AND %s
-             AND is_scheduled = TRUE
              AND compagnia_aerea IS NOT NULL
              AND compagnia_aerea != ''
              AND compagnia_aerea != 'N/D'
              AND compagnia_aerea NOT LIKE 'Compagnia %%'
-             AND (tipo_movimento = 'Passeggeri' OR tipo_movimento LIKE 'Cargo%%' OR tipo_movimento LIKE 'Charter%%')
+             AND (tipo_movimento = 'Passeggeri'
+                  OR tipo_movimento LIKE 'Cargo%%'
+                  OR tipo_movimento LIKE 'Charter%%'
+                  OR tipo_movimento = 'Non classificato')
            GROUP BY data_riferimento, compagnia_aerea
            ORDER BY data_riferimento, n DESC""",
         (date_from, date_to))
@@ -511,12 +582,14 @@ def build_block_night_airlines(date_from, date_to, top_n):
                   COUNT(*) AS n
            FROM nightly_reports
            WHERE data_riferimento BETWEEN %s AND %s
-             AND is_scheduled = TRUE
              AND compagnia_aerea IS NOT NULL
              AND compagnia_aerea != ''
              AND compagnia_aerea != 'N/D'
              AND compagnia_aerea NOT LIKE 'Compagnia %%'
-             AND (tipo_movimento = 'Passeggeri' OR tipo_movimento LIKE 'Cargo%%' OR tipo_movimento LIKE 'Charter%%')
+             AND (tipo_movimento = 'Passeggeri'
+                  OR tipo_movimento LIKE 'Cargo%%'
+                  OR tipo_movimento LIKE 'Charter%%'
+                  OR tipo_movimento = 'Non classificato')
            GROUP BY compagnia_aerea
            ORDER BY n DESC""",
         (date_from, date_to))
@@ -731,7 +804,8 @@ def build_web_json(days=90):
         f"JSON web: {len(movements['by_date'])} giorni, "
         f"{anomalies['totals']} anomalie, "
         f"{len(destinations_pax.get('by_date', []))} giorni pax, "
-        f"{len(airlines['totals'])} compagnie"
+        f"{len(airlines['totals'])} compagnie, "
+        f"by_hour su {len(movements['by_hour'].get('by_date', []))} date"
     )
     return payload
 
