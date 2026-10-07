@@ -1,10 +1,11 @@
 """
 bgy_scanners/bgy_scanner_alt.py - Scanner alternativo (Avionio).
-Versione 0.2.0
+Versione 0.3.0
 
 Scopo:
-  - Fornire una fonte alternativa di confronto per i dati SACBO.
-  - FARE DA FALLBACK quando SACBO è irraggiungibile (Cloudflare, sito giù).
+  - Fonte alternativa di confronto per i dati SACBO.
+  - Fallback quando SACBO è irraggiungibile (Cloudflare, sito giù).
+  - INFRA-01: fonte scheduled integrativa per il cargo.
   - I dati sono salvati in bgy_data/bgy_avionio/ (rotazione 7 giorni).
 
 Fonte: https://www.avionio.com/en/airport/bgy/{arrivals,departures}
@@ -12,30 +13,41 @@ Fonte: https://www.avionio.com/en/airport/bgy/{arrivals,departures}
 Struttura tabella HTML:
     Time | Date | IATA | Origin/Destination | Flight | Airline | Status
 
+Novità v0.3.0 (INFRA-01, 07/10/2026):
+- Aggiunta fetch_as_scheduled_rows(date_norm): ritorna i voli Avionio
+  della sessione notturna nel formato di load_scheduled_flights()
+  (callsign_volo, tipo_movimento, destinazione_origine, orario_schedulato,
+  orario_effettivo, stato_volo, fonte_scheduled='avionio').
+  Usata da bgy_report_night.py v2.9.19 in load_avionio_scheduled().
+- Aggiunta read_scheduled_from_files(date_norm): legge i file già salvati
+  della sessione (flat YYYY-MM-DD_HH-MM) e li deduplica per
+  (callsign, orario_schedulato, tipo_movimento), tenendo il record più
+  recente (post-operativo > pre-operativo).
+- La struttura di salvataggio resta FLAT (retrocompatibile con i file
+  esistenti). Niente cartelle per data.
+
 Novità v0.2.0 (failover SACBO):
-- Aggiunta fetch_as_scan_rows(): ritorna i voli Avionio nel formato
-  compatibile con scan_*.csv di SACBO, con fonte_scan='avionio'.
-  Usata da bgy_scanner_day.py come fallback quando Cloudflare blocca SACBO.
-- Aggiunta STATUS_MAP: traduzione degli stati inglesi Avionio in italiano
-  compatibile con la logica di _classify_volo() in bgy_report_night.py.
-- Aggiunta _avionio_effective_time(): stima orario_effettivo in base allo
-  stato (Avionio non fornisce un campo separato).
+- Aggiunta fetch_as_scan_rows(): formato compatibile con scan_*.csv
+  di SACBO per il fallback di bgy_scanner_day.py.
+- Aggiunta STATUS_MAP: traduzione stati Avionio in italiano.
+- Aggiunta _avionio_effective_time().
 
 Novità v0.1.1:
-- Fix _normalize_callsign: 'FR3403' → 'FR 3403' (era 'FR3 403').
+- Fix _normalize_callsign: 'FR3403' → 'FR 3403'.
 
 Uso:
     py -3.12 -m bgy_scanners.bgy_scanner_alt
     py -3.12 -m bgy_scanners.bgy_scanner_alt --movement arrivals
-    py -3.12 -m bgy_scanners.bgy_scanner_alt --movement departures
     py -3.12 -m bgy_scanners.bgy_scanner_alt --cleanup
+    py -3.12 -m bgy_scanners.bgy_scanner_alt --list-session 2026-10-01
+    py -3.12 -m bgy_scanners.bgy_scanner_alt --debug-scheduled 2026-10-01
 """
 import os
 import re
 import sys
 import csv
 import argparse
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import requests
 from bs4 import BeautifulSoup
@@ -43,6 +55,7 @@ from bs4 import BeautifulSoup
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from bgy_core.bgy_logger import get_logger
+from bgy_core.bgy_dates import normalize_date
 
 logger = get_logger("ScannerAlt")
 
@@ -54,6 +67,15 @@ _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 AVIONIO_DIR = os.path.join(_PROJECT_ROOT, "bgy_data", "bgy_avionio")
 
 RETENTION_DAYS = 7
+
+# Finestra oraria schedulata ammessa per il report notturno (filtro STRETTO)
+NIGHT_START_MIN = 23 * 60   # 23:00
+NIGHT_END_MIN = 6 * 60      # 06:00 (escluso)
+
+# Fascia dei FILE da leggere per la sessione notturna:
+# dal file "22-00" del giorno X al file "06-30" del giorno X+1.
+SESSION_FILE_HOURS_START = 22   # X hh>=22
+SESSION_FILE_HOURS_END = 7      # X+1 hh<7
 
 HEADERS = {
     "User-Agent": (
@@ -71,11 +93,6 @@ FIELDNAMES = [
     "compagnia_aerea", "codice_iata", "data", "fonte",
 ]
 
-# Traduzione stati Avionio (inglese) → stati SACBO (italiano)
-# Usata da _classify_volo() in bgy_report_night.py per la classificazione.
-# Gli stati in italiano devono contenere le chiavi cercate da:
-#   STATI_A_TERRA = ('IMBARCO', 'IN RITARDO')
-#   STATI_OPERATI = ('DECOLLATO', 'ATTERRATO', 'ARRIVATO', 'IN VOLO', 'PARTITO')
 STATUS_MAP = {
     # Stati "a terra"
     "boarding": "Imbarco in corso",
@@ -108,14 +125,17 @@ STATUS_MAP = {
     "": "Operativo",
 }
 
-# Stati che NON hanno orario effettivo (volo non ancora operato)
 STATI_PRE_OPERATIVI = (
     "operativo", "imbarco", "check-in", "stimato", "scheduled",
 )
 
-# Stati che sono già operati (hanno un orario effettivo)
 STATI_POST_OPERATIVI = (
     "decollato", "atterrato", "arrivato", "in volo", "partito",
+)
+
+# File name regex: avionio_{arrivals|departures}_{YYYY-MM-DD}_{HH-MM}.csv
+_FILENAME_RE = re.compile(
+    r"^avionio_(arrivals|departures)_(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})\.csv$"
 )
 
 
@@ -124,11 +144,7 @@ STATI_POST_OPERATIVI = (
 # -----------------------------------------------------------------------------
 
 def _normalize_callsign(flight):
-    """
-    Normalizza il numero di volo: 'FR3403' → 'FR 3403'.
-    Gestisce prefissi IATA (2 char) e ICAO (3 lettere).
-    Lascia invariati i casi già normalizzati ('FR 3403').
-    """
+    """Normalizza il numero di volo: 'FR3403' → 'FR 3403'."""
     if not flight:
         return ""
     flight = str(flight).strip()
@@ -151,14 +167,11 @@ def _translate_status(status):
     if not status:
         return "Operativo"
     s = str(status).strip().lower()
-    # Cerca corrispondenza esatta nella mappa
     if s in STATUS_MAP:
         return STATUS_MAP[s]
-    # Cerca corrispondenza parziale (es. "Landed 10:35" → "Atterrato")
     for key, value in STATUS_MAP.items():
         if key and key in s:
             return value
-    # Fallback: mantieni lo status originale
     return str(status).strip()
 
 
@@ -167,30 +180,57 @@ def _avionio_effective_time(status_translated, orario_schedulato):
     Stima l'orario effettivo da uno stato Avionio.
 
     Avionio non fornisce un campo separato di orario effettivo. La logica:
-      - Se lo stato è post-operativo (decollato/atterrato/...), non possiamo
-        sapere l'orario esatto: lasciamo vuoto.
-      - Se lo stato è pre-operativo (operativo/imbarco/...), assumiamo
-        che l'orario effettivo sia uguale a quello schedulato (volo in orario).
-      - Se lo stato è "In ritardo" o "Cancellato", lasciamo vuoto.
+      - post-operativo → vuoto (orario effettivo non disponibile)
+      - cancellato/dirottato → vuoto
+      - in ritardo → vuoto
+      - pre-operativo → uguale allo schedulato (assunzione "in orario")
     """
     s = str(status_translated).strip().lower()
 
-    if any(k in s for k in ("cancellat", "cancelled", "canceled", "dirottat", "diverted")):
+    if any(k in s for k in ("cancellat", "cancelled", "canceled",
+                             "dirottat", "diverted")):
         return ""
-
     if any(k in s for k in ("in ritardo", "delayed")):
         return ""
-
-    if any(k in s for k in ("decollato", "atterrato", "arrivato", "in volo", "partito")):
-        # Operato, ma orario effettivo non disponibile
+    if any(k in s for k in ("decollato", "atterrato", "arrivato",
+                             "in volo", "partito")):
         return ""
-
-    # Pre-operativo: assume orario in linea con lo schedulato
     return orario_schedulato if _is_valid_time(orario_schedulato) else ""
 
 
+def _time_to_minutes(hhmm):
+    if not hhmm:
+        return None
+    try:
+        parts = str(hhmm).strip().split(":")
+        return int(parts[0]) * 60 + int(parts[1])
+    except (ValueError, IndexError, AttributeError):
+        return None
+
+
+def _is_in_night_schedule(hhmm):
+    """True se l'orario schedulato è tra 23:00 e 05:59 (inclusi)."""
+    mins = _time_to_minutes(hhmm)
+    if mins is None:
+        return False
+    return mins >= NIGHT_START_MIN or mins < NIGHT_END_MIN
+
+
+def _is_in_night_schedule_extended(hhmm):
+    """
+    Finestra estesa per il match scheduled Avionio:
+    22:30-06:30. Serve a catturare voli con sched leggermente fuori fascia
+    (es. 22:55, 06:05) che però possono essere operati in fascia.
+    Il filtro stretto avviene poi nel report notturno.
+    """
+    mins = _time_to_minutes(hhmm)
+    if mins is None:
+        return False
+    return (mins >= 22 * 60 + 30) or (mins < 6 * 60 + 30)
+
+
 # -----------------------------------------------------------------------------
-# FETCH E PARSING
+# FETCH E PARSING (invariati da v0.2.0)
 # -----------------------------------------------------------------------------
 
 def fetch_avionio(url, movement_type):
@@ -284,7 +324,7 @@ def fetch_avionio(url, movement_type):
 # -----------------------------------------------------------------------------
 
 def save_to_csv(flights, movement_type):
-    """Salva i voli in un file CSV."""
+    """Salva i voli in un file CSV (flat, retrocompatibile)."""
     if not flights:
         logger.info(f"⏭️ Nessun volo da salvare ({movement_type})")
         return None
@@ -335,7 +375,7 @@ def cleanup_old_files(days=RETENTION_DAYS):
 
 
 # -----------------------------------------------------------------------------
-# FUNZIONI PUBBLICHE
+# FUNZIONI PUBBLICHE (v0.2.0)
 # -----------------------------------------------------------------------------
 
 def run_scan_alt(movement_type="both"):
@@ -366,14 +406,7 @@ def fetch_as_scan_rows():
     """
     Ritorna i voli Avionio nel formato compatibile con scan_*.csv di SACBO.
 
-    Lista di dict con le colonne:
-        callsign_volo, tipo_movimento, destinazione_origine,
-        orario_schedulato, orario_effettivo, stato_volo, fonte_scan
-
     Usata da bgy_scanner_day.py come fallback quando SACBO è irraggiungibile.
-
-    Nota: gli stati Avionio sono tradotti in italiano SACBO-compatibile.
-    L'orario effettivo è stimato in base allo stato (Avionio non lo fornisce).
     """
     arr, dep = fetch_all()
     rows = []
@@ -416,6 +449,191 @@ def fetch_as_scan_rows():
 
 
 # -----------------------------------------------------------------------------
+# v0.3.0 — LETTURA FILE SALVATI PER IL REPORT NOTTURNO
+# -----------------------------------------------------------------------------
+
+def _list_session_files(date_norm):
+    """
+    Ritorna i file Avionio che coprono la sessione notturna:
+      - giorno X: file con ora >= 22:00
+      - giorno X+1: file con ora < 07:00
+
+    La sessione notturna è definita come 'notte del giorno X'.
+    """
+    if not os.path.isdir(AVIONIO_DIR):
+        return []
+
+    date_dt = datetime.strptime(date_norm, "%Y-%m-%d")
+    next_date_norm = (date_dt + timedelta(days=1)).strftime("%Y-%m-%d")
+
+    files = []
+    for fname in os.listdir(AVIONIO_DIR):
+        m = _FILENAME_RE.match(fname)
+        if not m:
+            continue
+        movement = m.group(1)
+        fdate = m.group(2)
+        fhour = int(m.group(3))
+
+        if fdate == date_norm and fhour >= SESSION_FILE_HOURS_START:
+            files.append(os.path.join(AVIONIO_DIR, fname))
+        elif fdate == next_date_norm and fhour < SESSION_FILE_HOURS_END:
+            files.append(os.path.join(AVIONIO_DIR, fname))
+
+    files.sort()
+    return files
+
+
+def _read_avionio_file(filepath):
+    """Legge un file Avionio e ritorna una lista di dict."""
+    rows = []
+    try:
+        with open(filepath, "r", encoding="utf-8-sig", newline="") as f:
+            reader = csv.DictReader(f)
+            for r in reader:
+                rows.append(r)
+    except Exception as e:
+        logger.warning(f"Errore lettura {filepath}: {e}")
+    return rows
+
+
+def read_scheduled_from_files(date_norm):
+    """
+    v0.3.0: legge tutti i file Avionio della sessione notturna (dal file
+    '22-00' del giorno X al file '06-30' del giorno X+1), li deduplica
+    per (callsign, orario_schedulato, tipo_movimento), tenendo il record
+    con lo stato più avanzato (post-operativo > pre-operativo).
+
+    Ritorna una lista di dict pronti per il merge con SACBO, nel formato:
+        {
+            callsign_volo: 'DJ 6498',
+            tipo_movimento: 'A'|'D',
+            destinazione_origine: 'Cologne/Bonn',
+            orario_schedulato: '05:15',
+            orario_effettivo: '',
+            stato_volo: 'Operativo',
+            fonte_scheduled: 'avionio',
+            codice_iata: 'CGN',
+            compagnia_aerea: 'Air Djibouti',
+        }
+
+    Filtra gli orari fuori dalla finestra ESTESA 22:30-06:30.
+    Il filtro STRETTO 23:00-05:59 avviene poi nel report notturno.
+    """
+    date_norm = normalize_date(date_norm)
+    if not date_norm:
+        logger.warning(f"read_scheduled_from_files: data non valida")
+        return []
+
+    files = _list_session_files(date_norm)
+    if not files:
+        logger.info(f"📁 Nessun file Avionio per la sessione {date_norm}")
+        return []
+
+    logger.info(f"📁 File Avionio sessione {date_norm}: {len(files)}")
+
+    # Chiave: (callsign_normalizzato, orario_schedulato, tipo_movimento)
+    dedup = {}
+
+    for fp in files:
+        rows = _read_avionio_file(fp)
+        for r in rows:
+            cs = _normalize_callsign(r.get("callsign_volo", ""))
+            sched = (r.get("orario_schedulato") or "").strip()
+            mov = (r.get("tipo_movimento") or "").strip().upper()
+
+            if not cs or not sched or mov not in ("A", "D"):
+                continue
+            if not _is_in_night_schedule_extended(sched):
+                continue
+
+            stato_tradotto = _translate_status(r.get("stato_volo", ""))
+            is_post = any(k in stato_tradotto.lower()
+                          for k in ("decollato", "atterrato", "arrivato",
+                                    "in volo", "partito"))
+            priority = 1 if is_post else 0
+
+            key = (cs, sched, mov)
+            existing = dedup.get(key)
+            if existing is None or priority > existing["_priority"]:
+                dedup[key] = {
+                    "callsign_volo": cs,
+                    "tipo_movimento": mov,
+                    "destinazione_origine": r.get("destinazione_origine", ""),
+                    "orario_schedulato": sched,
+                    "orario_effettivo": _avionio_effective_time(
+                        stato_tradotto, sched
+                    ),
+                    "stato_volo": stato_tradotto,
+                    "fonte_scheduled": "avionio",
+                    "codice_iata": r.get("codice_iata", ""),
+                    "compagnia_aerea": r.get("compagnia_aerea", ""),
+                    "_priority": priority,
+                }
+
+    result = []
+    for v in dedup.values():
+        v.pop("_priority", None)
+        result.append(v)
+
+    logger.info(
+        f"📋 Avionio scheduled sessione {date_norm}: {len(result)} voli "
+        f"(su {len(files)} file, finestra estesa 22:30-06:30)"
+    )
+    return result
+
+
+def fetch_as_scheduled_rows(date_norm):
+    """
+    v0.3.0: come read_scheduled_from_files(), ma se i file della sessione
+    non esistono tenta un fetch live da Avionio.
+
+    Usata da bgy_report_night.py v2.9.19. In produzione i file ci sono
+    sempre (raccolti dallo scheduler), quindi il fetch live è un fallback.
+    """
+    rows = read_scheduled_from_files(date_norm)
+    if rows:
+        return rows
+
+    logger.info(f"📡 Nessun file Avionio per {date_norm}, tenta fetch live")
+    arr, dep = fetch_all()
+    out = []
+    for fl in (arr or []):
+        sched = fl.get("orario_schedulato", "")
+        if not _is_in_night_schedule_extended(sched):
+            continue
+        stato_tradotto = _translate_status(fl.get("stato_volo", ""))
+        out.append({
+            "callsign_volo": fl.get("callsign_volo", ""),
+            "tipo_movimento": fl.get("tipo_movimento", "A"),
+            "destinazione_origine": fl.get("destinazione_origine", ""),
+            "orario_schedulato": sched,
+            "orario_effettivo": _avionio_effective_time(stato_tradotto, sched),
+            "stato_volo": stato_tradotto,
+            "fonte_scheduled": "avionio",
+            "codice_iata": fl.get("codice_iata", ""),
+            "compagnia_aerea": fl.get("compagnia_aerea", ""),
+        })
+    for fl in (dep or []):
+        sched = fl.get("orario_schedulato", "")
+        if not _is_in_night_schedule_extended(sched):
+            continue
+        stato_tradotto = _translate_status(fl.get("stato_volo", ""))
+        out.append({
+            "callsign_volo": fl.get("callsign_volo", ""),
+            "tipo_movimento": fl.get("tipo_movimento", "D"),
+            "destinazione_origine": fl.get("destinazione_origine", ""),
+            "orario_schedulato": sched,
+            "orario_effettivo": _avionio_effective_time(stato_tradotto, sched),
+            "stato_volo": stato_tradotto,
+            "fonte_scheduled": "avionio",
+            "codice_iata": fl.get("codice_iata", ""),
+            "compagnia_aerea": fl.get("compagnia_aerea", ""),
+        })
+    return out
+
+
+# -----------------------------------------------------------------------------
 # MAIN (CLI)
 # -----------------------------------------------------------------------------
 
@@ -432,11 +650,39 @@ def main():
         action="store_true",
         help="Esegue solo la pulizia dei file vecchi"
     )
+    parser.add_argument(
+        "--list-session",
+        type=str,
+        metavar="YYYY-MM-DD",
+        help="Elenca i file della sessione notturna"
+    )
+    parser.add_argument(
+        "--debug-scheduled",
+        type=str,
+        metavar="YYYY-MM-DD",
+        help="Stampa i voli scheduled letti da Avionio per la sessione"
+    )
     args = parser.parse_args()
 
     if args.cleanup:
         n = cleanup_old_files()
         print(f"🧹 Rimossi {n} file vecchi")
+        return
+
+    if args.list_session:
+        files = _list_session_files(normalize_date(args.list_session))
+        print(f"📁 File sessione {args.list_session}: {len(files)}")
+        for f in files:
+            print(f"  · {os.path.basename(f)}")
+        return
+
+    if args.debug_scheduled:
+        rows = read_scheduled_from_files(normalize_date(args.debug_scheduled))
+        print(f"📋 Voli scheduled Avionio: {len(rows)}")
+        for r in rows:
+            print(f"  · {r['callsign_volo']:12s} {r['tipo_movimento']} "
+                  f"sched {r['orario_schedulato']:5s} → {r['destinazione_origine']}"
+                  f" ({r['stato_volo']})")
         return
 
     results = run_scan_alt(args.movement)

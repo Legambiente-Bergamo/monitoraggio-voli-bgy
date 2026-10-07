@@ -1,6 +1,6 @@
 """
 bgy_core/bgy_db_migrate.py - Import e sincronizzazione CSV -> PostgreSQL.
-Versione 2.8.5
+Versione 2.8.6.1
 
 Modulo unificato che contiene:
   - Funzioni di import per ogni tipo di file (scan, radar, meteo, nightly)
@@ -11,6 +11,21 @@ Modulo unificato che contiene:
   - Statistiche movimenti giornalieri e notturni
   - Check compagnie placeholder irrisolte (F14)
   - Check anomalie notturne
+
+Novità v2.8.6.1 (INFRA-01, 07/10/2026):
+- import_nightly_file(): fonte_scheduled ora e' NULL per i radar-only.
+  Prima, per via del default DB VARCHAR(10) DEFAULT 'sacbo', i record
+  radar-only (is_scheduled=FALSE) finivano con fonte_scheduled='sacbo',
+  semanticamente scorretto. Ora il valore viene deciso cosi':
+    - is_scheduled=FALSE            -> NULL
+    - is_scheduled=TRUE + 'avionio' -> 'avionio'
+    - is_scheduled=TRUE + 'sacbo'   -> 'sacbo'
+    - is_scheduled=TRUE + vuoto     -> 'sacbo' (CSV pre-v2.9.19)
+
+Novità v2.8.6 (INFRA-01, 07/10/2026):
+- Import nightly esteso: nuove colonne icao24 e fonte_scheduled.
+- apply_schema_updates() ora include ALTER per icao24, fonte_scheduled
+  e CREATE INDEX IF NOT EXISTS idx_nightly_icao24.
 
 Novità v2.8.5 (05/10/2026):
 - Nuovo flag CLI --force: forza il reimport di tutti i file anche se
@@ -85,7 +100,11 @@ def _reset_stats():
 
 
 def apply_schema_updates():
-    """Aggiornamenti di schema idempotenti."""
+    """
+    Aggiornamenti di schema idempotenti.
+
+    v2.8.6: aggiunte le colonne icao24 e fonte_scheduled a nightly_reports.
+    """
     global _schema_updates_applied
     if _schema_updates_applied:
         return True
@@ -93,10 +112,13 @@ def apply_schema_updates():
     updates = [
         "ALTER TABLE nightly_reports ADD COLUMN IF NOT EXISTS direzione_sacbo VARCHAR(2)",
         "ALTER TABLE nightly_reports ADD COLUMN IF NOT EXISTS notte_categoria VARCHAR(30)",
+        "ALTER TABLE nightly_reports ADD COLUMN IF NOT EXISTS icao24 VARCHAR(6)",
+        "ALTER TABLE nightly_reports ADD COLUMN IF NOT EXISTS fonte_scheduled VARCHAR(10) DEFAULT 'sacbo'",
         "ALTER TABLE radar_detections ADD COLUMN IF NOT EXISTS fonte TEXT",
         "ALTER TABLE radar_detections ADD COLUMN IF NOT EXISTS data_riferimento DATE",
         "ALTER TABLE radar_detections ALTER COLUMN sessione_notturna DROP NOT NULL",
         "ALTER TABLE scans ADD COLUMN IF NOT EXISTS source VARCHAR(20) DEFAULT 'sacbo'",
+        "CREATE INDEX IF NOT EXISTS idx_nightly_icao24 ON nightly_reports(icao24) WHERE icao24 IS NOT NULL",
         """CREATE TABLE IF NOT EXISTS callsign_classifications (
             callsign VARCHAR(10) PRIMARY KEY,
             categoria VARCHAR(30) NOT NULL,
@@ -590,6 +612,13 @@ def import_nightly_file(filepath):
     Se il CSV è cambiato (rigenerato per fix o rerun), reimporta.
 
     v2.8.5: se _FORCE_REIMPORT è True, salta il check e reimporta sempre.
+
+    v2.8.6: legge le nuove colonne icao24 e fonte_scheduled.
+    Per i CSV vecchi (senza queste colonne), usa default '' e 'sacbo'.
+
+    v2.8.6.1: fonte_scheduled e' NULL per i radar-only (is_scheduled=FALSE).
+    Il default DB VARCHAR(10) DEFAULT 'sacbo' non viene piu' applicato
+    implicitamente a movimenti non scheduled.
     """
     filename = os.path.basename(filepath)
     date_str = parse_nightly_filename(filename)
@@ -626,14 +655,40 @@ def import_nightly_file(filepath):
                 "DELETE FROM nightly_reports WHERE data_riferimento = %s",
                 (date_str,), fetch=False)
 
+    # v2.8.6: rileva presenza delle nuove colonne nel CSV
+    has_icao24 = bool(csv_rows) and "icao24" in csv_rows[0]
+    has_fonte = bool(csv_rows) and "fonte_scheduled" in csv_rows[0]
+    if not has_icao24 or not has_fonte:
+        logger.info(
+            f"ℹ️ {filename}: colonne v2.9.19+ non presenti nel CSV "
+            f"(icao24={'sì' if has_icao24 else 'no'}, "
+            f"fonte_scheduled={'sì' if has_fonte else 'no'}). "
+            f"Uso default '' e 'sacbo'."
+        )
+
     params = []
     for r in csv_rows:
+        is_sched_bool = safe_bool(r.get("is_scheduled"))
+        fonte_val = safe_str(r.get("fonte_scheduled"), "")
+
+        # v2.8.6.1: decidi fonte_scheduled in modo semanticamente coerente.
+        if not is_sched_bool:
+            # Radar-only: non ha una fonte scheduled.
+            fonte_param = None
+        elif fonte_val in ("sacbo", "avionio"):
+            fonte_param = fonte_val
+        else:
+            # Scheduled ma CSV vecchio senza colonna: assumiamo SACBO.
+            fonte_param = "sacbo"
+
+        icao_val = safe_str(r.get("icao24"), "") or None
+
         params.append((
             date_str, safe_str(r.get("callsign"), ""),
             safe_str(r.get("tipo_movimento"), ""),
             safe_str(r.get("direzione_sacbo"), ""),
             safe_str(r.get("notte_categoria"), ""),
-            safe_bool(r.get("is_scheduled")),
+            is_sched_bool,
             safe_str(r.get("destinazione_finale"), ""),
             safe_str(r.get("stato_destinazione"), ""),
             safe_str(r.get("compagnia_aerea"), ""),
@@ -645,7 +700,10 @@ def import_nightly_file(filepath):
             safe_int(r.get("quota_ft"), 0), safe_float(r.get("rotta_deg"), 0.0),
             safe_float(r.get("distanza_km"), 0.0),
             safe_str(r.get("paese"), ""), safe_int(r.get("matched_score"), 0),
-            safe_int(r.get("stima_passeggeri"), 0), safe_int(r.get("stima_rumore_db"), 0)))
+            safe_int(r.get("stima_passeggeri"), 0), safe_int(r.get("stima_rumore_db"), 0),
+            icao_val,
+            fonte_param,
+        ))
     if not params:
         return False, None
 
@@ -659,9 +717,10 @@ def import_nightly_file(filepath):
                 notte_categoria, is_scheduled, destinazione_finale, stato_destinazione,
                 compagnia_aerea, modello_aereo, orario_schedulato, timestamp,
                 pista, fase_volo, direzione, quota_ft, rotta_deg, distanza_km,
-                paese, matched_score, stima_passeggeri, stima_rumore_db)
+                paese, matched_score, stima_passeggeri, stima_rumore_db,
+                icao24, fonte_scheduled)
                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                       %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                       %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                ON CONFLICT (data_riferimento, callsign, orario_schedulato)
                WHERE orario_schedulato IS NOT NULL
                DO NOTHING""", batch)

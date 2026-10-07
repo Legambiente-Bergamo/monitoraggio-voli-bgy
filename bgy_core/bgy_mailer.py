@@ -1,32 +1,40 @@
 """
 bgy_core/bgy_mailer.py - Modulo unificato di invio email.
-Versione 2.7.0
+Versione 2.7.1
 
-Novità v2.7.0 (movimenti borderline):
+Novità v2.7.1 (07/10/2026):
+- Nuova sezione email "DISCORDANZE AVIONIO ↔ SACBO (finestra notturna)".
+  Sostituisce il vecchio check #10 in "PROBLEMI RILEVATI", che ora è
+  nascosto (HIDDEN_FROM_PROBLEMS) e mostrato invece in una sezione
+  dedicata con formato più leggibile.
+- Il contenuto della sezione è il messaggio di run_confronto_summary()
+  filtrato sulla finestra notturna 22:50-06:10 (vedi MAIL-02 / v0.1.3
+  di confronto_sacbo_avionio.py).
+- Se tutto ok: la sezione mostra "✅ Nessuna discordanza notturna".
+- Se ci sono discordanze: elenco dei singoli voli coinvolti.
+
+Novità v2.7.0:
 - Nuova sezione "MOVIMENTI BORDERLINE" nell'email del mattino.
   Legge il file borderline_YYYY-MM-DD.csv e mostra i voli schedulati
   in fascia notturna ma operati fuori dalla finestra 23:01-05:59.
-  Categorie: decollo/atterraggio anticipato/posticipato.
-- Principio documentato: il rumore conta solo se prodotto tra le 23:01
-  e le 05:59.
 
-Novità v2.6.1 (filtro quality check).
-Novità v2.6.0 (email semplificata + voli non classificati).
-Novità v2.5.21 (fix avviso import notturno).
-Novità v2.5.20 (avviso import notturno).
-Novità v2.5.19 (check 12 backup DB).
-Novità v2.5.18 (backup DB - send_backup_alert).
-Novità v2.5.13 (distribuzione ritardi).
-Novità v2.5.12 (check 11 servizio DB).
-Novità v2.5.11 (statistiche puntualità).
-Novità v2.5.10 (Avionio check 10).
-Novità v2.5.9 (sconfinamenti gravi + anomalie).
-Novità v2.5.8 (sconfinamenti).
-Novità v2.5.7 (F14c screenshot).
-Novità v2.5.6 (F14b check 9).
-Novità v2.5.5 (F14 check 8).
-Novità v2.5.4 (stats + header).
-Novità v2.5.2 (flag di silenziamento).
+Novità v2.6.1: filtro quality check.
+Novità v2.6.0: email semplificata + voli non classificati.
+Novità v2.5.21: fix avviso import notturno.
+Novità v2.5.20: avviso import notturno.
+Novità v2.5.19: check 12 backup DB.
+Novità v2.5.18: backup DB - send_backup_alert.
+Novità v2.5.13: distribuzione ritardi.
+Novità v2.5.12: check 11 servizio DB.
+Novità v2.5.11: statistiche puntualità.
+Novità v2.5.10: Avionio check 10.
+Novità v2.5.9: sconfinamenti gravi + anomalie.
+Novità v2.5.8: sconfinamenti.
+Novità v2.5.7: F14c screenshot.
+Novità v2.5.6: F14b check 9.
+Novità v2.5.5: F14 check 8.
+Novità v2.5.4: stats + header.
+Novità v2.5.2: flag di silenziamento.
 """
 import os
 import csv
@@ -50,6 +58,10 @@ COOLDOWN_FILE = os.path.join(LOGS_DIR, "notifier_cooldown.json")
 DEFAULT_COOLDOWN_MIN = 30
 
 WARNING_ONLY_CHECKS = {'avionio_confronto', 'backup'}
+
+# v2.7.1: check che NON compaiono in "PROBLEMI RILEVATI" ma in sezioni
+# dedicate (formato più ricco, non un semplice WARN).
+HIDDEN_FROM_PROBLEMS = {'avionio_confronto'}
 
 
 # =============================================================================
@@ -549,9 +561,6 @@ def _load_borderline_flights(session_date_str):
 def _format_borderline_section(borderline_flights):
     """
     v2.7.0: formatta la sezione "MOVIMENTI BORDERLINE".
-
-    Principio: il rumore conta solo se prodotto tra le 23:01 e le 05:59.
-    I voli schedulati in fascia ma operati fuori sono borderline.
     """
     if not borderline_flights:
         return ""
@@ -564,13 +573,11 @@ def _format_borderline_section(borderline_flights):
     lines.append("   NON conteggiati come movimenti notturni (niente rumore).")
     lines.append("")
 
-    # Raggruppa per categoria
     by_cat = {}
     for r in borderline_flights:
         cat = r.get("categoria_borderline", "altro") or "altro"
         by_cat.setdefault(cat, []).append(r)
 
-    # Ordina le categorie per un ordine di lettura gradevole
     order = [
         "decollo anticipato", "decollo posticipato",
         "atterraggio anticipato", "atterraggio posticipato",
@@ -602,9 +609,38 @@ def _format_borderline_section(borderline_flights):
     return "\n".join(lines)
 
 
+# -----------------------------------------------------------------------------
+# AVIONIO ↔ SACBO (v2.7.1)
+# -----------------------------------------------------------------------------
+
+def _format_avionio_section(check_ok, check_msg):
+    """
+    v2.7.1: formatta la sezione "DISCORDANZE AVIONIO ↔ SACBO (finestra notturna)".
+
+    Il contenuto è il messaggio restituito da run_confronto_summary()
+    (v0.1.3 di confronto_sacbo_avionio.py), che filtra su 22:50-06:10.
+
+    Se check_ok: sezione compatta "✅ nessuna discordanza".
+    Se not check_ok: elenco con dettaglio.
+    """
+    if not check_msg:
+        return ""
+
+    lines = []
+    lines.append("📡 DISCORDANZE AVIONIO ↔ SACBO (finestra notturna 22:50-06:10)")
+    lines.append("")
+
+    for line in check_msg.split("\n"):
+        lines.append(f"   {line}")
+
+    lines.append("")
+    return "\n".join(lines)
+
+
 def _format_stats_section(stats, yesterday_str, night_import_failed=False,
                           non_classified_flights=None,
-                          borderline_flights=None):
+                          borderline_flights=None,
+                          avionio_check=None):
     lines = []
     nightly = stats.get("nightly") if stats else None
 
@@ -623,6 +659,12 @@ def _format_stats_section(stats, yesterday_str, night_import_failed=False,
         nc_text = _format_non_classified_section(non_classified_flights)
         if nc_text:
             lines.append(nc_text)
+
+    if avionio_check is not None:
+        av_ok, av_msg = avionio_check
+        av_text = _format_avionio_section(av_ok, av_msg)
+        if av_text:
+            lines.append(av_text)
 
     return "\n".join(lines)
 
@@ -679,6 +721,8 @@ def _render_problems(checks):
     for key, label in labels:
         if key not in checks:
             continue
+        if key in HIDDEN_FROM_PROBLEMS:
+            continue
         ok, msg = checks[key]
         if ok:
             continue
@@ -695,7 +739,7 @@ def _render_problems(checks):
                 if filtered:
                     problems.append(filtered)
             elif key in ('unresolved_airlines', 'scanner_day_status',
-                         'avionio_confronto', 'db_service', 'backup'):
+                         'db_service', 'backup'):
                 for line in msg.split('\n'):
                     problems.append(f"   {line}")
             else:
@@ -720,8 +764,9 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
     """
     Invia l'email di stato giornaliero.
 
-    v2.7.0: parametro borderline_flights (lista di dict letta da
-    borderline_YYYY-MM-DD.csv). Se None, prova a leggere dal file.
+    v2.7.1: il check 'avionio_confronto' non compare più in
+    "PROBLEMI RILEVATI" (nascosto da HIDDEN_FROM_PROBLEMS) e viene
+    invece mostrato in una sezione dedicata "DISCORDANZE AVIONIO ↔ SACBO".
     """
     if not force and not is_daily_status_enabled():
         logger.info("🔕 Email di stato giornaliero silenziata")
@@ -745,7 +790,6 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
     yesterday_str = yesterday_dt.strftime("%d/%m/%Y")
     yesterday_iso = yesterday_dt.strftime("%Y-%m-%d")
 
-    # v2.7.0: se il chiamante non passa i borderline, prova a leggerli
     if borderline_flights is None:
         borderline_flights = _load_borderline_flights(yesterday_iso)
 
@@ -756,11 +800,16 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
         parts.append(problems_text)
 
     if stats:
+        avionio_check = None
+        if checks and 'avionio_confronto' in checks:
+            avionio_check = checks['avionio_confronto']
+
         stats_text = _format_stats_section(
             stats, yesterday_str,
             night_import_failed=night_import_failed,
             non_classified_flights=non_classified_flights,
             borderline_flights=borderline_flights,
+            avionio_check=avionio_check,
         )
         if stats_text:
             parts.append("━" * 37)

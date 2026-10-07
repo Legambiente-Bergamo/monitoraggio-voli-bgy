@@ -1,6 +1,6 @@
 """
 bgy_tools/confronto_sacbo_avionio.py - Confronto tra dati SACBO e Avionio.
-Versione 0.1.2
+Versione 0.1.3
 
 Scopo:
   - Confrontare i dati dello scanner SACBO con quelli di Avionio.
@@ -8,6 +8,16 @@ Scopo:
       * Voli solo Avionio (in SACBO non ci sono)
       * Voli con orario diverso (> tolleranza)
   - Non modificare il report: solo diagnostica.
+
+Novità v0.1.3 (07/10/2026):
+- run_confronto_summary() ora filtra su FINESTRA NOTTURNA 22:50-06:10.
+  Prima il check #10 dell'email del mattino riportava falsi positivi
+  con orari diurni (06:00-08:50), perché confrontava tutto il giorno.
+  Ora considera solo i voli schedulati in fascia notturna (estesa di
+  10 min per tolleranza).
+- Nuove costanti NIGHT_START_MIN, NIGHT_END_MIN.
+- Nuove helper _is_in_night_window(), _filter_night().
+- main() resta invariato (per debug manuale mostra tutto il giorno).
 
 Novità v0.1.2:
 - Aggiunta funzione run_confronto_summary() per il check 10 del job_daily.
@@ -39,6 +49,10 @@ logger = get_logger("Confronto")
 
 TIME_TOLERANCE_MIN = 15
 SCAN_AGE_WARN_MIN = 120
+
+# v0.1.3: finestra notturna estesa (tolleranza 10 min per lato)
+NIGHT_START_MIN = 22 * 60 + 50   # 22:50
+NIGHT_END_MIN = 6 * 60 + 10      # 06:10
 
 
 # -----------------------------------------------------------------------------
@@ -75,6 +89,30 @@ def _times_match(t1, t2, tolerance=TIME_TOLERANCE_MIN):
     if diff > 12 * 60:
         diff = 24 * 60 - diff
     return diff <= tolerance
+
+
+def _is_in_night_window(hhmm):
+    """
+    v0.1.3: True se l'orario schedulato è nella finestra notturna estesa
+    22:50-06:10. Ritorna False se l'orario non è parsabile.
+    """
+    m = _parse_time_to_min(hhmm)
+    if m is None:
+        return False
+    return m >= NIGHT_START_MIN or m < NIGHT_END_MIN
+
+
+def _filter_night(df):
+    """
+    v0.1.3: tiene solo le righe con orario_schedulato in fascia notturna.
+    Se la colonna non esiste o il df è vuoto, ritorna df invariato.
+    """
+    if df is None or df.empty:
+        return df
+    if "orario_schedulato" not in df.columns:
+        return df
+    mask = df["orario_schedulato"].apply(_is_in_night_window)
+    return df[mask].copy()
 
 
 # -----------------------------------------------------------------------------
@@ -293,12 +331,18 @@ def format_report_text(confronti):
 
 
 # -----------------------------------------------------------------------------
-# FUNZIONE PER IL JOB GIORNALIERO (v0.1.2)
+# FUNZIONE PER IL JOB GIORNALIERO (v0.1.3 — filtro notturno)
 # -----------------------------------------------------------------------------
 
 def run_confronto_summary(scan_file=None):
     """
-    Esegue il confronto e ritorna un riepilogo per il check dell'email.
+    v0.1.3: come v0.1.2, ma con filtro FINESTRA NOTTURNA 22:50-06:10.
+
+    Prima: confrontava tutto il giorno, produceva falsi positivi con
+    orari diurni (es. DJ 6402 @ 06:20 - solo Avionio).
+
+    Ora: considera solo i voli con orario_schedulato in fascia notturna
+    (estesa di 10 min per tolleranza).
 
     Ritorna (ok, msg):
       - ok=True  se non ci sono incongruenze
@@ -315,14 +359,30 @@ def run_confronto_summary(scan_file=None):
         if arr_avionio is None and dep_avionio is None:
             return True, "⚠️ Nessun dato Avionio disponibile"
 
+        # v0.1.3: filtra su fascia notturna prima del confronto
+        n_sacbo_before = len(df_sacbo)
+        n_arr_before = len(arr_avionio) if arr_avionio is not None else 0
+        n_dep_before = len(dep_avionio) if dep_avionio is not None else 0
+
+        df_sacbo_f = _filter_night(df_sacbo)
+        arr_avionio_f = _filter_night(arr_avionio)
+        dep_avionio_f = _filter_night(dep_avionio)
+
+        logger.info(
+            f"🌙 Finestra notturna 22:50-06:10 applicata: "
+            f"SACBO {n_sacbo_before}→{len(df_sacbo_f)}, "
+            f"Avionio arr {n_arr_before}→{len(arr_avionio_f)}, "
+            f"Avionio dep {n_dep_before}→{len(dep_avionio_f)}"
+        )
+
         confronti = []
-        if dep_avionio is not None:
-            confronti.append(confronta_direzionale(df_sacbo, dep_avionio, "D"))
-        if arr_avionio is not None:
-            confronti.append(confronta_direzionale(df_sacbo, arr_avionio, "A"))
+        if dep_avionio_f is not None and not dep_avionio_f.empty:
+            confronti.append(confronta_direzionale(df_sacbo_f, dep_avionio_f, "D"))
+        if arr_avionio_f is not None and not arr_avionio_f.empty:
+            confronti.append(confronta_direzionale(df_sacbo_f, arr_avionio_f, "A"))
 
         if not confronti:
-            return True, "⚠️ Nessun confronto possibile"
+            return True, "✅ Nessuna discordanza notturna"
 
         incongruenze = []
         for c in confronti:
@@ -343,11 +403,11 @@ def run_confronto_summary(scan_file=None):
         pct = round(100 * total_comuni / total_avionio, 1) if total_avionio > 0 else 0.0
 
         if not incongruenze:
-            msg = (f"✅ Nessuna incongruenza "
+            msg = (f"✅ Nessuna discordanza notturna "
                    f"({total_comuni} comuni, conferma {pct}%)")
             return True, msg
 
-        lines = [f"⚠️ {len(incongruenze)} incongruenze rilevate:"]
+        lines = [f"⚠️ {len(incongruenze)} incongruenze notturne rilevate:"]
         for inc in incongruenze[:20]:
             lines.append(f"   • {inc}")
         if len(incongruenze) > 20:

@@ -1,21 +1,29 @@
 """
-bgy_reports/bgy_report_night.py - Report notturno integrato (SACBO + radar).
-Versione 2.9.18
+bgy_reports/bgy_report_night.py - Report notturno integrato (SACBO + Avionio + radar).
+Versione 2.9.21
 
-Novita v2.9.18 (06/10/2026):
-- _dedup_radar_only_via_icao24() estesa alla categoria "Non classificato".
-  Prima agiva solo sui "Passeggeri (radar)".
-  Caso tipico: il radar cattura un decollo senza callsign ("UNKNOWN") e
-  un minuto dopo lo stesso aereo con callsign valido ("RYR9ZN").
-  Il primo veniva classificato "Non classificato" e restava in pagina
-  come movimento extra. Ora viene rimosso se stesso icao24 di uno
-  scheduled (Δ <= 15 min o stessa direzione Δ <= 120 min).
-- Cargo e Charter radar-only restano invariati (sono l'unica fonte
-  del movimento, vanno tenuti).
+Novita v2.9.21 (fix KPI 40 vs 37, 07/10/2026):
+- _tipo_movimento_from_callsign(): un passeggero scheduled da Avionio
+  NON e' piu' etichettato 'Passeggeri (radar)'. La distinzione tra
+  scheduled e radar-only dipende da is_scheduled, non dalla fonte.
+  Prima: source='avionio' -> 'Passeggeri (radar)' (SBAGLIATO).
+  Ora: qualsiasi scheduled passeggero -> 'Passeggeri'.
+  Solo i veri radar-only (via _classify_unmatched_radar) restano
+  'Passeggeri (radar)'.
+  Effetto: KPI riga 1 = somma del dettaglio (40 = 40, era 40 vs 37).
 
+Novita v2.9.20 (INFRA-01, 07/10/2026):
+- _dedup_radar_only_via_icao24() estesa a Cargo e Charter radar-only.
+
+Novita v2.9.19 (INFRA-01, 07/10/2026):
+- Avionio promosso da fallback a FONTE SCHEDULED INTEGRATIVA.
+- load_avionio_scheduled() e merge_scheduled_sources().
+- Colonna fonte_scheduled ('sacbo'|'avionio') e icao24 nel CSV finale.
+
+Novita v2.9.18: dedup icao24 esteso a "Non classificato".
 Novita v2.9.17: dedup radar-only via icao24.
 Novita v2.9.16: dedup radar con priorita' fasi BGY.
-Novita v2.9.15: finestra borderline stringente 23:00:00-05:59:59.
+Novita v2.9.15: finestra borderline stringente.
 Novita v2.9.14: sistema borderline.
 Novita v2.9.13: fix out-of-window post match_flights.
 Novita v2.9.12: prima versione del fix (deprecata).
@@ -28,8 +36,8 @@ Novita v2.9.7: pattern callsign + priorita' numero commerciale.
 Principio documentato:
 - Il rumore conta solo se prodotto tra le 23:00:00 e le 05:59:59.
 - Un volo schedulato in fascia ma operato fuori e' un "borderline".
-- Un "Passeggeri (radar)" o "Non classificato" con stesso icao24 di uno
-  scheduled e' un duplicato del matching e va scartato.
+- Un radar-only con stesso icao24 di uno scheduled e' un duplicato.
+- SACBO domina, Avionio integra, radar aggiunge.
 """
 import os
 import re
@@ -425,13 +433,21 @@ def _find_radar_match_ts(callsign_sacbo, direzione_sacbo, sched, radar_df,
 
 
 def _tipo_movimento_from_callsign(callsign, source):
+    """
+    Classifica un callsign scheduled (SACBO o Avionio).
+
+    v2.9.21: la funzione viene chiamata SOLO per voli scheduled
+    (is_scheduled=True). La distinzione con i radar-only e' gestita
+    altrove (in _classify_unmatched_radar). Quindi qualsiasi passeggero
+    scheduled, indipendentemente dalla fonte, e' 'Passeggeri'.
+    """
     categoria, nome = classify_callsign(callsign)
     if categoria == 'Cargo':
         return f'Cargo ({nome})' if nome else 'Cargo (N/D)'
     if categoria == 'Charter':
         return f'Charter ({nome})' if nome else 'Charter (N/D)'
     if categoria == 'Passeggeri':
-        return 'Passeggeri' if source == 'sacbo' else 'Passeggeri (radar)'
+        return 'Passeggeri'
     return 'Non classificato'
 
 
@@ -662,6 +678,7 @@ def load_scheduled_flights(date_str, radar_df=None):
         row_dict['direzione_sacbo'] = direzione
         row_dict['notte_categoria'] = categoria
         row_dict.pop('tipo_movimento', None)
+        row_dict['fonte_scheduled'] = 'sacbo'
         scheduled.append(row_dict)
 
         if categoria == 'regolare':
@@ -676,14 +693,162 @@ def load_scheduled_flights(date_str, radar_df=None):
     if scheduled:
         df_sched = pd.DataFrame(scheduled)
         logger.info(
-            f"📋 Caricati {len(df_sched)} voli schedulati notturni "
+            f"📋 Caricati {len(df_sched)} voli schedulati SACBO notturni "
             f"(regolari {n_regolare}, sconfinamenti {n_sconfinamento}, "
             f"gravi {n_sconfinamento_grave}, anomalie {n_anomalia}, "
             f"esclusi {n_esclusi})"
         )
         return df_sched
-    logger.info("📋 Nessun volo schedulato notturno trovato")
+    logger.info("📋 Nessun volo schedulato SACBO notturno trovato")
     return pd.DataFrame()
+
+
+def load_avionio_scheduled(date_str):
+    """
+    v2.9.19: legge i voli Avionio scheduled della sessione notturna.
+    """
+    date_norm = normalize_date(date_str)
+    if not date_norm:
+        logger.warning(f"load_avionio_scheduled: data non valida")
+        return pd.DataFrame()
+
+    try:
+        from bgy_scanners.bgy_scanner_alt import read_scheduled_from_files
+    except ImportError as e:
+        logger.warning(f"load_avionio_scheduled: import fallito ({e}). "
+                       f"Assicurati che bgy_scanner_alt.py sia v0.3.0+")
+        return pd.DataFrame()
+
+    try:
+        rows = read_scheduled_from_files(date_norm)
+    except Exception as e:
+        logger.error(f"Errore read_scheduled_from_files({date_norm}): {e}")
+        return pd.DataFrame()
+
+    if not rows:
+        logger.info(f"📋 Nessun volo Avionio scheduled per {date_norm}")
+        return pd.DataFrame()
+
+    filtered = []
+    n_scartati_fascia = 0
+    for r in rows:
+        sched = r.get('orario_schedulato', '')
+        if not _is_in_night_schedule(sched):
+            n_scartati_fascia += 1
+            continue
+
+        cs_norm = _normalize_callsign(r.get('callsign_volo', ''))
+        sched_norm = _normalize_hhmm(sched)
+        if not cs_norm or not sched_norm:
+            continue
+
+        direzione = str(r.get('tipo_movimento', '') or '').strip().upper()[:1]
+        if direzione not in ('A', 'D'):
+            continue
+
+        filtered.append({
+            'callsign_volo': cs_norm,
+            'orario_schedulato': sched_norm,
+            'orario_effettivo': r.get('orario_effettivo', '') or '',
+            'stato_volo': r.get('stato_volo', '') or '',
+            'destinazione_origine': r.get('destinazione_origine', '') or '',
+            'direzione_sacbo': direzione,
+            'notte_categoria': 'regolare',
+            'fonte_scheduled': 'avionio',
+            'codice_iata': r.get('codice_iata', '') or '',
+            'compagnia_aerea': r.get('compagnia_aerea', '') or '',
+        })
+
+    if not filtered:
+        logger.info(
+            f"📋 Avionio scheduled: 0 voli in fascia notturna "
+            f"({n_scartati_fascia} scartati fuori fascia)"
+        )
+        return pd.DataFrame()
+
+    df = pd.DataFrame(filtered)
+
+    cargo_rows = [r for r in filtered
+                  if classify_callsign(r['callsign_volo'])[0] == 'Cargo']
+    if cargo_rows:
+        logger.info(f"📦 Avionio cargo scheduled: {len(cargo_rows)}")
+        for c in cargo_rows[:5]:
+            logger.info(f"   · {c['callsign_volo']} {c['direzione_sacbo']} "
+                        f"sched {c['orario_schedulato']} "
+                        f"→ {c['destinazione_origine']}")
+
+    logger.info(
+        f"📋 Avionio scheduled: {len(df)} voli in fascia "
+        f"({n_scartati_fascia} scartati fuori fascia)"
+    )
+    return df
+
+
+def merge_scheduled_sources(sacbo_df, avionio_df):
+    """
+    v2.9.19: unisce SACBO (primaria) e Avionio (integrativa).
+    """
+    if sacbo_df is None:
+        sacbo_df = pd.DataFrame()
+    if avionio_df is None:
+        avionio_df = pd.DataFrame()
+
+    if sacbo_df.empty and avionio_df.empty:
+        return pd.DataFrame()
+
+    if sacbo_df.empty:
+        logger.info(f"🤝 Merge: solo Avionio ({len(avionio_df)} voli)")
+        return avionio_df.copy()
+
+    if avionio_df.empty:
+        sacbo = sacbo_df.copy()
+        sacbo['fonte_scheduled'] = 'sacbo'
+        logger.info(f"🤝 Merge: solo SACBO ({len(sacbo)} voli)")
+        return sacbo
+
+    sacbo = sacbo_df.copy()
+    sacbo['fonte_scheduled'] = 'sacbo'
+
+    sacbo_keys = set()
+    for _, r in sacbo.iterrows():
+        cs = _normalize_callsign(r.get('callsign_volo', ''))
+        sched = _normalize_hhmm(r.get('orario_schedulato', ''))
+        if cs and sched:
+            sacbo_keys.add((cs, sched))
+
+    avionio_extra_rows = []
+    n_scartati_dup = 0
+    for _, r in avionio_df.iterrows():
+        cs = _normalize_callsign(r.get('callsign_volo', ''))
+        sched = _normalize_hhmm(r.get('orario_schedulato', ''))
+        if not cs or not sched:
+            continue
+        if (cs, sched) in sacbo_keys:
+            n_scartati_dup += 1
+            continue
+        avionio_extra_rows.append(r.to_dict())
+
+    if not avionio_extra_rows:
+        logger.info(
+            f"🤝 Merge: SACBO {len(sacbo)} vince su tutto, "
+            f"0 Avionio aggiunti ({n_scartati_dup} duplicati scartati)"
+        )
+        return sacbo
+
+    avionio_extra = pd.DataFrame(avionio_extra_rows)
+    result = pd.concat([sacbo, avionio_extra], ignore_index=True)
+
+    n_sacbo = len(sacbo)
+    n_avionio_new = len(avionio_extra)
+    n_cargo_av = sum(1 for _, r in avionio_extra.iterrows()
+                     if classify_callsign(r.get('callsign_volo', ''))[0] == 'Cargo')
+    logger.info(
+        f"🤝 Merge scheduled: SACBO {n_sacbo} + Avionio {n_avionio_new} "
+        f"= {len(result)} totali "
+        f"({n_scartati_dup} duplicati Avionio scartati, "
+        f"{n_cargo_av} cargo da Avionio)"
+    )
+    return result
 
 
 def normalize_scan_columns(df):
@@ -909,6 +1074,7 @@ def match_flights(scheduled_df, radar_df, session_date):
         radar_df['direzione_sacbo'] = ''
         radar_df['notte_categoria'] = ''
         radar_df['matched_score'] = 0
+        radar_df['fonte_scheduled'] = ''
         radar_df = radar_df[
             radar_df['timestamp'].apply(
                 lambda t: _is_timestamp_in_night(t, session_date))
@@ -931,9 +1097,15 @@ def match_flights(scheduled_df, radar_df, session_date):
         scheduled_df['distanza_km'] = 0
         scheduled_df['paese'] = 'N/D'
         scheduled_df['matched_score'] = 0
+        scheduled_df['icao24'] = ''
         scheduled_df['callsign'] = scheduled_df['callsign_volo']
-        scheduled_df['tipo_movimento'] = scheduled_df['callsign_volo'].apply(
-            lambda cs: _tipo_movimento_from_callsign(cs, source='sacbo')
+        if 'fonte_scheduled' not in scheduled_df.columns:
+            scheduled_df['fonte_scheduled'] = 'sacbo'
+        scheduled_df['tipo_movimento'] = scheduled_df.apply(
+            lambda r: _tipo_movimento_from_callsign(
+                r['callsign_volo'],
+                source=r.get('fonte_scheduled', 'sacbo')
+            ), axis=1
         )
         return _enrich_final(scheduled_df)
 
@@ -959,14 +1131,16 @@ def match_flights(scheduled_df, radar_df, session_date):
     n_match_pattern = 0
     n_match_rejected_prefix = 0
     n_match_prefix_unknown = 0
+    n_avionio_matched = 0
 
     for _, s in sched.iterrows():
         sched_min = s['_sched_min']
         direzione = s.get('direzione_sacbo', '')
         categoria = s.get('notte_categoria', '')
         callsign_sched = s.get('callsign_volo', '')
+        fonte_sched = s.get('fonte_scheduled', 'sacbo')
         cs_sacbo_norm = _normalize_callsign(callsign_sched)
-        tipo_mov = _tipo_movimento_from_callsign(callsign_sched, source='sacbo')
+        tipo_mov = _tipo_movimento_from_callsign(callsign_sched, source=fonte_sched)
 
         prefix_sacbo = _icao_prefix_from_sacbo(callsign_sched)
         _, num_sched = _extract_iata_number(callsign_sched)
@@ -983,9 +1157,11 @@ def match_flights(scheduled_df, radar_df, session_date):
             combined['distanza_km'] = 0
             combined['paese'] = 'N/D'
             combined['matched_score'] = 0
+            combined['icao24'] = ''
             combined['callsign'] = cs_sacbo_norm
             combined['tipo_movimento'] = tipo_mov
             combined['notte_categoria'] = categoria
+            combined['fonte_scheduled'] = fonte_sched
             matched.append(combined)
             continue
 
@@ -1060,8 +1236,11 @@ def match_flights(scheduled_df, radar_df, session_date):
             combined['notte_categoria'] = categoria
             combined['callsign_radar'] = r.get('callsign', '')
             combined['callsign'] = cs_sacbo_norm
+            combined['fonte_scheduled'] = fonte_sched
             matched.append(combined)
             n_match_ok += 1
+            if fonte_sched == 'avionio':
+                n_avionio_matched += 1
             if used_num_match:
                 n_match_num += 1
             if used_pattern_match:
@@ -1078,14 +1257,17 @@ def match_flights(scheduled_df, radar_df, session_date):
             combined['distanza_km'] = 0
             combined['paese'] = 'N/D'
             combined['matched_score'] = 0
+            combined['icao24'] = ''
             combined['callsign'] = cs_sacbo_norm
             combined['tipo_movimento'] = tipo_mov
             combined['notte_categoria'] = categoria
+            combined['fonte_scheduled'] = fonte_sched
             matched.append(combined)
 
     logger.info(f"🔗 Match radar: {n_match_ok} confermati "
                 f"(di cui {n_match_num} per numero, "
-                f"{n_match_pattern} per pattern), "
+                f"{n_match_pattern} per pattern, "
+                f"{n_avionio_matched} da Avionio), "
                 f"{n_match_rejected_prefix} rifiutati per prefisso, "
                 f"{n_match_prefix_unknown} senza prefisso ICAO")
 
@@ -1132,6 +1314,7 @@ def _classify_unmatched_radar(radar_df):
         row_dict['orario_schedulato'] = ''
         row_dict['destinazione_origine'] = ''
         row_dict['matched_score'] = 0
+        row_dict['fonte_scheduled'] = ''
         if 'notte_categoria' not in row_dict or not row_dict.get('notte_categoria'):
             row_dict['notte_categoria'] = ''
         if 'direzione_sacbo' not in row_dict or not row_dict.get('direzione_sacbo'):
@@ -1214,15 +1397,9 @@ def _dedup_radar_by_callsign(radar_df):
 
 def _dedup_radar_only_via_icao24(result_df):
     """
-    v2.9.18: rimuove i radar-only "Passeggeri (radar)" e "Non classificato"
-    che sono duplicati di voli scheduled con lo stesso icao24.
-
-    Categorie NON toccate: "Cargo (X)" e "Charter (X)" radar-only (sono
-    l'unica testimonianza del movimento, vanno tenute).
-
-    Criterio:
-      - Stesso icao24 + Δ <= 15 min → rimuovi (stesso movimento fisico)
-      - Stesso icao24 + stessa direzione + Δ <= 120 min → rimuovi
+    v2.9.20: rimuove i radar-only che sono duplicati di voli scheduled
+    con lo stesso icao24. Categorie: Passeggeri (radar), Non classificato,
+    Cargo, Charter.
     """
     if result_df.empty:
         return result_df, 0
@@ -1268,11 +1445,18 @@ def _dedup_radar_only_via_icao24(result_df):
     for s in sched_records:
         sched_by_icao[s['_icao_norm']].append(s)
 
-    dedupable_tipos = ('Passeggeri (radar)', 'Non classificato')
+    dedupable_tipos_exact = ('Passeggeri (radar)', 'Non classificato')
+    dedupable_prefixes = ('Cargo (', 'Charter (')
+
+    tipo_series = df['tipo_movimento'].fillna('').astype(str)
+    is_dedupable_tipo = (
+        tipo_series.isin(dedupable_tipos_exact)
+        | tipo_series.str.startswith(dedupable_prefixes, na=False)
+    )
 
     ro_mask = (
         (df['is_scheduled'] == False)
-        & (df['tipo_movimento'].isin(dedupable_tipos))
+        & is_dedupable_tipo
         & (df['_icao_norm'] != '')
         & (df['_ts_norm'].notna())
     )
@@ -1335,6 +1519,12 @@ def _enrich_final(df):
         df['notte_categoria'] = ''
     else:
         df['notte_categoria'] = df['notte_categoria'].fillna('')
+    if 'fonte_scheduled' not in df.columns:
+        df['fonte_scheduled'] = ''
+    else:
+        df['fonte_scheduled'] = df['fonte_scheduled'].fillna('')
+    if 'icao24' not in df.columns:
+        df['icao24'] = ''
 
     df['compagnia_aerea'] = df['callsign'].apply(
         lambda x: get_airline(x) if pd.notna(x) else 'N/D')
@@ -1547,16 +1737,34 @@ def generate_nightly_report(date_str=None):
     date_norm = normalize_date(date_str) if date_str else night_session_date()
     logger.info(f"🌙 Avvio report notturno per {date_norm} (23:00-05:59)")
 
+    # 1. Carica radar
     radar_df = load_radar_data(date_norm)
-    scheduled_df = load_scheduled_flights(date_norm, radar_df=radar_df)
+
+    # 2. Carica SACBO scheduled (fonte primaria)
+    sacbo_df = load_scheduled_flights(date_norm, radar_df=radar_df)
+
+    # 3. Carica Avionio scheduled (fonte integrativa per cargo e non-SACBO)
+    avionio_df = load_avionio_scheduled(date_norm)
+
+    # 4. Merge con priorita' SACBO
+    scheduled_df = merge_scheduled_sources(sacbo_df, avionio_df)
+
+    logger.info(
+        f"📋 Scheduled totali: {len(scheduled_df)} "
+        f"(SACBO {len(sacbo_df)}, Avionio {len(avionio_df)})"
+    )
+
+    # 5. Match 3 vie (SACBO+Avionio vs radar)
     result_df = match_flights(scheduled_df, radar_df, date_norm)
 
     if result_df.empty:
         logger.warning(f"⚠️ Nessun dato per {date_norm}")
         return None, f"Nessun dato per {date_norm}"
 
+    # 6. Dedup icao24 (radar-only pax, non classificato, cargo, charter)
     result_df, n_dedup_icao24 = _dedup_radar_only_via_icao24(result_df)
 
+    # 7. Split borderline
     result_df, df_borderline, n_borderline = _split_borderline_flights(result_df)
 
     for _, row in df_borderline.iterrows():
@@ -1570,6 +1778,7 @@ def generate_nightly_report(date_str=None):
 
     _write_borderline_files(date_norm, df_borderline)
 
+    # 8. Deduplica finale
     before_dedup = len(result_df)
     result_df = _dedup_by_key(result_df)
     after_dedup = len(result_df)
@@ -1577,17 +1786,18 @@ def generate_nightly_report(date_str=None):
         logger.info(f"🧹 Deduplica finale: {before_dedup} → {after_dedup} righe "
                     f"({before_dedup - after_dedup} rimosse)")
 
+    # 9. Salva CSV
     os.makedirs(OUTPUT_CSV_DIR, exist_ok=True)
     out_path = os.path.join(OUTPUT_CSV_DIR, report_nightly_filename(date_norm))
 
     final_columns = [
         'callsign', 'tipo_movimento', 'direzione_sacbo', 'notte_categoria',
-        'is_scheduled',
+        'is_scheduled', 'fonte_scheduled',
         'destinazione_finale', 'stato_destinazione',
         'compagnia_aerea', 'modello_aereo',
         'orario_schedulato', 'timestamp', 'pista', 'fase_volo',
         'direzione', 'quota_ft', 'rotta_deg', 'distanza_km',
-        'paese', 'matched_score',
+        'paese', 'matched_score', 'icao24',
         'stima_passeggeri', 'stima_rumore_db'
     ]
     for col in final_columns:
@@ -1596,6 +1806,7 @@ def generate_nightly_report(date_str=None):
 
     result_df[final_columns].to_csv(out_path, index=False, encoding='utf-8-sig')
 
+    # 10. Statistiche finali
     total = len(result_df)
     tm = result_df['tipo_movimento'].fillna('') if 'tipo_movimento' in result_df.columns else pd.Series([''] * total)
 
@@ -1629,6 +1840,18 @@ def generate_nightly_report(date_str=None):
         n_anomalie = int(
             ((result_df['notte_categoria'] == 'anomalia') & visibili_mask).sum()
         )
+
+    fonte_counts = {'sacbo': 0, 'avionio': 0, '': 0}
+    if 'fonte_scheduled' in result_df.columns:
+        for f, n in result_df['fonte_scheduled'].value_counts().items():
+            if f in fonte_counts:
+                fonte_counts[f] = int(n)
+
+    cargo_from_avionio = 0
+    if 'fonte_scheduled' in result_df.columns and 'tipo_movimento' in result_df.columns:
+        cargo_mask = tm.str.startswith('Cargo', na=False)
+        av_mask = result_df['fonte_scheduled'] == 'avionio'
+        cargo_from_avionio = int((cargo_mask & av_mask).sum())
 
     visibili_pax_mask = tm.apply(
         lambda x: isinstance(x, str) and (
@@ -1678,10 +1901,15 @@ def generate_nightly_report(date_str=None):
     anomalie_msg = f", anomalie {n_anomalie}" if n_anomalie > 0 else ""
     borderline_msg = (f", borderline {n_borderline}" if n_borderline > 0 else "")
     dedup_icao_msg = (f", dedup icao24 -{n_dedup_icao24}" if n_dedup_icao24 > 0 else "")
+    fonte_msg = (f", fonti: SACBO {fonte_counts['sacbo']} + Avionio {fonte_counts['avionio']}"
+                 if fonte_counts['avionio'] > 0 else "")
+    cargo_av_msg = (f", cargo da Avionio {cargo_from_avionio}"
+                    if cargo_from_avionio > 0 else "")
 
     msg = (f"✅ Report notturno: {total} voli "
            f"(Visibili: {visibili} = Passeggeri {pax} + Cargo {cargo} "
-           f"+ Charter {charter} + Non classificato {non_class}{sconf_msg}{anomalie_msg}{borderline_msg} | "
+           f"+ Charter {charter} + Non classificato {non_class}"
+           f"{sconf_msg}{anomalie_msg}{borderline_msg}{cargo_av_msg}{fonte_msg} | "
            f"Opt-in: {optin} = Passeggeri radar {pax_radar}{dedup_icao_msg} | "
            f"PAX stimati: {pax_tot}, "
            f"Rumore su {rumore_count} voli, max {rumore_max} dB"
