@@ -1,32 +1,23 @@
 """
 bgy_core/bgy_export_web.py - Esportazione dati aggregati per il web (F17).
-Versione 1.2.12
+Versione 1.2.15
 
-Novità v1.2.12 (05/10/2026):
-- Cargo, charter e non classificati radar-only (is_scheduled=FALSE) ora
-  contribuiscono alle KPI di dettaglio D_cargo/A_cargo, D_charter/A_charter,
-  D_non_classificato/A_non_classificato. Necessario perché SACBO non pubblica
-  cargo: tutti i cargo sono radar-only.
-- _build_by_hour: rimossa la condizione is_scheduled = TRUE. Anche cargo,
-  charter e non classificati radar-only entrano nel grafico orario.
-  I "Passeggeri (radar)" (duplicati del matching) restano esclusi perché
-  la WHERE usa tipo_movimento = 'Passeggeri' (esatto).
-- build_block_night_airlines: rimossa la condizione is_scheduled = TRUE.
-  Le compagnie cargo (Maersk, DHL, ecc.) ora appaiono nel grafico compagnie.
+Novita v1.2.15 (06/10/2026):
+- Aggiunti campi "_tab" (scheduled-only per categoria):
+    D_<cat>_tab, A_<cat>_tab = scheduled-only per linea/cargo/charter/altro.
+  Servono per la vista pubblica, che mostra SOLO i movimenti dichiarati
+  dai tabelloni (SACBO + Avionio).
+- I campi misti (D_<cat>, A_<cat>) e i radar-only (D_<cat>_ro, A_<cat>_ro)
+  restano nel JSON per l'indagine interna (radar-only vs tabelloni).
+- Il log di export continua a mostrare i radar-only per il monitoraggio.
 
-Novità v1.2.11:
-- _build_by_hour() ritorna {by_date: [...], totals: [...]}. Il filtro JS
-  ritaglia la distribuzione oraria sul periodo selezionato.
-
-Novità v1.2.10:
-- build_block_night_movements: aggiunti sconfinamenti_D/A,
-  sconfinamenti_gravi_D/A in totals e by_date.
-
-Novità v1.2.9:
-- build_block_destinations_pax: struttura by_date per filtro JS.
-
-Novità v1.2.8:
-- Aggiunti totals.schedulato_D/A, block_night_anomalies.
+Novita v1.2.14: totale_movimenti_rilevati, D/A_totali_rilevati.
+Novita v1.2.13: by_hour filtrabile per data.
+Novita v1.2.12: cargo/charter/non class radar-only nelle KPI.
+Novita v1.2.11: _build_by_hour() ritorna {by_date, totals}.
+Novita v1.2.10: sconfinamenti_D/A, sconfinamenti_gravi_D/A.
+Novita v1.2.9: block_destinations_pax by_date.
+Novita v1.2.8: totals.schedulato_D/A, block_night_anomalies.
 
 Uso:
     py -3.12 -m bgy_core.bgy_export_web --days 90 --dry-run
@@ -74,6 +65,8 @@ CATEGORY_FILTERS = [
 ]
 
 CATS_KEYS = ["passeggeri", "cargo", "charter", "non_classificato"]
+
+RADAR_ONLY_KPI_CATS = ("cargo", "charter", "non_classificato")
 
 NIGHT_HOURS = [23, 0, 1, 2, 3, 4, 5]
 
@@ -188,11 +181,42 @@ def _empty_by_date_item(date_str):
         "side_bergamo": 0, "side_bergamo_D": 0, "side_bergamo_A": 0,
         "side_seriate": 0, "side_seriate_D": 0, "side_seriate_A": 0,
         "side_nd": 0, "side_nd_D": 0, "side_nd_A": 0,
+        "totale_movimenti_rilevati": 0,
+        "D_totali_rilevati": 0, "A_totali_rilevati": 0,
+        "radar_only_total": 0, "radar_only_D": 0, "radar_only_A": 0,
     }
     for cat in ("passeggeri", "cargo", "charter", "non_classificato"):
         item["D_" + cat] = 0
         item["A_" + cat] = 0
+    for cat in RADAR_ONLY_KPI_CATS:
+        item["D_" + cat + "_ro"] = 0
+        item["A_" + cat + "_ro"] = 0
     return item
+
+
+def _fill_tab_derived(container):
+    """v1.2.15: calcola _tab (scheduled-only) per ogni categoria."""
+    for cat in RADAR_ONLY_KPI_CATS:
+        d_ro = container.get("D_" + cat + "_ro", 0)
+        a_ro = container.get("A_" + cat + "_ro", 0)
+        container["D_" + cat + "_tab"] = max(0, container.get("D_" + cat, 0) - d_ro)
+        container["A_" + cat + "_tab"] = max(0, container.get("A_" + cat, 0) - a_ro)
+    # Passeggeri non ha radar-only conteggiabili, _tab = totale
+    container["D_passeggeri_tab"] = container.get("D_passeggeri", 0)
+    container["A_passeggeri_tab"] = container.get("A_passeggeri", 0)
+
+
+def _fill_radar_only_derived(container):
+    """v1.2.14: calcola totali rilevati e radar-only aggregati."""
+    ro_D = sum(container.get("D_" + c + "_ro", 0) for c in RADAR_ONLY_KPI_CATS)
+    ro_A = sum(container.get("A_" + c + "_ro", 0) for c in RADAR_ONLY_KPI_CATS)
+    ro_tot = ro_D + ro_A
+    container["radar_only_D"] = ro_D
+    container["radar_only_A"] = ro_A
+    container["radar_only_total"] = ro_tot
+    container["D_totali_rilevati"] = container.get("D", 0) + ro_D
+    container["A_totali_rilevati"] = container.get("A", 0) + ro_A
+    container["totale_movimenti_rilevati"] = container.get("a_tabellone", 0) + ro_tot
 
 
 def build_disclaimer(min_date):
@@ -242,18 +266,19 @@ def build_block_night_movements(date_from, date_to):
         "sconfinamenti": 0, "sconfinamenti_D": 0, "sconfinamenti_A": 0,
         "sconfinamenti_gravi": 0, "sconfinamenti_gravi_D": 0, "sconfinamenti_gravi_A": 0,
         "anomalie": 0, "D": 0, "A": 0, "D_radar": 0, "A_radar": 0,
+        "totale_movimenti_rilevati": 0,
+        "D_totali_rilevati": 0, "A_totali_rilevati": 0,
+        "radar_only_total": 0, "radar_only_D": 0, "radar_only_A": 0,
     }
+    for cat in RADAR_ONLY_KPI_CATS:
+        totals["D_" + cat + "_ro"] = 0
+        totals["A_" + cat + "_ro"] = 0
+
     by_side_acc = {
         "bergamo": {"totale": 0, "D": 0, "A": 0},
         "seriate": {"totale": 0, "D": 0, "A": 0},
         "nd": {"totale": 0, "D": 0, "A": 0},
     }
-
-    # v1.2.12: categorie che contribuiscono alle KPI di dettaglio anche se
-    # radar-only. I passeggeri radar-only sono duplicati del matching e
-    # restano esclusi (tipo_movimento = 'Passeggeri (radar)' non è in questa
-    # lista e non è catturato da _category_from_tipo).
-    RADAR_ONLY_KPI_CATS = ("cargo", "charter", "non_classificato")
 
     for r in rows:
         ds = _date_str(r[0])
@@ -320,12 +345,35 @@ def build_block_night_movements(date_from, date_to):
             elif d == "A":
                 item["A_radar"] += n; totals["A_radar"] += n
 
-            # v1.2.12: cargo/charter/non_classificato radar-only contribuiscono
-            # alle KPI di dettaglio (passeggeri radar esclusi: duplicati).
             if cat in RADAR_ONLY_KPI_CATS and d in ("D", "A"):
                 item[d + "_" + cat] += n
+                item[d + "_" + cat + "_ro"] += n
+                totals[d + "_" + cat + "_ro"] += n
+
+    _fill_radar_only_derived(totals)
+    _fill_tab_derived(totals)
+    for ds in by_date_acc:
+        _fill_radar_only_derived(by_date_acc[ds])
+        _fill_tab_derived(by_date_acc[ds])
 
     by_date = [by_date_acc[ds] for ds in sorted(by_date_acc.keys())]
+
+    logger.info(
+        f"Radar-only nel periodo (per indagine interna): "
+        f"totale={totals['radar_only_total']} "
+        f"(D={totals['radar_only_D']}, A={totals['radar_only_A']})"
+    )
+    for c in RADAR_ONLY_KPI_CATS:
+        d_ro = totals.get("D_" + c + "_ro", 0)
+        a_ro = totals.get("A_" + c + "_ro", 0)
+        if d_ro or a_ro:
+            logger.info(f"  · {c}: D={d_ro}, A={a_ro}")
+    logger.info(
+        f"Vista pubblica (solo tabellone): "
+        f"totale={totals['a_tabellone']} "
+        f"(D={totals['D']}, A={totals['A']})"
+    )
+
     return {
         "by_date": by_date,
         "totals": totals,
@@ -362,7 +410,6 @@ def build_block_night_anomalies(date_from, date_to):
 
 
 def _empty_hour_slot(hour):
-    """Slot vuoto per una singola ora notturna."""
     return {
         "hour": hour,
         "D": {"passeggeri": 0, "cargo": 0, "charter": 0, "non_classificato": 0, "total": 0},
@@ -371,14 +418,6 @@ def _empty_hour_slot(hour):
 
 
 def _build_by_hour(date_from, date_to):
-    """
-    v1.2.12: rimossa la condizione is_scheduled = TRUE. Anche i movimenti
-    radar-only (cargo, charter, non classificato) entrano nel grafico orario.
-    I passeggeri radar-only restano esclusi perché la WHERE usa
-    tipo_movimento = 'Passeggeri' (esatto, esclude 'Passeggeri (radar)').
-
-    v1.2.11: ritorna {by_date: [{date, hours: [7 slot]}], totals: [7 slot]}.
-    """
     cat_selects = []
     for cat_key, cat_filter in CATEGORY_FILTERS:
         cat_selects.append(f"COUNT(*) FILTER (WHERE {cat_filter}) AS {cat_key}_n")
@@ -401,6 +440,7 @@ def _build_by_hour(date_from, date_to):
           COUNT(*) AS total
         FROM nightly_reports
         WHERE data_riferimento BETWEEN %s AND %s
+          AND is_scheduled = TRUE
           AND (tipo_movimento = 'Passeggeri'
                OR tipo_movimento LIKE 'Cargo%%'
                OR tipo_movimento LIKE 'Charter%%'
@@ -532,12 +572,6 @@ def build_block_destinations_pax(date_from, date_to, top_cities=15, top_countrie
 
 
 def build_block_night_airlines(date_from, date_to, top_n):
-    """
-    v1.2.12: rimossa la condizione is_scheduled = TRUE. Le compagnie cargo
-    (Maersk, DHL, ecc.) che operano radar-only ora compaiono nel grafico.
-    I passeggeri radar-only restano esclusi perché la WHERE usa
-    tipo_movimento = 'Passeggeri' (esatto).
-    """
     dir_case = """
         CASE
           WHEN direzione_sacbo IN ('D', 'A') THEN direzione_sacbo
@@ -553,6 +587,7 @@ def build_block_night_airlines(date_from, date_to, top_n):
                   COUNT(*) AS n
            FROM nightly_reports
            WHERE data_riferimento BETWEEN %s AND %s
+             AND is_scheduled = TRUE
              AND compagnia_aerea IS NOT NULL
              AND compagnia_aerea != ''
              AND compagnia_aerea != 'N/D'
@@ -582,6 +617,7 @@ def build_block_night_airlines(date_from, date_to, top_n):
                   COUNT(*) AS n
            FROM nightly_reports
            WHERE data_riferimento BETWEEN %s AND %s
+             AND is_scheduled = TRUE
              AND compagnia_aerea IS NOT NULL
              AND compagnia_aerea != ''
              AND compagnia_aerea != 'N/D'

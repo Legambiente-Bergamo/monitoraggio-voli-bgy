@@ -1,29 +1,20 @@
-"""
+﻿"""
 bgy_core/bgy_update_rules.py - Arricchimento dati da regole JSON.
-Versione 2.7.2
+Versione 2.7.1
 
-Novità v2.7.2 (fix strutturale stile callsign):
-- Nuova helper _callsign_prefix_order(): determina l'ordine di ricerca
-  dei prefissi in base allo stile del callsign.
-  - IATA-style (3° char è una cifra, es. H7483, FR2864, 3O457):
-    ordine (prefix2, prefix3). Primary = prefix2.
-  - ICAO-style (3° char è una lettera, es. RYR2864, SRR6401, BCS943):
-    ordine (prefix3, prefix2). Primary = prefix3.
-- get_airline(): 
-  * Cerca prima i nomi "veri" (non "Compagnia X") in _AIRLINES/_CARGO/_CHARTER,
-    nell'ordine stile-dipendente.
-  * Crea il placeholder SOLO sul prefisso "primary" (IATA per IATA-style,
-    ICAO per ICAO-style). Non più su prefix3 a priori.
-  * Per IATA-style, se il primary non è in anagrafica, prova a risolvere
-    via OpenFlights usando l'ICAO corrispondente (da _IATA_TO_ICAO).
-- is_cargo_flight() e is_charter_flight(): stessa logica stile-dipendente.
-- Risolve il bug per cui un callsign IATA-style (H7483) creava un
-  placeholder su prefix3 (H74 → "Compagnia H74") che poi oscurava
-  per sempre il prefisso IATA corretto a 2 char (H7 → HiSky).
+Novità v2.7.1:
+- Aggiunta iata_to_icao_prefix(iata_code): converte un prefisso IATA
+  (2-3 char, es. 'FR', 'W4') nel prefisso ICAO corrispondente (es. 'RYR').
+  Usata dal report notturno per normalizzare i callsign SACBO (IATA)
+  al formato dei callsign radar (ICAO) prima del match.
+- Aggiunta get_iata_to_icao_map(): ritorna una copia della mappa
+  caricata (utile per debug e per costruire reverse map nel chiamante).
 
-Novità v2.7.1: iata_to_icao_prefix() + get_iata_to_icao_map().
-Novità v2.7.0: classify_callsign().
-Novità v2.6.1: supporto OpenFlights, mapping IATA→ICAO.
+Novità v2.7.0:
+- classify_callsign(): classificazione unificata.
+
+Novità v2.6.1:
+- Supporto OpenFlights, mapping IATA→ICAO, extract_callsign_prefix.
 """
 import os
 import requests
@@ -145,47 +136,6 @@ def _is_valid_airline_name(name):
     return True
 
 
-def _is_placeholder(name):
-    if not name or not isinstance(name, str):
-        return True
-    if name in PLACEHOLDER_VALUES:
-        return True
-    if name.startswith(PLACEHOLDER_PREFIX):
-        return True
-    return False
-
-
-# -----------------------------------------------------------------------------
-# STILE CALLSIGN (v2.7.2)
-# -----------------------------------------------------------------------------
-
-def _callsign_prefix_order(cs):
-    """
-    Determina l'ordine di ricerca dei prefissi in base allo stile del callsign.
-
-    Regola:
-    - Se il 3° carattere è una cifra → IATA-style (es. H7483, FR2864, 3O457, C39374).
-      I prefissi plausibili sono (prefix2, prefix3), primary = prefix2.
-    - Altrimenti (3° char è lettera, o callsign corto) → ICAO-style
-      (es. RYR2864, SRR6401, BCS943).
-      I prefissi plausibili sono (prefix3, prefix2), primary = prefix3.
-
-    Ritorna (search_order_tuple, primary_prefix).
-    """
-    if not cs:
-        return (), ""
-    if len(cs) < 2:
-        return (cs,), cs
-    if len(cs) < 3:
-        return (cs[:2],), cs[:2]
-
-    if cs[2].isdigit():
-        # IATA-style
-        return (cs[:2], cs[:3]), cs[:2]
-    # ICAO-style
-    return (cs[:3], cs[:2]), cs[:3]
-
-
 # -----------------------------------------------------------------------------
 # CLASSIFICAZIONE UNIFICATA
 # -----------------------------------------------------------------------------
@@ -224,7 +174,7 @@ def classify_callsign(callsign):
 
 
 # -----------------------------------------------------------------------------
-# CONVERSIONE IATA <-> ICAO
+# CONVERSIONE IATA <-> ICAO (v2.7.1)
 # -----------------------------------------------------------------------------
 
 def iata_to_icao_prefix(iata_code):
@@ -379,86 +329,51 @@ def extract_callsign_prefix(callsign, length=2):
 
 
 # -----------------------------------------------------------------------------
-# AIRLINE (v2.7.2 — stile-dipendente)
+# AIRLINE
 # -----------------------------------------------------------------------------
 
 def get_airline(callsign):
-    """
-    Ritorna il nome della compagnia per un callsign.
-
-    v2.7.2: la ricerca e la creazione del placeholder sono stile-dipendenti:
-    - IATA-style (H7483): cerca prefix2 (H7), poi prefix3 (H74).
-      Placeholder creato su prefix2 (H7).
-    - ICAO-style (RYR2864): cerca prefix3 (RYR), poi prefix2 (RY).
-      Placeholder creato su prefix3 (RYR).
-
-    In entrambi i casi, i nomi "veri" (non "Compagnia X") hanno priorità
-    sui placeholder esistenti.
-    """
     if not callsign or not isinstance(callsign, str):
         return "N/D"
-    cs = callsign.strip().upper().replace(" ", "")
-    if not cs:
-        return "N/D"
+    cs = callsign.strip().upper()
+    prefix3 = cs[:3]
+    prefix2 = cs[:2]
 
-    search_order, primary_prefix = _callsign_prefix_order(cs)
+    for prefix in (prefix3, prefix2):
+        if prefix in _AIRLINES:
+            return _AIRLINES[prefix]
 
-    # 1. Cerca nomi "veri" in _AIRLINES (skippa placeholder)
-    for prefix in search_order:
-        name = _AIRLINES.get(prefix)
-        if name and not _is_placeholder(name):
-            return name
+    for prefix in (prefix3, prefix2):
+        if prefix in _CARGO_AIRLINES:
+            return _CARGO_AIRLINES[prefix]
 
-    # 2. Cerca in cargo
-    for prefix in search_order:
-        name = _CARGO_AIRLINES.get(prefix)
-        if name:
-            return name
+    for prefix in (prefix3, prefix2):
+        if prefix in _CHARTER_AIRLINES:
+            return _CHARTER_AIRLINES[prefix]
 
-    # 3. Cerca in charter
-    for prefix in search_order:
-        name = _CHARTER_AIRLINES.get(prefix)
-        if name:
-            return name
+    openflights_name = lookup_openflights(prefix3)
+    if openflights_name:
+        logger.info(f"🌐 OpenFlights: {prefix3} -> {openflights_name}")
+        if config_manager.add_airline(prefix3, openflights_name):
+            _AIRLINES[prefix3] = openflights_name
+        return openflights_name
 
-    # 4. Fallback: placeholder già esistente sul primary (sarà scartato da
-    #    _is_valid_airline_name in classify_callsign, ma va restituito).
-    name = _AIRLINES.get(primary_prefix)
-    if name:
-        return name
-
-    # 5. OpenFlights: risolvi l'ICAO corrispondente se il primary è IATA
-    icao_prefix = primary_prefix
-    if len(primary_prefix) == 2:
-        icao_prefix = _IATA_TO_ICAO.get(primary_prefix) or primary_prefix
-
-    if icao_prefix:
-        of_name = lookup_openflights(icao_prefix)
-        if of_name:
-            logger.info(f"🌐 OpenFlights: {primary_prefix} ({icao_prefix}) -> {of_name}")
-            if config_manager.add_airline(primary_prefix, of_name):
-                _AIRLINES[primary_prefix] = of_name
-            return of_name
-
-    # 6. Crea placeholder sul primary
-    new_name = f"Compagnia {primary_prefix}"
-    if config_manager.add_airline(primary_prefix, new_name):
-        _AIRLINES[primary_prefix] = new_name
+    new_name = f"Compagnia {prefix3}"
+    if config_manager.add_airline(prefix3, new_name):
+        _AIRLINES[prefix3] = new_name
     return new_name
 
 
 # -----------------------------------------------------------------------------
-# CARGO / CHARTER (v2.7.2 — stile-dipendente)
+# CARGO / CHARTER
 # -----------------------------------------------------------------------------
 
 def is_cargo_flight(callsign):
     if not callsign or not isinstance(callsign, str):
         return False, None
-    cs = callsign.strip().upper().replace(" ", "")
-    if not cs:
-        return False, None
-    search_order, _ = _callsign_prefix_order(cs)
-    for prefix in search_order:
+    prefix3 = callsign.strip().upper()[:3]
+    prefix2 = callsign.strip().upper()[:2]
+    for prefix in (prefix3, prefix2):
         if prefix in _CARGO_AIRLINES:
             return True, _CARGO_AIRLINES[prefix]
     return False, None
@@ -467,11 +382,9 @@ def is_cargo_flight(callsign):
 def is_charter_flight(callsign):
     if not callsign or not isinstance(callsign, str):
         return False, None
-    cs = callsign.strip().upper().replace(" ", "")
-    if not cs:
-        return False, None
-    search_order, _ = _callsign_prefix_order(cs)
-    for prefix in search_order:
+    prefix3 = callsign.strip().upper()[:3]
+    prefix2 = callsign.strip().upper()[:2]
+    for prefix in (prefix3, prefix2):
         if prefix in _CHARTER_AIRLINES:
             return True, _CHARTER_AIRLINES[prefix]
     return False, None

@@ -1,0 +1,17 @@
+{
+  "timestamp": "2026-10-06 15:11:44",
+  "results": {
+    "adsb.lol": {
+      "count": 5
+    },
+    "adsb.fi": {
+      "count": 5
+    },
+    "airplanes.live": {
+      "count": 0
+    },
+    "opensky": {
+      "count": 7
+    }
+  }
+}

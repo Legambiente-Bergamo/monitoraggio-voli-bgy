@@ -1,27 +1,35 @@
 """
 bgy_reports/bgy_report_night.py - Report notturno integrato (SACBO + radar).
-Versione 2.9.15
+Versione 2.9.18
 
-Novità v2.9.15 (05/10/2026):
-- Finestra notturna stringente: 23:00:00 - 05:59:59 (senza tolleranze).
-  Il rumore notturno si calcola SOLO per movimenti operati dentro questa
-  finestra. Un movimento operato alle 22:59:59 o alle 06:00:00 è fuori.
-- _split_borderline_flights() e _categorize_borderline() aggiornati.
-- Il check usa ore/minuti/secondi, non solo minuti.
+Novita v2.9.18 (06/10/2026):
+- _dedup_radar_only_via_icao24() estesa alla categoria "Non classificato".
+  Prima agiva solo sui "Passeggeri (radar)".
+  Caso tipico: il radar cattura un decollo senza callsign ("UNKNOWN") e
+  un minuto dopo lo stesso aereo con callsign valido ("RYR9ZN").
+  Il primo veniva classificato "Non classificato" e restava in pagina
+  come movimento extra. Ora viene rimosso se stesso icao24 di uno
+  scheduled (Δ <= 15 min o stessa direzione Δ <= 120 min).
+- Cargo e Charter radar-only restano invariati (sono l'unica fonte
+  del movimento, vanno tenuti).
 
-Novità v2.9.14: sistema borderline.
-Novità v2.9.13: fix out-of-window post match_flights.
-Novità v2.9.12: prima versione del fix (deprecata).
-Novità v2.9.11: fix _propagate_runway_in_session (pd.isna).
-Novità v2.9.10: raggruppa per solo callsign.
-Novità v2.9.9: prima versione del fix propagazione pista.
-Novità v2.9.8: esclusione voli pomeridiani da anomalie.
-Novità v2.9.7: pattern callsign + priorità numero commerciale.
+Novita v2.9.17: dedup radar-only via icao24.
+Novita v2.9.16: dedup radar con priorita' fasi BGY.
+Novita v2.9.15: finestra borderline stringente 23:00:00-05:59:59.
+Novita v2.9.14: sistema borderline.
+Novita v2.9.13: fix out-of-window post match_flights.
+Novita v2.9.12: prima versione del fix (deprecata).
+Novita v2.9.11: fix _propagate_runway_in_session (pd.isna).
+Novita v2.9.10: raggruppa per solo callsign.
+Novita v2.9.9: prima versione del fix propagazione pista.
+Novita v2.9.8: esclusione voli pomeridiani da anomalie.
+Novita v2.9.7: pattern callsign + priorita' numero commerciale.
 
 Principio documentato:
 - Il rumore conta solo se prodotto tra le 23:00:00 e le 05:59:59.
-- Un volo schedulato in fascia ma operato fuori è un "borderline" e va
-  tracciato separatamente.
+- Un volo schedulato in fascia ma operato fuori e' un "borderline".
+- Un "Passeggeri (radar)" o "Non classificato" con stesso icao24 di uno
+  scheduled e' un duplicato del matching e va scartato.
 """
 import os
 import re
@@ -58,6 +66,9 @@ MATCH_WINDOW_AFTER_MIN = 180
 MATCH_WINDOW_WIDE_BEFORE_MIN = 180
 RADAR_DEDUP_WINDOW_MIN = 15
 
+ICAO24_DEDUP_NEAR_MIN = 15
+ICAO24_DEDUP_SAMEDIR_MIN = 120
+
 BGY_PHASES = ('Atterraggio', 'Decollo', 'Avvicinamento')
 
 NIGHT_START_HOUR = 23
@@ -70,9 +81,8 @@ SCONFINAMENTO_GRAVE_MIN = 60
 DAY_START_HOUR = 6
 DAY_END_HOUR = 23
 
-# v2.9.15: finestra stringente 23:00:00 - 05:59:59
-NIGHT_WINDOW_START_SEC = 23 * 3600          # 82800
-NIGHT_WINDOW_END_SEC = 6 * 3600             # 21600
+NIGHT_WINDOW_START_SEC = 23 * 3600
+NIGHT_WINDOW_END_SEC = 6 * 3600
 
 SESSION_SCAN_TIMES = ['23-00', '00-00', '00-01', '02-00', '05-00', '06-00']
 MEZZANOTTE_SCANS = {'00-00', '00-01'}
@@ -91,10 +101,6 @@ _inverted_patterns_cache = None
 def _cfg():
     return config_manager.get_report_night_config()
 
-
-# -----------------------------------------------------------------------------
-# PATTERNS
-# -----------------------------------------------------------------------------
 
 def _load_callsign_patterns():
     global _callsign_patterns_cache
@@ -135,10 +141,6 @@ def _get_inverted_patterns():
     _inverted_patterns_cache = inv
     return inv
 
-
-# -----------------------------------------------------------------------------
-# UTILITY
-# -----------------------------------------------------------------------------
 
 def _safe_float(value, default=None):
     if value is None:
@@ -234,9 +236,6 @@ def _timestamp_to_minutes_session_wide(ts, session_date):
 
 
 def _is_timestamp_in_night(ts, session_date):
-    """
-    v2.9.15: finestra stringente 23:00:00 <= ts < 06:00:00.
-    """
     if not ts:
         return False
     try:
@@ -249,14 +248,10 @@ def _is_timestamp_in_night(ts, session_date):
 
 
 def _seconds_of_day(dt):
-    """Secondi dalla mezzanotte di un datetime."""
     return dt.hour * 3600 + dt.minute * 60 + dt.second
 
 
 def _is_in_night_window_dt(dt):
-    """
-    v2.9.15: True se dt è nella finestra 23:00:00 - 05:59:59 (stringente).
-    """
     sec = _seconds_of_day(dt)
     return (sec >= NIGHT_WINDOW_START_SEC) or (sec < NIGHT_WINDOW_END_SEC)
 
@@ -336,10 +331,6 @@ def _normalize_hhmm(hhmm):
     return s.strip()
 
 
-# -----------------------------------------------------------------------------
-# CONVERSIONE CALLSIGN
-# -----------------------------------------------------------------------------
-
 def _split_iata_callsign(callsign_norm):
     if not callsign_norm:
         return None, None
@@ -399,10 +390,6 @@ def _extract_iata_number(callsign_sacbo):
     return prefix, number
 
 
-# -----------------------------------------------------------------------------
-# MATCH RADAR PER CLASSIFICAZIONE
-# -----------------------------------------------------------------------------
-
 def _find_radar_match_ts(callsign_sacbo, direzione_sacbo, sched, radar_df,
                           session_date):
     if radar_df is None or radar_df.empty:
@@ -436,10 +423,6 @@ def _find_radar_match_ts(callsign_sacbo, direzione_sacbo, sched, radar_df,
 
     return best_ts
 
-
-# -----------------------------------------------------------------------------
-# CLASSIFICAZIONE VOLO
-# -----------------------------------------------------------------------------
 
 def _tipo_movimento_from_callsign(callsign, source):
     categoria, nome = classify_callsign(callsign)
@@ -583,10 +566,6 @@ def _classify_volo(records, radar_df=None, session_date=None):
         return 'sconfinamento_grave'
     return 'sconfinamento'
 
-
-# -----------------------------------------------------------------------------
-# CARICAMENTO DATI
-# -----------------------------------------------------------------------------
 
 def load_scheduled_flights(date_str, radar_df=None):
     date_norm = normalize_date(date_str)
@@ -814,10 +793,6 @@ def load_radar_data(date_str):
 
     return combined
 
-
-# -----------------------------------------------------------------------------
-# MATCHING
-# -----------------------------------------------------------------------------
 
 def _is_phase_compatible(direzione_sacbo, fase_volo):
     if direzione_sacbo == 'D':
@@ -1207,10 +1182,27 @@ def _dedup_radar_by_callsign(radar_df):
     except Exception as e:
         logger.warning(f"Deduplica radar: impossibile calcolare la finestra: {e}")
         return radar_df
-    df = df.sort_values('timestamp').drop_duplicates(
+
+    PHASE_RANK = {
+        'Atterraggio': 4,
+        'Decollo': 3,
+        'Avvicinamento': 2,
+        'Sorvolo': 1,
+        'Transito': 0,
+        'N/D': 0,
+        'Non rilevato': 0,
+        '': 0,
+    }
+    df['_phase_rank'] = df['fase_volo'].apply(
+        lambda f: PHASE_RANK.get(str(f).strip(), 0))
+
+    df = df.sort_values(
+        by=['_phase_rank', 'timestamp'],
+        ascending=[False, False]
+    ).drop_duplicates(
         subset=['callsign', '_window'], keep='first'
     )
-    df = df.drop(columns=['_window'])
+    df = df.drop(columns=['_window', '_phase_rank'])
     after = len(df)
     if before != after:
         logger.info(
@@ -1220,9 +1212,112 @@ def _dedup_radar_by_callsign(radar_df):
     return df
 
 
-# -----------------------------------------------------------------------------
-# ARRICCHIMENTO
-# -----------------------------------------------------------------------------
+def _dedup_radar_only_via_icao24(result_df):
+    """
+    v2.9.18: rimuove i radar-only "Passeggeri (radar)" e "Non classificato"
+    che sono duplicati di voli scheduled con lo stesso icao24.
+
+    Categorie NON toccate: "Cargo (X)" e "Charter (X)" radar-only (sono
+    l'unica testimonianza del movimento, vanno tenute).
+
+    Criterio:
+      - Stesso icao24 + Δ <= 15 min → rimuovi (stesso movimento fisico)
+      - Stesso icao24 + stessa direzione + Δ <= 120 min → rimuovi
+    """
+    if result_df.empty:
+        return result_df, 0
+    if 'icao24' not in result_df.columns:
+        logger.info("⏭️  Dedup icao24: colonna icao24 assente, salto")
+        return result_df, 0
+
+    df = result_df.copy()
+
+    def _norm_icao(v):
+        if v is None or (isinstance(v, float) and pd.isna(v)):
+            return ''
+        s = str(v).strip().lower()
+        if s in ('', 'nan', 'none', 'n/d'):
+            return ''
+        return s
+
+    df['_icao_norm'] = df['icao24'].apply(_norm_icao)
+
+    def _norm_ts(v):
+        if v is None or (isinstance(v, float) and pd.isna(v)):
+            return None
+        s = str(v).strip()
+        if s == '':
+            return None
+        try:
+            return pd.to_datetime(s)
+        except Exception:
+            return None
+
+    df['_ts_norm'] = df['timestamp'].apply(_norm_ts)
+
+    sched_mask = (
+        (df['is_scheduled'] == True)
+        & (df['_icao_norm'] != '')
+        & (df['_ts_norm'].notna())
+    )
+    sched_records = df[sched_mask][
+        ['_icao_norm', '_ts_norm', 'direzione_sacbo', 'callsign']
+    ].to_dict('records')
+
+    sched_by_icao = defaultdict(list)
+    for s in sched_records:
+        sched_by_icao[s['_icao_norm']].append(s)
+
+    dedupable_tipos = ('Passeggeri (radar)', 'Non classificato')
+
+    ro_mask = (
+        (df['is_scheduled'] == False)
+        & (df['tipo_movimento'].isin(dedupable_tipos))
+        & (df['_icao_norm'] != '')
+        & (df['_ts_norm'].notna())
+    )
+
+    to_drop = []
+    for idx, r in df[ro_mask].iterrows():
+        icao = r['_icao_norm']
+        ts_ro = r['_ts_norm']
+        dir_ro = str(r.get('direzione_sacbo', '') or '').strip().upper()
+        tipo_ro = str(r.get('tipo_movimento', '') or '').strip()
+
+        sched_list = sched_by_icao.get(icao, [])
+        for s in sched_list:
+            delta_min = abs((ts_ro - s['_ts_norm']).total_seconds()) / 60
+            dir_s = str(s.get('direzione_sacbo', '') or '').strip().upper()
+
+            if delta_min <= ICAO24_DEDUP_NEAR_MIN:
+                to_drop.append((idx, r['callsign'], tipo_ro, icao,
+                                round(delta_min, 1), s['callsign'],
+                                'same_movement'))
+                break
+            if dir_ro == dir_s and delta_min <= ICAO24_DEDUP_SAMEDIR_MIN:
+                to_drop.append((idx, r['callsign'], tipo_ro, icao,
+                                round(delta_min, 1), s['callsign'],
+                                'same_dir'))
+                break
+
+    if not to_drop:
+        logger.info("⏭️  Dedup icao24: nessun duplicato trovato")
+        return result_df, 0
+
+    logger.info(f"🧹 Dedup icao24: {len(to_drop)} radar-only rimossi")
+    for t in to_drop[:5]:
+        idx, cs_ro, tipo_ro, icao, dt, cs_s, reason = t
+        logger.info(f"   · {cs_ro} ({tipo_ro}, icao24={icao}, Δ={dt} min, "
+                    f"{reason}) ↔ scheduled {cs_s}")
+    if len(to_drop) > 5:
+        logger.info(f"   · ... e altri {len(to_drop) - 5}")
+
+    drop_idx = [t[0] for t in to_drop]
+    df = df.drop(index=drop_idx)
+    df = df.drop(columns=['_icao_norm', '_ts_norm'], errors='ignore')
+
+    return df.reset_index(drop=True), len(drop_idx)
+
 
 def _enrich_final(df):
     if df.empty:
@@ -1331,23 +1426,7 @@ def _enrich_final(df):
     return df
 
 
-# -----------------------------------------------------------------------------
-# BORDERLINE (v2.9.15)
-# -----------------------------------------------------------------------------
-
 def _split_borderline_flights(result_df):
-    """
-    v2.9.15: separa i voli schedulati in fascia notturna (>= 23:00 o < 06:00)
-    ma operati fuori dalla finestra 23:00:00 - 05:59:59.
-
-    Finestra stringente (senza tolleranze):
-      - 23:00:00 incluso
-      - 05:59:59 incluso
-      - 06:00:00 escluso
-      - 22:59:59 escluso
-
-    Ritorna (df_ok, df_borderline, n_esclusi).
-    """
     if result_df.empty:
         return result_df, result_df.iloc[0:0], 0
 
@@ -1387,9 +1466,6 @@ def _split_borderline_flights(result_df):
 
 
 def _categorize_borderline(row):
-    """
-    v2.9.15: ritorna una stringa che descrive il tipo di borderline.
-    """
     sched = row.get('orario_schedulato')
     ts = row.get('timestamp')
     direzione = str(row.get('direzione_sacbo', '') or '').upper()
@@ -1466,10 +1542,6 @@ def _write_borderline_files(date_norm, df_borderline):
     return daily_path
 
 
-# -----------------------------------------------------------------------------
-# GENERAZIONE
-# -----------------------------------------------------------------------------
-
 def generate_nightly_report(date_str=None):
     load_rules()
     date_norm = normalize_date(date_str) if date_str else night_session_date()
@@ -1482,6 +1554,8 @@ def generate_nightly_report(date_str=None):
     if result_df.empty:
         logger.warning(f"⚠️ Nessun dato per {date_norm}")
         return None, f"Nessun dato per {date_norm}"
+
+    result_df, n_dedup_icao24 = _dedup_radar_only_via_icao24(result_df)
 
     result_df, df_borderline, n_borderline = _split_borderline_flights(result_df)
 
@@ -1603,11 +1677,12 @@ def generate_nightly_report(date_str=None):
             sconf_msg = f", sconfinamenti {sconf_tot}"
     anomalie_msg = f", anomalie {n_anomalie}" if n_anomalie > 0 else ""
     borderline_msg = (f", borderline {n_borderline}" if n_borderline > 0 else "")
+    dedup_icao_msg = (f", dedup icao24 -{n_dedup_icao24}" if n_dedup_icao24 > 0 else "")
 
     msg = (f"✅ Report notturno: {total} voli "
            f"(Visibili: {visibili} = Passeggeri {pax} + Cargo {cargo} "
            f"+ Charter {charter} + Non classificato {non_class}{sconf_msg}{anomalie_msg}{borderline_msg} | "
-           f"Opt-in: {optin} = Passeggeri radar {pax_radar} | "
+           f"Opt-in: {optin} = Passeggeri radar {pax_radar}{dedup_icao_msg} | "
            f"PAX stimati: {pax_tot}, "
            f"Rumore su {rumore_count} voli, max {rumore_max} dB"
            f"{meteo_msg})")
