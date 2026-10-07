@@ -1,13 +1,20 @@
 ﻿"""
 bgy_scheduler.py - Pianificatore ed Orchestratore automatico.
-Versione 2.8.2
+Versione 2.8.3
+
+Novità v2.8.3 (INFRA-02, 07/10/2026):
+- job_daily() ora chiama bgy_tools.verify_sync.check_all() e passa il
+  risultato a send_daily_status(sync_backup_check=...).
+- La nuova sezione "📊 STATO SYNC E BACKUP" appare nell'email delle 06:30
+  con: stato GitHub, backup DB (Google Drive), backup locale (HD esterno).
+- Se verify_sync.check_all() fallisce, la mail parte comunque: la sezione
+  viene omessa con un warning nel log.
 
 Novità v2.8.2 (radar 1 min di notte):
 - job_radar_scan(): intervallo adattivo. In fascia notturna (23:00-06:00)
-  esegue ogni minuto; di giorno esegue solo ai minuti pari (0, 2, 4, ...)
-  per mantenere 2 minuti. Lo scheduler pianifica il job ogni 1 minuto.
+  esegue ogni minuto; di giorno esegue solo ai minuti pari.
 - setup_scheduler(): legge night_scan_interval_minutes (default 1) e
-  day_scan_interval_minutes (default 2), usa min() come base di schedule.
+  day_scan_interval_minutes (default 2).
 - Import: aggiunta is_night_time.
 
 Novità v2.8.1 (F17 WordPress): job_daily() chiama export_and_publish().
@@ -31,6 +38,7 @@ Novità v2.7.2: check_sacbo_acquisition() conta scansioni Avionio.
 - Avviso scansioni da fonte alternativa Avionio (v2.7.2)
 - Passaggio flag night_import_failed al mailer (v2.7.3)
 - Esportazione dati web F17 (v2.8.1)
+- Sync e backup check nell'email del mattino (v2.8.3)
 """
 import os
 import sys
@@ -238,6 +246,32 @@ def job_web_export():
         msg = f"Eccezione: {e}"
         logger.error(f"❌ Web export: {msg}")
         return False, msg
+
+
+# -----------------------------------------------------------------------------
+# SYNC / BACKUP CHECK (v2.8.3)
+# -----------------------------------------------------------------------------
+
+def _run_sync_backup_check():
+    """
+    v2.8.3: esegue bgy_tools.verify_sync.check_all() e ritorna il dict
+    oppure None in caso di errore. Non blocca il job giornaliero.
+    """
+    try:
+        from bgy_tools.verify_sync import check_all
+        result = check_all()
+        if result.get("overall_ok"):
+            logger.info("✅ Sync/Backup: tutto OK")
+        else:
+            g = result.get("github", {}).get("status", "?")
+            b = result.get("backup_db", {}).get("status", "?")
+            bl = result.get("backup_local", {}).get("status", "?")
+            logger.warning(f"⚠️ Sync/Backup: problemi "
+                            f"(github={g}, backup_db={b}, backup_local={bl})")
+        return result
+    except Exception as e:
+        logger.error(f"❌ Errore verify_sync.check_all: {e}")
+        return None
 
 
 # -----------------------------------------------------------------------------
@@ -820,9 +854,6 @@ def job_radar_scan():
     - In fascia notturna (23:00-06:00): esegue ogni minuto
     - In fascia diurna: esegue solo ai minuti pari (0, 2, 4, ...)
       per mantenere l'intervallo effettivo di 2 minuti
-
-    Questo riduce il consumo API diurno senza perdere risoluzione
-    notturna (dove serve per catturare decolli cargo e sconfinamenti).
     """
     try:
         now = datetime.now()
@@ -1042,6 +1073,17 @@ def job_daily():
         bk_msg = f"Errore verifica backup: {e}"
         logger.error(f"❌ {bk_msg}")
 
+    # --- 15. Sync/Backup check (INFRA-02, v2.8.3) ---
+    logger.info("-" * 60)
+    logger.info("📊 Verifica sync GitHub + stato backup...")
+    sync_backup_check = _run_sync_backup_check()
+    if sync_backup_check is not None:
+        g_status = sync_backup_check.get("github", {}).get("status", "?")
+        b_status = sync_backup_check.get("backup_db", {}).get("status", "?")
+        bl_status = sync_backup_check.get("backup_local", {}).get("status", "?")
+        logger.info(f"✅ Sync/Backup: github={g_status}, "
+                    f"backup_db={b_status}, backup_local={bl_status}")
+
     # --- Riepilogo check ---
     checks = {
         'sacbo_acquisition': (sacbo_acq_ok, sacbo_acq_msg),
@@ -1075,9 +1117,10 @@ def job_daily():
         screenshot_paths=screenshot_paths,
         night_import_failed=night_import_failed,
         non_classified_flights=non_classified_flights,
+        sync_backup_check=sync_backup_check,
     )
 
-    # --- 15. Esportazione dati web (F17) ---
+    # --- 16. Esportazione dati web (F17) ---
     job_web_export()
 
     # --- Pulizie ---

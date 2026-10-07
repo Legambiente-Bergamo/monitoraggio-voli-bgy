@@ -58,7 +58,7 @@ from bgy_core import get_logger, config_manager, ensure_directories
 from bgy_core.bgy_version import __version__
 from bgy_gui import (
     DashboardTab, MailConfigTab, ScanConfigTab, ReportExportTab,
-    WatchdogConfigTab, NotificationsTab, AirlinesTab,
+    WatchdogConfigTab, NotificationsTab, AirlinesTab, SyncBackupTab,
 )
 from bgy_gui.bgy_gui_charts import ChartsTab
 
@@ -220,6 +220,9 @@ class BgyAppGUI:
 
         self.airlines_tab = AirlinesTab(self.notebook, self)
         self.notebook.add(self.airlines_tab.tab, text="🏢 Compagnie")
+
+        self.sync_backup_tab = SyncBackupTab(self.notebook, self)
+        self.notebook.add(self.sync_backup_tab.tab, text="📊 Sync & Backup")
 
         self.watchdog_tab = WatchdogConfigTab(self.notebook, self)
         self.notebook.add(self.watchdog_tab.tab, text="🐕 Watchdog")

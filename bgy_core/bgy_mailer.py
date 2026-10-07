@@ -1,22 +1,25 @@
 """
 bgy_core/bgy_mailer.py - Modulo unificato di invio email.
-Versione 2.7.1
+Versione 2.7.2
 
-Novità v2.7.1 (07/10/2026):
-- Nuova sezione email "DISCORDANZE AVIONIO ↔ SACBO (finestra notturna)".
-  Sostituisce il vecchio check #10 in "PROBLEMI RILEVATI", che ora è
-  nascosto (HIDDEN_FROM_PROBLEMS) e mostrato invece in una sezione
-  dedicata con formato più leggibile.
-- Il contenuto della sezione è il messaggio di run_confronto_summary()
-  filtrato sulla finestra notturna 22:50-06:10 (vedi MAIL-02 / v0.1.3
-  di confronto_sacbo_avionio.py).
-- Se tutto ok: la sezione mostra "✅ Nessuna discordanza notturna".
-- Se ci sono discordanze: elenco dei singoli voli coinvolti.
+Novità v2.7.2 (INFRA-02, 07/10/2026):
+- Nuova sezione email "📊 STATO SYNC E BACKUP" con l'output di
+  bgy_tools.verify_sync.check_all():
+    - GitHub: in_sync / ahead / behind / diverged + ultimo commit locale e remoto
+    - Backup DB (Google Drive): ultimo OK + ore trascorse
+    - Backup locale (HD esterno): placeholder INFRA-03
+- Il parametro sync_backup_check (dict) può essere passato dal chiamante
+  (bgy_scheduler). Se None, il mailer chiama check_all() in autonomia.
+- La sezione è compatta: una riga per ciascun check, con icona di stato.
+- Non compare in "PROBLEMI RILEVATI" (a meno che non ci siano errori
+  bloccanti), perché è informazione di stato, non un problema.
+
+Novità v2.7.1:
+- Sezione "DISCORDANZE AVIONIO ↔ SACBO" (finestra notturna 22:50-06:10).
+- Check 'avionio_confronto' nascosto da "PROBLEMI RILEVATI".
 
 Novità v2.7.0:
-- Nuova sezione "MOVIMENTI BORDERLINE" nell'email del mattino.
-  Legge il file borderline_YYYY-MM-DD.csv e mostra i voli schedulati
-  in fascia notturna ma operati fuori dalla finestra 23:01-05:59.
+- Sezione "MOVIMENTI BORDERLINE" nell'email del mattino.
 
 Novità v2.6.1: filtro quality check.
 Novità v2.6.0: email semplificata + voli non classificati.
@@ -59,8 +62,6 @@ DEFAULT_COOLDOWN_MIN = 30
 
 WARNING_ONLY_CHECKS = {'avionio_confronto', 'backup'}
 
-# v2.7.1: check che NON compaiono in "PROBLEMI RILEVATI" ma in sezioni
-# dedicate (formato più ricco, non un semplice WARN).
 HIDDEN_FROM_PROBLEMS = {'avionio_confronto'}
 
 
@@ -534,10 +535,6 @@ def _format_non_classified_section(non_classified_flights):
 # -----------------------------------------------------------------------------
 
 def _load_borderline_flights(session_date_str):
-    """
-    v2.7.0: legge il file borderline_YYYY-MM-DD.csv della sessione.
-    Ritorna lista di dict (vuota se il file non esiste).
-    """
     if not session_date_str:
         return []
 
@@ -559,9 +556,6 @@ def _load_borderline_flights(session_date_str):
 
 
 def _format_borderline_section(borderline_flights):
-    """
-    v2.7.0: formatta la sezione "MOVIMENTI BORDERLINE".
-    """
     if not borderline_flights:
         return ""
 
@@ -614,15 +608,6 @@ def _format_borderline_section(borderline_flights):
 # -----------------------------------------------------------------------------
 
 def _format_avionio_section(check_ok, check_msg):
-    """
-    v2.7.1: formatta la sezione "DISCORDANZE AVIONIO ↔ SACBO (finestra notturna)".
-
-    Il contenuto è il messaggio restituito da run_confronto_summary()
-    (v0.1.3 di confronto_sacbo_avionio.py), che filtra su 22:50-06:10.
-
-    Se check_ok: sezione compatta "✅ nessuna discordanza".
-    Se not check_ok: elenco con dettaglio.
-    """
     if not check_msg:
         return ""
 
@@ -637,10 +622,77 @@ def _format_avionio_section(check_ok, check_msg):
     return "\n".join(lines)
 
 
+# -----------------------------------------------------------------------------
+# SYNC E BACKUP (v2.7.2)
+# -----------------------------------------------------------------------------
+
+def _format_sync_backup_section(check_result):
+    """
+    v2.7.2: formatta la sezione "STATO SYNC E BACKUP".
+
+    Il dict è quello restituito da bgy_tools.verify_sync.check_all().
+    Se check_result è None, ritorna stringa vuota.
+    """
+    if not check_result:
+        return ""
+
+    g = check_result.get("github", {})
+    b = check_result.get("backup_db", {})
+    bl = check_result.get("backup_local", {})
+
+    lines = []
+    lines.append("📊 STATO SYNC E BACKUP")
+    lines.append("")
+
+    # GitHub
+    if not g.get("enabled", True):
+        lines.append("   📤 GitHub Sync:  ⏸️  disabilitato")
+    else:
+        status = g.get("status", "?")
+        icon = "✅" if status == "in_sync" else "⚠️"
+        modified = g.get("modified_count", 0)
+        detail = ""
+        if modified > 0:
+            detail = f" ({modified} file da committare)"
+        lines.append(f"   📤 GitHub Sync:  {icon} {status}{detail}")
+        lines.append(f"      locale:  {g.get('last_commit_local', '?')} "
+                     f"({g.get('last_commit_local_hash', '?')})")
+        lines.append(f"      remoto:  {g.get('last_commit_remote', '?')} "
+                     f"({g.get('last_commit_remote_hash', '?')})")
+
+    # Backup DB
+    if not b.get("enabled", True):
+        lines.append("   🗄️  Backup DB:    ⏸️  disabilitato")
+    else:
+        status = b.get("status", "?")
+        icon = "✅" if status == "ok" else "❌"
+        age = b.get("age_hours")
+        age_str = f" ({age:.1f}h fa)" if age is not None else ""
+        lines.append(f"   🗄️  Backup DB:    {icon} {status}{age_str}")
+        if b.get("last_success"):
+            lines.append(f"      ultimo OK:  {b['last_success']}")
+
+    # Backup locale
+    status = bl.get("status", "not_configured")
+    if status == "not_configured":
+        lines.append("   💾 Backup locale: ⏸️  non configurato")
+    else:
+        icon = "✅" if status == "ok" else "❌"
+        age = bl.get("age_hours")
+        age_str = f" ({age:.1f}h fa)" if age is not None else ""
+        lines.append(f"   💾 Backup locale: {icon} {status}{age_str}")
+        if bl.get("path"):
+            lines.append(f"      path:  {bl['path']}")
+
+    lines.append("")
+    return "\n".join(lines)
+
+
 def _format_stats_section(stats, yesterday_str, night_import_failed=False,
                           non_classified_flights=None,
                           borderline_flights=None,
-                          avionio_check=None):
+                          avionio_check=None,
+                          sync_backup_check=None):
     lines = []
     nightly = stats.get("nightly") if stats else None
 
@@ -665,6 +717,11 @@ def _format_stats_section(stats, yesterday_str, night_import_failed=False,
         av_text = _format_avionio_section(av_ok, av_msg)
         if av_text:
             lines.append(av_text)
+
+    if sync_backup_check is not None:
+        sb_text = _format_sync_backup_section(sync_backup_check)
+        if sb_text:
+            lines.append(sb_text)
 
     return "\n".join(lines)
 
@@ -760,13 +817,14 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
                       screenshot_paths=None, force=False,
                       night_import_failed=False,
                       non_classified_flights=None,
-                      borderline_flights=None):
+                      borderline_flights=None,
+                      sync_backup_check=None):
     """
     Invia l'email di stato giornaliero.
 
-    v2.7.1: il check 'avionio_confronto' non compare più in
-    "PROBLEMI RILEVATI" (nascosto da HIDDEN_FROM_PROBLEMS) e viene
-    invece mostrato in una sezione dedicata "DISCORDANZE AVIONIO ↔ SACBO".
+    v2.7.2: nuovo parametro sync_backup_check (dict da verify_sync.check_all()).
+    Se None, il mailer tenta di calcolarlo in autonomia. Se il calcolo
+    fallisce, la sezione non appare.
     """
     if not force and not is_daily_status_enabled():
         logger.info("🔕 Email di stato giornaliero silenziata")
@@ -793,6 +851,15 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
     if borderline_flights is None:
         borderline_flights = _load_borderline_flights(yesterday_iso)
 
+    # v2.7.2: se non passato, prova a calcolare sync/backup in autonomia
+    if sync_backup_check is None:
+        try:
+            from bgy_tools.verify_sync import check_all
+            sync_backup_check = check_all()
+        except Exception as e:
+            logger.warning(f"Impossibile eseguire verify_sync.check_all(): {e}")
+            sync_backup_check = None
+
     parts = []
 
     problems_text = _render_problems(checks)
@@ -810,11 +877,19 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
             non_classified_flights=non_classified_flights,
             borderline_flights=borderline_flights,
             avionio_check=avionio_check,
+            sync_backup_check=sync_backup_check,
         )
         if stats_text:
             parts.append("━" * 37)
             parts.append("")
             parts.append(stats_text)
+    elif sync_backup_check is not None:
+        # anche se stats è None, mostra la sezione sync/backup
+        sb_text = _format_sync_backup_section(sync_backup_check)
+        if sb_text:
+            parts.append("━" * 37)
+            parts.append("")
+            parts.append(sb_text)
 
     body = "\n".join(parts)
     if details:
