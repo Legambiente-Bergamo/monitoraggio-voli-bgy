@@ -55,22 +55,10 @@
       "approach_max_altitude_ft": 5000
     },
     "runway_bearings": {
-      "RWY 28": [
-        250,
-        300
-      ],
-      "RWY 10": [
-        70,
-        120
-      ],
-      "RWY 16": [
-        160,
-        190
-      ],
-      "RWY 34": [
-        340,
-        10
-      ]
+      "RWY 28": [250, 300],
+      "RWY 10": [70, 120],
+      "RWY 16": [160, 190],
+      "RWY 34": [340, 10]
     },
     "parallel_test_mode": false,
     "parallel_test_days": 5
@@ -98,34 +86,16 @@
       "approach_max_altitude_ft": 5000
     },
     "runway_bearings": {
-      "RWY 28": [
-        250,
-        300
-      ],
-      "RWY 10": [
-        70,
-        120
-      ],
-      "RWY 16": [
-        160,
-        190
-      ],
-      "RWY 34": [
-        340,
-        10
-      ]
+      "RWY 28": [250, 300],
+      "RWY 10": [70, 120],
+      "RWY 16": [160, 190],
+      "RWY 34": [340, 10]
     }
   },
   "scanner_day": {
     "urls": [
-      [
-        "https://www.milanbergamoairport.it/it/voli-tempo-reale/#departure",
-        "Decollo"
-      ],
-      [
-        "https://www.milanbergamoairport.it/it/voli-tempo-reale/#arrivals",
-        "Atterraggio"
-      ]
+      ["https://www.milanbergamoairport.it/it/voli-tempo-reale/#departure", "Decollo"],
+      ["https://www.milanbergamoairport.it/it/voli-tempo-reale/#arrivals", "Atterraggio"]
     ],
     "playwright_timeout_ms": 40000,
     "wait_after_load_ms": 3000,
@@ -192,53 +162,10 @@
       "alternate_row_color": "f0f4f8"
     },
     "columns": {
-      "daily": [
-        "volo",
-        "callsign",
-        "tipo_movimento",
-        "compagnia_aerea",
-        "destinazione_origine",
-        "orario_schedulato",
-        "orario_effettivo",
-        "minuti_ritardo",
-        "stato_ritardo"
-      ],
-      "nightly": [
-        "callsign",
-        "tipo_movimento",
-        "is_scheduled",
-        "compagnia_aerea",
-        "modello_aereo",
-        "destinazione_finale",
-        "orario_schedulato",
-        "timestamp",
-        "pista",
-        "fase_volo",
-        "quota_ft",
-        "distanza_km",
-        "stima_passeggeri",
-        "stima_rumore_db"
-      ],
-      "monthly": [
-        "volo",
-        "callsign",
-        "tipo_movimento",
-        "compagnia_aerea",
-        "destinazione_origine",
-        "orario_schedulato",
-        "minuti_ritardo"
-      ],
-      "yearly": [
-        "volo",
-        "callsign",
-        "tipo_movimento",
-        "compagnia_aerea",
-        "destinazione_origine",
-        "destinazione_finale",
-        "orario_schedulato",
-        "minuti_ritardo",
-        "stato_ritardo"
-      ]
+      "daily": ["volo", "callsign", "tipo_movimento", "compagnia_aerea", "destinazione_origine", "orario_schedulato", "orario_effettivo", "minuti_ritardo", "stato_ritardo"],
+      "nightly": ["callsign", "tipo_movimento", "is_scheduled", "compagnia_aerea", "modello_aereo", "destinazione_finale", "orario_schedulato", "timestamp", "pista", "fase_volo", "quota_ft", "distanza_km", "stima_passeggeri", "stima_rumore_db"],
+      "monthly": ["volo", "callsign", "tipo_movimento", "compagnia_aerea", "destinazione_origine", "orario_schedulato", "minuti_ritardo"],
+      "yearly": ["volo", "callsign", "tipo_movimento", "compagnia_aerea", "destinazione_origine", "destinazione_finale", "orario_schedulato", "minuti_ritardo", "stato_ritardo"]
     },
     "max_rows": {
       "xlsx": 0,
@@ -266,5 +193,11 @@
     "min_date": "2026-09-30",
     "days_default": 90,
     "top_airlines_n": 10
+  },
+  "backup_local": {
+    "enabled": true,
+    "path": "E:\\BGY_Backup",
+    "max_age_hours": 48,
+    "include_credentials": true
   }
 }

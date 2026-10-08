@@ -1,16 +1,19 @@
 """
 bgy_core/bgy_export_web.py - Esportazione dati aggregati per il web (F17).
-Versione 1.2.15
+Versione 1.2.17
 
-Novita v1.2.15 (06/10/2026):
-- Aggiunti campi "_tab" (scheduled-only per categoria):
-    D_<cat>_tab, A_<cat>_tab = scheduled-only per linea/cargo/charter/altro.
-  Servono per la vista pubblica, che mostra SOLO i movimenti dichiarati
-  dai tabelloni (SACBO + Avionio).
-- I campi misti (D_<cat>, A_<cat>) e i radar-only (D_<cat>_ro, A_<cat>_ro)
-  restano nel JSON per l'indagine interna (radar-only vs tabelloni).
-- Il log di export continua a mostrare i radar-only per il monitoraggio.
+Novita v1.2.17 (07/10/2026):
+- build_block_night_airlines(): aggiunto campo 'cat' (categoria) a ogni
+  entry. Serve al grafico compagnie per colorare per categoria (cargo
+  verde, charter rosso, ecc.) invece che per indice palette.
 
+Novita v1.2.16 (07/10/2026):
+- Fix bug: in build_block_night_movements() il ramo is_sched is True
+  ora aggiorna anche totals[d+"_"+cat], non solo item[d+"_"+cat].
+- Nuovo blocco block_geo_breakdown: {by_date: [{date, D, A}]} con
+  by_country e by_city in forma STACKED per categoria.
+
+Novita v1.2.15: campi _tab (scheduled-only per categoria).
 Novita v1.2.14: totale_movimenti_rilevati, D/A_totali_rilevati.
 Novita v1.2.13: by_hour filtrabile per data.
 Novita v1.2.12: cargo/charter/non class radar-only nelle KPI.
@@ -185,7 +188,7 @@ def _empty_by_date_item(date_str):
         "D_totali_rilevati": 0, "A_totali_rilevati": 0,
         "radar_only_total": 0, "radar_only_D": 0, "radar_only_A": 0,
     }
-    for cat in ("passeggeri", "cargo", "charter", "non_classificato"):
+    for cat in CATS_KEYS:
         item["D_" + cat] = 0
         item["A_" + cat] = 0
     for cat in RADAR_ONLY_KPI_CATS:
@@ -195,19 +198,16 @@ def _empty_by_date_item(date_str):
 
 
 def _fill_tab_derived(container):
-    """v1.2.15: calcola _tab (scheduled-only) per ogni categoria."""
     for cat in RADAR_ONLY_KPI_CATS:
         d_ro = container.get("D_" + cat + "_ro", 0)
         a_ro = container.get("A_" + cat + "_ro", 0)
         container["D_" + cat + "_tab"] = max(0, container.get("D_" + cat, 0) - d_ro)
         container["A_" + cat + "_tab"] = max(0, container.get("A_" + cat, 0) - a_ro)
-    # Passeggeri non ha radar-only conteggiabili, _tab = totale
     container["D_passeggeri_tab"] = container.get("D_passeggeri", 0)
     container["A_passeggeri_tab"] = container.get("A_passeggeri", 0)
 
 
 def _fill_radar_only_derived(container):
-    """v1.2.14: calcola totali rilevati e radar-only aggregati."""
     ro_D = sum(container.get("D_" + c + "_ro", 0) for c in RADAR_ONLY_KPI_CATS)
     ro_A = sum(container.get("A_" + c + "_ro", 0) for c in RADAR_ONLY_KPI_CATS)
     ro_tot = ro_D + ro_A
@@ -247,8 +247,6 @@ def build_summary(date_from, date_to):
         "sconfinamenti_totali": sconf + gravi,
         "rumore_max_db": rumore_max,
     }
-
-
 def build_block_night_movements(date_from, date_to):
     rows = _query(
         """SELECT data_riferimento, pista, direzione_sacbo, fase_volo,
@@ -270,6 +268,9 @@ def build_block_night_movements(date_from, date_to):
         "D_totali_rilevati": 0, "A_totali_rilevati": 0,
         "radar_only_total": 0, "radar_only_D": 0, "radar_only_A": 0,
     }
+    for cat in CATS_KEYS:
+        totals["D_" + cat] = 0
+        totals["A_" + cat] = 0
     for cat in RADAR_ONLY_KPI_CATS:
         totals["D_" + cat + "_ro"] = 0
         totals["A_" + cat + "_ro"] = 0
@@ -338,6 +339,7 @@ def build_block_night_movements(date_from, date_to):
 
             if cat and d in ("D", "A"):
                 item[d + "_" + cat] += n
+                totals[d + "_" + cat] += n
         else:
             item["solo_radar"] += n; totals["solo_radar"] += n
             if d == "D":
@@ -347,6 +349,7 @@ def build_block_night_movements(date_from, date_to):
 
             if cat in RADAR_ONLY_KPI_CATS and d in ("D", "A"):
                 item[d + "_" + cat] += n
+                totals[d + "_" + cat] += n
                 item[d + "_" + cat + "_ro"] += n
                 totals[d + "_" + cat + "_ro"] += n
 
@@ -363,15 +366,17 @@ def build_block_night_movements(date_from, date_to):
         f"totale={totals['radar_only_total']} "
         f"(D={totals['radar_only_D']}, A={totals['radar_only_A']})"
     )
-    for c in RADAR_ONLY_KPI_CATS:
-        d_ro = totals.get("D_" + c + "_ro", 0)
-        a_ro = totals.get("A_" + c + "_ro", 0)
-        if d_ro or a_ro:
-            logger.info(f"  · {c}: D={d_ro}, A={a_ro}")
     logger.info(
         f"Vista pubblica (solo tabellone): "
         f"totale={totals['a_tabellone']} "
         f"(D={totals['D']}, A={totals['A']})"
+    )
+    logger.info(
+        f"Totals dettaglio _tab: "
+        f"D_pax={totals.get('D_passeggeri_tab', 0)} "
+        f"A_pax={totals.get('A_passeggeri_tab', 0)} "
+        f"D_cargo={totals.get('D_cargo_tab', 0)} "
+        f"A_cargo={totals.get('A_cargo_tab', 0)}"
     )
 
     return {
@@ -380,8 +385,6 @@ def build_block_night_movements(date_from, date_to):
         "by_side": by_side_acc,
         "by_hour": _build_by_hour(date_from, date_to),
     }
-
-
 def build_block_night_anomalies(date_from, date_to):
     rows = _query(
         """SELECT data_riferimento, callsign, compagnia_aerea,
@@ -571,7 +574,7 @@ def build_block_destinations_pax(date_from, date_to, top_cities=15, top_countrie
     }
 
 
-def build_block_night_airlines(date_from, date_to, top_n):
+def build_block_geo_breakdown(date_from, date_to):
     dir_case = """
         CASE
           WHEN direzione_sacbo IN ('D', 'A') THEN direzione_sacbo
@@ -581,7 +584,110 @@ def build_block_night_airlines(date_from, date_to, top_n):
         END
     """
     rows = _query(
-        f"""SELECT data_riferimento, compagnia_aerea,
+        f"""SELECT data_riferimento, ({dir_case}) AS dir,
+                   tipo_movimento, stato_destinazione, destinazione_finale,
+                   COUNT(*) AS n
+           FROM nightly_reports
+           WHERE data_riferimento BETWEEN %s AND %s
+             AND is_scheduled = TRUE
+             AND (tipo_movimento = 'Passeggeri'
+                  OR tipo_movimento LIKE 'Cargo%%'
+                  OR tipo_movimento LIKE 'Charter%%'
+                  OR tipo_movimento = 'Non classificato')
+           GROUP BY data_riferimento, dir, tipo_movimento,
+                    stato_destinazione, destinazione_finale""",
+        (date_from, date_to))
+
+    def _empty():
+        return {
+            "passeggeri": 0, "cargo": 0, "charter": 0, "non_classificato": 0,
+            "total": 0
+        }
+
+    def _add(container, cat, n):
+        container[cat] = container.get(cat, 0) + n
+        container["total"] = container.get("total", 0) + n
+
+    by_date_acc = {}
+    for r in rows:
+        ds = _date_str(r[0])
+        d = r[1] if r[1] in ("D", "A") else None
+        if d is None:
+            continue
+        cat = _category_from_tipo(r[2])
+        if cat is None:
+            continue
+        country = r[3] or "DA CLASSIFICARE"
+        city = r[4] or "N/D"
+        n = int(r[5] or 0)
+
+        day = by_date_acc.setdefault(ds, {
+            "D": {"by_country_acc": {}, "by_city_acc": {}},
+            "A": {"by_country_acc": {}, "by_city_acc": {}},
+        })
+        d_side = day[d]
+
+        ck = country
+        if ck not in d_side["by_country_acc"]:
+            d_side["by_country_acc"][ck] = _empty()
+        _add(d_side["by_country_acc"][ck], cat, n)
+
+        city_key = city + "|" + country
+        if city_key not in d_side["by_city_acc"]:
+            d_side["by_city_acc"][city_key] = {
+                "city": city, "country": country,
+                "passeggeri": 0, "cargo": 0, "charter": 0,
+                "non_classificato": 0, "total": 0
+            }
+        _add(d_side["by_city_acc"][city_key], cat, n)
+
+    by_date = []
+    for ds in sorted(by_date_acc.keys()):
+        day = by_date_acc[ds]
+        item = {"date": ds}
+        for dir_key in ("D", "A"):
+            d_side = day[dir_key]
+
+            by_country = []
+            for country, acc in d_side["by_country_acc"].items():
+                entry = {"country": country}
+                entry.update(acc)
+                by_country.append(entry)
+            by_country.sort(key=lambda x: (-x["total"], x["country"]))
+
+            by_city = list(d_side["by_city_acc"].values())
+            by_city.sort(key=lambda x: (-x["total"], x["city"]))
+
+            item[dir_key] = {
+                "by_country": by_country,
+                "by_city": by_city,
+            }
+        by_date.append(item)
+
+    return {"by_date": by_date}
+def build_block_night_airlines(date_from, date_to, top_n):
+    """
+    v1.2.17: aggiunto campo 'cat' (passeggeri|cargo|charter|non_classificato)
+    a ogni entry, cosi' il JS puo' colorare per categoria.
+    """
+    dir_case = """
+        CASE
+          WHEN direzione_sacbo IN ('D', 'A') THEN direzione_sacbo
+          WHEN fase_volo = 'Decollo' THEN 'D'
+          WHEN fase_volo IN ('Atterraggio', 'Avvicinamento') THEN 'A'
+          ELSE '?'
+        END
+    """
+    cat_case = """
+        CASE
+          WHEN tipo_movimento LIKE 'Cargo%%' THEN 'cargo'
+          WHEN tipo_movimento LIKE 'Charter%%' THEN 'charter'
+          WHEN tipo_movimento = 'Non classificato' THEN 'non_classificato'
+          ELSE 'passeggeri'
+        END
+    """
+    rows = _query(
+        f"""SELECT data_riferimento, compagnia_aerea, ({cat_case}) AS cat,
                   COUNT(*) FILTER (WHERE ({dir_case}) = 'D') AS n_d,
                   COUNT(*) FILTER (WHERE ({dir_case}) = 'A') AS n_a,
                   COUNT(*) AS n
@@ -596,22 +702,48 @@ def build_block_night_airlines(date_from, date_to, top_n):
                   OR tipo_movimento LIKE 'Cargo%%'
                   OR tipo_movimento LIKE 'Charter%%'
                   OR tipo_movimento = 'Non classificato')
-           GROUP BY data_riferimento, compagnia_aerea
+           GROUP BY data_riferimento, compagnia_aerea, cat
            ORDER BY data_riferimento, n DESC""",
         (date_from, date_to))
-    by_date_map = {}
+
+    by_date_acc = {}
     for r in rows:
         ds = _date_str(r[0])
-        by_date_map.setdefault(ds, []).append({
-            "airline": r[1], "n": int(r[4] or 0),
-            "D": int(r[2] or 0), "A": int(r[3] or 0)})
+        airline = r[1]
+        cat = r[2]
+        n_d = int(r[3] or 0)
+        n_a = int(r[4] or 0)
+        n = int(r[5] or 0)
+
+        key = (ds, airline)
+        if key not in by_date_acc:
+            by_date_acc[key] = {
+                "airline": airline, "cat": cat,
+                "n": 0, "D": 0, "A": 0,
+                "_cat_counts": {}
+            }
+        entry = by_date_acc[key]
+        entry["n"] += n
+        entry["D"] += n_d
+        entry["A"] += n_a
+        entry["_cat_counts"][cat] = entry["_cat_counts"].get(cat, 0) + n
+
+    for entry in by_date_acc.values():
+        cc = entry.pop("_cat_counts", {})
+        if cc:
+            entry["cat"] = max(cc.items(), key=lambda kv: kv[1])[0]
+
+    by_date_map = {}
+    for (ds, airline), entry in by_date_acc.items():
+        by_date_map.setdefault(ds, []).append(entry)
+
     by_date = []
     for ds in sorted(by_date_map.keys()):
         items = sorted(by_date_map[ds], key=lambda x: (-x["n"], x["airline"]))
         by_date.append({"date": ds, "top": items[:top_n]})
 
     rows = _query(
-        f"""SELECT compagnia_aerea,
+        f"""SELECT compagnia_aerea, ({cat_case}) AS cat,
                   COUNT(*) FILTER (WHERE ({dir_case}) = 'D') AS n_d,
                   COUNT(*) FILTER (WHERE ({dir_case}) = 'A') AS n_a,
                   COUNT(*) AS n
@@ -626,11 +758,37 @@ def build_block_night_airlines(date_from, date_to, top_n):
                   OR tipo_movimento LIKE 'Cargo%%'
                   OR tipo_movimento LIKE 'Charter%%'
                   OR tipo_movimento = 'Non classificato')
-           GROUP BY compagnia_aerea
+           GROUP BY compagnia_aerea, cat
            ORDER BY n DESC""",
         (date_from, date_to))
-    totals = [{"airline": r[0], "n": int(r[3] or 0),
-               "D": int(r[1] or 0), "A": int(r[2] or 0)} for r in rows]
+
+    totals_acc = {}
+    for r in rows:
+        airline = r[0]
+        cat = r[1]
+        n_d = int(r[2] or 0)
+        n_a = int(r[3] or 0)
+        n = int(r[4] or 0)
+        if airline not in totals_acc:
+            totals_acc[airline] = {
+                "airline": airline, "cat": cat,
+                "n": 0, "D": 0, "A": 0,
+                "_cat_counts": {}
+            }
+        entry = totals_acc[airline]
+        entry["n"] += n
+        entry["D"] += n_d
+        entry["A"] += n_a
+        entry["_cat_counts"][cat] = entry["_cat_counts"].get(cat, 0) + n
+
+    totals = []
+    for entry in totals_acc.values():
+        cc = entry.pop("_cat_counts", {})
+        if cc:
+            entry["cat"] = max(cc.items(), key=lambda kv: kv[1])[0]
+        totals.append(entry)
+    totals.sort(key=lambda x: -x["n"])
+
     return {"by_date": by_date, "totals": totals}
 
 
@@ -817,6 +975,7 @@ def build_web_json(days=90):
     anomalies = build_block_night_anomalies(date_from, date_to)
     destinations = build_block_night_destinations(date_from, date_to, top_n)
     destinations_pax = build_block_destinations_pax(date_from, date_to)
+    geo_breakdown = build_block_geo_breakdown(date_from, date_to)
     airlines = build_block_night_airlines(date_from, date_to, top_n)
     weather = build_block_night_weather(date_from, date_to)
     runway_diag = build_block_runway_diagnostics(date_from, date_to)
@@ -831,6 +990,7 @@ def build_web_json(days=90):
         "block_night_anomalies": anomalies,
         "block_night_destinations": destinations,
         "block_destinations_pax": destinations_pax,
+        "block_geo_breakdown": geo_breakdown,
         "block_night_airlines": airlines,
         "block_night_weather": weather,
         "block_runway_diagnostics": runway_diag,
@@ -840,6 +1000,7 @@ def build_web_json(days=90):
         f"JSON web: {len(movements['by_date'])} giorni, "
         f"{anomalies['totals']} anomalie, "
         f"{len(destinations_pax.get('by_date', []))} giorni pax, "
+        f"{len(geo_breakdown.get('by_date', []))} giorni geo, "
         f"{len(airlines['totals'])} compagnie, "
         f"by_hour su {len(movements['by_hour'].get('by_date', []))} date"
     )

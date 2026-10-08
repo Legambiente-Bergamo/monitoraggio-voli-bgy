@@ -1,15 +1,22 @@
 """
 bgy_reports/bgy_report_night.py - Report notturno integrato (SACBO + Avionio + radar).
-Versione 2.9.21
+Versione 2.9.22
 
-Novita v2.9.21 (fix KPI 40 vs 37, 07/10/2026):
+Novita v2.9.22 (DATA-04, 07/10/2026):
+- match_flights(): finestra di match BEFORE differenziata per fonte.
+  - SACBO: 30 min (invariato, orari precisi al minuto)
+  - Avionio: 90 min (orari stimati, possono slittare di 30-60 min)
+  Fix del bug notte 10-04: DJ6402 A sched 02:30 era matchato con
+  SRR6498 @ 03:00 (icao 45cf21, sbagliato) invece che con il vero
+  SRR6402 @ 01:46:59 (icao 45cf24), che cadeva 13 min fuori dalla
+  vecchia finestra [sched-30, sched+180].
+  Con 90 min il match corretto entra in finestra e prevale per
+  numero commerciale.
+
+Novita v2.9.21 (fix KPI 40=40, 07/10/2026):
 - _tipo_movimento_from_callsign(): un passeggero scheduled da Avionio
   NON e' piu' etichettato 'Passeggeri (radar)'. La distinzione tra
   scheduled e radar-only dipende da is_scheduled, non dalla fonte.
-  Prima: source='avionio' -> 'Passeggeri (radar)' (SBAGLIATO).
-  Ora: qualsiasi scheduled passeggero -> 'Passeggeri'.
-  Solo i veri radar-only (via _classify_unmatched_radar) restano
-  'Passeggeri (radar)'.
   Effetto: KPI riga 1 = somma del dettaglio (40 = 40, era 40 vs 37).
 
 Novita v2.9.20 (INFRA-01, 07/10/2026):
@@ -70,6 +77,7 @@ BGY_LAT = 45.6739
 BGY_LON = 9.7042
 
 MATCH_WINDOW_BEFORE_MIN = 30
+MATCH_WINDOW_BEFORE_MIN_AVIONIO = 90  # v2.9.22
 MATCH_WINDOW_AFTER_MIN = 180
 MATCH_WINDOW_WIDE_BEFORE_MIN = 180
 RADAR_DEDUP_WINDOW_MIN = 15
@@ -704,9 +712,6 @@ def load_scheduled_flights(date_str, radar_df=None):
 
 
 def load_avionio_scheduled(date_str):
-    """
-    v2.9.19: legge i voli Avionio scheduled della sessione notturna.
-    """
     date_norm = normalize_date(date_str)
     if not date_norm:
         logger.warning(f"load_avionio_scheduled: data non valida")
@@ -785,9 +790,6 @@ def load_avionio_scheduled(date_str):
 
 
 def merge_scheduled_sources(sacbo_df, avionio_df):
-    """
-    v2.9.19: unisce SACBO (primaria) e Avionio (integrativa).
-    """
     if sacbo_df is None:
         sacbo_df = pd.DataFrame()
     if avionio_df is None:
@@ -1165,7 +1167,13 @@ def match_flights(scheduled_df, radar_df, session_date):
             matched.append(combined)
             continue
 
-        low = sched_min - MATCH_WINDOW_BEFORE_MIN
+        # v2.9.22: finestra BEFORE differenziata per fonte.
+        # Avionio ha orari stimati con slittamenti tipici di 30-60 min,
+        # quindi 90 min di tolleranza prima dello sched. SACBO resta a 30.
+        if fonte_sched == 'avionio':
+            low = sched_min - MATCH_WINDOW_BEFORE_MIN_AVIONIO
+        else:
+            low = sched_min - MATCH_WINDOW_BEFORE_MIN
         high = sched_min + MATCH_WINDOW_AFTER_MIN
 
         best_idx = None
@@ -1396,11 +1404,6 @@ def _dedup_radar_by_callsign(radar_df):
 
 
 def _dedup_radar_only_via_icao24(result_df):
-    """
-    v2.9.20: rimuove i radar-only che sono duplicati di voli scheduled
-    con lo stesso icao24. Categorie: Passeggeri (radar), Non classificato,
-    Cargo, Charter.
-    """
     if result_df.empty:
         return result_df, 0
     if 'icao24' not in result_df.columns:
@@ -1737,16 +1740,9 @@ def generate_nightly_report(date_str=None):
     date_norm = normalize_date(date_str) if date_str else night_session_date()
     logger.info(f"🌙 Avvio report notturno per {date_norm} (23:00-05:59)")
 
-    # 1. Carica radar
     radar_df = load_radar_data(date_norm)
-
-    # 2. Carica SACBO scheduled (fonte primaria)
     sacbo_df = load_scheduled_flights(date_norm, radar_df=radar_df)
-
-    # 3. Carica Avionio scheduled (fonte integrativa per cargo e non-SACBO)
     avionio_df = load_avionio_scheduled(date_norm)
-
-    # 4. Merge con priorita' SACBO
     scheduled_df = merge_scheduled_sources(sacbo_df, avionio_df)
 
     logger.info(
@@ -1754,17 +1750,13 @@ def generate_nightly_report(date_str=None):
         f"(SACBO {len(sacbo_df)}, Avionio {len(avionio_df)})"
     )
 
-    # 5. Match 3 vie (SACBO+Avionio vs radar)
     result_df = match_flights(scheduled_df, radar_df, date_norm)
 
     if result_df.empty:
         logger.warning(f"⚠️ Nessun dato per {date_norm}")
         return None, f"Nessun dato per {date_norm}"
 
-    # 6. Dedup icao24 (radar-only pax, non classificato, cargo, charter)
     result_df, n_dedup_icao24 = _dedup_radar_only_via_icao24(result_df)
-
-    # 7. Split borderline
     result_df, df_borderline, n_borderline = _split_borderline_flights(result_df)
 
     for _, row in df_borderline.iterrows():
@@ -1778,7 +1770,6 @@ def generate_nightly_report(date_str=None):
 
     _write_borderline_files(date_norm, df_borderline)
 
-    # 8. Deduplica finale
     before_dedup = len(result_df)
     result_df = _dedup_by_key(result_df)
     after_dedup = len(result_df)
@@ -1786,7 +1777,6 @@ def generate_nightly_report(date_str=None):
         logger.info(f"🧹 Deduplica finale: {before_dedup} → {after_dedup} righe "
                     f"({before_dedup - after_dedup} rimosse)")
 
-    # 9. Salva CSV
     os.makedirs(OUTPUT_CSV_DIR, exist_ok=True)
     out_path = os.path.join(OUTPUT_CSV_DIR, report_nightly_filename(date_norm))
 
@@ -1806,7 +1796,6 @@ def generate_nightly_report(date_str=None):
 
     result_df[final_columns].to_csv(out_path, index=False, encoding='utf-8-sig')
 
-    # 10. Statistiche finali
     total = len(result_df)
     tm = result_df['tipo_movimento'].fillna('') if 'tipo_movimento' in result_df.columns else pd.Series([''] * total)
 
@@ -1908,8 +1897,7 @@ def generate_nightly_report(date_str=None):
 
     msg = (f"✅ Report notturno: {total} voli "
            f"(Visibili: {visibili} = Passeggeri {pax} + Cargo {cargo} "
-           f"+ Charter {charter} + Non classificato {non_class}"
-           f"{sconf_msg}{anomalie_msg}{borderline_msg}{cargo_av_msg}{fonte_msg} | "
+           f"+ Charter {charter} + Non classificato {non_class}{sconf_msg}{anomalie_msg}{borderline_msg}{cargo_av_msg}{fonte_msg} | "
            f"Opt-in: {optin} = Passeggeri radar {pax_radar}{dedup_icao_msg} | "
            f"PAX stimati: {pax_tot}, "
            f"Rumore su {rumore_count} voli, max {rumore_max} dB"
