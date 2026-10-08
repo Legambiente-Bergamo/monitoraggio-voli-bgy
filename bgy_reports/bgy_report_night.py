@@ -1,31 +1,38 @@
 """
 bgy_reports/bgy_report_night.py - Report notturno integrato (SACBO + Avionio + radar).
-Versione 2.9.22
+Versione 2.9.26
+
+Novita v2.9.26 (DATA-10, 08/10/2026):
+- _split_borderline_flights(): aggiunto fallback su orario_effettivo (SACBO)
+  quando il timestamp radar e' vuoto. Risolve il caso NO3865 (notte 07/10):
+  schedulato 23:20, atterrato 22:40, senza match radar. Prima era
+  classificato 'regolare' con pista N/D, ora e' borderline anticipato.
+- _write_borderline_files(): se timestamp radar e' vuoto, scrive
+  orario_effettivo (SACBO) nella colonna timestamp del CSV borderline.
+
+Novita v2.9.25 (DATA-06.A, 08/10/2026):
+- Fix _try_alternative_same_icao(): rispetta la finestra di match.
+- Caso FR3413 (05/10) risolto.
+
+Novita v2.9.24 (DATA-06.A, 08/10/2026):
+- match_flights(): se best_idx ha pista N/D, cerca tra le osservazioni
+  radar non usate quella con lo STESSO icao24 con pista valida.
+
+Novita v2.9.23 (DATA-06.B, 07/10/2026):
+- Proposta _propagate_runway_by_session(), poi ritirata.
 
 Novita v2.9.22 (DATA-04, 07/10/2026):
-- match_flights(): finestra di match BEFORE differenziata per fonte.
-  - SACBO: 30 min (invariato, orari precisi al minuto)
-  - Avionio: 90 min (orari stimati, possono slittare di 30-60 min)
-  Fix del bug notte 10-04: DJ6402 A sched 02:30 era matchato con
-  SRR6498 @ 03:00 (icao 45cf21, sbagliato) invece che con il vero
-  SRR6402 @ 01:46:59 (icao 45cf24), che cadeva 13 min fuori dalla
-  vecchia finestra [sched-30, sched+180].
-  Con 90 min il match corretto entra in finestra e prevale per
-  numero commerciale.
+- match_flights(): finestra BEFORE differenziata per fonte.
 
 Novita v2.9.21 (fix KPI 40=40, 07/10/2026):
-- _tipo_movimento_from_callsign(): un passeggero scheduled da Avionio
-  NON e' piu' etichettato 'Passeggeri (radar)'. La distinzione tra
-  scheduled e radar-only dipende da is_scheduled, non dalla fonte.
-  Effetto: KPI riga 1 = somma del dettaglio (40 = 40, era 40 vs 37).
+- _tipo_movimento_from_callsign(): scheduled pax da Avionio non piu'
+  etichettato 'Passeggeri (radar)'.
 
 Novita v2.9.20 (INFRA-01, 07/10/2026):
 - _dedup_radar_only_via_icao24() estesa a Cargo e Charter radar-only.
 
 Novita v2.9.19 (INFRA-01, 07/10/2026):
-- Avionio promosso da fallback a FONTE SCHEDULED INTEGRATIVA.
-- load_avionio_scheduled() e merge_scheduled_sources().
-- Colonna fonte_scheduled ('sacbo'|'avionio') e icao24 nel CSV finale.
+- Avionio fonte scheduled integrativa.
 
 Novita v2.9.18: dedup icao24 esteso a "Non classificato".
 Novita v2.9.17: dedup radar-only via icao24.
@@ -44,6 +51,7 @@ Principio documentato:
 - Il rumore conta solo se prodotto tra le 23:00:00 e le 05:59:59.
 - Un volo schedulato in fascia ma operato fuori e' un "borderline".
 - Un radar-only con stesso icao24 di uno scheduled e' un duplicato.
+- La pista si assegna solo su evidenza radar, non su stima.
 - SACBO domina, Avionio integra, radar aggiunge.
 """
 import os
@@ -77,13 +85,15 @@ BGY_LAT = 45.6739
 BGY_LON = 9.7042
 
 MATCH_WINDOW_BEFORE_MIN = 30
-MATCH_WINDOW_BEFORE_MIN_AVIONIO = 90  # v2.9.22
+MATCH_WINDOW_BEFORE_MIN_AVIONIO = 90
 MATCH_WINDOW_AFTER_MIN = 180
 MATCH_WINDOW_WIDE_BEFORE_MIN = 180
 RADAR_DEDUP_WINDOW_MIN = 15
 
 ICAO24_DEDUP_NEAR_MIN = 15
 ICAO24_DEDUP_SAMEDIR_MIN = 120
+
+VALID_RUNWAYS = ('RWY 28', 'RWY 10')
 
 BGY_PHASES = ('Atterraggio', 'Decollo', 'Avvicinamento')
 
@@ -272,6 +282,17 @@ def _is_in_night_window_dt(dt):
     return (sec >= NIGHT_WINDOW_START_SEC) or (sec < NIGHT_WINDOW_END_SEC)
 
 
+def _is_in_night_window_hhmm(hhmm):
+    """
+    v2.9.26: verifica se un orario HH:MM cade nella finestra notturna
+    23:00-05:59.
+    """
+    mins = _time_to_minutes(hhmm)
+    if mins is None:
+        return False
+    return (mins >= 23 * 60) or (mins < 6 * 60)
+
+
 def _scheduled_minutes_from_session(hhmm, session_date):
     mins = _time_to_minutes(hhmm)
     if mins is None:
@@ -441,14 +462,6 @@ def _find_radar_match_ts(callsign_sacbo, direzione_sacbo, sched, radar_df,
 
 
 def _tipo_movimento_from_callsign(callsign, source):
-    """
-    Classifica un callsign scheduled (SACBO o Avionio).
-
-    v2.9.21: la funzione viene chiamata SOLO per voli scheduled
-    (is_scheduled=True). La distinzione con i radar-only e' gestita
-    altrove (in _classify_unmatched_radar). Quindi qualsiasi passeggero
-    scheduled, indipendentemente dalla fonte, e' 'Passeggeri'.
-    """
     categoria, nome = classify_callsign(callsign)
     if categoria == 'Cargo':
         return f'Cargo ({nome})' if nome else 'Cargo (N/D)'
@@ -899,7 +912,7 @@ def _propagate_runway_in_session(radar_df):
         if cs in pista_map:
             continue
         p = row['_pista_clean']
-        if p in ('RWY 28', 'RWY 10'):
+        if p in VALID_RUNWAYS:
             pista_map[cs] = p
 
     n_filled = 0
@@ -917,10 +930,10 @@ def _propagate_runway_in_session(radar_df):
     df = df.drop(columns=['_pista_clean'])
 
     if n_filled > 0:
-        logger.info(f"📡 Propagazione pista: {n_filled} rilevamenti N/D "
+        logger.info(f"📡 Propagazione pista (callsign): {n_filled} rilevamenti N/D "
                     f"hanno ereditato la pista dal callsign")
     else:
-        logger.info("📡 Propagazione pista: nessun rilevamento da propagare")
+        logger.info("📡 Propagazione pista (callsign): nessun rilevamento da propagare")
 
     return df
 
@@ -1062,6 +1075,55 @@ def _try_pattern_match_for_sched(sched_callsign, direzione_sacbo,
     return best_idx, best_delta
 
 
+def _try_alternative_same_icao(radar, best_idx, direzione_sacbo,
+                                 sched_min, low, high, used_radar_idx):
+    """
+    v2.9.25: se best_idx ha pista N/D, cerca tra le osservazioni radar
+    non usate quella con lo stesso icao24 con pista valida e fase
+    compatibile, restando DENTRO la finestra di match.
+    """
+    if best_idx is None:
+        return None, None
+    if 'icao24' not in radar.columns:
+        return None, None
+
+    r_best = radar.loc[best_idx]
+    pista_best = str(r_best.get('pista', '') or '').strip()
+    if pista_best in VALID_RUNWAYS:
+        return None, None
+
+    icao_best = str(r_best.get('icao24', '') or '').strip().lower()
+    if not icao_best or icao_best in ('', 'nan', 'none', 'n/d'):
+        return None, None
+
+    best_alt_idx = None
+    best_alt_delta = None
+
+    for idx, r in radar.iterrows():
+        if idx == best_idx or idx in used_radar_idx:
+            continue
+        icao_r = str(r.get('icao24', '') or '').strip().lower()
+        if icao_r != icao_best:
+            continue
+        fase = str(r.get('fase_volo', '') or '')
+        if not _is_phase_compatible(direzione_sacbo, fase):
+            continue
+        p = str(r.get('pista', '') or '').strip()
+        if p not in VALID_RUNWAYS:
+            continue
+        r_min = r.get('_radar_min')
+        if r_min is None:
+            continue
+        if r_min < low or r_min > high:
+            continue
+        delta = abs(r_min - sched_min)
+        if best_alt_delta is None or delta < best_alt_delta:
+            best_alt_delta = delta
+            best_alt_idx = idx
+
+    return best_alt_idx, best_alt_delta
+
+
 def match_flights(scheduled_df, radar_df, session_date):
     if scheduled_df.empty and radar_df.empty:
         return pd.DataFrame()
@@ -1134,6 +1196,7 @@ def match_flights(scheduled_df, radar_df, session_date):
     n_match_rejected_prefix = 0
     n_match_prefix_unknown = 0
     n_avionio_matched = 0
+    n_alt_icao_used = 0
 
     for _, s in sched.iterrows():
         sched_min = s['_sched_min']
@@ -1167,9 +1230,6 @@ def match_flights(scheduled_df, radar_df, session_date):
             matched.append(combined)
             continue
 
-        # v2.9.22: finestra BEFORE differenziata per fonte.
-        # Avionio ha orari stimati con slittamenti tipici di 30-60 min,
-        # quindi 90 min di tolleranza prima dello sched. SACBO resta a 30.
         if fonte_sched == 'avionio':
             low = sched_min - MATCH_WINDOW_BEFORE_MIN_AVIONIO
         else:
@@ -1234,6 +1294,27 @@ def match_flights(scheduled_df, radar_df, session_date):
                 best_delta = pat_delta
                 used_pattern_match = True
 
+        used_alt_icao = False
+        if best_idx is not None:
+            alt_idx, alt_delta = _try_alternative_same_icao(
+                radar, best_idx, direzione, sched_min, low, high, used_radar_idx
+            )
+            if alt_idx is not None:
+                r_best = radar.loc[best_idx]
+                r_alt = radar.loc[alt_idx]
+                logger.info(
+                    f"🔄 Match alternativo same-icao24: "
+                    f"{callsign_sched} "
+                    f"({r_best.get('callsign', '?')} pista="
+                    f"{r_best.get('pista', '?')}) → "
+                    f"{r_alt.get('callsign', '?')} "
+                    f"(pista={r_alt.get('pista', '?')})"
+                )
+                best_idx = alt_idx
+                best_delta = alt_delta
+                used_alt_icao = True
+                n_alt_icao_used += 1
+
         if best_idx is not None:
             used_radar_idx.add(best_idx)
             r = radar.loc[best_idx]
@@ -1275,7 +1356,8 @@ def match_flights(scheduled_df, radar_df, session_date):
     logger.info(f"🔗 Match radar: {n_match_ok} confermati "
                 f"(di cui {n_match_num} per numero, "
                 f"{n_match_pattern} per pattern, "
-                f"{n_avionio_matched} da Avionio), "
+                f"{n_avionio_matched} da Avionio, "
+                f"{n_alt_icao_used} da alt-icao24), "
                 f"{n_match_rejected_prefix} rifiutati per prefisso, "
                 f"{n_match_prefix_unknown} senza prefisso ICAO")
 
@@ -1620,6 +1702,11 @@ def _enrich_final(df):
 
 
 def _split_borderline_flights(result_df):
+    """
+    v2.9.26: usa il timestamp radar per determinare se il movimento
+    e' fuori finestra. Se il timestamp radar e' vuoto (nessun match),
+    usa orario_effettivo (SACBO) come fallback.
+    """
     if result_df.empty:
         return result_df, result_df.iloc[0:0], 0
 
@@ -1631,9 +1718,9 @@ def _split_borderline_flights(result_df):
     def _is_borderline(row):
         sched = row.get('orario_schedulato')
         ts = row.get('timestamp')
+        orario_eff = row.get('orario_effettivo')
+
         if not sched or pd.isna(sched):
-            return False
-        if not ts or pd.isna(ts) or str(ts).strip() == '':
             return False
 
         sched_min = _time_to_minutes(sched)
@@ -1642,13 +1729,21 @@ def _split_borderline_flights(result_df):
         if not (sched_min >= 23 * 60 or sched_min < 6 * 60):
             return False
 
-        try:
-            ts_dt = pd.to_datetime(ts)
-        except Exception:
-            return False
+        # Priorita' al timestamp radar (dato effettivo)
+        if ts and not pd.isna(ts) and str(ts).strip():
+            try:
+                ts_dt = pd.to_datetime(ts)
+            except Exception:
+                return False
+            return not _is_in_night_window_dt(ts_dt)
 
-        in_window = _is_in_night_window_dt(ts_dt)
-        return not in_window
+        # Fallback: orario_effettivo (SACBO)
+        if orario_eff and not pd.isna(orario_eff) and str(orario_eff).strip():
+            in_window = _is_in_night_window_hhmm(orario_eff)
+            return not in_window
+
+        # Nessuna informazione sull'effettiva operativita'
+        return False
 
     mask = result_df.apply(_is_borderline, axis=1)
     n_excluded = int(mask.sum())
@@ -1661,19 +1756,18 @@ def _split_borderline_flights(result_df):
 def _categorize_borderline(row):
     sched = row.get('orario_schedulato')
     ts = row.get('timestamp')
+    orario_eff = row.get('orario_effettivo')
     direzione = str(row.get('direzione_sacbo', '') or '').upper()
 
-    if not sched or not ts:
+    if not sched:
         return 'borderline altro'
 
     sched_min = _time_to_minutes(sched)
-    try:
-        ts_dt = pd.to_datetime(ts)
-    except Exception:
+    if sched_min is None:
         return 'borderline altro'
 
-    is_anticipato = (sched_min is not None and sched_min >= 23 * 60)
-    is_posticipato = (sched_min is not None and sched_min < 6 * 60)
+    is_anticipato = sched_min >= 23 * 60
+    is_posticipato = sched_min < 6 * 60
 
     if is_anticipato:
         tipo = 'anticipato'
@@ -1704,6 +1798,16 @@ def _write_borderline_files(date_norm, df_borderline):
     df_out = df_borderline.copy()
     df_out['data_riferimento'] = date_norm
     df_out['categoria_borderline'] = df_out.apply(_categorize_borderline, axis=1)
+
+    # v2.9.26: se timestamp radar e' vuoto, usa orario_effettivo (SACBO)
+    if 'orario_effettivo' in df_out.columns:
+        df_out['timestamp'] = df_out.apply(
+            lambda r: (r['timestamp']
+                       if r.get('timestamp') and not pd.isna(r['timestamp'])
+                       and str(r['timestamp']).strip()
+                       else (r.get('orario_effettivo') or '')),
+            axis=1
+        )
 
     for c in cols:
         if c not in df_out.columns:
@@ -1763,6 +1867,8 @@ def generate_nightly_report(date_str=None):
         cs = row.get('callsign', '?')
         sched = row.get('orario_schedulato', '?')
         ts = row.get('timestamp', '?')
+        if not ts or pd.isna(ts) or str(ts).strip() == '':
+            ts = row.get('orario_effettivo', '?')
         cat = _categorize_borderline(row)
         logger.info(
             f"⚠️  BORDERLINE {cs}: sched {sched} → operato {ts} ({cat})"
