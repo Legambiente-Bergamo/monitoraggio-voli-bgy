@@ -1,11 +1,22 @@
 """
 bgy_tools/verify_sync.py - Verifica stato sync GitHub e backup.
-Versione 1.1.0
+Versione 1.1.2
+
+Novita v1.1.2 (08/10/2026):
+- Aggiunto campo last_success_formatted nello status backup locale.
+  Il testo di output ora mostra il timestamp in formato leggibile
+  ("2026-10-08 08:00") invece del raw ISO con 7 cifre decimali.
+
+Novita v1.1.1 (07/10/2026):
+- Fix lettura state file backup locale:
+  * _load_backup_local_state() usa encoding="utf-8-sig" per gestire il BOM
+    scritto da PowerShell Out-File -Encoding UTF8 (PS 5.1).
+  * Nuova _parse_iso_datetime(): tollera timestamp ISO con più di 6 cifre
+    decimali (7 cifre = 100ns dei tick .NET) e timezone-aware.
 
 Novita v1.1.0 (INFRA-03, 07/10/2026):
 - check_backup_local_status() riscritto: legge lo state file
   bgy_data/bgy_logs/backup_local_state.json scritto da bgy_backup_local.ps1.
-  Cosi' il check funziona anche se l'HD non e' connesso al momento.
 - Aggiunto campo hd_connected: se True, l'HD e' raggiungibile ora.
 - Nuova force_backup_local(): esegue bgy_backup_local.ps1.
 
@@ -43,6 +54,62 @@ BACKUP_LOCAL_STATE_FILE = os.path.join(LOGS_DIR, "backup_local_state.json")
 BACKUP_DB_MAX_AGE_HOURS = 36
 BACKUP_LOCAL_MAX_AGE_HOURS = 48
 GIT_CMD_TIMEOUT_SEC = 20
+
+
+# -----------------------------------------------------------------------------
+# UTILITY
+# -----------------------------------------------------------------------------
+
+def _parse_iso_datetime(s):
+    """
+    Parsing tollerante di timestamp ISO.
+
+    Gestisce:
+      - Timestamp standard: "2026-10-08T08:00:18+02:00"
+      - Timestamp con 7 cifre decimali (.NET ticks): "...18.1281197+02:00"
+      - Timestamp senza timezone: "2026-10-08T08:00:18"
+      - Timestamp con 'Z' finale (UTC)
+      - BOM residuo all'inizio
+
+    Ritorna datetime naive (timezone locale) o None.
+    """
+    if not s:
+        return None
+    s = str(s).strip().lstrip("\ufeff")
+    if not s:
+        return None
+
+    try:
+        dt = datetime.fromisoformat(s)
+        if dt.tzinfo is not None:
+            dt = dt.replace(tzinfo=None)
+        return dt
+    except ValueError:
+        pass
+
+    m = re.match(
+        r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.(\d+)([+-]\d{2}:?\d{2}|Z)?$',
+        s
+    )
+    if m:
+        frac = m.group(2)[:6].ljust(6, '0')
+        s2 = f"{m.group(1)}.{frac}"
+        try:
+            dt = datetime.fromisoformat(s2)
+            if dt.tzinfo is not None:
+                dt = dt.replace(tzinfo=None)
+            return dt
+        except ValueError:
+            pass
+
+    try:
+        s3 = s.rstrip('Z').rstrip('z')
+        dt = datetime.fromisoformat(s3)
+        if dt.tzinfo is not None:
+            dt = dt.replace(tzinfo=None)
+        return dt
+    except ValueError:
+        return None
 
 
 # -----------------------------------------------------------------------------
@@ -200,7 +267,8 @@ def check_backup_db_status():
     last_success_ts = None
     last_error_msg = None
     try:
-        with open(BACKUP_LOG_FILE, "r", encoding="utf-8", errors="ignore") as f:
+        with open(BACKUP_LOG_FILE, "r", encoding="utf-8-sig",
+                  errors="ignore") as f:
             for line in f:
                 if "Backup completato con successo" in line:
                     parts = line.split(" - ", 1)
@@ -246,7 +314,7 @@ def check_backup_db_status():
 
 
 # -----------------------------------------------------------------------------
-# BACKUP LOCALE (HD ESTERNO) — v1.1.0
+# BACKUP LOCALE (HD ESTERNO)
 # -----------------------------------------------------------------------------
 
 def _load_backup_local_config():
@@ -256,7 +324,8 @@ def _load_backup_local_config():
         return {
             "enabled": bool(section.get("enabled", False)),
             "path": section.get("path") or None,
-            "max_age_hours": int(section.get("max_age_hours", BACKUP_LOCAL_MAX_AGE_HOURS)),
+            "max_age_hours": int(section.get("max_age_hours",
+                                              BACKUP_LOCAL_MAX_AGE_HOURS)),
             "include_credentials": bool(section.get("include_credentials", True)),
         }
     except Exception:
@@ -269,11 +338,16 @@ def _load_backup_local_config():
 
 def _load_backup_local_state():
     if not os.path.exists(BACKUP_LOCAL_STATE_FILE):
+        logger.debug(f"State file non trovato: {BACKUP_LOCAL_STATE_FILE}")
         return {}
     try:
-        with open(BACKUP_LOCAL_STATE_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
+        with open(BACKUP_LOCAL_STATE_FILE, "r",
+                  encoding="utf-8-sig") as f:
+            data = json.load(f)
+        logger.debug(f"State file letto: {data}")
+        return data
+    except Exception as e:
+        logger.warning(f"Errore lettura state file: {e}")
         return {}
 
 
@@ -281,7 +355,8 @@ def check_backup_local_status():
     result = {
         "enabled": False, "ok": True, "status": "not_configured",
         "path": None, "hd_connected": False,
-        "last_success": None, "age_hours": None,
+        "last_success": None, "last_success_formatted": None,
+        "age_hours": None,
         "threshold_hours": BACKUP_LOCAL_MAX_AGE_HOURS,
         "message": "Backup locale non configurato (INFRA-03)",
     }
@@ -298,10 +373,10 @@ def check_backup_local_status():
     result["hd_connected"] = hd_connected
 
     state = _load_backup_local_state()
-    last_success = state.get("last_success")
-    result["last_success"] = last_success
+    last_success_raw = state.get("last_success")
+    result["last_success"] = last_success_raw
 
-    if not last_success:
+    if not last_success_raw:
         result["ok"] = False
         result["status"] = "missing"
         if hd_connected:
@@ -310,20 +385,25 @@ def check_backup_local_status():
             result["message"] = "Nessun backup locale trovato (HD non connesso)"
         return result
 
-    try:
-        success_dt = datetime.fromisoformat(last_success)
-        age_hours = (datetime.now() - success_dt).total_seconds() / 3600
-        result["age_hours"] = round(age_hours, 1)
-    except Exception as e:
-        result["ok"] = False; result["status"] = "error"
-        result["message"] = f"Errore parsing timestamp: {str(e)[:80]}"
+    success_dt = _parse_iso_datetime(last_success_raw)
+    if success_dt is None:
+        result["ok"] = False
+        result["status"] = "error"
+        result["message"] = (f"Timestamp non parsabile: "
+                             f"{str(last_success_raw)[:60]}")
         return result
+
+    # v1.1.2: campo formattato per l'output leggibile
+    result["last_success_formatted"] = success_dt.strftime("%Y-%m-%d %H:%M")
+
+    age_hours = (datetime.now() - success_dt).total_seconds() / 3600
+    result["age_hours"] = round(age_hours, 1)
 
     if age_hours > cfg["max_age_hours"]:
         result["ok"] = False; result["status"] = "stale"
         hd_note = "" if hd_connected else " (HD non connesso)"
         result["message"] = (
-            f"Ultimo backup locale: {last_success[:19]} "
+            f"Ultimo backup locale: {result['last_success_formatted']} "
             f"({age_hours:.1f}h fa, soglia {cfg['max_age_hours']}h){hd_note}"
         )
         return result
@@ -339,8 +419,10 @@ def check_backup_local_status():
 
     result["ok"] = True
     result["status"] = "ok"
-    result["message"] = (f"Backup locale OK: {last_success[:19]} "
-                          f"({age_hours:.1f}h fa)")
+    result["message"] = (
+        f"Backup locale OK: {result['last_success_formatted']} "
+        f"({age_hours:.1f}h fa)"
+    )
     return result
 
 
@@ -397,7 +479,6 @@ def force_backup_db():
 
 
 def force_backup_local():
-    """v1.1.0: esegue bgy_backup_local.ps1."""
     script_path = os.path.join(PROJECT_ROOT, "bgy_backup_local.ps1")
     if not os.path.exists(script_path):
         return False, f"Script non trovato: {script_path}"
@@ -471,7 +552,9 @@ def format_text(check_result):
         lines.append(f"   Percorso:              {bl['path'] or '?'}")
         lines.append(f"   HD connesso ora:       "
                      f"{'✅ sì' if bl['hd_connected'] else '❌ no'}")
-        lines.append(f"   Ultimo OK:             {bl['last_success'] or '?'}"
+        ls_display = (bl.get("last_success_formatted")
+                      or bl.get("last_success") or "?")
+        lines.append(f"   Ultimo OK:             {ls_display}"
                      + (f" ({bl['age_hours']:.1f}h fa)"
                         if bl['age_hours'] is not None else ""))
         lines.append(f"   Stato:                 "

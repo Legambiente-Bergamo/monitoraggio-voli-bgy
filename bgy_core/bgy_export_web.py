@@ -1,19 +1,22 @@
 """
 bgy_core/bgy_export_web.py - Esportazione dati aggregati per il web (F17).
-Versione 1.2.17
+Versione 1.3.0
+
+Novita v1.3.0 (08/10/2026):
+- Nuovo blocco ritardi h24 per la pagina "BGY - Ritardi H24".
+- Nuovo file separato bgy-delays.csv (Opzione B).
+- Nuove funzioni: build_block_delays_h24, build_delays_json,
+  save_delays_json, export_delays_and_publish, _get_delays_config.
+- CLI: flag --publish-delays.
+- Zero hardcoded: soglie, top N, disclaimer da config_data.json > web_export > delays.
 
 Novita v1.2.17 (07/10/2026):
-- build_block_night_airlines(): aggiunto campo 'cat' (categoria) a ogni
-  entry. Serve al grafico compagnie per colorare per categoria (cargo
-  verde, charter rosso, ecc.) invece che per indice palette.
+- build_block_night_airlines(): aggiunto campo 'cat'.
 
 Novita v1.2.16 (07/10/2026):
-- Fix bug: in build_block_night_movements() il ramo is_sched is True
-  ora aggiorna anche totals[d+"_"+cat], non solo item[d+"_"+cat].
-- Nuovo blocco block_geo_breakdown: {by_date: [{date, D, A}]} con
-  by_country e by_city in forma STACKED per categoria.
+- Fix bug totals._tab + block_geo_breakdown.
 
-Novita v1.2.15: campi _tab (scheduled-only per categoria).
+Novita v1.2.15: campi _tab.
 Novita v1.2.14: totale_movimenti_rilevati, D/A_totali_rilevati.
 Novita v1.2.13: by_hour filtrabile per data.
 Novita v1.2.12: cargo/charter/non class radar-only nelle KPI.
@@ -25,6 +28,7 @@ Novita v1.2.8: totals.schedulato_D/A, block_night_anomalies.
 Uso:
     py -3.12 -m bgy_core.bgy_export_web --days 90 --dry-run
     py -3.12 -m bgy_core.bgy_export_web --days 90 --publish
+    py -3.12 -m bgy_core.bgy_export_web --days 90 --publish-delays
 """
 import os
 import sys
@@ -42,11 +46,29 @@ logger = get_logger("ExportWeb")
 
 WEB_OUTPUT_DIR = os.path.join(DATA_DIR, "bgy_output", "bgy_web")
 WEB_OUTPUT_FILE = os.path.join(WEB_OUTPUT_DIR, "bgy-data.csv")
+DELAYS_OUTPUT_FILE = os.path.join(WEB_OUTPUT_DIR, "bgy-delays.csv")
 
 WEB_PREFIX = "# BGY Monitoring Suite - dati JSON sotto questa riga\n"
+DELAYS_PREFIX = "# BGY Monitoring Suite - RITARDI H24 - dati JSON sotto questa riga\n"
 
 MIN_DATE_DEFAULT = "2026-09-30"
 TOP_N_PER_DATE_DEFAULT = 10
+
+DELAYS_DEFAULTS = {
+    "enabled": True,
+    "top_company": 20,
+    "top_destination": 30,
+    "soglia_puntuale_min": 15,
+    "soglia_grave_min": 60,
+    "disclaimer_message": (
+        "DATI DI PROVA NON REALI\n"
+        "Ritardi calcolati come differenza tra orario effettivo e orario "
+        "schedulato (SACBO). Decolli e atterraggi analizzati separatamente. "
+        "Voli cancellati esclusi. Soglia puntualita': 15 minuti. "
+        "Soglia ritardo grave: 60 minuti. La raccolta dati e' iniziata il "
+        "30 settembre 2026."
+    ),
+}
 
 DISCLAIMER_MESSAGE = (
     "DATI DI PROVA NON REALI\n"
@@ -68,11 +90,13 @@ CATEGORY_FILTERS = [
 ]
 
 CATS_KEYS = ["passeggeri", "cargo", "charter", "non_classificato"]
-
 RADAR_ONLY_KPI_CATS = ("cargo", "charter", "non_classificato")
-
 NIGHT_HOURS = [23, 0, 1, 2, 3, 4, 5]
 
+
+# =============================================================================
+# UTILITY
+# =============================================================================
 
 def _query(sql, params=None):
     ok, rows = bgy_db.execute_query(sql, params)
@@ -91,6 +115,24 @@ def _get_web_config():
     return {
         "min_date": cfg.get("min_date", MIN_DATE_DEFAULT),
         "top_n_per_date": int(cfg.get("top_n_per_date", TOP_N_PER_DATE_DEFAULT)),
+        "days_default": int(cfg.get("days_default", 90)),
+    }
+
+
+def _get_delays_config():
+    from bgy_core.bgy_config_manager import config_manager
+    try:
+        cfg = config_manager.get_data_config().get("web_export", {}) or {}
+        d = cfg.get("delays", {}) or {}
+    except Exception:
+        d = {}
+    return {
+        "enabled": bool(d.get("enabled", DELAYS_DEFAULTS["enabled"])),
+        "top_company": int(d.get("top_company", DELAYS_DEFAULTS["top_company"])),
+        "top_destination": int(d.get("top_destination", DELAYS_DEFAULTS["top_destination"])),
+        "soglia_puntuale_min": int(d.get("soglia_puntuale_min", DELAYS_DEFAULTS["soglia_puntuale_min"])),
+        "soglia_grave_min": int(d.get("soglia_grave_min", DELAYS_DEFAULTS["soglia_grave_min"])),
+        "disclaimer_message": d.get("disclaimer_message", DELAYS_DEFAULTS["disclaimer_message"]),
     }
 
 
@@ -111,6 +153,43 @@ def _get_country(destination):
         return get_country(destination) or "N/D"
     except Exception:
         return "N/D"
+
+
+def _get_airline_safe(callsign):
+    if not callsign:
+        return 'N/D'
+    try:
+        from bgy_core import bgy_update_rules as ur
+        cs = str(callsign).strip().upper().replace(' ', '')
+        if len(cs) < 3:
+            return 'N/D'
+
+        airlines = getattr(ur, '_AIRLINES', {}) or {}
+        cargo = getattr(ur, '_CARGO_AIRLINES', {}) or {}
+        charter = getattr(ur, '_CHARTER_AIRLINES', {}) or {}
+
+        def _lookup(d):
+            if not isinstance(d, dict):
+                return None
+            for n in (3, 2):
+                if len(cs) > n:
+                    p = cs[:n]
+                    if p in d:
+                        return d[p]
+            return None
+
+        third_char = cs[2] if len(cs) >= 3 else ''
+        if third_char.isalpha():
+            v = _lookup(cargo) or _lookup(charter)
+            if v:
+                return v
+        v = _lookup(airlines)
+        if v:
+            return v
+        v = _lookup(cargo) or _lookup(charter)
+        return v or 'N/D'
+    except Exception:
+        return 'N/D'
 
 
 def _side_from_runway(runway):
@@ -171,6 +250,10 @@ def _date_str(v):
         return v.strftime("%Y-%m-%d")
     return str(v)
 
+
+# =============================================================================
+# BLOCCHI PAGINA NOTTURNA
+# =============================================================================
 
 def _empty_by_date_item(date_str):
     item = {
@@ -247,6 +330,8 @@ def build_summary(date_from, date_to):
         "sconfinamenti_totali": sconf + gravi,
         "rumore_max_db": rumore_max,
     }
+
+
 def build_block_night_movements(date_from, date_to):
     rows = _query(
         """SELECT data_riferimento, pista, direzione_sacbo, fase_volo,
@@ -385,6 +470,8 @@ def build_block_night_movements(date_from, date_to):
         "by_side": by_side_acc,
         "by_hour": _build_by_hour(date_from, date_to),
     }
+
+
 def build_block_night_anomalies(date_from, date_to):
     rows = _query(
         """SELECT data_riferimento, callsign, compagnia_aerea,
@@ -599,10 +686,7 @@ def build_block_geo_breakdown(date_from, date_to):
         (date_from, date_to))
 
     def _empty():
-        return {
-            "passeggeri": 0, "cargo": 0, "charter": 0, "non_classificato": 0,
-            "total": 0
-        }
+        return {"passeggeri": 0, "cargo": 0, "charter": 0, "non_classificato": 0, "total": 0}
 
     def _add(container, cat, n):
         container[cat] = container.get(cat, 0) + n
@@ -665,11 +749,9 @@ def build_block_geo_breakdown(date_from, date_to):
         by_date.append(item)
 
     return {"by_date": by_date}
+
+
 def build_block_night_airlines(date_from, date_to, top_n):
-    """
-    v1.2.17: aggiunto campo 'cat' (passeggeri|cargo|charter|non_classificato)
-    a ogni entry, cosi' il JS puo' colorare per categoria.
-    """
     dir_case = """
         CASE
           WHEN direzione_sacbo IN ('D', 'A') THEN direzione_sacbo
@@ -719,8 +801,7 @@ def build_block_night_airlines(date_from, date_to, top_n):
         if key not in by_date_acc:
             by_date_acc[key] = {
                 "airline": airline, "cat": cat,
-                "n": 0, "D": 0, "A": 0,
-                "_cat_counts": {}
+                "n": 0, "D": 0, "A": 0, "_cat_counts": {}
             }
         entry = by_date_acc[key]
         entry["n"] += n
@@ -772,8 +853,7 @@ def build_block_night_airlines(date_from, date_to, top_n):
         if airline not in totals_acc:
             totals_acc[airline] = {
                 "airline": airline, "cat": cat,
-                "n": 0, "D": 0, "A": 0,
-                "_cat_counts": {}
+                "n": 0, "D": 0, "A": 0, "_cat_counts": {}
             }
         entry = totals_acc[airline]
         entry["n"] += n
@@ -957,6 +1037,202 @@ def build_block_runway_diagnostics(date_from, date_to):
     return {"by_date": by_date, "totals": totals}
 
 
+# =============================================================================
+# BLOCCO RITARDI H24 (v1.3.0)
+# =============================================================================
+
+def _delta_sql_expr():
+    return """
+        CASE
+            WHEN v.orario_effettivo IS NULL
+              OR v.orario_schedulato IS NULL THEN NULL
+            WHEN v.orario_effettivo = v.orario_schedulato THEN 0
+            WHEN v.orario_effettivo > v.orario_schedulato THEN
+                EXTRACT(EPOCH FROM
+                    (v.orario_effettivo - v.orario_schedulato)) / 60.0
+            ELSE
+                CASE
+                    WHEN EXTRACT(EPOCH FROM
+                        (v.orario_schedulato - v.orario_effettivo)) / 60.0 <= 720
+                    THEN
+                        -1 * EXTRACT(EPOCH FROM
+                            (v.orario_schedulato - v.orario_effettivo)) / 60.0
+                    ELSE
+                        1440 - EXTRACT(EPOCH FROM
+                            (v.orario_schedulato - v.orario_effettivo)) / 60.0
+                END
+        END
+    """
+
+
+def _empty_delay_agg():
+    return {
+        "n_total": 0, "n_puntuali": 0, "n_ritardo": 0, "n_grave": 0,
+        "n_anticipo": 0,
+        "sum_delta": 0.0,
+    }
+
+
+def _finalize_delay_agg(agg):
+    n = agg["n_total"]
+    agg["ritardo_medio"] = round(agg["sum_delta"] / n, 1) if n > 0 else 0.0
+    return agg
+
+
+def _add_delta_to_agg(agg, delta, soglia_punt, soglia_grave):
+    agg["n_total"] += 1
+    agg["sum_delta"] += delta
+    if abs(delta) <= soglia_punt:
+        agg["n_puntuali"] += 1
+    if delta > soglia_punt:
+        agg["n_ritardo"] += 1
+    if delta > soglia_grave:
+        agg["n_grave"] += 1
+    if delta < -soglia_punt:
+        agg["n_anticipo"] += 1
+
+
+def build_block_delays_h24(date_from, date_to):
+    cfg = _get_delays_config()
+    if not cfg["enabled"]:
+        logger.info("Blocco delays disabilitato in config_data.json")
+        return None
+
+    soglia_punt = cfg["soglia_puntuale_min"]
+    soglia_grave = cfg["soglia_grave_min"]
+    top_company = cfg["top_company"]
+    top_dest = cfg["top_destination"]
+
+    try:
+        from bgy_core.bgy_update_rules import load_rules
+        load_rules()
+    except Exception as e:
+        logger.warning(f"load_rules() fallito: {e}")
+
+    delta_expr = _delta_sql_expr()
+
+    sql = f"""
+        SELECT
+            v.data_riferimento,
+            v.callsign_volo,
+            v.tipo_movimento,
+            v.destinazione_origine,
+            v.orario_schedulato,
+            {delta_expr} AS delta_min
+        FROM v_daily_report v
+        WHERE v.data_riferimento BETWEEN %s AND %s
+          AND v.orario_schedulato IS NOT NULL
+          AND v.orario_effettivo IS NOT NULL
+          AND (v.stato_volo IS NULL
+               OR UPPER(v.stato_volo) NOT LIKE '%%CANCELL%%')
+    """
+    rows = _query(sql, (date_from, date_to))
+
+    logger.info(f"   Ritardi: {len(rows)} voli analizzati")
+
+    by_date_acc = {}
+
+    for r in rows:
+        ds = _date_str(r[0])
+        callsign = r[1]
+        tipo = (r[2] or "").strip().upper()
+        dest = r[3] or ""
+        sched = r[4]
+        delta = r[5]
+
+        if delta is None:
+            continue
+        try:
+            delta = int(round(float(delta)))
+        except (ValueError, TypeError):
+            continue
+
+        if tipo not in ('D', 'A'):
+            continue
+        d = tipo
+
+        hh = None
+        if sched is not None:
+            try:
+                hh = sched.hour if hasattr(sched, "hour") else int(str(sched).split(":")[0])
+            except Exception:
+                hh = None
+
+        comp = _get_airline_safe(callsign)
+
+        day = by_date_acc.setdefault(ds, {
+            "D": {"agg": _empty_delay_agg(), "hours": {}, "companies": {}, "dests": {}},
+            "A": {"agg": _empty_delay_agg(), "hours": {}, "companies": {}, "dests": {}},
+        })
+
+        dir_block = day[d]
+
+        _add_delta_to_agg(dir_block["agg"], delta, soglia_punt, soglia_grave)
+
+        if hh is not None:
+            if hh not in dir_block["hours"]:
+                dir_block["hours"][hh] = _empty_delay_agg()
+            _add_delta_to_agg(dir_block["hours"][hh], delta, soglia_punt, soglia_grave)
+
+        if comp and comp != 'N/D':
+            if comp not in dir_block["companies"]:
+                dir_block["companies"][comp] = _empty_delay_agg()
+            _add_delta_to_agg(dir_block["companies"][comp], delta, soglia_punt, soglia_grave)
+
+        if dest and dest.strip():
+            dk = dest.strip()
+            if dk not in dir_block["dests"]:
+                dir_block["dests"][dk] = _empty_delay_agg()
+            _add_delta_to_agg(dir_block["dests"][dk], delta, soglia_punt, soglia_grave)
+
+    by_date = []
+    for ds in sorted(by_date_acc.keys()):
+        day_in = by_date_acc[ds]
+        day_out = {"date": ds}
+
+        for d in ('D', 'A'):
+            din = day_in[d]
+            dout = _finalize_delay_agg(din["agg"])
+
+            hours_list = []
+            for h in sorted(din["hours"].keys()):
+                hout = _finalize_delay_agg(din["hours"][h])
+                hout["h"] = h
+                hours_list.append(hout)
+            dout["by_hour"] = hours_list
+
+            companies_list = []
+            for name, agg in din["companies"].items():
+                cout = _finalize_delay_agg(agg)
+                cout["compagnia"] = name
+                companies_list.append(cout)
+            companies_list.sort(key=lambda x: -x["n_total"])
+            dout["by_company"] = companies_list[:top_company]
+
+            dests_list = []
+            for name, agg in din["dests"].items():
+                dout_dest = _finalize_delay_agg(agg)
+                dout_dest["dest"] = name
+                dests_list.append(dout_dest)
+            dests_list.sort(key=lambda x: -x["n_total"])
+            dout["by_destination"] = dests_list[:top_dest]
+
+            day_out[d] = dout
+
+        by_date.append(day_out)
+
+    logger.info(f"   Ritardi: {len(by_date)} giorni aggregati")
+
+    return {
+        "soglie": {"puntuale_min": soglia_punt, "grave_min": soglia_grave},
+        "by_date": by_date,
+    }
+
+
+# =============================================================================
+# BUILDERS PRINCIPALI
+# =============================================================================
+
 def build_web_json(days=90):
     today = datetime.now().date()
     date_to = (today - timedelta(days=1)).strftime("%Y-%m-%d")
@@ -1007,6 +1283,47 @@ def build_web_json(days=90):
     return payload
 
 
+def build_delays_json(days=90):
+    cfg = _get_delays_config()
+    if not cfg["enabled"]:
+        logger.info("Blocco delays disabilitato in config_data.json")
+        return None
+
+    today = datetime.now().date()
+    date_to = (today - timedelta(days=1)).strftime("%Y-%m-%d")
+    date_from_calc = (today - timedelta(days=days)).strftime("%Y-%m-%d")
+    web_cfg = _get_web_config()
+    min_date = web_cfg["min_date"]
+    date_from = max(date_from_calc, min_date)
+
+    logger.info(f"Costruzione JSON ritardi: {date_from} -> {date_to} "
+                f"(max {days} giorni, min_date={min_date})")
+
+    delays = build_block_delays_h24(date_from, date_to)
+    if delays is None:
+        return None
+
+    payload = {
+        "generated_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+        "period": {"from": date_from, "to": date_to},
+        "min_date_active": min_date,
+        "disclaimer": {"message": cfg["disclaimer_message"]},
+        "soglie": delays["soglie"],
+        "by_date": delays["by_date"],
+    }
+
+    logger.info(
+        f"JSON ritardi: {len(delays['by_date'])} giorni, "
+        f"soglie puntuale={delays['soglie']['puntuale_min']}min "
+        f"grave={delays['soglie']['grave_min']}min"
+    )
+    return payload
+
+
+# =============================================================================
+# SALVATAGGIO E PUBBLICAZIONE
+# =============================================================================
+
 def save_web_json(payload):
     os.makedirs(WEB_OUTPUT_DIR, exist_ok=True)
     try:
@@ -1018,6 +1335,20 @@ def save_web_json(payload):
         return WEB_OUTPUT_FILE
     except Exception as e:
         logger.error(f"Errore salvataggio JSON: {e}")
+        return None
+
+
+def save_delays_json(payload):
+    os.makedirs(WEB_OUTPUT_DIR, exist_ok=True)
+    try:
+        with open(DELAYS_OUTPUT_FILE, "w", encoding="utf-8") as f:
+            f.write(DELAYS_PREFIX)
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+        size_kb = round(os.path.getsize(DELAYS_OUTPUT_FILE) / 1024, 1)
+        logger.info(f"JSON ritardi salvato: {DELAYS_OUTPUT_FILE} ({size_kb} KB)")
+        return DELAYS_OUTPUT_FILE
+    except Exception as e:
+        logger.error(f"Errore salvataggio JSON ritardi: {e}")
         return None
 
 
@@ -1035,20 +1366,55 @@ def export_and_publish(days=90):
     return (True, f"Pubblicato: {url}") if ok else (False, f"Errore: {msg}")
 
 
+def export_delays_and_publish(days=90):
+    from bgy_core import bgy_wordpress
+    payload = build_delays_json(days=days)
+    if not payload:
+        return False, "JSON ritardi vuoto (config disabilitata?)"
+    local_path = save_delays_json(payload)
+    if not local_path:
+        return False, "Errore salvataggio JSON ritardi locale"
+    if not bgy_wordpress.is_enabled():
+        return True, f"JSON ritardi locale salvato ({local_path}), WordPress disabilitato"
+    ok, msg, url = bgy_wordpress.publish_json(local_path)
+    return (True, f"Ritardi pubblicati: {url}") if ok else (False, f"Errore: {msg}")
+
+
+# =============================================================================
+# MAIN CLI
+# =============================================================================
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--days", type=int, default=90)
-    parser.add_argument("--publish", action="store_true")
+    parser.add_argument("--publish", action="store_true",
+                        help="Pubblica bgy-data.csv su WordPress")
+    parser.add_argument("--publish-delays", action="store_true",
+                        help="Pubblica bgy-delays.csv su WordPress")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
+
     if not bgy_db.is_enabled():
-        print("DB non abilitato"); sys.exit(1)
+        print("DB non abilitato")
+        sys.exit(1)
+
+    if args.publish_delays:
+        ok, msg = export_delays_and_publish(days=args.days)
+        print(f"{'OK' if ok else 'ERRORE'}: {msg}")
+        sys.exit(0 if ok else 1)
+
     if args.dry_run or not args.publish:
         payload = build_web_json(days=args.days)
         path = save_web_json(payload)
         if path:
             print(f"JSON salvato: {path}")
+        delays_payload = build_delays_json(days=args.days)
+        if delays_payload:
+            delays_path = save_delays_json(delays_payload)
+            if delays_path:
+                print(f"JSON ritardi salvato: {delays_path}")
         sys.exit(0)
+
     ok, msg = export_and_publish(days=args.days)
     print(f"{'OK' if ok else 'ERRORE'}: {msg}")
     sys.exit(0 if ok else 1)

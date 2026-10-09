@@ -1,6 +1,13 @@
 ﻿"""
 bgy_scheduler.py - Pianificatore ed Orchestratore automatico.
-Versione 2.8.3
+Versione 2.8.4
+
+Novità v2.8.4 (08/10/2026):
+- Rimossa la pulizia automatica degli screenshot tabellone (>7 giorni).
+  Gli screenshot restano indefinitamente in bgy_data/bgy_screenshots/.
+  La funzione cleanup_old_screenshots() è mantenuta ma non più chiamata
+  dal job_daily(), per permettere una riattivazione rapida in futuro.
+- La pulizia file Avionio (>7 giorni) resta invariata.
 
 Novità v2.8.3 (INFRA-02, 07/10/2026):
 - job_daily() ora chiama bgy_tools.verify_sync.check_all() e passa il
@@ -29,7 +36,7 @@ Novità v2.7.2: check_sacbo_acquisition() conta scansioni Avionio.
 - Email di stato con: problemi check + movimenti notte + voli non classificati
 - Verifica compagnie da risolvere (F14)
 - Diagnostica scanner diurno Cloudflare (F14b)
-- Screenshot tabellone allegati all'email + rotazione 7 giorni (F14c)
+- Screenshot tabellone allegati all'email (F14c) — conservazione illimitata
 - Recupero automatico scansioni mancate (v2.6.2)
 - Confronto incrociato Avionio (v2.6.4)
 - Check 11 servizio DB (v2.6.6)
@@ -39,6 +46,7 @@ Novità v2.7.2: check_sacbo_acquisition() conta scansioni Avionio.
 - Passaggio flag night_import_failed al mailer (v2.7.3)
 - Esportazione dati web F17 (v2.8.1)
 - Sync e backup check nell'email del mattino (v2.8.3)
+- Screenshot conservati senza scadenza (v2.8.4)
 """
 import os
 import sys
@@ -758,6 +766,11 @@ def _get_session_screenshots(session_date):
 
 
 def cleanup_old_screenshots(days=7):
+    """
+    v2.8.4: funzione mantenuta ma NON più chiamata da job_daily().
+    Gli screenshot restano conservati indefinitamente sul PC.
+    Riattivabile rimuovendo il commento nel job_daily().
+    """
     if not os.path.isdir(SCREENSHOTS_DIR):
         return 0, 0
     cutoff = datetime.now() - timedelta(days=days)
@@ -1124,14 +1137,19 @@ def job_daily():
     job_web_export()
 
     # --- Pulizie ---
-    logger.info("-" * 60)
-    logger.info("🧹 Pulizia screenshot vecchi (>7 giorni)...")
-    try:
-        n_rem, n_err = cleanup_old_screenshots(days=7)
-        logger.info(f"✅ Rimossi {n_rem} screenshot vecchi ({n_err} errori)")
-    except Exception as e:
-        logger.error(f"❌ Errore pulizia screenshot: {e}")
+    # v2.8.4: la pulizia screenshot è stata RIMOSSA. Gli screenshot restano
+    # conservati indefinitamente in bgy_data/bgy_screenshots/.
+    # Per riattivarla, scommentare il blocco sottostante:
+    #
+    # logger.info("-" * 60)
+    # logger.info("🧹 Pulizia screenshot vecchi (>7 giorni)...")
+    # try:
+    #     n_rem, n_err = cleanup_old_screenshots(days=7)
+    #     logger.info(f"✅ Rimossi {n_rem} screenshot vecchi ({n_err} errori)")
+    # except Exception as e:
+    #     logger.error(f"❌ Errore pulizia screenshot: {e}")
 
+    logger.info("-" * 60)
     logger.info("🧹 Pulizia file Avionio vecchi (>7 giorni)...")
     try:
         av_cfg = _cfg_avionio()

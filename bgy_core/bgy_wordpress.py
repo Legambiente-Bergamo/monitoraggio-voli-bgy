@@ -1,22 +1,28 @@
 """
 bgy_core/bgy_wordpress.py - Pubblicazione dati su WordPress via REST API.
-Versione 1.0.2
+Versione 1.0.3
 
 Scopo:
-  - Caricare il JSON aggregato (bgy-data.csv) nella Media Library
-    di WordPress, sovrascrivendo il file precedente.
+  - Caricare i file JSON aggregati (bgy-data.csv, bgy-delays.csv) nella
+    Media Library di WordPress, sovrascrivendo i precedenti.
   - Verificare la connessione REST API.
   - Gestire le credenziali via config_wordpress.json.
 
 Architettura:
-  - Opzione A (raccomandata): JSON statico pubblicato su WordPress,
-    letto lato browser da una pagina con Chart.js. Niente accesso
-    diretto a PostgreSQL, niente endpoint esposti.
+  - Opzione A (raccomandata): JSON statici pubblicati su WordPress,
+    letti lato browser via endpoint REST custom (wp-json/bgy/v1/*).
 
 Sicurezza:
   - Usa Application Password (Basic Auth over HTTPS).
   - Non committare mai config_wordpress.json su Git.
   - Il token è limitato all'utente BGY (ruolo amministratore).
+
+Novità v1.0.3 (08/10/2026):
+- FIX CRITICO: il filename remoto è ora derivato dal path locale
+  (os.path.basename), non più da config. Prima, qualsiasi file
+  pubblicato veniva rinominato in 'bgy-data.csv', sovrascrivendo
+  il file notturno quando si pubblicava bgy-delays.csv.
+- Ogni file locale mantiene il proprio nome su WordPress.
 
 Novità v1.0.2:
 - Ritorno a .csv con Content-Type text/csv, dopo che il filtro MIME
@@ -26,8 +32,7 @@ Novità v1.0.2:
 
 Novità v1.0.1 (breve parentesi .txt):
 - Estensione file cambiata da .csv a .txt con Content-Type text/plain.
-  Tentativo di aggirare il blocco MIME. Non sufficiente: il problema
-  era il contenuto JSON, non l'estensione.
+  Tentativo di aggirare il blocco MIME. Non sufficiente.
 
 Novità v1.0.0:
 - Prima versione.
@@ -61,10 +66,7 @@ CONFIG_WORDPRESS = os.path.join(CONFIG_DIR, "config_wordpress.json")
 # -----------------------------------------------------------------------------
 
 def _cfg():
-    """
-    Legge config_wordpress.json.
-    Prova prima dalla cache di config_manager, poi direttamente dal file.
-    """
+    """Legge config_wordpress.json (cache + fallback file)."""
     cfg = config_manager.configs.get("wordpress", {})
     if cfg:
         return cfg
@@ -108,10 +110,7 @@ def _api_url(path):
 # -----------------------------------------------------------------------------
 
 def test_connection():
-    """
-    Verifica che le credenziali funzionino.
-    Ritorna (ok, msg).
-    """
+    """Verifica che le credenziali funzionino. Ritorna (ok, msg)."""
     cfg = _cfg()
     if not cfg:
         return False, "config_wordpress.json non trovato o vuoto"
@@ -224,9 +223,6 @@ def _upload_media(local_path, remote_filename):
     """
     Carica un file nella Media Library.
     Ritorna (ok, media_id, source_url).
-
-    v1.0.2: Content-Type text/csv. Il file locale inizia con una riga
-    di prefisso '#' per superare il controllo magic-bytes di WordPress.
     """
     headers = _auth_header()
     if not headers:
@@ -276,13 +272,11 @@ def _upload_media(local_path, remote_filename):
 
 def publish_json(local_json_path):
     """
-    Pubblica il JSON aggregato su WordPress, sostituendo il precedente.
+    Pubblica un file JSON aggregato su WordPress, sostituendo il precedente
+    con lo stesso nome.
 
-    Flusso:
-      1. Cerca il media esistente con lo stesso nome.
-      2. Se esiste, lo cancella.
-      3. Carica il nuovo file.
-      4. Ritorna l'URL pubblico del file.
+    v1.0.3: il nome remoto è derivato da os.path.basename(local_json_path).
+    Così bgy-data.csv → bgy-data.csv e bgy-delays.csv → bgy-delays.csv.
 
     Ritorna (ok, msg, source_url).
     """
@@ -292,8 +286,11 @@ def publish_json(local_json_path):
     if not os.path.exists(local_json_path):
         return False, f"File non trovato: {local_json_path}", None
 
-    cfg = _cfg()
-    filename = cfg.get("json_filename", "bgy-data.csv")
+    # v1.0.3: filename dal path locale, non da config
+    filename = os.path.basename(local_json_path)
+    if not filename:
+        cfg = _cfg()
+        filename = cfg.get("json_filename", "bgy-data.csv")
 
     existing_id = _find_media_by_filename(filename)
     if existing_id:
@@ -303,7 +300,7 @@ def publish_json(local_json_path):
     if not ok:
         return False, source_url or "Upload fallito", None
 
-    return True, f"Pubblicato (id={media_id})", source_url
+    return True, f"Pubblicato (id={media_id}, filename={filename})", source_url
 
 
 # -----------------------------------------------------------------------------

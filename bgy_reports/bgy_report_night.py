@@ -1,32 +1,34 @@
 """
 bgy_reports/bgy_report_night.py - Report notturno integrato (SACBO + Avionio + radar).
-Versione 2.9.26
+Versione 2.9.28
+
+Novita v2.9.28 (DATA-11.C, 08/10/2026):
+- _dedup_unknown_via_icao24(): nuova dedup per radar-only con callsign
+  UNKNOWN/vuoto. Se lo stesso icao24 compare entro 5 minuti con callsign
+  noto e fase compatibile, il rilevamento UNKNOWN viene scartato.
+  Risolve i casi 48c221 (UNKNOWN + RYR9ZN) e 4d20b1 (UNKNOWN + WMT994)
+  della sessione 06-07/10.
+- _is_unknown_callsign(): helper per riconoscere callsign vuoto/UNKNOWN.
+- _dedup_radar_by_callsign() chiama la nuova funzione come secondo passaggio.
+
+Novita v2.9.27 (DATA-11.A, 08/10/2026):
+- _dedup_scheduled_soft_cross_source(): dedup tra scheduled con stesso
+  callsign + stessa direzione + fonti diverse + Δorario <= 15 min.
 
 Novita v2.9.26 (DATA-10, 08/10/2026):
-- _split_borderline_flights(): aggiunto fallback su orario_effettivo (SACBO)
-  quando il timestamp radar e' vuoto. Risolve il caso NO3865 (notte 07/10):
-  schedulato 23:20, atterrato 22:40, senza match radar. Prima era
-  classificato 'regolare' con pista N/D, ora e' borderline anticipato.
-- _write_borderline_files(): se timestamp radar e' vuoto, scrive
-  orario_effettivo (SACBO) nella colonna timestamp del CSV borderline.
+- _split_borderline_flights(): fallback su orario_effettivo (SACBO).
 
 Novita v2.9.25 (DATA-06.A, 08/10/2026):
 - Fix _try_alternative_same_icao(): rispetta la finestra di match.
-- Caso FR3413 (05/10) risolto.
 
 Novita v2.9.24 (DATA-06.A, 08/10/2026):
-- match_flights(): se best_idx ha pista N/D, cerca tra le osservazioni
-  radar non usate quella con lo STESSO icao24 con pista valida.
-
-Novita v2.9.23 (DATA-06.B, 07/10/2026):
-- Proposta _propagate_runway_by_session(), poi ritirata.
+- match_flights(): pista N/D -> cerca stesso icao24 con pista valida.
 
 Novita v2.9.22 (DATA-04, 07/10/2026):
 - match_flights(): finestra BEFORE differenziata per fonte.
 
 Novita v2.9.21 (fix KPI 40=40, 07/10/2026):
-- _tipo_movimento_from_callsign(): scheduled pax da Avionio non piu'
-  etichettato 'Passeggeri (radar)'.
+- _tipo_movimento_from_callsign(): scheduled pax Avionio -> 'Passeggeri'.
 
 Novita v2.9.20 (INFRA-01, 07/10/2026):
 - _dedup_radar_only_via_icao24() estesa a Cargo e Charter radar-only.
@@ -40,7 +42,6 @@ Novita v2.9.16: dedup radar con priorita' fasi BGY.
 Novita v2.9.15: finestra borderline stringente.
 Novita v2.9.14: sistema borderline.
 Novita v2.9.13: fix out-of-window post match_flights.
-Novita v2.9.12: prima versione del fix (deprecata).
 Novita v2.9.11: fix _propagate_runway_in_session (pd.isna).
 Novita v2.9.10: raggruppa per solo callsign.
 Novita v2.9.9: prima versione del fix propagazione pista.
@@ -51,6 +52,7 @@ Principio documentato:
 - Il rumore conta solo se prodotto tra le 23:00:00 e le 05:59:59.
 - Un volo schedulato in fascia ma operato fuori e' un "borderline".
 - Un radar-only con stesso icao24 di uno scheduled e' un duplicato.
+- Un radar-only UNKNOWN con stesso icao24 di un callsign noto e' un duplicato.
 - La pista si assegna solo su evidenza radar, non su stima.
 - SACBO domina, Avionio integra, radar aggiunge.
 """
@@ -92,6 +94,11 @@ RADAR_DEDUP_WINDOW_MIN = 15
 
 ICAO24_DEDUP_NEAR_MIN = 15
 ICAO24_DEDUP_SAMEDIR_MIN = 120
+
+SCHED_DEDUP_TOLERANCE_MIN = 15
+
+# v2.9.28 (DATA-11.C): finestra per dedup UNKNOWN vs callsign noto via icao24
+ICAO24_UNKNOWN_DEDUP_MIN = 5
 
 VALID_RUNWAYS = ('RWY 28', 'RWY 10')
 
@@ -283,10 +290,6 @@ def _is_in_night_window_dt(dt):
 
 
 def _is_in_night_window_hhmm(hhmm):
-    """
-    v2.9.26: verifica se un orario HH:MM cade nella finestra notturna
-    23:00-05:59.
-    """
     mins = _time_to_minutes(hhmm)
     if mins is None:
         return False
@@ -994,6 +997,139 @@ def _phase_priority(fase_volo):
     return priorities.get(str(fase_volo).strip(), 1)
 
 
+def _is_unknown_callsign(cs):
+    """
+    v2.9.28 (DATA-11.C): True se il callsign e' vuoto, NaN o placeholder.
+    """
+    if cs is None:
+        return True
+    try:
+        if pd.isna(cs):
+            return True
+    except (TypeError, ValueError):
+        pass
+    s = str(cs).strip().upper()
+    if s in ('', 'UNKNOWN', 'NAN', 'NONE', 'N/D', 'NA', 'N.A.'):
+        return True
+    return False
+
+
+def _dedup_unknown_via_icao24(radar_df):
+    """
+    v2.9.28 (DATA-11.C): rimuove rilevamenti radar-only con callsign
+    UNKNOWN/vuoto quando esiste un altro rilevamento dello stesso
+    icao24 con callsign noto entro ICAO24_UNKNOWN_DEDUP_MIN minuti
+    e con fase compatibile (stessa direzione).
+
+    Caso tipico: il radar perde il callsign nella prima rilevazione
+    (aereo basso/veloce) e lo riacquisisce subito dopo. Stesso icao24,
+    stesso movimento fisico.
+
+    Criteri:
+      - icao24 non vuoto (uguale tra le due righe)
+      - una riga con callsign UNKNOWN/vuoto, l'altra con callsign noto
+      - fase compatibile (stessa direzione D/A)
+      - Δtimestamp <= ICAO24_UNKNOWN_DEDUP_MIN (default 5 min)
+
+    Azione: scarta la riga UNKNOWN, tieni quella con callsign noto.
+    """
+    if radar_df.empty:
+        return radar_df
+    if 'icao24' not in radar_df.columns:
+        return radar_df
+    if 'callsign' not in radar_df.columns:
+        return radar_df
+
+    df = radar_df.copy()
+
+    def _norm_icao(v):
+        if v is None or (isinstance(v, float) and pd.isna(v)):
+            return ''
+        s = str(v).strip().lower()
+        if s in ('', 'nan', 'none', 'n/d'):
+            return ''
+        return s
+
+    df['_icao_norm'] = df['icao24'].apply(_norm_icao)
+    df['_cs_unknown'] = df['callsign'].apply(_is_unknown_callsign)
+
+    def _norm_ts(v):
+        if v is None or (isinstance(v, float) and pd.isna(v)):
+            return None
+        s = str(v).strip()
+        if s == '':
+            return None
+        try:
+            return pd.to_datetime(s)
+        except Exception:
+            return None
+
+    df['_ts_norm'] = df['timestamp'].apply(_norm_ts)
+
+    def _phase_to_dir(fase):
+        f = str(fase).strip()
+        if f == 'Decollo':
+            return 'D'
+        if f in ('Atterraggio', 'Avvicinamento'):
+            return 'A'
+        return ''
+
+    df['_dir'] = df['fase_volo'].apply(_phase_to_dir)
+
+    drop_idx = set()
+
+    for icao, group in df.groupby('_icao_norm'):
+        if not icao:
+            continue
+        if len(group) < 2:
+            continue
+
+        unknown_rows = group[group['_cs_unknown']]
+        known_rows = group[~group['_cs_unknown']]
+
+        if unknown_rows.empty or known_rows.empty:
+            continue
+
+        for u_idx, u_row in unknown_rows.iterrows():
+            if u_idx in drop_idx:
+                continue
+            u_ts = u_row['_ts_norm']
+            u_dir = u_row['_dir']
+            if u_ts is None:
+                continue
+
+            for k_idx, k_row in known_rows.iterrows():
+                if k_idx in drop_idx:
+                    continue
+                k_ts = k_row['_ts_norm']
+                k_dir = k_row['_dir']
+                if k_ts is None:
+                    continue
+
+                if u_dir and k_dir and u_dir != k_dir:
+                    continue
+
+                delta_min = abs((u_ts - k_ts).total_seconds()) / 60
+                if delta_min <= ICAO24_UNKNOWN_DEDUP_MIN:
+                    drop_idx.add(u_idx)
+                    logger.info(
+                        f"🧹 Dedup UNKNOWN: '{u_row['callsign']}' "
+                        f"({u_row['fase_volo']} @ "
+                        f"{u_row['timestamp']}) → scartato "
+                        f"per match con '{k_row['callsign']}' "
+                        f"(icao24={icao}, Δ={delta_min:.1f}min)"
+                    )
+                    break
+
+    df = df.drop(columns=['_icao_norm', '_cs_unknown', '_ts_norm', '_dir'])
+
+    if not drop_idx:
+        return radar_df
+
+    df = df.drop(index=list(drop_idx))
+    return df.reset_index(drop=True)
+
+
 def _dedup_by_key(df):
     if df.empty:
         return df
@@ -1004,6 +1140,17 @@ def _dedup_by_key(df):
     without_sched = df[~has_sched_mask].copy()
     if with_sched.empty:
         return df
+
+    # v2.9.27: dedup soft cross-fonte prima della dedup esatta
+    n_before_soft = len(with_sched)
+    with_sched = _dedup_scheduled_soft_cross_source(with_sched)
+    n_after_soft = len(with_sched)
+    if n_before_soft != n_after_soft:
+        logger.info(
+            f"🧹 Dedup cross-fonte soft: {n_before_soft} → {n_after_soft} "
+            f"({n_before_soft - n_after_soft} duplicati cross-fonte rimossi)"
+        )
+
     with_sched['_key_cs'] = with_sched['callsign'].apply(_normalize_callsign)
     with_sched['_key_sched'] = with_sched['orario_schedulato'].apply(_normalize_hhmm)
     with_sched['_is_sched_priority'] = with_sched['is_scheduled'].apply(
@@ -1032,6 +1179,82 @@ def _dedup_by_key(df):
     ])
     result = pd.concat([with_sched, without_sched], ignore_index=True)
     return result
+
+
+def _dedup_scheduled_soft_cross_source(df):
+    """
+    v2.9.27 (DATA-11.A): dedup soft tra scheduled della stessa entità
+    ma con fonte diversa (SACBO vs Avionio) e orari leggermente diversi.
+
+    Quando un volo e' dichiarato sia da SACBO che da Avionio con orari
+    che differiscono entro SCHED_DEDUP_TOLERANCE_MIN minuti, e' lo
+    stesso movimento fisico: tieni SACBO, scarta Avionio.
+    """
+    if df.empty:
+        return df
+    if 'fonte_scheduled' not in df.columns:
+        return df
+    if 'direzione_sacbo' not in df.columns:
+        return df
+    if 'callsign' not in df.columns:
+        return df
+
+    df = df.copy()
+    df['_cs_norm'] = df['callsign'].apply(_normalize_callsign)
+    df['_sched_min'] = df['orario_schedulato'].apply(_time_to_minutes)
+    df['_dir_norm'] = (df['direzione_sacbo'].fillna('')
+                       .astype(str).str.strip().str.upper())
+    df['_fonte_norm'] = (df['fonte_scheduled'].fillna('')
+                         .astype(str).str.strip().str.lower())
+
+    drop_idx = set()
+
+    for (cs, dir_), group in df.groupby(['_cs_norm', '_dir_norm']):
+        if not cs or dir_ not in ('D', 'A'):
+            continue
+        if len(group) < 2:
+            continue
+
+        sacbo_rows = group[group['_fonte_norm'] == 'sacbo']
+        avionio_rows = group[group['_fonte_norm'] == 'avionio']
+
+        if sacbo_rows.empty or avionio_rows.empty:
+            continue
+
+        for av_idx, av_row in avionio_rows.iterrows():
+            if av_idx in drop_idx:
+                continue
+            av_min = av_row['_sched_min']
+            if av_min is None:
+                continue
+
+            for s_idx, s_row in sacbo_rows.iterrows():
+                s_min = s_row['_sched_min']
+                if s_min is None:
+                    continue
+                delta = abs(av_min - s_min)
+                if delta > 12 * 60:
+                    delta = 24 * 60 - delta
+                if delta <= SCHED_DEDUP_TOLERANCE_MIN:
+                    drop_idx.add(av_idx)
+                    logger.info(
+                        f"🧹 Dedup cross-fonte soft: {av_row['callsign']} "
+                        f"(Avionio {av_row['orario_schedulato']} "
+                        f"[{av_row.get('notte_categoria', '?')}]) scartato "
+                        f"perché duplicato di SACBO "
+                        f"{s_row['orario_schedulato']} "
+                        f"[{s_row.get('notte_categoria', '?')}] "
+                        f"(Δ={delta:.0f}min)"
+                    )
+                    break
+
+    df = df.drop(columns=['_cs_norm', '_sched_min', '_dir_norm', '_fonte_norm'])
+
+    if not drop_idx:
+        return df
+
+    df = df.drop(index=list(drop_idx))
+    return df.reset_index(drop=True)
 
 
 def _try_pattern_match_for_sched(sched_callsign, direzione_sacbo,
@@ -1077,11 +1300,6 @@ def _try_pattern_match_for_sched(sched_callsign, direzione_sacbo,
 
 def _try_alternative_same_icao(radar, best_idx, direzione_sacbo,
                                  sched_min, low, high, used_radar_idx):
-    """
-    v2.9.25: se best_idx ha pista N/D, cerca tra le osservazioni radar
-    non usate quella con lo stesso icao24 con pista valida e fase
-    compatibile, restando DENTRO la finestra di match.
-    """
     if best_idx is None:
         return None, None
     if 'icao24' not in radar.columns:
@@ -1476,6 +1694,10 @@ def _dedup_radar_by_callsign(radar_df):
         subset=['callsign', '_window'], keep='first'
     )
     df = df.drop(columns=['_window', '_phase_rank'])
+
+    # v2.9.28: secondo passaggio per UNKNOWN vs callsign noto via icao24
+    df = _dedup_unknown_via_icao24(df)
+
     after = len(df)
     if before != after:
         logger.info(
@@ -1702,11 +1924,6 @@ def _enrich_final(df):
 
 
 def _split_borderline_flights(result_df):
-    """
-    v2.9.26: usa il timestamp radar per determinare se il movimento
-    e' fuori finestra. Se il timestamp radar e' vuoto (nessun match),
-    usa orario_effettivo (SACBO) come fallback.
-    """
     if result_df.empty:
         return result_df, result_df.iloc[0:0], 0
 
@@ -1729,7 +1946,6 @@ def _split_borderline_flights(result_df):
         if not (sched_min >= 23 * 60 or sched_min < 6 * 60):
             return False
 
-        # Priorita' al timestamp radar (dato effettivo)
         if ts and not pd.isna(ts) and str(ts).strip():
             try:
                 ts_dt = pd.to_datetime(ts)
@@ -1737,12 +1953,10 @@ def _split_borderline_flights(result_df):
                 return False
             return not _is_in_night_window_dt(ts_dt)
 
-        # Fallback: orario_effettivo (SACBO)
         if orario_eff and not pd.isna(orario_eff) and str(orario_eff).strip():
             in_window = _is_in_night_window_hhmm(orario_eff)
             return not in_window
 
-        # Nessuna informazione sull'effettiva operativita'
         return False
 
     mask = result_df.apply(_is_borderline, axis=1)
@@ -1799,7 +2013,6 @@ def _write_borderline_files(date_norm, df_borderline):
     df_out['data_riferimento'] = date_norm
     df_out['categoria_borderline'] = df_out.apply(_categorize_borderline, axis=1)
 
-    # v2.9.26: se timestamp radar e' vuoto, usa orario_effettivo (SACBO)
     if 'orario_effettivo' in df_out.columns:
         df_out['timestamp'] = df_out.apply(
             lambda r: (r['timestamp']
