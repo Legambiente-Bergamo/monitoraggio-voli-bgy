@@ -1,6 +1,12 @@
 ﻿"""
 bgy_scheduler.py - Pianificatore ed Orchestratore automatico.
-Versione 2.8.4
+Versione 2.8.5
+
+Novità v2.8.5 (09/10/2026):
+- job_web_export() ora pubblica anche il JSON ritardi H24 (bgy-delays.csv)
+  oltre al JSON notturno (bgy-data.csv). Chiama sia export_and_publish()
+  sia export_delays_and_publish(). Log separati [OK]/[KO] per ciascuno.
+  Ritorno combinato: ok = ok_night and ok_delays.
 
 Novità v2.8.4 (08/10/2026):
 - Rimossa la pulizia automatica degli screenshot tabellone (>7 giorni).
@@ -230,7 +236,10 @@ def cleanup_old_avionio(days=7):
 
 def job_web_export():
     """
-    Rigenera il JSON aggregato (bgy-data.csv) e lo pubblica su WordPress.
+    Rigenera e pubblica su WordPress:
+      - JSON notturno (bgy-data.csv)
+      - JSON ritardi H24 (bgy-delays.csv)
+
     F17 - Opzione A: JSON statico su Media Library, niente DB esposto.
 
     Non influenza l'esito complessivo del job giornaliero: se fallisce,
@@ -242,23 +251,37 @@ def job_web_export():
     web_cfg = _cfg_web_export()
     days = int(web_cfg.get("days_default", 90))
 
+    # --- 1) JSON notturno (bgy-data.csv) ---
+    ok_night = False
+    msg_night = ""
     try:
         from bgy_core.bgy_export_web import export_and_publish
-        ok, msg = export_and_publish(days=days)
-        if ok:
-            logger.info(f"✅ Web export: {msg}")
+        ok_night, msg_night = export_and_publish(days=days)
+        if ok_night:
+            logger.info(f"✅ Web export notturno: {msg_night}")
         else:
-            logger.error(f"❌ Web export: {msg}")
-        return ok, msg
+            logger.error(f"❌ Web export notturno: {msg_night}")
     except Exception as e:
-        msg = f"Eccezione: {e}"
-        logger.error(f"❌ Web export: {msg}")
-        return False, msg
+        msg_night = f"Eccezione: {e}"
+        logger.error(f"❌ Web export notturno: {msg_night}")
 
+    # --- 2) JSON ritardi H24 (bgy-delays.csv) ---
+    ok_delays = False
+    msg_delays = ""
+    try:
+        from bgy_core.bgy_export_web import export_delays_and_publish
+        ok_delays, msg_delays = export_delays_and_publish(days=days)
+        if ok_delays:
+            logger.info(f"✅ Web export ritardi: {msg_delays}")
+        else:
+            logger.error(f"❌ Web export ritardi: {msg_delays}")
+    except Exception as e:
+        msg_delays = f"Eccezione: {e}"
+        logger.error(f"❌ Web export ritardi: {msg_delays}")
 
-# -----------------------------------------------------------------------------
-# SYNC / BACKUP CHECK (v2.8.3)
-# -----------------------------------------------------------------------------
+    ok = ok_night and ok_delays
+    msg = f"notturno={'OK' if ok_night else 'KO'} | ritardi={'OK' if ok_delays else 'KO'}"
+    return ok, msg
 
 def _run_sync_backup_check():
     """
