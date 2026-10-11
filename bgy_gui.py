@@ -1,10 +1,13 @@
 """
 BGY Monitoring Suite - Interfaccia Grafica di Controllo
-v2.5.3
+v2.5.4
 - Aggiunto tab "📈 Grafici" (anteprima con dati dal DB)
 - Aggiunto tab "🔔 Notifiche" (silenzia/attiva email)
 - Aggiunto tab "🏢 Compagnie" (risoluzione placeholder)
 - Pulizia periodica processi orfani (fix zombie scheduler)
+
+Novità v2.5.4 (INFRA-10): ensure_dependencies() include
+playwright-stealth e pip-system-certs (allineati a requirements.txt).
 """
 import sys
 import subprocess
@@ -19,6 +22,8 @@ def ensure_dependencies():
         ("seaborn", "seaborn"), ("lxml", "lxml"),
         ("openpyxl", "openpyxl"), ("python-docx", "docx"),
         ("reportlab", "reportlab"), ("psycopg", "psycopg"),
+        ("playwright-stealth", "playwright_stealth"),
+        ("pip-system-certs", "pip_system_certs"),
     ]
     missing = []
     for pkg, imp in required:

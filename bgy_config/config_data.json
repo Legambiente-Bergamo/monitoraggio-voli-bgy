@@ -55,10 +55,22 @@
       "approach_max_altitude_ft": 5000
     },
     "runway_bearings": {
-      "RWY 28": [250, 300],
-      "RWY 10": [70, 120],
-      "RWY 16": [160, 190],
-      "RWY 34": [340, 10]
+      "RWY 28": [
+        250,
+        300
+      ],
+      "RWY 10": [
+        70,
+        120
+      ],
+      "RWY 16": [
+        160,
+        190
+      ],
+      "RWY 34": [
+        340,
+        10
+      ]
     },
     "parallel_test_mode": false,
     "parallel_test_days": 5
@@ -86,16 +98,34 @@
       "approach_max_altitude_ft": 5000
     },
     "runway_bearings": {
-      "RWY 28": [250, 300],
-      "RWY 10": [70, 120],
-      "RWY 16": [160, 190],
-      "RWY 34": [340, 10]
+      "RWY 28": [
+        250,
+        300
+      ],
+      "RWY 10": [
+        70,
+        120
+      ],
+      "RWY 16": [
+        160,
+        190
+      ],
+      "RWY 34": [
+        340,
+        10
+      ]
     }
   },
   "scanner_day": {
     "urls": [
-      ["https://www.milanbergamoairport.it/it/voli-tempo-reale/#departure", "Decollo"],
-      ["https://www.milanbergamoairport.it/it/voli-tempo-reale/#arrivals", "Atterraggio"]
+      [
+        "https://www.milanbergamoairport.it/it/voli-tempo-reale/#departure",
+        "Decollo"
+      ],
+      [
+        "https://www.milanbergamoairport.it/it/voli-tempo-reale/#arrivals",
+        "Atterraggio"
+      ]
     ],
     "playwright_timeout_ms": 40000,
     "wait_after_load_ms": 3000,
@@ -106,7 +136,7 @@
   "report_day": {
     "delay_threshold_min": 15,
     "early_threshold_min": -5,
-    "midnight_wrap_min": 1200
+    "midnight_wrap_min": 720
   },
   "report_night": {
     "distance_by_phase_km": {
@@ -162,10 +192,53 @@
       "alternate_row_color": "f0f4f8"
     },
     "columns": {
-      "daily": ["volo", "callsign", "tipo_movimento", "compagnia_aerea", "destinazione_origine", "orario_schedulato", "orario_effettivo", "minuti_ritardo", "stato_ritardo"],
-      "nightly": ["callsign", "tipo_movimento", "is_scheduled", "compagnia_aerea", "modello_aereo", "destinazione_finale", "orario_schedulato", "timestamp", "pista", "fase_volo", "quota_ft", "distanza_km", "stima_passeggeri", "stima_rumore_db"],
-      "monthly": ["volo", "callsign", "tipo_movimento", "compagnia_aerea", "destinazione_origine", "orario_schedulato", "minuti_ritardo"],
-      "yearly": ["volo", "callsign", "tipo_movimento", "compagnia_aerea", "destinazione_origine", "destinazione_finale", "orario_schedulato", "minuti_ritardo", "stato_ritardo"]
+      "daily": [
+        "volo",
+        "callsign",
+        "tipo_movimento",
+        "compagnia_aerea",
+        "destinazione_origine",
+        "orario_schedulato",
+        "orario_effettivo",
+        "minuti_ritardo",
+        "stato_ritardo"
+      ],
+      "nightly": [
+        "callsign",
+        "tipo_movimento",
+        "is_scheduled",
+        "compagnia_aerea",
+        "modello_aereo",
+        "destinazione_finale",
+        "orario_schedulato",
+        "timestamp",
+        "pista",
+        "fase_volo",
+        "quota_ft",
+        "distanza_km",
+        "stima_passeggeri",
+        "stima_rumore_db"
+      ],
+      "monthly": [
+        "volo",
+        "callsign",
+        "tipo_movimento",
+        "compagnia_aerea",
+        "destinazione_origine",
+        "orario_schedulato",
+        "minuti_ritardo"
+      ],
+      "yearly": [
+        "volo",
+        "callsign",
+        "tipo_movimento",
+        "compagnia_aerea",
+        "destinazione_origine",
+        "destinazione_finale",
+        "orario_schedulato",
+        "minuti_ritardo",
+        "stato_ritardo"
+      ]
     },
     "max_rows": {
       "xlsx": 0,
@@ -199,5 +272,31 @@
     "path": "E:\\BGY_Backup",
     "max_age_hours": 48,
     "include_credentials": true
+  },
+  "disclaimers": {
+    "enabled": true,
+    "global": {
+      "show": true,
+      "title": "⚠️ DATI IN FASE DI VERIFICA",
+      "body": "Siamo in fase di test del sistema di monitoraggio. I dati pubblicati sono il risultato di elaborazioni automatiche in corso di validazione e possono contenere errori. La raccolta dei dati per i grafici è iniziata il {min_date}. Non è possibile visualizzare periodi precedenti a questa data."
+    },
+    "pages": {
+      "night": {
+        "show_global": true,
+        "extra": ""
+      },
+      "delays": {
+        "show_global": true,
+        "extra": ""
+      },
+      "airports": {
+        "show_global": true,
+        "extra": "I dati degli aeroporti di confronto sono raccolti da Avionio.com (aggregatore pubblico). Non sono dati ufficiali."
+      },
+      "noise": {
+        "show_global": false,
+        "extra": "Le stime di rumore sono basate su curve NPD generiche e modelli semplificati. Non sostituiscono misurazioni fonometriche reali."
+      }
+    }
   }
 }

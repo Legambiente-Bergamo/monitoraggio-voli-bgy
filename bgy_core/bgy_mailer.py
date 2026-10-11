@@ -1,6 +1,19 @@
 """
 bgy_core/bgy_mailer.py - Modulo unificato di invio email.
-Versione 2.7.2
+Versione 2.8.0
+
+Novità v2.8.0 (MAIL-03, 10/10/2026):
+- Logica "sezione sparisce se vuota" per tutte le sezioni.
+- PROBLEMI RILEVATI: già oggi sparisce se tutti i check sono OK
+  (comportamento invariato).
+- SCONFINAMENTI / GRAVI / ANOMALIE: già oggi spariscono se 0
+  (comportamento invariato).
+- MOVIMENTI BORDERLINE / VOLI NON CLASSIFICATI: già oggi spariscono
+  se vuoti (comportamento invariato).
+- NUOVO: DISCORDANZE AVIONIO ↔ SACBO sparisce se non ci sono
+  discordanze reali (messaggio "Nessuna discordanza").
+- NUOVO: STATO SYNC E BACKUP sparisce se GitHub è in_sync, backup DB
+  è OK e backup locale è OK. Compare solo se c'è almeno un problema.
 
 Novità v2.7.2 (INFRA-02, 07/10/2026):
 - Nuova sezione email "📊 STATO SYNC E BACKUP" con l'output di
@@ -604,11 +617,20 @@ def _format_borderline_section(borderline_flights):
 
 
 # -----------------------------------------------------------------------------
-# AVIONIO ↔ SACBO (v2.7.1)
+# AVIONIO ↔ SACBO (v2.7.1, filtrato v2.8.0)
 # -----------------------------------------------------------------------------
 
 def _format_avionio_section(check_ok, check_msg):
+    """
+    v2.8.0: la sezione compare solo se ci sono discordanze reali.
+    Se il messaggio contiene "Nessuna discordanza", la sezione sparisce.
+    """
     if not check_msg:
+        return ""
+
+    # Filtro: se il messaggio indica "nessuna discordanza", non mostrare
+    msg_lower = check_msg.lower()
+    if "nessuna discordanza" in msg_lower:
         return ""
 
     lines = []
@@ -623,15 +645,16 @@ def _format_avionio_section(check_ok, check_msg):
 
 
 # -----------------------------------------------------------------------------
-# SYNC E BACKUP (v2.7.2)
+# SYNC E BACKUP (v2.7.2, filtrato v2.8.0)
 # -----------------------------------------------------------------------------
 
 def _format_sync_backup_section(check_result):
     """
-    v2.7.2: formatta la sezione "STATO SYNC E BACKUP".
+    v2.8.0: la sezione compare solo se c'è almeno un problema.
+    Se GitHub è in_sync, backup DB è OK e backup locale è OK/non configurato
+    → sezione nascosta.
 
     Il dict è quello restituito da bgy_tools.verify_sync.check_all().
-    Se check_result è None, ritorna stringa vuota.
     """
     if not check_result:
         return ""
@@ -640,6 +663,30 @@ def _format_sync_backup_section(check_result):
     b = check_result.get("backup_db", {})
     bl = check_result.get("backup_local", {})
 
+    # v2.8.0: determinare se ci sono problemi
+    has_problem = False
+
+    # GitHub: problema se abilitato ma non in_sync, o se ci sono file da committare
+    if g.get("enabled", True):
+        if g.get("status", "?") != "in_sync":
+            has_problem = True
+        if g.get("modified_count", 0) > 0:
+            has_problem = True
+
+    # Backup DB: problema se abilitato ma non OK
+    if b.get("enabled", True):
+        if b.get("status", "?") != "ok":
+            has_problem = True
+
+    # Backup locale: problema se configurato ma non OK
+    bl_status = bl.get("status", "not_configured")
+    if bl_status not in ("ok", "not_configured"):
+        has_problem = True
+
+    if not has_problem:
+        return ""
+
+    # Se c'è almeno un problema, mostra la sezione completa
     lines = []
     lines.append("📊 STATO SYNC E BACKUP")
     lines.append("")
@@ -673,14 +720,13 @@ def _format_sync_backup_section(check_result):
             lines.append(f"      ultimo OK:  {b['last_success']}")
 
     # Backup locale
-    status = bl.get("status", "not_configured")
-    if status == "not_configured":
+    if bl_status == "not_configured":
         lines.append("   💾 Backup locale: ⏸️  non configurato")
     else:
-        icon = "✅" if status == "ok" else "❌"
+        icon = "✅" if bl_status == "ok" else "❌"
         age = bl.get("age_hours")
         age_str = f" ({age:.1f}h fa)" if age is not None else ""
-        lines.append(f"   💾 Backup locale: {icon} {status}{age_str}")
+        lines.append(f"   💾 Backup locale: {icon} {bl_status}{age_str}")
         if bl.get("path"):
             lines.append(f"      path:  {bl['path']}")
 
@@ -822,9 +868,9 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
     """
     Invia l'email di stato giornaliero.
 
-    v2.7.2: nuovo parametro sync_backup_check (dict da verify_sync.check_all()).
-    Se None, il mailer tenta di calcolarlo in autonomia. Se il calcolo
-    fallisce, la sezione non appare.
+    v2.8.0: logica "sezione sparisce se vuota" applicata a tutte le
+    sezioni opzionali (discordanze Avionio, stato sync/backup).
+    PROBLEMI RILEVATI già oggi sparisce se tutti i check sono OK.
     """
     if not force and not is_daily_status_enabled():
         logger.info("🔕 Email di stato giornaliero silenziata")
@@ -884,7 +930,7 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
             parts.append("")
             parts.append(stats_text)
     elif sync_backup_check is not None:
-        # anche se stats è None, mostra la sezione sync/backup
+        # anche se stats è None, mostra la sezione sync/backup (se ha problemi)
         sb_text = _format_sync_backup_section(sync_backup_check)
         if sb_text:
             parts.append("━" * 37)

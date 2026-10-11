@@ -1,13 +1,20 @@
 """
 bgy_scanners/bgy_scanner_radar.py - Scanner radar h24 multi-fonte.
-Versione 1.1.2
+Versione 1.2.0
+
+Novità v1.2.0 (DST-01, 10/10/2026):
+- Aggiunto campo timestamp_utc a tutti i rilevamenti (ISO 8601 con offset).
+  Serve a distinguere la doppia ora 02:00-02:59 che si presenta durante
+  il cambio DST (ora legale → ora solare). Senza UTC, la seconda
+  occorrenza viene deduplicata contro la prima.
+- Dedup differenziata: se timestamp_utc è valorizzato, la chiave è
+  (icao24, timestamp_utc); se è nullo (CSV vecchi), fallback a
+  (icao24, floor 1min di timestamp).
+- Backward compatibile: legge i CSV senza timestamp_utc senza errori.
 
 Novità v1.1.2 (radar 1 min di notte):
 - Dedup: da floor("2min") a floor("1min"). Supporta lo scheduling
   adattivo (1 min notte / 2 min giorno) introdotto in bgy_scheduler v2.8.2.
-  Due scansioni ravvicinate (es. 23:00:30 e 23:01:30) ora finiscono in
-  finestre distinte e non si scartano a vicenda.
-- Docstring aggiornata. Nessun'altra modifica funzionale.
 
 Novità v1.1.1: esclusi RWY 16 e RWY 34 da detect_runway_and_phase().
 Novità v1.1.0: baro_rate + conversione OpenSky m→ft.
@@ -18,7 +25,7 @@ import sys
 import json
 import requests
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timezone
 from math import radians, sin, cos, sqrt, atan2
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -44,6 +51,11 @@ BARO_RATE_THRESHOLD_FPM = 500
 
 def _cfg():
     return config_manager.get_scanner_radar_config()
+
+
+def _utc_now_iso():
+    """Ritorna l'ora corrente in UTC come ISO 8601 con offset."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S%z")
 
 
 def load_opensky_credentials():
@@ -282,6 +294,7 @@ def _parse_opensky(states):
     cfg = _cfg()
     max_distance = cfg["max_distance_km"]
     now = datetime.now()
+    now_utc_iso = _utc_now_iso()
     flights = []
     discarded_far = 0
     discarded_unknown = 0
@@ -329,6 +342,7 @@ def _parse_opensky(states):
             "paese": s[2] or "N/D",
             "baro_rate": baro_rate if baro_rate is not None else 0,
             "fonte": "opensky",
+            "timestamp_utc": now_utc_iso,
         })
 
     if discarded_far > 0:
@@ -342,6 +356,7 @@ def _parse_adsb_generic(aircraft, source_name):
     cfg = _cfg()
     max_distance = cfg["max_distance_km"]
     now = datetime.now()
+    now_utc_iso = _utc_now_iso()
     flights = []
     discarded_far = 0
     discarded_unknown = 0
@@ -398,6 +413,7 @@ def _parse_adsb_generic(aircraft, source_name):
             "paese": ac.get("country") or "N/D",
             "baro_rate": baro_rate_fpm if baro_rate_fpm is not None else 0,
             "fonte": source_name,
+            "timestamp_utc": now_utc_iso,
         })
 
     if discarded_far > 0:
@@ -506,11 +522,27 @@ def run_radar_scan(parallel_test=False):
 
     if "icao24" in df.columns and "timestamp" in df.columns:
         before = len(df)
-        # v1.1.2: floor a 1 minuto (era 2 min). Supporta la schedulazione
-        # adattiva 1 min notte / 2 min giorno di bgy_scheduler v2.8.2.
-        df["_ts_min"] = pd.to_datetime(df["timestamp"]).dt.floor("1min")
-        df = df.drop_duplicates(subset=["icao24", "_ts_min"], keep="first")
-        df = df.drop(columns=["_ts_min"])
+
+        # v1.2.0: chiave di dedup differenziata.
+        # - Righe con timestamp_utc valorizzato: chiave (icao24, timestamp_utc)
+        # - Righe con timestamp_utc nullo (CSV vecchi): chiave (icao24, floor 1min timestamp)
+        #
+        # Serve a non deduplicare insieme rilevazioni avvenute in momenti reali
+        # diversi ma con lo stesso timestamp naive (es. doppia ora 02:00-02:59
+        # durante il cambio DST).
+        ts_min = pd.to_datetime(df["timestamp"], errors="coerce").dt.floor("1min")
+        if "timestamp_utc" in df.columns:
+            ts_utc = pd.to_datetime(df["timestamp_utc"], errors="coerce", utc=True)
+        else:
+            ts_utc = pd.Series([pd.NaT] * len(df), index=df.index)
+
+        key_utc = df["icao24"].astype(str) + "|UTC|" + ts_utc.astype(str)
+        key_naive = df["icao24"].astype(str) + "|NAIVE|" + ts_min.astype(str)
+        df["_dedup_key"] = key_utc.where(ts_utc.notna(), key_naive)
+
+        df = df.drop_duplicates(subset=["_dedup_key"], keep="first")
+        df = df.drop(columns=["_dedup_key"])
+
         removed = before - len(df)
         if removed > 0:
             logger.info(f"🔀 Deduplicati {removed} rilevamenti ridondanti ({len(df)} unici)")

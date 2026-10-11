@@ -1,6 +1,22 @@
-"""
+﻿"""
 bgy_core/bgy_db.py - Modulo di accesso al database PostgreSQL.
-Versione 2.6.1
+Versione 2.8.0
+
+Novita v2.8.0 (DST-01, 10/10/2026):
+- SCHEMA_VERSION bumpata da 3 a 4.
+- SCHEMA_SQL: colonna timestamp_utc TIMESTAMPTZ in radar_detections.
+  Serve a distinguere la doppia ora 02:00-02:59 durante il cambio DST.
+
+Novita v2.7.0 (SCHEMA-01, 10/10/2026):
+- SCHEMA_VERSION bumpata da 2 a 3. Riflette gli ALTER TABLE applicati
+  da bgy_db_migrate.apply_schema_updates() (icao24, fonte_scheduled,
+  indice radar-only unique, callsign_classifications).
+
+Nota: la SCHEMA_SQL contiene ancora il DDL base v2. Gli ALTER
+aggiuntivi restano in apply_schema_updates() (idempotenti). Il
+flusso di creazione DB e': apply_schema() + apply_schema_updates().
+
+Versione 2.7.0
 
 - Fix: execute_query() gestisce correttamente INSERT ... RETURNING
 - Fix: execute_query() usa cur.description per capire se la query ritorna righe
@@ -20,7 +36,7 @@ from bgy_core.bgy_config_manager import config_manager
 
 logger = get_logger("DB")
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 4
 
 
 SCHEMA_SQL = """
@@ -80,6 +96,7 @@ CREATE TABLE IF NOT EXISTS radar_detections (
     sessione_notturna DATE,
     data_riferimento DATE,
     fonte TEXT,
+    timestamp_utc TIMESTAMPTZ,
     imported_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_radar_sessione ON radar_detections (sessione_notturna);

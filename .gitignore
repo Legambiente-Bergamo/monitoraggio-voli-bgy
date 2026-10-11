@@ -1,3 +1,12 @@
+# bgy_config/ contiene credenziali (escluse)
+bgy_config/config_mail.json
+bgy_config/config_opensky.json
+bgy_config/config_github.json
+bgy_config/config_database.json
+bgy_config/config_wordpress.json
+
+# config_data.json è VERSIONATO (nessuna credenziale, solo config operativa)
+
 # Byte-compiled
 __pycache__/
 *.py[cod]

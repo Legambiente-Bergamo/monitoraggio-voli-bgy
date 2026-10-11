@@ -1,4 +1,4 @@
-"""
+﻿"""
 bgy_core/bgy_config_manager.py - Gestione centralizzata delle configurazioni.
 Versione 3.1.0
 
@@ -182,7 +182,7 @@ class ConfigManager:
             "report_day": {
                 "delay_threshold_min": 15,
                 "early_threshold_min": -5,
-                "midnight_wrap_min": 1200,
+                "midnight_wrap_min": 720,
             },
             "report_night": {
                 "distance_by_phase_km": {

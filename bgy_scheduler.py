@@ -1,6 +1,11 @@
 ﻿"""
 bgy_scheduler.py - Pianificatore ed Orchestratore automatico.
-Versione 2.8.5
+Versione 2.8.6
+
+Novità v2.8.6 (10/10/2026):
+- job_web_export() pubblica anche il disclaimer unificato
+  (bgy-disclaimer.csv) chiamando export_and_publish_disclaimer().
+  Log separati [OK]/[KO] per ciascun export.
 
 Novità v2.8.5 (09/10/2026):
 - job_web_export() ora pubblica anche il JSON ritardi H24 (bgy-delays.csv)
@@ -239,6 +244,7 @@ def job_web_export():
     Rigenera e pubblica su WordPress:
       - JSON notturno (bgy-data.csv)
       - JSON ritardi H24 (bgy-delays.csv)
+      - JSON disclaimer unificato (bgy-disclaimer.csv)
 
     F17 - Opzione A: JSON statico su Media Library, niente DB esposto.
 
@@ -279,8 +285,24 @@ def job_web_export():
         msg_delays = f"Eccezione: {e}"
         logger.error(f"❌ Web export ritardi: {msg_delays}")
 
-    ok = ok_night and ok_delays
-    msg = f"notturno={'OK' if ok_night else 'KO'} | ritardi={'OK' if ok_delays else 'KO'}"
+    # --- 3) JSON disclaimer unificato (bgy-disclaimer.csv) ---
+    ok_disc = False
+    msg_disc = ""
+    try:
+        from bgy_core.bgy_disclaimer import export_and_publish_disclaimer
+        ok_disc, msg_disc = export_and_publish_disclaimer()
+        if ok_disc:
+            logger.info(f"✅ Web export disclaimer: {msg_disc}")
+        else:
+            logger.error(f"❌ Web export disclaimer: {msg_disc}")
+    except Exception as e:
+        msg_disc = f"Eccezione: {e}"
+        logger.error(f"❌ Web export disclaimer: {msg_disc}")
+
+    ok = ok_night and ok_delays and ok_disc
+    msg = (f"notturno={'OK' if ok_night else 'KO'} | "
+           f"ritardi={'OK' if ok_delays else 'KO'} | "
+           f"disclaimer={'OK' if ok_disc else 'KO'}")
     return ok, msg
 
 def _run_sync_backup_check():

@@ -1,6 +1,6 @@
-"""
+﻿"""
 bgy_core/bgy_db_migrate.py - Import e sincronizzazione CSV -> PostgreSQL.
-Versione 2.8.6.1
+Versione 2.8.7.2
 
 Modulo unificato che contiene:
   - Funzioni di import per ogni tipo di file (scan, radar, meteo, nightly)
@@ -11,6 +11,22 @@ Modulo unificato che contiene:
   - Statistiche movimenti giornalieri e notturni
   - Check compagnie placeholder irrisolte (F14)
   - Check anomalie notturne
+
+Novità v2.8.7.2 (DST-01, 10/10/2026):
+- import_radar_file(): legge e salva timestamp_utc (ISO 8601 con
+  offset) dalla colonna omonima del CSV. Retrocompatibile: per CSV
+  vecchi senza la colonna, salva NULL.
+- apply_schema_updates(): ALTER TABLE radar_detections ADD COLUMN
+  IF NOT EXISTS timestamp_utc TIMESTAMPTZ.
+
+Novità v2.8.7.1 (BUG-03 + SCHEMA-01, 10/10/2026):
+- BUG-03: dedup radar-only in memoria in import_nightly_file() +
+  indice univoco parziale idx_nightly_radar_only_unique.
+- SCHEMA-01: _register_schema_version() registra la SCHEMA_VERSION
+  corrente in schema_version dopo gli ALTER.
+
+Novità v2.8.7 (BUG-03, 10/10/2026):
+- BUG-03: dedup radar-only in memoria + indice univoco.
 
 Novità v2.8.6.1 (INFRA-01, 07/10/2026):
 - import_nightly_file(): fonte_scheduled ora e' NULL per i radar-only.
@@ -99,6 +115,23 @@ def _reset_stats():
         stats[k] = 0
 
 
+def _register_schema_version():
+    """
+    v2.8.7.1 (SCHEMA-01): registra in schema_version la versione applicata
+    dopo gli ALTER di apply_schema_updates(). Idempotente.
+    """
+    from bgy_core import bgy_db
+    version = bgy_db.SCHEMA_VERSION
+    ok, _ = bgy_db.execute_query(
+        "INSERT INTO schema_version (version, note) VALUES (%s, %s) "
+        "ON CONFLICT (version) DO NOTHING",
+        (version, "v2.8.7: icao24, fonte_scheduled, indice radar-only unique, callsign_classifications"),
+        fetch=False
+    )
+    if not ok:
+        logger.warning(f"Impossibile registrare schema_version={version}")
+
+
 def apply_schema_updates():
     """
     Aggiornamenti di schema idempotenti.
@@ -115,6 +148,7 @@ def apply_schema_updates():
         "ALTER TABLE nightly_reports ADD COLUMN IF NOT EXISTS icao24 VARCHAR(6)",
         "ALTER TABLE nightly_reports ADD COLUMN IF NOT EXISTS fonte_scheduled VARCHAR(10) DEFAULT 'sacbo'",
         "ALTER TABLE radar_detections ADD COLUMN IF NOT EXISTS fonte TEXT",
+        "ALTER TABLE radar_detections ADD COLUMN IF NOT EXISTS timestamp_utc TIMESTAMPTZ",
         "ALTER TABLE radar_detections ADD COLUMN IF NOT EXISTS data_riferimento DATE",
         "ALTER TABLE radar_detections ALTER COLUMN sessione_notturna DROP NOT NULL",
         "ALTER TABLE scans ADD COLUMN IF NOT EXISTS source VARCHAR(20) DEFAULT 'sacbo'",
@@ -127,6 +161,9 @@ def apply_schema_updates():
             created_at TIMESTAMP DEFAULT NOW(),
             updated_at TIMESTAMP DEFAULT NOW()
         )""",
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_nightly_radar_only_unique "
+        "ON nightly_reports (data_riferimento, icao24, timestamp) "
+        "WHERE is_scheduled = FALSE AND icao24 IS NOT NULL AND timestamp IS NOT NULL",
     ]
     for sql in updates:
         ok, result = bgy_db.execute_query(sql, fetch=False)
@@ -134,8 +171,54 @@ def apply_schema_updates():
             logger.error(f"❌ Schema update fallito: {sql} → {result}")
             return False
 
+    _register_schema_version()
+
     _schema_updates_applied = True
     return True
+
+
+def _dedup_radar_only_params(params):
+    """
+    v2.8.7 (BUG-03): deduplica le righe radar-only (orario_schedulato IS NULL).
+
+    I radar-only non sono protetti dal UNIQUE (data_riferimento, callsign,
+    orario_schedulato) perche' orario_schedulato e' NULL. Vengono qui
+    deduplicati per chiave (data_riferimento, icao24, timestamp).
+
+    Struttura tupla params:
+        [0]  data_riferimento
+        [10] orario_schedulato
+        [11] timestamp
+        [22] icao24
+    """
+    seen = set()
+    out = []
+    removed = 0
+    for p in params:
+        orario_sched = p[10]
+        timestamp = p[11]
+        icao24 = p[22]
+        data_rif = p[0]
+
+        if orario_sched is not None:
+            out.append(p)
+            continue
+
+        if icao24 is None or timestamp is None:
+            out.append(p)
+            continue
+
+        key = (data_rif, icao24, timestamp)
+        if key in seen:
+            removed += 1
+            continue
+        seen.add(key)
+        out.append(p)
+
+    if removed > 0:
+        logger.info(f"Dedup radar-only in memoria: {len(params)} -> {len(out)} ({removed} duplicati scartati)")
+
+    return out
 
 
 # =============================================================================
@@ -504,12 +587,13 @@ def import_radar_file(filepath):
         data_rif = ts[:10]
         sessione = _radar_session_date_from_ts(ts)
         fonte = safe_str(r.get("fonte"), "unknown")
+        ts_utc = safe_str(r.get("timestamp_utc"), "") or None
         params.append((
             ts, safe_str(r.get("callsign"), ""), safe_str(r.get("icao24"), ""),
             safe_str(r.get("pista"), ""), safe_str(r.get("fase_volo"), ""),
             safe_str(r.get("direzione"), ""), safe_int(r.get("quota_ft"), 0),
             safe_float(r.get("rotta_deg"), 0.0), safe_float(r.get("distanza_km"), 0.0),
-            safe_str(r.get("paese"), ""), sessione, data_rif, fonte))
+            safe_str(r.get("paese"), ""), sessione, data_rif, fonte, ts_utc))
 
     if not params:
         return False, None
@@ -521,8 +605,8 @@ def import_radar_file(filepath):
             """INSERT INTO radar_detections
                (timestamp, callsign, icao24, pista, fase_volo, direzione,
                 quota_ft, rotta_deg, distanza_km, paese,
-                sessione_notturna, data_riferimento, fonte)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""", batch)
+                sessione_notturna, data_riferimento, fonte, timestamp_utc)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""", batch)
         if ok:
             total += len(batch)
         else:
@@ -706,6 +790,9 @@ def import_nightly_file(filepath):
         ))
     if not params:
         return False, None
+
+    # v2.8.7 (BUG-03): deduplica radar-only prima dell'INSERT
+    params = _dedup_radar_only_params(params)
 
     total_inserted = 0
     total_conflicts = 0

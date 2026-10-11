@@ -1,6 +1,14 @@
 """
 bgy_reports/bgy_report_day.py - Generazione report giornaliero dei voli BGY.
-Versione 2.5.0
+Versione 2.5.1
+
+Novità v2.5.1 (BUG-01, 10/10/2026):
+- Fix wrap-around mezzanotte: default midnight_wrap_min da 1200 a 720.
+  Il valore 1200 (20 ore) considerava "anticipo reale" anche ritardi
+  di 15-20 ore che sono in realtà slittamenti oltre mezzanotte.
+  Il valore corretto è 720 (12 ore).
+
+Novità v2.5.0:
 - soglie ritardo/anticipo da config_data.json (report_day)
 """
 import os
@@ -19,7 +27,7 @@ def calculate_delay_status(sched, eff):
     cfg = config_manager.get_report_day_config()
     delay_th = cfg.get("delay_threshold_min", 15)
     early_th = cfg.get("early_threshold_min", -5)
-    wrap = cfg.get("midnight_wrap_min", 1200)
+    wrap = cfg.get("midnight_wrap_min", 720)
 
     if pd.isnull(sched) or pd.isnull(eff) or str(sched).strip() in ["", "N/D", "nan"]:
         return 0, "N/D"
