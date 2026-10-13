@@ -1,13 +1,27 @@
 """
 BGY Monitoring Suite - Interfaccia Grafica di Controllo
+v2.5.5
+
+Novità v2.5.5 (12/10/2026, INFRA-06):
+- La GUI ora rispetta processi esterni (scheduler/watchdog avviati da
+  task di sistema in headless). All'avvio:
+    - Legge il PID dello scheduler esterno dal lock file
+    - Censisce via WMI eventuali watchdog esterni
+    - NON termina gli esterni durante kill_orphan_instances()
+    - NON avvia figli locali se i corrispondenti esterni sono attivi
+    - Nel dashboard mostra lo stato "esterno"
+- Il pulsante "Ferma scheduler/watchdog" chiede conferma se il processo
+  è esterno (perché il task di sistema potrebbe riavviarlo).
+- Alla chiusura: ferma SOLO i figli locali, mai gli esterni.
+- La pulizia periodica (5 min) esclude sempre gli esterni tracciati e
+  aggiorna il PID esterno dal lock file (se il supervisor l'ha riavviato).
+
 v2.5.4
 - Aggiunto tab "📈 Grafici" (anteprima con dati dal DB)
 - Aggiunto tab "🔔 Notifiche" (silenzia/attiva email)
 - Aggiunto tab "🏢 Compagnie" (risoluzione placeholder)
 - Pulizia periodica processi orfani (fix zombie scheduler)
-
-Novità v2.5.4 (INFRA-10): ensure_dependencies() include
-playwright-stealth e pip-system-certs (allineati a requirements.txt).
+- ensure_dependencies() include playwright-stealth e pip-system-certs
 """
 import sys
 import subprocess
@@ -61,6 +75,7 @@ from datetime import datetime, timedelta
 
 from bgy_core import get_logger, config_manager, ensure_directories
 from bgy_core.bgy_version import __version__
+from bgy_core.bgy_paths import LOGS_DIR
 from bgy_gui import (
     DashboardTab, MailConfigTab, ScanConfigTab, ReportExportTab,
     WatchdogConfigTab, NotificationsTab, AirlinesTab, SyncBackupTab,
@@ -79,6 +94,105 @@ OWN_PROCESS_PATTERNS = [
 # Intervallo (ms) per la pulizia periodica dei processi orfani
 ORPHAN_CHECK_INTERVAL_MS = 5 * 60 * 1000  # 5 minuti
 
+SCHEDULER_LOCK_FILE = os.path.join(LOGS_DIR, "scheduler.lock")
+
+
+# =============================================================================
+# HELPER PROCESSI
+# =============================================================================
+
+def _is_pid_alive(pid):
+    """Verifica se un PID è vivo. Windows-specific."""
+    if pid is None:
+        return False
+    if sys.platform != "win32":
+        try:
+            os.kill(pid, 0)
+            return True
+        except (OSError, ProcessLookupError):
+            return False
+    try:
+        result = sp.run(
+            ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
+            capture_output=True, text=True, timeout=5
+        )
+        out = (result.stdout or "").strip()
+        return str(pid) in out and "No tasks" not in out
+    except Exception:
+        return False
+
+
+def _read_scheduler_lock_pid():
+    """Legge il PID dello scheduler dal lock file. None se assente/invalido."""
+    if not os.path.exists(SCHEDULER_LOCK_FILE):
+        return None
+    try:
+        with open(SCHEDULER_LOCK_FILE, "r", encoding="utf-8") as f:
+            content = f.read().strip()
+        return int(content) if content else None
+    except (ValueError, IOError):
+        return None
+
+
+def _find_bgy_processes_via_wmi():
+    """Ritorna lista di (pid, cmdline) dei processi Python BGY."""
+    if sys.platform != "win32":
+        return []
+    try:
+        patterns_ps = " -or ".join(
+            f"$_.CommandLine -like '*{p}*'" for p in OWN_PROCESS_PATTERNS
+        )
+        ps_command = (
+            "Get-WmiObject Win32_Process -Filter "
+            "\"Name='python.exe' OR Name='pythonw.exe'\" | "
+            f"Where-Object {{ {patterns_ps} }} | "
+            "ForEach-Object { Write-Output ($_.ProcessId.ToString() + '|' + $_.CommandLine) }"
+        )
+        result = sp.run(
+            ["powershell", "-NoProfile", "-Command", ps_command],
+            capture_output=True, text=True, timeout=30
+        )
+        procs = []
+        for line in (result.stdout or "").splitlines():
+            line = line.strip()
+            if "|" not in line:
+                continue
+            pid_str, cmdline = line.split("|", 1)
+            if pid_str.isdigit():
+                procs.append((int(pid_str), cmdline))
+        return procs
+    except Exception as e:
+        logger.warning(f"Errore WMI query: {e}")
+        return []
+
+
+def census_external_processes():
+    """
+    Rileva scheduler e watchdog avviati esternamente (task di sistema).
+    Ritorna (scheduler_pid, watchdog_pid) o (None, None) se non trovati.
+    """
+    current_pid = os.getpid()
+    sched_pid = None
+    wd_pid = None
+
+    # --- Scheduler: via lock file ---
+    lock_pid = _read_scheduler_lock_pid()
+    if lock_pid and lock_pid != current_pid and _is_pid_alive(lock_pid):
+        sched_pid = lock_pid
+
+    # --- Watchdog: via WMI ---
+    procs = _find_bgy_processes_via_wmi()
+    for pid, cmdline in procs:
+        if pid == current_pid:
+            continue
+        if pid == sched_pid:
+            continue
+        if "bgy_watchdog.py" in cmdline:
+            wd_pid = pid
+            break
+
+    return sched_pid, wd_pid
+
 
 def _kill_pid(pid):
     """Tenta di terminare un processo per PID. Ritorna True se ok."""
@@ -96,9 +210,9 @@ def kill_orphan_instances(exclude_pids=None, verbose=True):
     Termina i processi orfani della suite (GUI, scheduler, watchdog).
 
     Args:
-        exclude_pids: set di PID da NON terminare (es. i processi figli
-                      tracciati dalla GUI). Se None, termina tutti tranne
-                      il processo corrente.
+        exclude_pids: set di PID da NON terminare (es. i processi esterni
+                      avviati dal task di sistema, più i propri figli).
+                      Se None, termina tutti tranne il processo corrente.
         verbose: se True, stampa/logga l'elenco dei processi trovati.
 
     Returns:
@@ -113,28 +227,9 @@ def kill_orphan_instances(exclude_pids=None, verbose=True):
     killed = []
 
     try:
-        patterns_ps = " -or ".join(
-            f"$_.CommandLine -like '*{p}*'" for p in OWN_PROCESS_PATTERNS
-        )
-        ps_command = (
-            "Get-WmiObject Win32_Process -Filter "
-            "\"Name='python.exe' OR Name='pythonw.exe'\" | "
-            f"Where-Object {{ {patterns_ps} }} | "
-            "ForEach-Object { Write-Output ($_.ProcessId.ToString() + '|' + $_.CommandLine) }"
-        )
-        result = sp.run(
-            ["powershell", "-NoProfile", "-Command", ps_command],
-            capture_output=True, text=True, timeout=30
-        )
+        found_procs = _find_bgy_processes_via_wmi()
         found = 0
-        for line in result.stdout.splitlines():
-            line = line.strip()
-            if "|" not in line:
-                continue
-            pid_str, cmdline = line.split("|", 1)
-            if not pid_str.isdigit():
-                continue
-            pid = int(pid_str)
+        for pid, cmdline in found_procs:
             if pid in exclude_pids:
                 continue
             if not any(p in cmdline for p in OWN_PROCESS_PATTERNS):
@@ -167,18 +262,12 @@ def kill_orphan_instances(exclude_pids=None, verbose=True):
     return len(killed)
 
 
-print("🔍 Ricerca istanze precedenti...")
-killed_count = kill_orphan_instances(verbose=True)
-if killed_count == 0:
-    print("✅ Nessuna istanza precedente trovata.")
-else:
-    print(f"✅ Pulizia completata ({killed_count} processi terminati).")
-    import time
-    time.sleep(1)
-
+# =============================================================================
+# GUI
+# =============================================================================
 
 class BgyAppGUI:
-    def __init__(self, root):
+    def __init__(self, root, external_scheduler_pid=None, external_watchdog_pid=None):
         self.root = root
         self.root.title("BGY Monitoring Suite - Control Panel")
         self.root.geometry("1000x900")
@@ -194,6 +283,16 @@ class BgyAppGUI:
         self.watchdog_process = None
         self.watchdog_running = False
         self.countdown_running = True
+
+        # Processi esterni (avviati da task di sistema, non da questa GUI)
+        self.external_scheduler_pid = (
+            external_scheduler_pid if external_scheduler_pid
+            and _is_pid_alive(external_scheduler_pid) else None
+        )
+        self.external_watchdog_pid = (
+            external_watchdog_pid if external_watchdog_pid
+            and _is_pid_alive(external_watchdog_pid) else None
+        )
 
         self.config_data = config_manager.get_data_config()
         self.scan_schedules = self.config_data.get(
@@ -239,19 +338,85 @@ class BgyAppGUI:
         ttk.Label(footer_frame, text=f"© 2026 - Aggiornato: {datetime.now().strftime('%H:%M:%S')}",
                   font=("Helvetica", 8), foreground="#95a5a6").pack(side="right")
 
-        self.root.after(100, self.avvia_scheduler)
-        self.root.after(500, self.avvia_watchdog)
+        # Se c'è uno scheduler esterno, NON avviarne uno locale
+        if self.external_scheduler_pid:
+            logger.info(
+                f"ℹ️ Scheduler esterno rilevato (PID {self.external_scheduler_pid}). "
+                f"Non ne avvio uno locale."
+            )
+            self.dashboard.update_scheduler_status(
+                f"✅ Scheduler esterno (PID {self.external_scheduler_pid})",
+                "#27ae60"
+            )
+            self.log_message(
+                f"ℹ️ Scheduler gestito dal task di sistema (PID {self.external_scheduler_pid})"
+            )
+        else:
+            self.root.after(100, self.avvia_scheduler)
+
+        if self.external_watchdog_pid:
+            logger.info(
+                f"ℹ️ Watchdog esterno rilevato (PID {self.external_watchdog_pid}). "
+                f"Non ne avvio uno locale."
+            )
+            self.log_message(
+                f"ℹ️ Watchdog gestito dal task di sistema (PID {self.external_watchdog_pid})"
+            )
+        else:
+            self.root.after(500, self.avvia_watchdog)
+
         self.root.after(ORPHAN_CHECK_INTERVAL_MS, self._periodic_orphan_check)
         self.update_timer()
         self.update_clock()
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
     # ------------------------------------------------------------------
+    # GESTIONE ESTERNI
+    # ------------------------------------------------------------------
+
+    def _refresh_external_pids(self):
+        """
+        Rilegge il lock file scheduler. Se il supervisor ha riavviato lo
+        scheduler esterno, aggiorna il PID tracciato. Se l'esterno non è
+        più vivo, azzera e mostra warning.
+        """
+        lock_pid = _read_scheduler_lock_pid()
+
+        # Caso 1: lock punta a processo vivo
+        if lock_pid and _is_pid_alive(lock_pid):
+            # Se è un mio figlio, non è "esterno"
+            if self.scheduler_process and self.scheduler_process.pid == lock_pid:
+                return
+            # Se è diverso da quello che tracciavo, aggiorna
+            if lock_pid != self.external_scheduler_pid:
+                self.external_scheduler_pid = lock_pid
+                logger.info(f"🔄 Scheduler esterno aggiornato: PID {lock_pid}")
+                self.dashboard.update_scheduler_status(
+                    f"✅ Scheduler esterno (PID {lock_pid})", "#27ae60"
+                )
+
+        # Caso 2: lock punta a processo morto
+        else:
+            if self.external_scheduler_pid:
+                logger.warning(
+                    f"⚠️ Scheduler esterno (PID {self.external_scheduler_pid}) "
+                    f"non più attivo"
+                )
+                self.external_scheduler_pid = None
+                # Non avviare automaticamente: il supervisor di sistema
+                # dovrebbe riavviarlo entro 15 min
+                if not self.scheduler_process:
+                    self.dashboard.update_scheduler_status(
+                        "⚠️ Scheduler non attivo (attesa supervisor)",
+                        "#e74c3c"
+                    )
+
+    # ------------------------------------------------------------------
     # PULIZIA ORFANI PERIODICA
     # ------------------------------------------------------------------
 
     def _get_tracked_pids(self):
-        """Ritorna i PID dei processi figli tracciati dalla GUI."""
+        """Ritorna i PID dei processi da non uccidere (figli + esterni)."""
         pids = set()
         if self.scheduler_process is not None:
             try:
@@ -263,13 +428,20 @@ class BgyAppGUI:
                 pids.add(self.watchdog_process.pid)
             except Exception:
                 pass
+        if self.external_scheduler_pid:
+            pids.add(self.external_scheduler_pid)
+        if self.external_watchdog_pid:
+            pids.add(self.external_watchdog_pid)
         return pids
 
     def _periodic_orphan_check(self):
-        """Ogni 5 minuti, verifica e termina processi orfani."""
+        """Ogni 5 minuti, verifica e termina processi orfani (esclusi esterni)."""
         if not self.countdown_running:
             return
         try:
+            # Refresh dello stato esterno (potrebbe essere cambiato)
+            self._refresh_external_pids()
+
             excluded = self._get_tracked_pids()
             killed = kill_orphan_instances(
                 exclude_pids=excluded, verbose=False
@@ -279,7 +451,6 @@ class BgyAppGUI:
                 self.log_message(msg)
         except Exception as e:
             logger.warning(f"Errore pulizia periodica: {e}")
-        # Riprogramma
         self.root.after(ORPHAN_CHECK_INTERVAL_MS, self._periodic_orphan_check)
 
     # ------------------------------------------------------------------
@@ -292,6 +463,21 @@ class BgyAppGUI:
         return self.scheduler_process.poll() is None
 
     def avvia_scheduler(self):
+        # Se c'è già uno esterno vivo, non fare nulla
+        if self.external_scheduler_pid and _is_pid_alive(self.external_scheduler_pid):
+            self.log_message(
+                f"ℹ️ Scheduler esterno già attivo (PID {self.external_scheduler_pid})"
+            )
+            self.dashboard.update_scheduler_status(
+                f"✅ Scheduler esterno (PID {self.external_scheduler_pid})",
+                "#27ae60"
+            )
+            return
+
+        # Se il PID esterno è morto nel frattempo, azzera
+        if self.external_scheduler_pid and not _is_pid_alive(self.external_scheduler_pid):
+            self.external_scheduler_pid = None
+
         if self.scheduler_running and self._is_scheduler_alive():
             self.log_message("⚠️ Scheduler già in esecuzione, ignoro richiesta duplicata")
             self.dashboard.update_scheduler_status("✅ Scheduler già attivo", "#27ae60")
@@ -309,8 +495,8 @@ class BgyAppGUI:
                 )
                 self.scheduler_running = True
                 self.root.after(0, lambda: self.dashboard.update_scheduler_status(
-                    "✅ Scheduler in esecuzione", "#27ae60"))
-                self.root.after(0, lambda: self.log_message("✅ Scheduler avviato"))
+                    "✅ Scheduler in esecuzione (locale)", "#27ae60"))
+                self.root.after(0, lambda: self.log_message("✅ Scheduler avviato (locale)"))
             except Exception as e:
                 self.root.after(0, lambda: self.dashboard.update_scheduler_status(
                     f"❌ Errore: {str(e)[:30]}", "#e74c3c"))
@@ -319,6 +505,30 @@ class BgyAppGUI:
         threading.Thread(target=start, daemon=True).start()
 
     def ferma_scheduler(self):
+        # Caso 1: scheduler esterno
+        if self.external_scheduler_pid and _is_pid_alive(self.external_scheduler_pid):
+            risposta = messagebox.askyesno(
+                "Conferma",
+                f"Lo scheduler attivo (PID {self.external_scheduler_pid}) "
+                f"è stato avviato da un task di sistema (headless).\n\n"
+                f"Se lo fermi, il task BGY_Supervisor potrebbe riavviarlo "
+                f"automaticamente entro 15 minuti.\n\n"
+                f"Vuoi davvero fermarlo?",
+                icon="warning"
+            )
+            if not risposta:
+                self.log_message("⏭️ Arresto scheduler annullato dall'utente")
+                return
+            self.log_message(
+                f"🔄 Arresto scheduler esterno (PID {self.external_scheduler_pid})..."
+            )
+            _kill_pid(self.external_scheduler_pid)
+            self.external_scheduler_pid = None
+            self.dashboard.update_scheduler_status("💤 Scheduler fermato", "#95a5a6")
+            self.log_message("✅ Scheduler esterno arrestato")
+            return
+
+        # Caso 2: scheduler locale (figlio)
         self.log_message("🔄 Arresto scheduler...")
         if self.scheduler_process:
             pid = self.scheduler_process.pid
@@ -346,6 +556,15 @@ class BgyAppGUI:
         return self.watchdog_process.poll() is None
 
     def avvia_watchdog(self):
+        if self.external_watchdog_pid and _is_pid_alive(self.external_watchdog_pid):
+            self.log_message(
+                f"ℹ️ Watchdog esterno già attivo (PID {self.external_watchdog_pid})"
+            )
+            return
+
+        if self.external_watchdog_pid and not _is_pid_alive(self.external_watchdog_pid):
+            self.external_watchdog_pid = None
+
         if self.watchdog_running and self._is_watchdog_alive():
             self.log_message("⚠️ Watchdog già in esecuzione")
             return
@@ -360,13 +579,32 @@ class BgyAppGUI:
                     creationflags=sp.CREATE_NO_WINDOW if sys.platform == "win32" else 0
                 )
                 self.watchdog_running = True
-                self.root.after(0, lambda: self.log_message("✅ Watchdog avviato"))
+                self.root.after(0, lambda: self.log_message("✅ Watchdog avviato (locale)"))
             except Exception as e:
                 self.root.after(0, lambda: self.log_message(f"❌ Errore avvio watchdog: {e}"))
 
         threading.Thread(target=start, daemon=True).start()
 
     def ferma_watchdog(self):
+        if self.external_watchdog_pid and _is_pid_alive(self.external_watchdog_pid):
+            risposta = messagebox.askyesno(
+                "Conferma",
+                f"Il watchdog attivo (PID {self.external_watchdog_pid}) "
+                f"è stato avviato da un task di sistema (headless).\n\n"
+                f"Vuoi davvero fermarlo?",
+                icon="warning"
+            )
+            if not risposta:
+                self.log_message("⏭️ Arresto watchdog annullato dall'utente")
+                return
+            self.log_message(
+                f"🔄 Arresto watchdog esterno (PID {self.external_watchdog_pid})..."
+            )
+            _kill_pid(self.external_watchdog_pid)
+            self.external_watchdog_pid = None
+            self.log_message("✅ Watchdog esterno arrestato")
+            return
+
         self.log_message("🔄 Arresto watchdog...")
         if self.watchdog_process:
             pid = self.watchdog_process.pid
@@ -384,6 +622,42 @@ class BgyAppGUI:
         self.log_message("✅ Watchdog arrestato")
 
     # ------------------------------------------------------------------
+    # FERMA SOLO FIGLI LOCALI (per on_closing)
+    # ------------------------------------------------------------------
+
+    def _ferma_figli_locali(self):
+        """Ferma solo scheduler e watchdog avviati da questa GUI. Non tocca gli esterni."""
+        if self.scheduler_process:
+            try:
+                pid = self.scheduler_process.pid
+                self.scheduler_process.terminate()
+                try:
+                    self.scheduler_process.wait(timeout=5)
+                except sp.TimeoutExpired:
+                    self.scheduler_process.kill()
+                _kill_pid(pid)
+                logger.info(f"🔻 Scheduler locale (PID {pid}) fermato")
+            except Exception:
+                pass
+            self.scheduler_process = None
+            self.scheduler_running = False
+
+        if self.watchdog_process:
+            try:
+                pid = self.watchdog_process.pid
+                self.watchdog_process.terminate()
+                try:
+                    self.watchdog_process.wait(timeout=5)
+                except sp.TimeoutExpired:
+                    self.watchdog_process.kill()
+                _kill_pid(pid)
+                logger.info(f"🔻 Watchdog locale (PID {pid}) fermato")
+            except Exception:
+                pass
+            self.watchdog_process = None
+            self.watchdog_running = False
+
+    # ------------------------------------------------------------------
     # CALLBACK
     # ------------------------------------------------------------------
 
@@ -395,18 +669,15 @@ class BgyAppGUI:
         except Exception as e:
             self.log_message(f"⚠️ Errore reload config: {e}")
 
-        try:
-            self.ferma_watchdog()
-        except Exception:
-            pass
-        try:
-            self.ferma_scheduler()
-        except Exception:
-            pass
+        # Riavvia solo i figli locali (non tocca gli esterni)
+        self._ferma_figli_locali()
 
-        self.root.after(1000, self.avvia_scheduler)
-        self.root.after(1500, self.avvia_watchdog)
-        self.log_message("🔄 Scheduler e watchdog verranno riavviati con la nuova configurazione")
+        if not self.external_scheduler_pid:
+            self.root.after(1000, self.avvia_scheduler)
+        if not self.external_watchdog_pid:
+            self.root.after(1500, self.avvia_watchdog)
+        self.log_message("🔄 Scheduler e watchdog locali verranno riavviati "
+                         "con la nuova configurazione")
 
     # ------------------------------------------------------------------
     # TIMER / CLOCK
@@ -576,17 +847,32 @@ class BgyAppGUI:
             return False
 
     def on_closing(self):
-        """Chiusura pulita: ferma subprocess e rimuove eventuali orfani."""
+        """Chiusura pulita: ferma solo i figli locali, lascia vivere gli esterni."""
         self.countdown_running = False
         self.log_message("🛑 Chiusura GUI in corso...")
 
-        # 1. Ferma i processi figli tracciati
-        self.ferma_scheduler()
-        self.ferma_watchdog()
+        # 1. Ferma solo i processi figli locali (non gli esterni)
+        self._ferma_figli_locali()
 
-        # 2. Pulizia finale: rimuove eventuali processi rimasti
+        if self.external_scheduler_pid:
+            self.log_message(
+                f"ℹ️ Scheduler esterno (PID {self.external_scheduler_pid}) "
+                f"lasciato attivo"
+            )
+        if self.external_watchdog_pid:
+            self.log_message(
+                f"ℹ️ Watchdog esterno (PID {self.external_watchdog_pid}) "
+                f"lasciato attivo"
+            )
+
+        # 2. Pulizia finale: rimuove eventuali orfani, esclude gli esterni
         try:
-            killed = kill_orphan_instances(verbose=False)
+            exclude = set()
+            if self.external_scheduler_pid:
+                exclude.add(self.external_scheduler_pid)
+            if self.external_watchdog_pid:
+                exclude.add(self.external_watchdog_pid)
+            killed = kill_orphan_instances(exclude_pids=exclude, verbose=False)
             if killed > 0:
                 logger.info(f"🧹 Pulizia finale: {killed} processi terminati")
         except Exception as e:
@@ -596,6 +882,37 @@ class BgyAppGUI:
 
 
 if __name__ == "__main__":
+    # 1. Censimento processi esterni PRIMA del kill
+    print("🔍 Ricerca processi esterni (task di sistema)...")
+    external_sched_pid, external_wd_pid = census_external_processes()
+    if external_sched_pid or external_wd_pid:
+        print(f"ℹ️  Rilevati processi esterni da NON terminare:")
+        if external_sched_pid:
+            print(f"   - Scheduler esterno: PID {external_sched_pid}")
+        if external_wd_pid:
+            print(f"   - Watchdog esterno: PID {external_wd_pid}")
+
+    # 2. Kill degli orfani, escludendo gli esterni
+    exclude = set()
+    if external_sched_pid:
+        exclude.add(external_sched_pid)
+    if external_wd_pid:
+        exclude.add(external_wd_pid)
+
+    print("🔍 Ricerca istanze orfane...")
+    killed_count = kill_orphan_instances(exclude_pids=exclude, verbose=True)
+    if killed_count == 0:
+        print("✅ Nessuna istanza orfana trovata.")
+    else:
+        print(f"✅ Pulizia completata ({killed_count} processi terminati).")
+        import time
+        time.sleep(1)
+
+    # 3. Avvia la GUI
     root = tk.Tk()
-    app = BgyAppGUI(root)
+    app = BgyAppGUI(
+        root,
+        external_scheduler_pid=external_sched_pid,
+        external_watchdog_pid=external_wd_pid,
+    )
     root.mainloop()

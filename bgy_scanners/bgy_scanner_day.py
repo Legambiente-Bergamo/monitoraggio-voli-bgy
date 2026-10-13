@@ -1,10 +1,11 @@
 """
 bgy_scanners/bgy_scanner_day.py - Scanner diurno per il tabellone SACBO.
-Versione 2.6.0
+Versione 2.6.1
 
-- URL, timeout, attese, scroll, user-agent: da config_data.json (scanner_day)
-- Naming file: scan_YYYY-MM-DD_HH-MM.csv (via bgy_dates)
-- Failover automatico su Avionio se SACBO è irraggiungibile (Cloudflare)
+Novità v2.6.1 (11/10/2026, INFRA-06):
+- Parametro headless letto da config_data.json > scanner_day.headless
+  (default False per retrocompatibilità).
+- Nessun'altra modifica funzionale rispetto a v2.6.0.
 
 Novità v2.6.0 (failover SACBO → Avionio):
 - Se Cloudflare blocca lo scanner dopo il retry di fetch_board_data(),
@@ -376,6 +377,9 @@ def fetch_board_data():
       - Nessun volo viene estratto dal tabellone (no fallback).
 
     Lo stato del challenge è registrato in _scan_status['challenge_superato'].
+
+    Parametri di launch (headless) letti da config_data.json > scanner_day.headless.
+    Default False per retrocompatibilità (v2.6.0).
     """
     cfg = _cfg()
     all_flights = []
@@ -385,18 +389,19 @@ def fetch_board_data():
     wait_scroll = cfg.get("wait_after_scroll_ms", 2000)
     scroll_px = cfg.get("scroll_pixels", 1500)
     ua = cfg.get("user_agent", "Mozilla/5.0")
+    headless = bool(cfg.get("headless", False))
 
     if not _STEALTH_AVAILABLE:
         logger.warning("⚠️ playwright-stealth non disponibile. "
                        "Il sito SACBO potrebbe bloccare Playwright.")
         _scan_status["messaggio"] = "playwright-stealth non installato"
 
-    logger.info("🚀 Avvio Playwright (stealth mode)...")
+    logger.info(f"🚀 Avvio Playwright (stealth mode, headless={headless})...")
 
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(
-                headless=False,
+                headless=headless,
                 args=[
                     "--disable-blink-features=AutomationControlled",
                     "--no-sandbox",

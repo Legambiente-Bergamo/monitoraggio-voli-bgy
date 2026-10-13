@@ -1,6 +1,14 @@
 ﻿"""
 bgy_core/bgy_config_manager.py - Gestione centralizzata delle configurazioni.
-Versione 3.1.0
+Versione 3.1.1
+
+Novita v3.1.1 (INFRA-11, 12/10/2026):
+- Nuovo tracking degli errori di lettura JSON: la lista _load_errors
+  accumula i file che falliscono la json.load(). Esposta via
+  get_load_errors() e resettata da clear_load_errors() / load_all().
+- Comportamento operativo invariato: la suite continua a usare i default
+  interni in caso di errore. La differenza e' che ora l'errore e' visibile
+  a valle (bgy_scheduler.job_daily lo include nell'email delle 06:30).
 
 Cambio architetturale (F12a):
 - I JSON anagrafici (airlines, countries, aircraft_models, noise_impact,
@@ -20,6 +28,7 @@ import os
 import json
 import threading
 import tempfile
+from datetime import datetime
 
 from bgy_core.bgy_logger import get_logger
 from bgy_core.bgy_paths import (
@@ -37,6 +46,7 @@ class ConfigManager:
         self.configs = {}
         self._cache = {}
         self._lock = threading.Lock()
+        self._load_errors = []  # v3.1.1 (INFRA-11)
         self.load_all()
 
     # ------------------------------------------------------------------
@@ -49,7 +59,15 @@ class ConfigManager:
                 with open(path, "r", encoding="utf-8") as f:
                     return json.load(f)
             except Exception as e:
-                logger.error(f"Errore lettura {path}: {e}")
+                err_msg = str(e)
+                logger.error(f"Errore lettura {path}: {err_msg}")
+                # v3.1.1 (INFRA-11): traccia l'errore per esporlo a valle
+                self._load_errors.append({
+                    "file": os.path.basename(path),
+                    "path": path,
+                    "message": err_msg,
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                })
         return default
 
     def _save_json(self, path, data):
@@ -76,10 +94,24 @@ class ConfigManager:
             return False
 
     # ------------------------------------------------------------------
+    # ERRORI DI LETTURA (INFRA-11)
+    # ------------------------------------------------------------------
+
+    def get_load_errors(self):
+        """Ritorna la lista degli errori di lettura accumulati."""
+        return list(self._load_errors)
+
+    def clear_load_errors(self):
+        """Azzera la lista degli errori di lettura."""
+        self._load_errors = []
+
+    # ------------------------------------------------------------------
     # LOAD / RELOAD
     # ------------------------------------------------------------------
 
     def load_all(self):
+        # v3.1.1: azzera gli errori, verranno ripopolati da _load_json()
+        self._load_errors = []
         self.configs['data'] = self._load_json(CONFIG_DATA, self._default_data())
         self.configs['mail'] = self._load_json(CONFIG_MAIL, self._default_mail())
         self.configs['opensky'] = self._load_json(CONFIG_OPENSKY, self._default_opensky())

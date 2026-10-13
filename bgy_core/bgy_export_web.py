@@ -1,6 +1,21 @@
 """
 bgy_core/bgy_export_web.py - Esportazione dati aggregati per il web (F17).
-Versione 1.3.0
+Versione 1.3.1
+
+Novita v1.3.1 (QA-02, 12/10/2026):
+- _gate_check_pre_publish(): nuovo gate di qualita' pre-publish.
+  Verifica che i dati siano sani prima di pubblicare su WordPress.
+  Quattro check:
+    1. Almeno N notti con dati in nightly_reports
+    2. Almeno M voli nell'ultima notte registrata
+    3. Almeno K voli diurni nell'ultimo giorno in v_daily_report
+    4. Almeno R rilevamenti radar recenti
+  Se un check fallisce, l'export viene BLOCCATO (nessuna scrittura locale,
+  nessuna pubblicazione). Il motivo viene loggato come errore.
+- export_and_publish() e export_delays_and_publish() accettano
+  skip_gate=False (default). Se True, il gate viene saltato (per test).
+- Soglie configurabili in config_data.json > web_export > gate.
+- Zero hardcoded: le soglie sono in config, non nel codice.
 
 Novita v1.3.0 (08/10/2026):
 - Nuovo blocco ritardi h24 per la pagina "BGY - Ritardi H24".
@@ -16,17 +31,9 @@ Novita v1.2.17 (07/10/2026):
 Novita v1.2.16 (07/10/2026):
 - Fix bug totals._tab + block_geo_breakdown.
 
-Novita v1.2.15: campi _tab.
-Novita v1.2.14: totale_movimenti_rilevati, D/A_totali_rilevati.
-Novita v1.2.13: by_hour filtrabile per data.
-Novita v1.2.12: cargo/charter/non class radar-only nelle KPI.
-Novita v1.2.11: _build_by_hour() ritorna {by_date, totals}.
-Novita v1.2.10: sconfinamenti_D/A, sconfinamenti_gravi_D/A.
-Novita v1.2.9: block_destinations_pax by_date.
-Novita v1.2.8: totals.schedulato_D/A, block_night_anomalies.
-
 Uso:
     py -3.12 -m bgy_core.bgy_export_web --days 90 --dry-run
+    py -3.12 -m bgy_core.bgy_export_web --days 90 --dry-run --skip-gate
     py -3.12 -m bgy_core.bgy_export_web --days 90 --publish
     py -3.12 -m bgy_core.bgy_export_web --days 90 --publish-delays
 """
@@ -61,7 +68,7 @@ DELAYS_DEFAULTS = {
     "soglia_puntuale_min": 15,
     "soglia_grave_min": 60,
     "disclaimer_message": (
-        "DATI DI PROVA NON REALI\n"
+        "DATI IN FASE DI VERIFICA\n"
         "Ritardi calcolati come differenza tra orario effettivo e orario "
         "schedulato (SACBO). Decolli e atterraggi analizzati separatamente. "
         "Voli cancellati esclusi. Soglia puntualita': 15 minuti. "
@@ -70,8 +77,17 @@ DELAYS_DEFAULTS = {
     ),
 }
 
+GATE_DEFAULTS = {
+    "enabled": True,
+    "min_days_with_nightly": 1,
+    "min_nightly_rows": 5,
+    "min_daily_rows": 30,
+    "min_radar_recent": 50,
+    "radar_lookback_days": 2,
+}
+
 DISCLAIMER_MESSAGE = (
-    "DATI DI PROVA NON REALI\n"
+    "DATI IN FASE DI VERIFICA\n"
     "Siamo in fase di test del sistema di monitoraggio. I dati pubblicati "
     "sono il risultato di elaborazioni automatiche in corso di validazione "
     "e possono contenere errori. La raccolta dei dati per i grafici e' "
@@ -134,6 +150,108 @@ def _get_delays_config():
         "soglia_grave_min": int(d.get("soglia_grave_min", DELAYS_DEFAULTS["soglia_grave_min"])),
         "disclaimer_message": d.get("disclaimer_message", DELAYS_DEFAULTS["disclaimer_message"]),
     }
+
+
+def _get_gate_config():
+    """QA-02: legge le soglie del gate pre-publish da config_data.json."""
+    from bgy_core.bgy_config_manager import config_manager
+    try:
+        cfg = config_manager.get_data_config().get("web_export", {}) or {}
+        g = cfg.get("gate", {}) or {}
+    except Exception:
+        g = {}
+    return {
+        "enabled": bool(g.get("enabled", GATE_DEFAULTS["enabled"])),
+        "min_days_with_nightly": int(g.get("min_days_with_nightly", GATE_DEFAULTS["min_days_with_nightly"])),
+        "min_nightly_rows": int(g.get("min_nightly_rows", GATE_DEFAULTS["min_nightly_rows"])),
+        "min_daily_rows": int(g.get("min_daily_rows", GATE_DEFAULTS["min_daily_rows"])),
+        "min_radar_recent": int(g.get("min_radar_recent", GATE_DEFAULTS["min_radar_recent"])),
+        "radar_lookback_days": int(g.get("radar_lookback_days", GATE_DEFAULTS["radar_lookback_days"])),
+    }
+
+
+# =============================================================================
+# GATE PRE-PUBLISH (QA-02, v1.3.1)
+# =============================================================================
+
+def _gate_check_pre_publish():
+    """
+    QA-02: verifica che i dati siano sani prima di pubblicare.
+    Ritorna (ok, msg).
+
+    Il gate si basa sui dati PIU' RECENTI nel DB, non sull'intero periodo.
+    Motivo: se il sistema e' stato fermo una settimana, i dati vecchi sono
+    comunque validi e non devono bloccare l'export. Il gate protegge solo
+    contro dati freschi incompleti (es. scanner SACBO fallito stanotte).
+
+    Quattro check indipendenti:
+      1. Almeno N notti con dati in nightly_reports
+      2. Almeno M voli nell'ultima notte registrata
+      3. Almeno K voli diurni nell'ultimo giorno in v_daily_report
+      4. Almeno R rilevamenti radar recenti (lookback configurabile)
+    """
+    cfg = _get_gate_config()
+    if not cfg["enabled"]:
+        logger.info("⏭️  Gate pre-publish disabilitato in config")
+        return True, "Gate disabilitato"
+
+    errors = []
+
+    # --- Check 1: notti con dati ---
+    rows = _query(
+        "SELECT COUNT(DISTINCT data_riferimento) FROM nightly_reports"
+    )
+    n_days = int(rows[0][0]) if rows and rows[0] and rows[0][0] is not None else 0
+    if n_days < cfg["min_days_with_nightly"]:
+        errors.append(
+            f"notti con dati in DB: {n_days} (soglia {cfg['min_days_with_nightly']})"
+        )
+    else:
+        logger.info(f"   Gate 1/4: notti con dati = {n_days} ✅")
+
+    # --- Check 2: voli nell'ultima notte ---
+    rows = _query(
+        "SELECT COUNT(*) FROM nightly_reports "
+        "WHERE data_riferimento = (SELECT MAX(data_riferimento) FROM nightly_reports)"
+    )
+    n_nightly = int(rows[0][0]) if rows and rows[0] and rows[0][0] is not None else 0
+    if n_nightly < cfg["min_nightly_rows"]:
+        errors.append(
+            f"voli nell'ultima notte: {n_nightly} (soglia {cfg['min_nightly_rows']})"
+        )
+    else:
+        logger.info(f"   Gate 2/4: voli ultima notte = {n_nightly} ✅")
+
+    # --- Check 3: voli diurni nell'ultimo giorno ---
+    rows = _query(
+        "SELECT COUNT(*) FROM v_daily_report "
+        "WHERE data_riferimento = (SELECT MAX(data_riferimento) FROM v_daily_report)"
+    )
+    n_daily = int(rows[0][0]) if rows and rows[0] and rows[0][0] is not None else 0
+    if n_daily < cfg["min_daily_rows"]:
+        errors.append(
+            f"voli diurni nell'ultimo giorno: {n_daily} (soglia {cfg['min_daily_rows']})"
+        )
+    else:
+        logger.info(f"   Gate 3/4: voli ultimo giorno = {n_daily} ✅")
+
+    # --- Check 4: radar recenti ---
+    lookback = cfg["radar_lookback_days"]
+    rows = _query(
+        "SELECT COUNT(*) FROM radar_detections "
+        f"WHERE data_riferimento >= (CURRENT_DATE - INTERVAL '{lookback} days')"
+    )
+    n_radar = int(rows[0][0]) if rows and rows[0] and rows[0][0] is not None else 0
+    if n_radar < cfg["min_radar_recent"]:
+        errors.append(
+            f"rilevamenti radar ultimi {lookback}g: {n_radar} (soglia {cfg['min_radar_recent']})"
+        )
+    else:
+        logger.info(f"   Gate 4/4: radar ultimi {lookback}g = {n_radar} ✅")
+
+    if errors:
+        return False, " | ".join(errors)
+    return True, "OK"
 
 
 def _wind_cardinal(deg):
@@ -1352,11 +1470,23 @@ def save_delays_json(payload):
         return None
 
 
-def export_and_publish(days=90):
+def export_and_publish(days=90, skip_gate=False):
+    """
+    v1.3.1: aggiunto gate pre-publish (QA-02).
+    Se il gate fallisce, NON salva e NON pubblica.
+    """
     from bgy_core import bgy_wordpress
     payload = build_web_json(days=days)
     if not payload:
         return False, "JSON vuoto"
+
+    if not skip_gate:
+        gate_ok, gate_msg = _gate_check_pre_publish()
+        if not gate_ok:
+            logger.error(f"❌ Gate pre-publish (notturno): {gate_msg}")
+            return False, f"Gate pre-publish bloccato: {gate_msg}"
+        logger.info(f"✅ Gate pre-publish (notturno): OK")
+
     local_path = save_web_json(payload)
     if not local_path:
         return False, "Errore salvataggio JSON locale"
@@ -1366,11 +1496,22 @@ def export_and_publish(days=90):
     return (True, f"Pubblicato: {url}") if ok else (False, f"Errore: {msg}")
 
 
-def export_delays_and_publish(days=90):
+def export_delays_and_publish(days=90, skip_gate=False):
+    """
+    v1.3.1: aggiunto gate pre-publish (QA-02).
+    """
     from bgy_core import bgy_wordpress
     payload = build_delays_json(days=days)
     if not payload:
         return False, "JSON ritardi vuoto (config disabilitata?)"
+
+    if not skip_gate:
+        gate_ok, gate_msg = _gate_check_pre_publish()
+        if not gate_ok:
+            logger.error(f"❌ Gate pre-publish (ritardi): {gate_msg}")
+            return False, f"Gate pre-publish bloccato: {gate_msg}"
+        logger.info(f"✅ Gate pre-publish (ritardi): OK")
+
     local_path = save_delays_json(payload)
     if not local_path:
         return False, "Errore salvataggio JSON ritardi locale"
@@ -1392,6 +1533,8 @@ def main():
     parser.add_argument("--publish-delays", action="store_true",
                         help="Pubblica bgy-delays.csv su WordPress")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--skip-gate", action="store_true",
+                        help="QA-02: salta il gate pre-publish (per test)")
     args = parser.parse_args()
 
     if not bgy_db.is_enabled():
@@ -1399,7 +1542,8 @@ def main():
         sys.exit(1)
 
     if args.publish_delays:
-        ok, msg = export_delays_and_publish(days=args.days)
+        ok, msg = export_delays_and_publish(
+            days=args.days, skip_gate=args.skip_gate)
         print(f"{'OK' if ok else 'ERRORE'}: {msg}")
         sys.exit(0 if ok else 1)
 
@@ -1415,7 +1559,7 @@ def main():
                 print(f"JSON ritardi salvato: {delays_path}")
         sys.exit(0)
 
-    ok, msg = export_and_publish(days=args.days)
+    ok, msg = export_and_publish(days=args.days, skip_gate=args.skip_gate)
     print(f"{'OK' if ok else 'ERRORE'}: {msg}")
     sys.exit(0 if ok else 1)
 

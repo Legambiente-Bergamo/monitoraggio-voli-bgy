@@ -1,6 +1,14 @@
 ﻿"""
 bgy_scheduler.py - Pianificatore ed Orchestratore automatico.
-Versione 2.8.6
+Versione 2.8.7
+
+Novità v2.8.7 (INFRA-11, 12/10/2026):
+- job_daily() verifica che i file JSON di configurazione siano stati
+  letti correttamente. Se config_manager ha accumulato errori di lettura,
+  il check 'config_load' viene marcato KO e la mail delle 06:30 lo segnala.
+- Nuova funzione _check_config_load_status().
+- check 0) Configurazione sistema aggiunto al dict checks.
+- Il check influenza overall_success (non e' warning-only).
 
 Novità v2.8.6 (10/10/2026):
 - job_web_export() pubblica anche il disclaimer unificato
@@ -39,25 +47,6 @@ Novità v2.8.1 (F17 WordPress): job_daily() chiama export_and_publish().
 Novità v2.8.0 (email semplificata + non classificati).
 Novità v2.7.3: night_import_failed dal check 10.
 Novità v2.7.2: check_sacbo_acquisition() conta scansioni Avionio.
-
-- Lock file per impedire doppio avvio
-- Radar h24 multi-fonte (adsb.lol -> adsb.fi -> airplanes.live -> OpenSky)
-- Sync DB: recupero automatico degli ultimi 8 giorni
-- Quality check (F11e) integrato nel job giornaliero
-- Email di stato con: problemi check + movimenti notte + voli non classificati
-- Verifica compagnie da risolvere (F14)
-- Diagnostica scanner diurno Cloudflare (F14b)
-- Screenshot tabellone allegati all'email (F14c) — conservazione illimitata
-- Recupero automatico scansioni mancate (v2.6.2)
-- Confronto incrociato Avionio (v2.6.4)
-- Check 11 servizio DB (v2.6.6)
-- Radar h24 (v2.7.0)
-- Check 12 backup DB (v2.7.1)
-- Avviso scansioni da fonte alternativa Avionio (v2.7.2)
-- Passaggio flag night_import_failed al mailer (v2.7.3)
-- Esportazione dati web F17 (v2.8.1)
-- Sync e backup check nell'email del mattino (v2.8.3)
-- Screenshot conservati senza scadenza (v2.8.4)
 """
 import os
 import sys
@@ -305,6 +294,7 @@ def job_web_export():
            f"disclaimer={'OK' if ok_disc else 'KO'}")
     return ok, msg
 
+
 def _run_sync_backup_check():
     """
     v2.8.3: esegue bgy_tools.verify_sync.check_all() e ritorna il dict
@@ -325,6 +315,33 @@ def _run_sync_backup_check():
     except Exception as e:
         logger.error(f"❌ Errore verify_sync.check_all: {e}")
         return None
+
+
+# -----------------------------------------------------------------------------
+# CONFIG LOAD STATUS (INFRA-11)
+# -----------------------------------------------------------------------------
+
+def _check_config_load_status():
+    """
+    v2.8.7 (INFRA-11): verifica se ci sono stati errori di lettura
+    dei file JSON di configurazione durante l'ultimo load_all() / reload().
+    Ritorna (ok, msg).
+    """
+    try:
+        errors = config_manager.get_load_errors()
+    except Exception as e:
+        return False, f"Errore verifica config: {e}"
+
+    if not errors:
+        return True, "OK"
+
+    lines = []
+    for e in errors:
+        ts = e.get("timestamp", "?")
+        fname = e.get("file", "?")
+        msg = e.get("message", "?")
+        lines.append(f"{fname} [{ts}]: {msg}")
+    return False, "\n".join(lines)
 
 
 # -----------------------------------------------------------------------------
@@ -931,6 +948,15 @@ def job_daily():
 
     yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 
+    # --- 0. Verifica caricamento configurazioni (INFRA-11) ---
+    logger.info("-" * 60)
+    logger.info("⚙️  Verifica caricamento configurazioni...")
+    cfg_ok, cfg_msg = _check_config_load_status()
+    if cfg_ok:
+        logger.info("✅ Configurazioni lette correttamente")
+    else:
+        logger.warning(f"⚠️ Errori di lettura config: {cfg_msg}")
+
     # --- 1. Acquisizione SACBO diurna ---
     sacbo_acq_ok, sacbo_acq_msg = check_sacbo_acquisition(yesterday)
     logger.info(f"{'✅' if sacbo_acq_ok else '❌'} Acquisizione SACBO diurna ({yesterday}): {sacbo_acq_msg}")
@@ -1144,6 +1170,7 @@ def job_daily():
 
     # --- Riepilogo check ---
     checks = {
+        'config_load': (cfg_ok, cfg_msg),
         'sacbo_acquisition': (sacbo_acq_ok, sacbo_acq_msg),
         'sacbo_processing': (daily_ok, daily_msg),
         'night_acquisition': (night_acq_ok, night_acq_msg),

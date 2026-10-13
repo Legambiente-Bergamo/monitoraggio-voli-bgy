@@ -1,6 +1,18 @@
 """
 bgy_reports/bgy_report_night.py - Report notturno integrato (SACBO + Avionio + radar).
-Versione 2.9.28
+Versione 2.9.29
+
+Novita v2.9.29 (DATA-13, 12/10/2026):
+- _filter_excluded_callsigns(): rimuove dal report i movimenti il cui
+  callsign è classificato con una categoria che contiene la parola
+  "Escluso" in callsign_classifications (es. "Elicottero - Escluso").
+  Caso d'uso: IMVRK (elisoccorso AREU Lombardia), che è un sorvolo non
+  BGY. Il fix è generico: qualunque futura categoria con "Escluso" nel
+  nome viene applicata automaticamente, senza modificare il codice.
+- generate_nightly_report() chiama _filter_excluded_callsigns() subito
+  dopo match_flights(). Il messaggio finale riporta il numero di esclusi.
+- Sostituisce il workaround manuale (UPDATE diretto su nightly_reports)
+  applicato il 10/10.
 
 Novita v2.9.28 (DATA-11.C, 08/10/2026):
 - _dedup_unknown_via_icao24(): nuova dedup per radar-only con callsign
@@ -55,6 +67,9 @@ Principio documentato:
 - Un radar-only UNKNOWN con stesso icao24 di un callsign noto e' un duplicato.
 - La pista si assegna solo su evidenza radar, non su stima.
 - SACBO domina, Avionio integra, radar aggiunge.
+- Un callsign la cui categoria contiene "Escluso" e' fuori dal perimetro
+  del monitoraggio (sorvoli, elicotteri non BGY, militari, ecc.) e
+  viene scartato dal report (v2.9.29, DATA-13).
 """
 import os
 import re
@@ -1012,6 +1027,61 @@ def _is_unknown_callsign(cs):
     if s in ('', 'UNKNOWN', 'NAN', 'NONE', 'N/D', 'NA', 'N.A.'):
         return True
     return False
+
+
+def _filter_excluded_callsigns(df):
+    """
+    v2.9.29 (DATA-13): rimuove dal DataFrame i movimenti il cui callsign
+    è classificato con una categoria che contiene la parola "Escluso"
+    in callsign_classifications (es. "Elicottero - Escluso").
+
+    Criterio: classify_callsign() ritorna la categoria dal DB (override).
+    Se la categoria contiene "escluso" (case-insensitive), il movimento
+    viene scartato.
+
+    Caso d'uso principale: IMVRK (elisoccorso AREU Lombardia), che è un
+    sorvolo non correlato all'attività di BGY. Il fix è generico: in
+    futuro basta inserire una riga in callsign_classifications con la
+    parola "Escluso" per escludere quel callsign dal report.
+
+    Ritorna (df_filtrato, n_esclusi).
+    """
+    if df.empty:
+        return df, 0
+    if 'callsign' not in df.columns:
+        return df, 0
+
+    def _is_excluded(cs):
+        if cs is None:
+            return False
+        try:
+            if pd.isna(cs):
+                return False
+        except (TypeError, ValueError):
+            pass
+        s = str(cs).strip()
+        if not s:
+            return False
+        try:
+            categoria, _ = classify_callsign(s)
+        except Exception:
+            return False
+        return 'escluso' in str(categoria).lower()
+
+    mask = df['callsign'].apply(_is_excluded)
+    n_excluded = int(mask.sum())
+    if n_excluded == 0:
+        return df, 0
+
+    excluded_callsigns = df.loc[mask, 'callsign'].dropna().unique().tolist()
+    preview = ', '.join(str(c) for c in excluded_callsigns[:5])
+    if len(excluded_callsigns) > 5:
+        preview += f" e altri {len(excluded_callsigns) - 5}"
+    logger.info(
+        f"🚫 Esclusi {n_excluded} movimenti con categoria 'Escluso' "
+        f"(callsign: {preview})"
+    )
+    return df[~mask].reset_index(drop=True), n_excluded
 
 
 def _dedup_unknown_via_icao24(radar_df):
@@ -2069,6 +2139,10 @@ def generate_nightly_report(date_str=None):
 
     result_df = match_flights(scheduled_df, radar_df, date_norm)
 
+    # v2.9.29 (DATA-13): escludi callsign con categoria 'Escluso'
+    # (es. elicotteri/sorvoli non BGY marcati in callsign_classifications)
+    result_df, n_esclusi = _filter_excluded_callsigns(result_df)
+
     if result_df.empty:
         logger.warning(f"⚠️ Nessun dato per {date_norm}")
         return None, f"Nessun dato per {date_norm}"
@@ -2209,6 +2283,8 @@ def generate_nightly_report(date_str=None):
     anomalie_msg = f", anomalie {n_anomalie}" if n_anomalie > 0 else ""
     borderline_msg = (f", borderline {n_borderline}" if n_borderline > 0 else "")
     dedup_icao_msg = (f", dedup icao24 -{n_dedup_icao24}" if n_dedup_icao24 > 0 else "")
+    # v2.9.29 (DATA-13): menzione degli esclusi per categoria
+    esclusi_msg = (f", esclusi {n_esclusi}" if n_esclusi > 0 else "")
     fonte_msg = (f", fonti: SACBO {fonte_counts['sacbo']} + Avionio {fonte_counts['avionio']}"
                  if fonte_counts['avionio'] > 0 else "")
     cargo_av_msg = (f", cargo da Avionio {cargo_from_avionio}"
@@ -2216,7 +2292,7 @@ def generate_nightly_report(date_str=None):
 
     msg = (f"✅ Report notturno: {total} voli "
            f"(Visibili: {visibili} = Passeggeri {pax} + Cargo {cargo} "
-           f"+ Charter {charter} + Non classificato {non_class}{sconf_msg}{anomalie_msg}{borderline_msg}{cargo_av_msg}{fonte_msg} | "
+           f"+ Charter {charter} + Non classificato {non_class}{sconf_msg}{anomalie_msg}{borderline_msg}{esclusi_msg}{cargo_av_msg}{fonte_msg} | "
            f"Opt-in: {optin} = Passeggeri radar {pax_radar}{dedup_icao_msg} | "
            f"PAX stimati: {pax_tot}, "
            f"Rumore su {rumore_count} voli, max {rumore_max} dB"

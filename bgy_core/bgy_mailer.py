@@ -1,56 +1,31 @@
 """
 bgy_core/bgy_mailer.py - Modulo unificato di invio email.
-Versione 2.8.0
+Versione 2.8.1
+
+Novità v2.8.1 (INFRA-11, 12/10/2026):
+- _render_problems() ora include il check 'config_load' (0) Configurazione
+  sistema) in cima alla lista. Se config_manager ha accumulato errori di
+  lettura dei JSON di configurazione, la mail delle 06:30 li segnala.
+- Il check e' renderizzato multi-line (uno per file problematico).
+- Non e' in WARNING_ONLY_CHECKS: influisce sull'esito complessivo.
 
 Novità v2.8.0 (MAIL-03, 10/10/2026):
 - Logica "sezione sparisce se vuota" per tutte le sezioni.
-- PROBLEMI RILEVATI: già oggi sparisce se tutti i check sono OK
-  (comportamento invariato).
-- SCONFINAMENTI / GRAVI / ANOMALIE: già oggi spariscono se 0
-  (comportamento invariato).
-- MOVIMENTI BORDERLINE / VOLI NON CLASSIFICATI: già oggi spariscono
-  se vuoti (comportamento invariato).
-- NUOVO: DISCORDANZE AVIONIO ↔ SACBO sparisce se non ci sono
-  discordanze reali (messaggio "Nessuna discordanza").
-- NUOVO: STATO SYNC E BACKUP sparisce se GitHub è in_sync, backup DB
-  è OK e backup locale è OK. Compare solo se c'è almeno un problema.
+- PROBLEMI RILEVATI: già oggi sparisce se tutti i check sono OK.
+- SCONFINAMENTI / GRAVI / ANOMALIE: già oggi spariscono se 0.
+- MOVIMENTI BORDERLINE / VOLI NON CLASSIFICATI: già oggi spariscono se vuoti.
+- NUOVO: DISCORDANZE AVIONIO ↔ SACBO sparisce se non ci sono discordanze.
+- NUOVO: STATO SYNC E BACKUP sparisce se GitHub in_sync + backup OK.
 
 Novità v2.7.2 (INFRA-02, 07/10/2026):
 - Nuova sezione email "📊 STATO SYNC E BACKUP" con l'output di
-  bgy_tools.verify_sync.check_all():
-    - GitHub: in_sync / ahead / behind / diverged + ultimo commit locale e remoto
-    - Backup DB (Google Drive): ultimo OK + ore trascorse
-    - Backup locale (HD esterno): placeholder INFRA-03
-- Il parametro sync_backup_check (dict) può essere passato dal chiamante
-  (bgy_scheduler). Se None, il mailer chiama check_all() in autonomia.
-- La sezione è compatta: una riga per ciascun check, con icona di stato.
-- Non compare in "PROBLEMI RILEVATI" (a meno che non ci siano errori
-  bloccanti), perché è informazione di stato, non un problema.
+  bgy_tools.verify_sync.check_all().
 
 Novità v2.7.1:
-- Sezione "DISCORDANZE AVIONIO ↔ SACBO" (finestra notturna 22:50-06:10).
-- Check 'avionio_confronto' nascosto da "PROBLEMI RILEVATI".
+- Sezione "DISCORDANZE AVIONIO ↔ SACBO".
 
 Novità v2.7.0:
 - Sezione "MOVIMENTI BORDERLINE" nell'email del mattino.
-
-Novità v2.6.1: filtro quality check.
-Novità v2.6.0: email semplificata + voli non classificati.
-Novità v2.5.21: fix avviso import notturno.
-Novità v2.5.20: avviso import notturno.
-Novità v2.5.19: check 12 backup DB.
-Novità v2.5.18: backup DB - send_backup_alert.
-Novità v2.5.13: distribuzione ritardi.
-Novità v2.5.12: check 11 servizio DB.
-Novità v2.5.11: statistiche puntualità.
-Novità v2.5.10: Avionio check 10.
-Novità v2.5.9: sconfinamenti gravi + anomalie.
-Novità v2.5.8: sconfinamenti.
-Novità v2.5.7: F14c screenshot.
-Novità v2.5.6: F14b check 9.
-Novità v2.5.5: F14 check 8.
-Novità v2.5.4: stats + header.
-Novità v2.5.2: flag di silenziamento.
 """
 import os
 import csv
@@ -623,12 +598,10 @@ def _format_borderline_section(borderline_flights):
 def _format_avionio_section(check_ok, check_msg):
     """
     v2.8.0: la sezione compare solo se ci sono discordanze reali.
-    Se il messaggio contiene "Nessuna discordanza", la sezione sparisce.
     """
     if not check_msg:
         return ""
 
-    # Filtro: se il messaggio indica "nessuna discordanza", non mostrare
     msg_lower = check_msg.lower()
     if "nessuna discordanza" in msg_lower:
         return ""
@@ -649,13 +622,6 @@ def _format_avionio_section(check_ok, check_msg):
 # -----------------------------------------------------------------------------
 
 def _format_sync_backup_section(check_result):
-    """
-    v2.8.0: la sezione compare solo se c'è almeno un problema.
-    Se GitHub è in_sync, backup DB è OK e backup locale è OK/non configurato
-    → sezione nascosta.
-
-    Il dict è quello restituito da bgy_tools.verify_sync.check_all().
-    """
     if not check_result:
         return ""
 
@@ -663,22 +629,18 @@ def _format_sync_backup_section(check_result):
     b = check_result.get("backup_db", {})
     bl = check_result.get("backup_local", {})
 
-    # v2.8.0: determinare se ci sono problemi
     has_problem = False
 
-    # GitHub: problema se abilitato ma non in_sync, o se ci sono file da committare
     if g.get("enabled", True):
         if g.get("status", "?") != "in_sync":
             has_problem = True
         if g.get("modified_count", 0) > 0:
             has_problem = True
 
-    # Backup DB: problema se abilitato ma non OK
     if b.get("enabled", True):
         if b.get("status", "?") != "ok":
             has_problem = True
 
-    # Backup locale: problema se configurato ma non OK
     bl_status = bl.get("status", "not_configured")
     if bl_status not in ("ok", "not_configured"):
         has_problem = True
@@ -686,12 +648,10 @@ def _format_sync_backup_section(check_result):
     if not has_problem:
         return ""
 
-    # Se c'è almeno un problema, mostra la sezione completa
     lines = []
     lines.append("📊 STATO SYNC E BACKUP")
     lines.append("")
 
-    # GitHub
     if not g.get("enabled", True):
         lines.append("   📤 GitHub Sync:  ⏸️  disabilitato")
     else:
@@ -707,7 +667,6 @@ def _format_sync_backup_section(check_result):
         lines.append(f"      remoto:  {g.get('last_commit_remote', '?')} "
                      f"({g.get('last_commit_remote_hash', '?')})")
 
-    # Backup DB
     if not b.get("enabled", True):
         lines.append("   🗄️  Backup DB:    ⏸️  disabilitato")
     else:
@@ -719,7 +678,6 @@ def _format_sync_backup_section(check_result):
         if b.get("last_success"):
             lines.append(f"      ultimo OK:  {b['last_success']}")
 
-    # Backup locale
     if bl_status == "not_configured":
         lines.append("   💾 Backup locale: ⏸️  non configurato")
     else:
@@ -806,6 +764,7 @@ def _render_problems(checks):
         return ""
 
     labels = [
+        ('config_load', '0) Configurazione sistema'),
         ('sacbo_acquisition', '1) Acquisizione dati dal tabellone SACBO'),
         ('sacbo_processing', '2) Elaborazione dati dal tabellone SACBO'),
         ('night_acquisition', '3) Acquisizione dati notturni (23:00-05:59)'),
@@ -842,7 +801,7 @@ def _render_problems(checks):
                 if filtered:
                     problems.append(filtered)
             elif key in ('unresolved_airlines', 'scanner_day_status',
-                         'db_service', 'backup'):
+                         'db_service', 'backup', 'config_load'):
                 for line in msg.split('\n'):
                     problems.append(f"   {line}")
             else:
@@ -867,10 +826,6 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
                       sync_backup_check=None):
     """
     Invia l'email di stato giornaliero.
-
-    v2.8.0: logica "sezione sparisce se vuota" applicata a tutte le
-    sezioni opzionali (discordanze Avionio, stato sync/backup).
-    PROBLEMI RILEVATI già oggi sparisce se tutti i check sono OK.
     """
     if not force and not is_daily_status_enabled():
         logger.info("🔕 Email di stato giornaliero silenziata")
@@ -897,7 +852,6 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
     if borderline_flights is None:
         borderline_flights = _load_borderline_flights(yesterday_iso)
 
-    # v2.7.2: se non passato, prova a calcolare sync/backup in autonomia
     if sync_backup_check is None:
         try:
             from bgy_tools.verify_sync import check_all
@@ -930,7 +884,6 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
             parts.append("")
             parts.append(stats_text)
     elif sync_backup_check is not None:
-        # anche se stats è None, mostra la sezione sync/backup (se ha problemi)
         sb_text = _format_sync_backup_section(sync_backup_check)
         if sb_text:
             parts.append("━" * 37)
@@ -951,7 +904,8 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
             all(ok for k, (ok, _) in checks.items()
                 if k not in ('github_sync', 'quality_check',
                              'unresolved_airlines', 'scanner_day_status',
-                             'avionio_confronto', 'db_service', 'backup'))
+                             'avionio_confronto', 'db_service', 'backup',
+                             'config_load'))
         )
         if not only_sync_error:
             log_path = _get_today_log_path()
