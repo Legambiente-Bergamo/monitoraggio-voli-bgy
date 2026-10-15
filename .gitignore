@@ -1,77 +1,75 @@
-# bgy_config/ contiene credenziali (escluse)
+# ============================================================
+# Credenziali (MAI sincronizzare)
+# ============================================================
+# bgy_config/ contiene credenziali.
+# config_data.json è VERSIONATO (nessuna credenziale, solo config operativa).
 bgy_config/config_mail.json
 bgy_config/config_opensky.json
 bgy_config/config_github.json
 bgy_config/config_database.json
 bgy_config/config_wordpress.json
 
-# config_data.json è VERSIONATO (nessuna credenziale, solo config operativa)
-
-# Byte-compiled
+# ============================================================
+# Python — byte-compiled
+# ============================================================
 __pycache__/
 *.py[cod]
 *$py.class
 
+# ============================================================
 # Virtual environments
+# ============================================================
 venv/
 env/
 .venv/
 
-# Credenziali (MAI sincronizzare)
-bgy_config/config_mail.json
-bgy_config/config_opensky.json
-bgy_config/config_github.json
-bgy_config/config_database.json
-
-# Output generati
+# ============================================================
+# Dati operativi generati (non versionati)
+# ============================================================
 bgy_data/bgy_output/
 bgy_data/bgy_charts/
 bgy_data/bgy_logs/
+bgy_data/bgy_db_backup/
+bgy_data/bgy_archive/
+bgy_data/bgy_screenshots/
+bgy_data/bgy_avionio/
 
+# ============================================================
 # Backup locali
+# ============================================================
 backup_*/
 backup_scripts_*/
-
-# OS
-Thumbs.db
-.DS_Store
-desktop.ini
-
-# IDE
-.vscode/
-.idea/
-*.swp
-
-# Backup
-*.zip
-
-
-
-bgy_config/config_database.json
-
-bgy_data/bgy_db_backup/
-
-# Backup locali (non versionare)
 *.bak
 *.bak_*
 *.bak_v*
+*.zip
 
-# Archivio JSON pre-migrazione DB
-bgy_data/bgy_archive/
-*.py.archived
+# ============================================================
+# QA-01: fixture di regressione notturna (locale, non versionate)
+# ============================================================
+bgy_tests/
 
-# Screenshot del tabellone (generati automaticamente, non versionati)
-bgy_data/bgy_screenshots/
-
-# File Avionio (fonte alternativa, dati temporanei)
-bgy_data/bgy_avionio/
-
+# ============================================================
 # File di sviluppo (patch temporanee, script di debug)
+# ============================================================
 patch_*.py
 fix_*.py
 test_*.py
 analisi_*.py
 check_*.py
 dev_*.py
+*.py.archived
 
-bgy_config/config_wordpress.json
+# ============================================================
+# OS
+# ============================================================
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# ============================================================
+# IDE
+# ============================================================
+.vscode/
+.idea/
+*.swp

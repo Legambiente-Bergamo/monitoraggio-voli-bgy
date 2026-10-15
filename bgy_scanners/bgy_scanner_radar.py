@@ -1,20 +1,31 @@
 """
 bgy_scanners/bgy_scanner_radar.py - Scanner radar h24 multi-fonte.
-Versione 1.2.0
+Versione 1.3.0
+
+Novità v1.3.0 (BUG-02, 14/10/2026):
+- detect_runway_and_phase(): fix discriminazione D/A quando baro_rate
+  è nullo o non significativo. Prima usava solo il track
+  (track > 180° → Atterraggio), ma il track NON distingue decollo da
+  atterraggio (un decollo da RWY 28 ha track ~280° esattamente come un
+  atterraggio sulla stessa pista). Ora:
+    1. Se baro_rate è significativo → logica esistente.
+    2. Altrimenti, calcola il bearing dall'aereo verso BGY e lo
+       confronta col track:
+         - diff < 85°  → aereo punta verso BGY → Atterraggio/Avvicinamento
+         - diff > 95°  → aereo punta via da BGY → Decollo
+         - 85-95°      → fascia ambigua → fase_volo = "Incerto"
+  Nuove funzioni: _bearing_to_bgy(), _angular_difference().
+- Soglia baro_rate ora configurabile in config_data.json >
+  scanner_radar.baro_rate_threshold_fpm (default 500).
 
 Novità v1.2.0 (DST-01, 10/10/2026):
 - Aggiunto campo timestamp_utc a tutti i rilevamenti (ISO 8601 con offset).
-  Serve a distinguere la doppia ora 02:00-02:59 che si presenta durante
-  il cambio DST (ora legale → ora solare). Senza UTC, la seconda
-  occorrenza viene deduplicata contro la prima.
 - Dedup differenziata: se timestamp_utc è valorizzato, la chiave è
   (icao24, timestamp_utc); se è nullo (CSV vecchi), fallback a
   (icao24, floor 1min di timestamp).
-- Backward compatibile: legge i CSV senza timestamp_utc senza errori.
 
 Novità v1.1.2 (radar 1 min di notte):
-- Dedup: da floor("2min") a floor("1min"). Supporta lo scheduling
-  adattivo (1 min notte / 2 min giorno) introdotto in bgy_scheduler v2.8.2.
+- Dedup: da floor("2min") a floor("1min").
 
 Novità v1.1.1: esclusi RWY 16 e RWY 34 da detect_runway_and_phase().
 Novità v1.1.0: baro_rate + conversione OpenSky m→ft.
@@ -26,7 +37,7 @@ import json
 import requests
 import pandas as pd
 from datetime import datetime, timezone
-from math import radians, sin, cos, sqrt, atan2
+from math import radians, degrees, sin, cos, sqrt, atan2
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -46,15 +57,24 @@ except Exception:
     pass
 
 
-BARO_RATE_THRESHOLD_FPM = 500
+BARO_RATE_THRESHOLD_FPM_DEFAULT = 500
+INCERT_DEAD_ZONE_DEG = 5
 
 
 def _cfg():
     return config_manager.get_scanner_radar_config()
 
 
+def _get_baro_rate_threshold():
+    """v1.3.0 (BUG-02): legge la soglia baro_rate da config, con default."""
+    try:
+        cfg = _cfg()
+        return int(cfg.get("baro_rate_threshold_fpm", BARO_RATE_THRESHOLD_FPM_DEFAULT))
+    except Exception:
+        return BARO_RATE_THRESHOLD_FPM_DEFAULT
+
+
 def _utc_now_iso():
-    """Ritorna l'ora corrente in UTC come ISO 8601 con offset."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S%z")
 
 
@@ -79,12 +99,79 @@ def _bearing_in_range(bearing, low, high):
     return bearing >= low or bearing <= high
 
 
+def _bearing_to_bgy(lat, lon, bgy_lat, bgy_lon):
+    """
+    v1.3.0 (BUG-02): calcola il bearing (azimuth) dall'aereo verso BGY,
+    in gradi [0, 360). Formula standard (great-circle initial bearing).
+    """
+    try:
+        lat1_r = radians(float(lat))
+        lat2_r = radians(float(bgy_lat))
+        dlon_r = radians(float(bgy_lon) - float(lon))
+    except (TypeError, ValueError):
+        return None
+    y = sin(dlon_r) * cos(lat2_r)
+    x = cos(lat1_r) * sin(lat2_r) - sin(lat1_r) * cos(lat2_r) * cos(dlon_r)
+    if x == 0 and y == 0:
+        return None
+    bearing = degrees(atan2(y, x))
+    return (bearing + 360) % 360
+
+
+def _angular_difference(a, b):
+    """v1.3.0 (BUG-02): differenza angolare minima tra due bearing, in [0, 180]."""
+    try:
+        d = abs(float(a) - float(b)) % 360
+    except (TypeError, ValueError):
+        return None
+    return d if d <= 180 else 360 - d
+
+
+def _discrimina_da_track(lat, lon, track, cfg, fase_se_verso_bgy, fase_se_via_da_bgy):
+    """
+    v1.3.0 (BUG-02): helper. Usa bearing_to_bgy per discriminare tra due
+    fasi possibili quando il baro_rate non è significativo.
+
+    Ritorna:
+      - fase_se_verso_bgy se l'aereo punta VERSO BGY (diff < 85°)
+      - fase_se_via_da_bgy se l'aereo punta VIA DA BGY (diff > 95°)
+      - "Incerto" nella fascia ambigua (85° ≤ diff ≤ 95°)
+      - "Incerto" se lat/lon/track sono invalidi
+    """
+    if track is None or lat is None or lon is None:
+        return "Incerto"
+
+    bgy_lat = cfg["bgy_lat"]
+    bgy_lon = cfg["bgy_lon"]
+    bearing = _bearing_to_bgy(lat, lon, bgy_lat, bgy_lon)
+    if bearing is None:
+        return "Incerto"
+
+    diff = _angular_difference(track, bearing)
+    if diff is None:
+        return "Incerto"
+
+    soglia_bassa = 90 - INCERT_DEAD_ZONE_DEG
+    soglia_alta = 90 + INCERT_DEAD_ZONE_DEG
+
+    if diff < soglia_bassa:
+        return fase_se_verso_bgy
+    if diff > soglia_alta:
+        return fase_se_via_da_bgy
+    return "Incerto"
+
+
 def detect_runway_and_phase(lat, lon, track, alt, cfg, baro_rate=None):
     """
     Determina pista, fase, direzione e distanza da BGY.
 
     baro_rate: velocità verticale in ft/min (positiva = salita,
                negativa = discesa). None se non disponibile.
+
+    v1.3.0 (BUG-02): quando baro_rate è nullo o non significativo, usa
+    il bearing verso BGY per discriminare D/A. Prima usava solo il track
+    (> 180° → Atterraggio), che è sbagliato: il track NON distingue
+    decollo da atterraggio sulla stessa pista.
     """
     if lat is None or lon is None:
         return "N/D", "N/D", "N/D", 999
@@ -94,28 +181,38 @@ def detect_runway_and_phase(lat, lon, track, alt, cfg, baro_rate=None):
     max_distance = cfg["max_distance_km"]
     thresholds = cfg["phase_thresholds"]
     runways = {
-    k: v for k, v in cfg["runway_bearings"].items()
-    if k not in ("RWY 16", "RWY 34")
-}
+        k: v for k, v in cfg["runway_bearings"].items()
+        if k not in ("RWY 16", "RWY 34")
+    }
     distance = haversine(lat, lon, bgy_lat, bgy_lon)
     alt_val = alt if alt is not None else 0
+
+    threshold = _get_baro_rate_threshold()
 
     if distance < thresholds["landing_max_distance_km"] \
             and alt_val < thresholds["landing_max_altitude_ft"]:
         # Vicino e basso: atterraggio o decollo in corso.
-        if baro_rate is not None and abs(baro_rate) > BARO_RATE_THRESHOLD_FPM:
+        if baro_rate is not None and abs(baro_rate) > threshold:
             phase = "Decollo" if baro_rate > 0 else "Atterraggio"
         else:
-            phase = "Atterraggio" if (track is not None and track > 180) else "Decollo"
+            phase = _discrimina_da_track(
+                lat, lon, track, cfg,
+                fase_se_verso_bgy="Atterraggio",
+                fase_se_via_da_bgy="Decollo",
+            )
     elif distance < thresholds["approach_max_distance_km"] \
             and alt_val < thresholds["approach_max_altitude_ft"]:
-        # Fascia intermedia: ambigua. Usiamo baro_rate per disambiguare.
-        if baro_rate is not None and baro_rate > BARO_RATE_THRESHOLD_FPM:
-            # Salita netta → è un decollo in partenza, non un avvicinamento
+        # Fascia intermedia: ambigua.
+        if baro_rate is not None and baro_rate > threshold:
             phase = "Decollo"
-        else:
-            # Discesa o livellato → avvicinamento
+        elif baro_rate is not None and baro_rate < -threshold:
             phase = "Avvicinamento"
+        else:
+            phase = _discrimina_da_track(
+                lat, lon, track, cfg,
+                fase_se_verso_bgy="Avvicinamento",
+                fase_se_via_da_bgy="Decollo",
+            )
     elif distance < max_distance:
         phase = "Sorvolo"
     else:
@@ -188,7 +285,6 @@ def _fetch_adsblol():
     except Exception as e:
         logger.error(f"❌ adsb.lol JSON error: {e}")
         return None
-
     aircraft = data.get("ac") or data.get("aircraft") or []
     if not aircraft:
         logger.warning("⚠️ adsb.lol: nessun aereo nell'area")
@@ -216,7 +312,6 @@ def _fetch_adsbfi():
     except Exception as e:
         logger.error(f"❌ adsb.fi JSON error: {e}")
         return None
-
     aircraft = data.get("ac") or data.get("aircraft") or []
     if not aircraft:
         logger.warning("⚠️ adsb.fi: nessun aereo nell'area")
@@ -253,12 +348,10 @@ def _fetch_opensky():
     cfg = _cfg()
     username, password = load_opensky_credentials()
     auth = (username, password) if username and password else None
-
     bbox = cfg["bbox"]
     url = (f"https://opensky-network.org/api/states/all?"
            f"lamin={bbox['lamin']}&lamax={bbox['lamax']}"
            f"&lomin={bbox['lomin']}&lomax={bbox['lomax']}")
-
     resp, ok = _http_get_robusto(url, timeout=cfg["http_timeout"], auth=auth)
     if not ok or resp is None:
         return None
@@ -273,7 +366,6 @@ def _fetch_opensky():
     except Exception as e:
         logger.error(f"❌ OpenSky JSON error: {e}")
         return None
-
     states = data.get("states")
     if states is None:
         logger.warning("⚠️ OpenSky: states=None")
@@ -281,16 +373,11 @@ def _fetch_opensky():
     if not isinstance(states, list):
         logger.warning("⚠️ OpenSky: formato inatteso")
         return None
-
     logger.info(f"📡 OpenSky: ricevuti {len(states)} stati (fallback 3)")
     return _parse_opensky(states)
 
 
 def _parse_opensky(states):
-    """
-    Nota: OpenSky restituisce baro_altitude in metri.
-    Viene convertita in piedi (1 m = 3.28084 ft) per coerenza.
-    """
     cfg = _cfg()
     max_distance = cfg["max_distance_km"]
     now = datetime.now()
@@ -304,7 +391,6 @@ def _parse_opensky(states):
             continue
         callsign = s[1].strip() if s[1] else "UNKNOWN"
         icao24 = s[0] or None
-
         if callsign == "UNKNOWN" and s[5] is None and s[6] is None:
             discarded_unknown += 1
             continue
@@ -317,7 +403,7 @@ def _parse_opensky(states):
         vrate_ms = s[11] if len(s) > 11 else None
         if vrate_ms is not None:
             try:
-                baro_rate = int(float(vrate_ms) * 196.85)  # m/s -> ft/min
+                baro_rate = int(float(vrate_ms) * 196.85)
             except (ValueError, TypeError):
                 baro_rate = None
         else:
@@ -331,11 +417,8 @@ def _parse_opensky(states):
 
         flights.append({
             "timestamp": now.strftime("%Y-%m-%d %H:%M:%S"),
-            "callsign": callsign,
-            "icao24": icao24,
-            "pista": runway,
-            "fase_volo": phase,
-            "direzione": direction,
+            "callsign": callsign, "icao24": icao24,
+            "pista": runway, "fase_volo": phase, "direzione": direction,
             "quota_ft": alt_ft,
             "rotta_deg": float(s[10]) if s[10] else 0,
             "distanza_km": round(distance, 2),
@@ -402,11 +485,8 @@ def _parse_adsb_generic(aircraft, source_name):
 
         flights.append({
             "timestamp": now.strftime("%Y-%m-%d %H:%M:%S"),
-            "callsign": callsign,
-            "icao24": icao24,
-            "pista": runway,
-            "fase_volo": phase,
-            "direzione": direction,
+            "callsign": callsign, "icao24": icao24,
+            "pista": runway, "fase_volo": phase, "direzione": direction,
             "quota_ft": alt_ft,
             "rotta_deg": track_deg if track_deg is not None else 0,
             "distanza_km": round(distance, 2),
@@ -482,7 +562,6 @@ def run_radar_scan(parallel_test=False):
 
     logger.info("📡 Avvio scansione radar h24...")
     os.makedirs(RAW_DIR, exist_ok=True)
-
     session_date = _get_session_date(now)
 
     flights = _fetch_adsblol()
@@ -507,7 +586,6 @@ def run_radar_scan(parallel_test=False):
 
     df_new = pd.DataFrame(flights)
     df_new["sessione_notturna"] = session_date
-
     out_file = os.path.join(RAW_DIR, radar_filename(session_date))
 
     if os.path.exists(out_file):
@@ -522,27 +600,16 @@ def run_radar_scan(parallel_test=False):
 
     if "icao24" in df.columns and "timestamp" in df.columns:
         before = len(df)
-
-        # v1.2.0: chiave di dedup differenziata.
-        # - Righe con timestamp_utc valorizzato: chiave (icao24, timestamp_utc)
-        # - Righe con timestamp_utc nullo (CSV vecchi): chiave (icao24, floor 1min timestamp)
-        #
-        # Serve a non deduplicare insieme rilevazioni avvenute in momenti reali
-        # diversi ma con lo stesso timestamp naive (es. doppia ora 02:00-02:59
-        # durante il cambio DST).
         ts_min = pd.to_datetime(df["timestamp"], errors="coerce").dt.floor("1min")
         if "timestamp_utc" in df.columns:
             ts_utc = pd.to_datetime(df["timestamp_utc"], errors="coerce", utc=True)
         else:
             ts_utc = pd.Series([pd.NaT] * len(df), index=df.index)
-
         key_utc = df["icao24"].astype(str) + "|UTC|" + ts_utc.astype(str)
         key_naive = df["icao24"].astype(str) + "|NAIVE|" + ts_min.astype(str)
         df["_dedup_key"] = key_utc.where(ts_utc.notna(), key_naive)
-
         df = df.drop_duplicates(subset=["_dedup_key"], keep="first")
         df = df.drop(columns=["_dedup_key"])
-
         removed = before - len(df)
         if removed > 0:
             logger.info(f"🔀 Deduplicati {removed} rilevamenti ridondanti ({len(df)} unici)")

@@ -1,6 +1,12 @@
 ﻿"""
 bgy_scheduler.py - Pianificatore ed Orchestratore automatico.
-Versione 2.8.7
+Versione 2.8.8
+
+Novità v2.8.8 (Cantiere B.1, 14/10/2026):
+- _run_avionio_after_scan() chiama import_avionio_scan_to_db() dopo
+  run_scan_alt() e prima di _run_avionio_comparison(). Importa i voli
+  scheduled Avionio in flights_avionio (Cantiere B.1).
+- Controllato dal flag config avionio.import_to_db (default false).
 
 Novità v2.8.7 (INFRA-11, 12/10/2026):
 - job_daily() verifica che i file JSON di configurazione siano stati
@@ -205,13 +211,39 @@ def _run_avionio_comparison(trigger=""):
         return True, f"Errore confronto: {str(e)[:80]}"
 
 
+def _run_avionio_import_db():
+    """
+    v2.8.8 (Cantiere B.1): importa gli ultimi file Avionio in flights_avionio.
+    Ritorna (ok, msg). Non blocca il flusso se fallisce.
+    """
+    try:
+        from bgy_core.bgy_db_migrate import import_avionio_scan_to_db
+        ok, msg = import_avionio_scan_to_db()
+        if ok:
+            logger.info(f"✅ Avionio import DB: {msg}")
+        else:
+            logger.warning(f"⚠️ Avionio import DB: {msg}")
+        return ok, msg
+    except Exception as e:
+        logger.error(f"❌ Errore import Avionio DB: {e}")
+        return False, f"Errore import Avionio DB: {str(e)[:80]}"
+
+
 def _run_avionio_after_scan(trigger):
     cfg = _cfg_avionio()
     if not cfg.get("enabled", True):
         return
     if not cfg.get("run_at_every_scan", True):
         return
+
+    # 1) Scan Avionio (salva file CSV)
     _run_avionio_scan()
+
+    # 2) Import Avionio in DB (Cantiere B.1)
+    if cfg.get("import_to_db", False):
+        _run_avionio_import_db()
+
+    # 3) Confronto SACBO ↔ Avionio
     _run_avionio_comparison(trigger=trigger)
 
 

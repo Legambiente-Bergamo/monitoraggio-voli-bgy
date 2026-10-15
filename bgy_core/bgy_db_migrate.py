@@ -1,67 +1,51 @@
 ﻿"""
 bgy_core/bgy_db_migrate.py - Import e sincronizzazione CSV -> PostgreSQL.
-Versione 2.8.7.2
+Versione 2.9.0
 
-Modulo unificato che contiene:
-  - Funzioni di import per ogni tipo di file (scan, radar, meteo, nightly)
-  - Parser per il formato vecchio di scan_*.csv
-  - Logica di migrazione storica completa
-  - Logica di sincronizzazione incrementale
-  - Quality check esteso: 27 check attivi
-  - Statistiche movimenti giornalieri e notturni
-  - Check compagnie placeholder irrisolte (F14)
-  - Check anomalie notturne
+Novita v2.9.0 (Cantiere B.1, 14/10/2026):
+- Aggiunta tabella flights_avionio (voli scheduled Avionio h24).
+- Aggiunta import_avionio_file() e import_avionio_scan_to_db().
+- apply_schema_updates(): aggiunta CREATE TABLE IF NOT EXISTS flights_avionio.
+- _register_schema_version(): nota aggiornata a v2.10.0.
+- AVIONIO_DIR definita localmente (bgy_core non importa bgy_scanners).
 
-Novità v2.8.7.2 (DST-01, 10/10/2026):
-- import_radar_file(): legge e salva timestamp_utc (ISO 8601 con
-  offset) dalla colonna omonima del CSV. Retrocompatibile: per CSV
-  vecchi senza la colonna, salva NULL.
+Novita v2.8.7.3 (BUG-05 / INFRA-07, 13/10/2026):
+- apply_schema_updates(): aggiunto CREATE UNIQUE INDEX IF NOT EXISTS
+  uniq_nightly_flight su (data_riferimento, callsign, orario_schedulato)
+  WHERE orario_schedulato IS NOT NULL.
+
+Novita v2.8.7.2 (DST-01, 10/10/2026):
+- import_radar_file(): legge e salva timestamp_utc.
 - apply_schema_updates(): ALTER TABLE radar_detections ADD COLUMN
   IF NOT EXISTS timestamp_utc TIMESTAMPTZ.
 
-Novità v2.8.7.1 (BUG-03 + SCHEMA-01, 10/10/2026):
-- BUG-03: dedup radar-only in memoria in import_nightly_file() +
-  indice univoco parziale idx_nightly_radar_only_unique.
-- SCHEMA-01: _register_schema_version() registra la SCHEMA_VERSION
-  corrente in schema_version dopo gli ALTER.
+Novita v2.8.7.1 (BUG-03 + SCHEMA-01, 10/10/2026):
+- BUG-03: dedup radar-only in memoria in import_nightly_file().
+- SCHEMA-01: _register_schema_version() registra la SCHEMA_VERSION.
 
-Novità v2.8.7 (BUG-03, 10/10/2026):
+Novita v2.8.7 (BUG-03, 10/10/2026):
 - BUG-03: dedup radar-only in memoria + indice univoco.
 
-Novità v2.8.6.1 (INFRA-01, 07/10/2026):
+Novita v2.8.6.1 (INFRA-01, 07/10/2026):
 - import_nightly_file(): fonte_scheduled ora e' NULL per i radar-only.
-  Prima, per via del default DB VARCHAR(10) DEFAULT 'sacbo', i record
-  radar-only (is_scheduled=FALSE) finivano con fonte_scheduled='sacbo',
-  semanticamente scorretto. Ora il valore viene deciso cosi':
-    - is_scheduled=FALSE            -> NULL
-    - is_scheduled=TRUE + 'avionio' -> 'avionio'
-    - is_scheduled=TRUE + 'sacbo'   -> 'sacbo'
-    - is_scheduled=TRUE + vuoto     -> 'sacbo' (CSV pre-v2.9.19)
 
-Novità v2.8.6 (INFRA-01, 07/10/2026):
+Novita v2.8.6 (INFRA-01, 07/10/2026):
 - Import nightly esteso: nuove colonne icao24 e fonte_scheduled.
-- apply_schema_updates() ora include ALTER per icao24, fonte_scheduled
-  e CREATE INDEX IF NOT EXISTS idx_nightly_icao24.
 
-Novità v2.8.5 (05/10/2026):
-- Nuovo flag CLI --force: forza il reimport di tutti i file anche se
-  il numero di righe nel DB coincide con il CSV.
-- Variabile globale _FORCE_REIMPORT: le funzioni import_*_file() la
-  leggono e saltano il check di esistenza se True.
-- sync_date() e sync_last_n_days() accettano parametro force=False.
-- Uso: py -3.12 -m bgy_core.bgy_db_migrate --date 2026-10-04 --force
+Novita v2.8.5 (05/10/2026):
+- Nuovo flag CLI --force: forza il reimport di tutti i file.
 
-Novità v2.8.4: reimport se CSV differisce da DB.
-Novità v2.8.3: bilanciamento nightly sotto 25 movimenti = warning.
-Novità v2.8.2: check 12 monodirezionale sotto 25 = warning.
-Novità v2.8.1: check 28 warning invece di errore.
-Novità v2.8.0: classificazione unificata "Non classificato".
-Novità v2.7.5: check 18 esclude date non monitorate.
-Novità v2.7.4: rimossi check 22, filtri date pre-26/09.
-Novità v2.7.3: failover SACBO -> Avionio.
-Novità v2.7.2: fix reimport radar cumulativo.
-Novità v2.7.1: fix import nightly duplicati.
-Novità v2.7.0: radar h24.
+Novita v2.8.4: reimport se CSV differisce da DB.
+Novita v2.8.3: bilanciamento nightly sotto 25 movimenti = warning.
+Novita v2.8.2: check 12 monodirezionale sotto 25 = warning.
+Novita v2.8.1: check 28 warning invece di errore.
+Novita v2.8.0: classificazione unificata "Non classificato".
+Novita v2.7.5: check 18 esclude date non monitorate.
+Novita v2.7.4: rimossi check 22, filtri date pre-26/09.
+Novita v2.7.3: failover SACBO -> Avionio.
+Novita v2.7.2: fix reimport radar cumulativo.
+Novita v2.7.1: fix import nightly duplicati.
+Novita v2.7.0: radar h24.
 """
 import os
 import sys
@@ -85,6 +69,10 @@ BATCH_SIZE = 500
 # v2.8.5: flag globale per forzare il reimport
 _FORCE_REIMPORT = False
 
+# v2.9.0 (Cantiere B.1): directory dei file Avionio
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+AVIONIO_DIR = os.path.join(_PROJECT_ROOT, "bgy_data", "bgy_avionio")
+
 EXPECTED_NEW_COLUMNS = {
     "callsign_volo", "tipo_movimento", "destinazione_origine",
     "orario_schedulato", "orario_effettivo", "stato_volo",
@@ -104,7 +92,9 @@ stats = {
     "scans_imported": 0, "scans_skipped": 0, "scans_recovered": 0,
     "scans_old_format": 0, "scans_unsupported": 0,
     "flights_imported": 0, "radar_imported": 0,
-    "weather_imported": 0, "nightly_imported": 0, "errors": 0,
+    "weather_imported": 0, "nightly_imported": 0,
+    "avionio_imported": 0,
+    "errors": 0,
 }
 
 _schema_updates_applied = False
@@ -119,13 +109,15 @@ def _register_schema_version():
     """
     v2.8.7.1 (SCHEMA-01): registra in schema_version la versione applicata
     dopo gli ALTER di apply_schema_updates(). Idempotente.
+
+    v2.9.0 (Cantiere B.1): nota aggiornata per flights_avionio.
     """
     from bgy_core import bgy_db
     version = bgy_db.SCHEMA_VERSION
     ok, _ = bgy_db.execute_query(
         "INSERT INTO schema_version (version, note) VALUES (%s, %s) "
         "ON CONFLICT (version) DO NOTHING",
-        (version, "v2.8.7: icao24, fonte_scheduled, indice radar-only unique, callsign_classifications"),
+        (version, "v2.10.0 (Cantiere B.1): flights_avionio + uniq_nightly_flight + icao24, fonte_scheduled, indice radar-only unique, callsign_classifications"),
         fetch=False
     )
     if not ok:
@@ -136,7 +128,8 @@ def apply_schema_updates():
     """
     Aggiornamenti di schema idempotenti.
 
-    v2.8.6: aggiunte le colonne icao24 e fonte_scheduled a nightly_reports.
+    v2.9.0 (Cantiere B.1): aggiunta flights_avionio.
+    v2.8.7.3: aggiunto uniq_nightly_flight (BUG-05).
     """
     global _schema_updates_applied
     if _schema_updates_applied:
@@ -164,6 +157,31 @@ def apply_schema_updates():
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_nightly_radar_only_unique "
         "ON nightly_reports (data_riferimento, icao24, timestamp) "
         "WHERE is_scheduled = FALSE AND icao24 IS NOT NULL AND timestamp IS NOT NULL",
+        # v2.8.7.3 (BUG-05)
+        "CREATE UNIQUE INDEX IF NOT EXISTS uniq_nightly_flight "
+        "ON nightly_reports (data_riferimento, callsign, orario_schedulato) "
+        "WHERE orario_schedulato IS NOT NULL",
+        # v2.9.0 (Cantiere B.1)
+        """CREATE TABLE IF NOT EXISTS flights_avionio (
+            id BIGSERIAL PRIMARY KEY,
+            scan_id BIGINT REFERENCES scans(id) ON DELETE CASCADE,
+            callsign_volo TEXT NOT NULL,
+            tipo_movimento VARCHAR(2),
+            destinazione_origine TEXT,
+            orario_schedulato TIME,
+            orario_effettivo TIME,
+            stato_volo TEXT,
+            codice_iata VARCHAR(3),
+            compagnia_aerea TEXT,
+            scan_timestamp TIMESTAMP NOT NULL,
+            data_riferimento DATE NOT NULL,
+            imported_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            UNIQUE (data_riferimento, callsign_volo, orario_schedulato, tipo_movimento)
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_avionio_data ON flights_avionio (data_riferimento)",
+        "CREATE INDEX IF NOT EXISTS idx_avionio_callsign ON flights_avionio (callsign_volo)",
+        "CREATE INDEX IF NOT EXISTS idx_avionio_scan ON flights_avionio (scan_id)",
+        "CREATE INDEX IF NOT EXISTS idx_avionio_ts ON flights_avionio (scan_timestamp)",
     ]
     for sql in updates:
         ok, result = bgy_db.execute_query(sql, fetch=False)
@@ -180,16 +198,6 @@ def apply_schema_updates():
 def _dedup_radar_only_params(params):
     """
     v2.8.7 (BUG-03): deduplica le righe radar-only (orario_schedulato IS NULL).
-
-    I radar-only non sono protetti dal UNIQUE (data_riferimento, callsign,
-    orario_schedulato) perche' orario_schedulato e' NULL. Vengono qui
-    deduplicati per chiave (data_riferimento, icao24, timestamp).
-
-    Struttura tupla params:
-        [0]  data_riferimento
-        [10] orario_schedulato
-        [11] timestamp
-        [22] icao24
     """
     seen = set()
     out = []
@@ -692,17 +700,9 @@ def import_nightly_file(filepath):
     """
     Import del report notturno.
 
-    v2.8.4: confronta righe CSV vs righe DB per la stessa data.
-    Se il CSV è cambiato (rigenerato per fix o rerun), reimporta.
-
-    v2.8.5: se _FORCE_REIMPORT è True, salta il check e reimporta sempre.
-
-    v2.8.6: legge le nuove colonne icao24 e fonte_scheduled.
-    Per i CSV vecchi (senza queste colonne), usa default '' e 'sacbo'.
-
-    v2.8.6.1: fonte_scheduled e' NULL per i radar-only (is_scheduled=FALSE).
-    Il default DB VARCHAR(10) DEFAULT 'sacbo' non viene piu' applicato
-    implicitamente a movimenti non scheduled.
+    v2.8.7.3 (BUG-05): ON CONFLICT ... WHERE orario_schedulato IS NOT NULL
+    richiede l'indice univoco parziale uniq_nightly_flight, ora creato da
+    apply_schema_updates().
     """
     filename = os.path.basename(filepath)
     date_str = parse_nightly_filename(filename)
@@ -739,7 +739,6 @@ def import_nightly_file(filepath):
                 "DELETE FROM nightly_reports WHERE data_riferimento = %s",
                 (date_str,), fetch=False)
 
-    # v2.8.6: rileva presenza delle nuove colonne nel CSV
     has_icao24 = bool(csv_rows) and "icao24" in csv_rows[0]
     has_fonte = bool(csv_rows) and "fonte_scheduled" in csv_rows[0]
     if not has_icao24 or not has_fonte:
@@ -755,14 +754,11 @@ def import_nightly_file(filepath):
         is_sched_bool = safe_bool(r.get("is_scheduled"))
         fonte_val = safe_str(r.get("fonte_scheduled"), "")
 
-        # v2.8.6.1: decidi fonte_scheduled in modo semanticamente coerente.
         if not is_sched_bool:
-            # Radar-only: non ha una fonte scheduled.
             fonte_param = None
         elif fonte_val in ("sacbo", "avionio"):
             fonte_param = fonte_val
         else:
-            # Scheduled ma CSV vecchio senza colonna: assumiamo SACBO.
             fonte_param = "sacbo"
 
         icao_val = safe_str(r.get("icao24"), "") or None
@@ -791,7 +787,6 @@ def import_nightly_file(filepath):
     if not params:
         return False, None
 
-    # v2.8.7 (BUG-03): deduplica radar-only prima dell'INSERT
     params = _dedup_radar_only_params(params)
 
     total_inserted = 0
@@ -832,6 +827,172 @@ def import_nightly_file(filepath):
         logger.info(f"✅ Importato {filename}: {total_inserted} voli notturni")
     stats["nightly_imported"] += total_inserted
     return True, total_inserted
+
+
+# =============================================================================
+# IMPORT: AVIONIO (Cantiere B.1)
+# =============================================================================
+
+def _find_latest_avionio_file(movement_type):
+    """
+    Trova il file Avionio più recente per il tipo specificato.
+    movement_type: 'arrivals' o 'departures'
+    """
+    if not os.path.isdir(AVIONIO_DIR):
+        return None
+    pattern = re.compile(
+        rf"^avionio_{movement_type}_(\d{{4}}-\d{{2}}-\d{{2}})_(\d{{2}}-\d{{2}})\.csv$"
+    )
+    candidates = []
+    for f in os.listdir(AVIONIO_DIR):
+        m = pattern.match(f)
+        if m:
+            full = os.path.join(AVIONIO_DIR, f)
+            try:
+                mtime = os.path.getmtime(full)
+                candidates.append((mtime, full))
+            except Exception:
+                continue
+    if not candidates:
+        return None
+    candidates.sort(key=lambda x: x[0], reverse=True)
+    return candidates[0][1]
+
+
+def import_avionio_file(filepath, scan_id=None):
+    """
+    Importa un singolo file Avionio in flights_avionio.
+
+    Ritorna (ok, n_inserite, n_scartate).
+    """
+    filename = os.path.basename(filepath)
+    # Estrai data e ora dal nome file: avionio_{movement}_{YYYY-MM-DD}_{HH-MM}.csv
+    m = re.match(r'^avionio_(arrivals|departures)_(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})\.csv$', filename)
+    if not m:
+        logger.warning(f"Nome file Avionio non riconosciuto: {filename}")
+        return False, 0, 0
+
+    movement = m.group(1)
+    date_str = m.group(2)
+    hh = m.group(3)
+    mm = m.group(4)
+    scan_ts = f"{date_str} {hh}:{mm}:00"
+
+    # data_riferimento: se orario schedulato < 06:00, appartiene alla sessione del giorno prima
+    # Per ora, la data_riferimento è la data del file (data di scansione).
+    # Il match notturno userà orario_schedulato per determinare la sessione.
+    data_rif = date_str
+
+    csv_rows = read_csv_rows(filepath)
+    if not csv_rows:
+        logger.warning(f"File Avionio vuoto: {filename}")
+        return False, 0, 0
+
+    params = []
+    for r in csv_rows:
+        callsign = safe_str(r.get("callsign_volo"), "")
+        if not callsign:
+            continue
+        tipo_mov = safe_str(r.get("tipo_movimento"), "")
+        dest = safe_str(r.get("destinazione_origine"), "")
+        sched = safe_time(r.get("orario_schedulato"))
+        eff = safe_time(r.get("orario_effettivo"))
+        stato = safe_str(r.get("stato_volo"), "")
+        codice_iata = safe_str(r.get("codice_iata"), "")
+        compagnia = safe_str(r.get("compagnia_aerea"), "")
+
+        # data_riferimento basata su orario_schedulato:
+        # se sched < 06:00, appartiene alla sessione del giorno prima
+        if sched:
+            hh_sched = int(sched.split(":")[0])
+            if hh_sched < 6:
+                data_rif_row = (datetime.strptime(date_str, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+            else:
+                data_rif_row = date_str
+        else:
+            data_rif_row = date_str
+
+        params.append((
+            scan_id,
+            callsign,
+            tipo_mov,
+            dest,
+            sched,
+            eff,
+            stato,
+            codice_iata,
+            compagnia,
+            scan_ts,
+            data_rif_row,
+        ))
+
+    if not params:
+        logger.info(f"Nessuna riga valida in {filename}")
+        return False, 0, 0
+
+    total_inserted = 0
+    total_skipped = 0
+    for i in range(0, len(params), BATCH_SIZE):
+        batch = params[i:i+BATCH_SIZE]
+        ok, result = bgy_db.execute_many(
+            """INSERT INTO flights_avionio
+               (scan_id, callsign_volo, tipo_movimento, destinazione_origine,
+                orario_schedulato, orario_effettivo, stato_volo,
+                codice_iata, compagnia_aerea, scan_timestamp, data_riferimento)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+               ON CONFLICT (data_riferimento, callsign_volo, orario_schedulato, tipo_movimento)
+               DO NOTHING""", batch)
+        if ok:
+            inserted = result if isinstance(result, int) else len(batch)
+            total_inserted += inserted
+            total_skipped += len(batch) - inserted
+        else:
+            logger.error(f"Errore insert Avionio {filename}: {result}")
+            stats["errors"] += 1
+
+    logger.info(f"✅ Importato Avionio {filename}: {total_inserted} inseriti, {total_skipped} scartati (conflitti)")
+    stats["avionio_imported"] += total_inserted
+    return True, total_inserted, total_skipped
+
+
+def import_avionio_scan_to_db():
+    """
+    Importa gli ultimi file Avionio (arrivals + departures) in flights_avionio.
+    Chiamata da bgy_scheduler._run_avionio_after_scan().
+
+    Ritorna (ok, msg) con il numero di righe inserite.
+    """
+    if not bgy_db.is_enabled():
+        return False, "DB non abilitato"
+
+    ok, msg = bgy_db.test_connection()
+    if not ok:
+        return False, f"DB non raggiungibile: {msg}"
+
+    apply_schema_updates()
+
+    # Trova l'ultimo scan_id per gli Avionio (se esiste)
+    # Non abbiamo una scansione SACBO associata, quindi scan_id=None
+    scan_id = None
+
+    total_inserted = 0
+    total_skipped = 0
+    files_processed = 0
+
+    for movement in ("arrivals", "departures"):
+        filepath = _find_latest_avionio_file(movement)
+        if not filepath:
+            logger.info(f"⏭️ Nessun file Avionio recente per {movement}")
+            continue
+        ok, inserted, skipped = import_avionio_file(filepath, scan_id=scan_id)
+        if ok:
+            total_inserted += inserted
+            total_skipped += skipped
+            files_processed += 1
+
+    msg = f"Avionio import: {total_inserted} righe inserite, {total_skipped} scartate ({files_processed} file)"
+    logger.info(f"✅ {msg}")
+    return True, msg
 
 
 # =============================================================================
@@ -948,7 +1109,7 @@ def sync_last_n_days(n, force=False):
 def reset_tables():
     logger.warning("⚠️ RESET: svuoto tutte le tabelle...")
     tables = ["nightly_reports", "weather_hourly", "radar_detections",
-              "flights_sacbo", "scans"]
+              "flights_sacbo", "flights_avionio", "scans"]
     ok, result = bgy_db.execute_query(
         f"TRUNCATE {', '.join(tables)} RESTART IDENTITY CASCADE", fetch=False)
     if ok:
@@ -1048,6 +1209,7 @@ def migrate_all(reset=False, dry_run=False):
     logger.info(f"Rilevamenti radar:         {stats['radar_imported']}")
     logger.info(f"Righe meteo:               {stats['weather_imported']}")
     logger.info(f"Voli notturni:             {stats['nightly_imported']}")
+    logger.info(f"Voli Avionio:              {stats['avionio_imported']}")
     logger.info(f"Errori:                    {stats['errors']}")
     logger.info("=" * 60)
     counts = bgy_db.get_table_counts()
@@ -1058,7 +1220,7 @@ def migrate_all(reset=False, dry_run=False):
 
 
 # =============================================================================
-# STATISTICHE MOVIMENTI
+# STATISTICHE MOVIMENTI (invariate)
 # =============================================================================
 
 def get_daily_stats(date_str):
@@ -1379,7 +1541,7 @@ def get_hourly_distribution(date_str):
 
 
 # =============================================================================
-# QUALITY CHECK
+# QUALITY CHECK (invariato, solo aggiornamento conteggi tabelle)
 # =============================================================================
 
 DEFAULT_THRESHOLDS = {
@@ -2330,6 +2492,8 @@ def main():
                         help="Solo per quality check: mostra risultati senza contare errori")
     parser.add_argument("--quality-check", action="store_true",
                         help="Esegui il quality check")
+    parser.add_argument("--avionio-import", action="store_true",
+                        help="Importa gli ultimi file Avionio in flights_avionio")
     parser.add_argument("--days", type=int, default=7,
                         help="Numero di giorni per il quality check (default: 7)")
     args = parser.parse_args()
@@ -2349,6 +2513,10 @@ def main():
         print()
         if not args.dry_run:
             success = result["riepilogo"]["errori"] == 0
+    elif args.avionio_import:
+        ok, msg = import_avionio_scan_to_db()
+        print(msg)
+        success = ok
     elif args.all:
         apply_schema_updates()
         success = migrate_all(reset=args.reset, dry_run=args.dry_run)

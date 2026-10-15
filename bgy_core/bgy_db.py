@@ -1,30 +1,29 @@
 ﻿"""
 bgy_core/bgy_db.py - Modulo di accesso al database PostgreSQL.
-Versione 2.8.0
+Versione 2.10.0
+
+Novita v2.10.0 (Cantiere B.1, 14/10/2026):
+- SCHEMA_VERSION bumpata da 5 a 6.
+- SCHEMA_SQL: aggiunta tabella flights_avionio (Cantiere B.1).
+  Contiene i voli scheduled Avionio importati ogni scansione.
+  UNIQUE (data_riferimento, callsign_volo, orario_schedulato, tipo_movimento).
+
+Novita v2.9.0 (BUG-05 / INFRA-07, 13/10/2026):
+- SCHEMA_VERSION bumpata da 4 a 5.
+- SCHEMA_SQL: aggiunto indice univoco parziale uniq_nightly_flight
+  su (data_riferimento, callsign, orario_schedulato) WHERE
+  orario_schedulato IS NOT NULL.
 
 Novita v2.8.0 (DST-01, 10/10/2026):
 - SCHEMA_VERSION bumpata da 3 a 4.
 - SCHEMA_SQL: colonna timestamp_utc TIMESTAMPTZ in radar_detections.
-  Serve a distinguere la doppia ora 02:00-02:59 durante il cambio DST.
 
 Novita v2.7.0 (SCHEMA-01, 10/10/2026):
-- SCHEMA_VERSION bumpata da 2 a 3. Riflette gli ALTER TABLE applicati
-  da bgy_db_migrate.apply_schema_updates() (icao24, fonte_scheduled,
-  indice radar-only unique, callsign_classifications).
+- SCHEMA_VERSION bumpata da 2 a 3.
 
 Nota: la SCHEMA_SQL contiene ancora il DDL base v2. Gli ALTER
 aggiuntivi restano in apply_schema_updates() (idempotenti). Il
 flusso di creazione DB e': apply_schema() + apply_schema_updates().
-
-Versione 2.7.0
-
-- Fix: execute_query() gestisce correttamente INSERT ... RETURNING
-- Fix: execute_query() usa cur.description per capire se la query ritorna righe
-- Novità v2.6.1: execute_many() ritorna cur.rowcount (righe effettivamente
-  modificate/inserite), non len(params_list). Necessario per contare i
-  duplicati scartati dal ON CONFLICT DO NOTHING nell'import notturno.
-- Novità v2.6.0: SCHEMA_SQL aggiornato per radar h24 (fonte, data_riferimento,
-  sessione_notturna nullable).
 """
 import os
 import sys
@@ -36,7 +35,7 @@ from bgy_core.bgy_config_manager import config_manager
 
 logger = get_logger("DB")
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 6
 
 
 SCHEMA_SQL = """
@@ -79,6 +78,28 @@ CREATE INDEX IF NOT EXISTS idx_flights_data ON flights_sacbo (data_riferimento);
 CREATE INDEX IF NOT EXISTS idx_flights_callsign ON flights_sacbo (callsign_volo);
 CREATE INDEX IF NOT EXISTS idx_flights_scan ON flights_sacbo (scan_id);
 CREATE INDEX IF NOT EXISTS idx_flights_ts ON flights_sacbo (scan_timestamp);
+
+-- Voli scheduled Avionio (Cantiere B.1)
+CREATE TABLE IF NOT EXISTS flights_avionio (
+    id BIGSERIAL PRIMARY KEY,
+    scan_id BIGINT REFERENCES scans(id) ON DELETE CASCADE,
+    callsign_volo TEXT NOT NULL,
+    tipo_movimento VARCHAR(2),
+    destinazione_origine TEXT,
+    orario_schedulato TIME,
+    orario_effettivo TIME,
+    stato_volo TEXT,
+    codice_iata VARCHAR(3),
+    compagnia_aerea TEXT,
+    scan_timestamp TIMESTAMP NOT NULL,
+    data_riferimento DATE NOT NULL,
+    imported_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE (data_riferimento, callsign_volo, orario_schedulato, tipo_movimento)
+);
+CREATE INDEX IF NOT EXISTS idx_avionio_data ON flights_avionio (data_riferimento);
+CREATE INDEX IF NOT EXISTS idx_avionio_callsign ON flights_avionio (callsign_volo);
+CREATE INDEX IF NOT EXISTS idx_avionio_scan ON flights_avionio (scan_id);
+CREATE INDEX IF NOT EXISTS idx_avionio_ts ON flights_avionio (scan_timestamp);
 
 -- Rilevamenti radar (h24 multi-fonte, v2.7.0)
 CREATE TABLE IF NOT EXISTS radar_detections (
@@ -149,6 +170,11 @@ CREATE TABLE IF NOT EXISTS nightly_reports (
 CREATE INDEX IF NOT EXISTS idx_nightly_data ON nightly_reports (data_riferimento);
 CREATE INDEX IF NOT EXISTS idx_nightly_callsign ON nightly_reports (callsign);
 CREATE INDEX IF NOT EXISTS idx_nightly_compagnia ON nightly_reports (compagnia_aerea);
+
+-- v2.9.0 (BUG-05): vincolo univoco sui voli scheduled.
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_nightly_flight
+ON nightly_reports (data_riferimento, callsign, orario_schedulato)
+WHERE orario_schedulato IS NOT NULL;
 
 -- Vista: report giornaliero deduplicato
 CREATE OR REPLACE VIEW v_daily_report AS
@@ -263,7 +289,7 @@ def apply_schema():
             cur.execute(
                 "INSERT INTO schema_version (version, note) VALUES (%s, %s) "
                 "ON CONFLICT (version) DO NOTHING",
-                (SCHEMA_VERSION, "Schema BGY Monitoring Suite 2.7 (radar h24)")
+                (SCHEMA_VERSION, "Schema BGY Monitoring Suite 2.10 (Cantiere B.1: flights_avionio)")
             )
         conn.commit()
         logger.info(f"✅ Schema v{SCHEMA_VERSION} applicato")
@@ -337,8 +363,8 @@ def execute_many(sql, params_list):
 
 def get_table_counts():
     tables = [
-        "scans", "flights_sacbo", "radar_detections",
-        "weather_hourly", "nightly_reports",
+        "scans", "flights_sacbo", "flights_avionio",
+        "radar_detections", "weather_hourly", "nightly_reports",
     ]
     result = {}
     conn = get_connection()

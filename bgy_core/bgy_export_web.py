@@ -1,41 +1,27 @@
 """
 bgy_core/bgy_export_web.py - Esportazione dati aggregati per il web (F17).
-Versione 1.3.1
+Versione 1.3.3
+
+Novita v1.3.3 (RM-02, 14/10/2026):
+- _empty_delay_agg(): nuovi campi ritardi_fasce, ritardi_min, ritardi_max.
+- _add_delta_to_agg(): popola fasce e min/max sui voli in ritardo.
+- _finalize_delay_agg(): calcola la distribuzione per fasce 15-30, 30-45,
+  45-60, 60-120, >120 minuti e rimuove deltas_ritardi dal dict.
+  Le 3 metriche (ritardo_medio, ritardo_medio_ritardati, mediana_ritardi)
+  restano esposte come in v1.3.2.
+  Necessario per il modal informativo del KPI "Ritardo medio (voli in
+  ritardo)" sulla pagina Ritardi H24.
+
+Novita v1.3.2 (H0 + RM, 14/10/2026):
+- H0: _delta_sql_expr() usa un wrap-around SIMMETRICO.
+- RM: _finalize_delay_agg() espone 3 metriche distinte.
 
 Novita v1.3.1 (QA-02, 12/10/2026):
-- _gate_check_pre_publish(): nuovo gate di qualita' pre-publish.
-  Verifica che i dati siano sani prima di pubblicare su WordPress.
-  Quattro check:
-    1. Almeno N notti con dati in nightly_reports
-    2. Almeno M voli nell'ultima notte registrata
-    3. Almeno K voli diurni nell'ultimo giorno in v_daily_report
-    4. Almeno R rilevamenti radar recenti
-  Se un check fallisce, l'export viene BLOCCATO (nessuna scrittura locale,
-  nessuna pubblicazione). Il motivo viene loggato come errore.
-- export_and_publish() e export_delays_and_publish() accettano
-  skip_gate=False (default). Se True, il gate viene saltato (per test).
-- Soglie configurabili in config_data.json > web_export > gate.
-- Zero hardcoded: le soglie sono in config, non nel codice.
+- _gate_check_pre_publish(): gate di qualita' pre-publish (4 check).
 
 Novita v1.3.0 (08/10/2026):
-- Nuovo blocco ritardi h24 per la pagina "BGY - Ritardi H24".
-- Nuovo file separato bgy-delays.csv (Opzione B).
-- Nuove funzioni: build_block_delays_h24, build_delays_json,
-  save_delays_json, export_delays_and_publish, _get_delays_config.
-- CLI: flag --publish-delays.
-- Zero hardcoded: soglie, top N, disclaimer da config_data.json > web_export > delays.
-
-Novita v1.2.17 (07/10/2026):
-- build_block_night_airlines(): aggiunto campo 'cat'.
-
-Novita v1.2.16 (07/10/2026):
-- Fix bug totals._tab + block_geo_breakdown.
-
-Uso:
-    py -3.12 -m bgy_core.bgy_export_web --days 90 --dry-run
-    py -3.12 -m bgy_core.bgy_export_web --days 90 --dry-run --skip-gate
-    py -3.12 -m bgy_core.bgy_export_web --days 90 --publish
-    py -3.12 -m bgy_core.bgy_export_web --days 90 --publish-delays
+- Nuovo blocco ritardi h24. Nuove funzioni build_block_delays_h24,
+  build_delays_json, save_delays_json, export_delays_and_publish.
 """
 import os
 import sys
@@ -72,8 +58,10 @@ DELAYS_DEFAULTS = {
         "Ritardi calcolati come differenza tra orario effettivo e orario "
         "schedulato (SACBO). Decolli e atterraggi analizzati separatamente. "
         "Voli cancellati esclusi. Soglia puntualita': 15 minuti. "
-        "Soglia ritardo grave: 60 minuti. La raccolta dati e' iniziata il "
-        "30 settembre 2026."
+        "Soglia ritardo grave: 60 minuti. Il ritardo medio mostrato e' "
+        "calcolato solo sui voli in ritardo (>= 15 min), per non diluire "
+        "il valore con i voli puntuali e gli anticipi. La raccolta dati "
+        "e' iniziata il 30 settembre 2026."
     ),
 }
 
@@ -153,7 +141,6 @@ def _get_delays_config():
 
 
 def _get_gate_config():
-    """QA-02: legge le soglie del gate pre-publish da config_data.json."""
     from bgy_core.bgy_config_manager import config_manager
     try:
         cfg = config_manager.get_data_config().get("web_export", {}) or {}
@@ -175,21 +162,7 @@ def _get_gate_config():
 # =============================================================================
 
 def _gate_check_pre_publish():
-    """
-    QA-02: verifica che i dati siano sani prima di pubblicare.
-    Ritorna (ok, msg).
-
-    Il gate si basa sui dati PIU' RECENTI nel DB, non sull'intero periodo.
-    Motivo: se il sistema e' stato fermo una settimana, i dati vecchi sono
-    comunque validi e non devono bloccare l'export. Il gate protegge solo
-    contro dati freschi incompleti (es. scanner SACBO fallito stanotte).
-
-    Quattro check indipendenti:
-      1. Almeno N notti con dati in nightly_reports
-      2. Almeno M voli nell'ultima notte registrata
-      3. Almeno K voli diurni nell'ultimo giorno in v_daily_report
-      4. Almeno R rilevamenti radar recenti (lookback configurabile)
-    """
+    """QA-02: verifica che i dati siano sani prima di pubblicare."""
     cfg = _get_gate_config()
     if not cfg["enabled"]:
         logger.info("⏭️  Gate pre-publish disabilitato in config")
@@ -197,7 +170,6 @@ def _gate_check_pre_publish():
 
     errors = []
 
-    # --- Check 1: notti con dati ---
     rows = _query(
         "SELECT COUNT(DISTINCT data_riferimento) FROM nightly_reports"
     )
@@ -209,7 +181,6 @@ def _gate_check_pre_publish():
     else:
         logger.info(f"   Gate 1/4: notti con dati = {n_days} ✅")
 
-    # --- Check 2: voli nell'ultima notte ---
     rows = _query(
         "SELECT COUNT(*) FROM nightly_reports "
         "WHERE data_riferimento = (SELECT MAX(data_riferimento) FROM nightly_reports)"
@@ -222,7 +193,6 @@ def _gate_check_pre_publish():
     else:
         logger.info(f"   Gate 2/4: voli ultima notte = {n_nightly} ✅")
 
-    # --- Check 3: voli diurni nell'ultimo giorno ---
     rows = _query(
         "SELECT COUNT(*) FROM v_daily_report "
         "WHERE data_riferimento = (SELECT MAX(data_riferimento) FROM v_daily_report)"
@@ -235,7 +205,6 @@ def _gate_check_pre_publish():
     else:
         logger.info(f"   Gate 3/4: voli ultimo giorno = {n_daily} ✅")
 
-    # --- Check 4: radar recenti ---
     lookback = cfg["radar_lookback_days"]
     rows = _query(
         "SELECT COUNT(*) FROM radar_detections "
@@ -1156,44 +1125,109 @@ def build_block_runway_diagnostics(date_from, date_to):
 
 
 # =============================================================================
-# BLOCCO RITARDI H24 (v1.3.0)
+# BLOCCO RITARDI H24 (v1.3.3)
 # =============================================================================
 
 def _delta_sql_expr():
+    """
+    v1.3.2 (H0): espressione SQL del delta in minuti, con wrap-around
+    SIMMETRICO.
+    """
     return """
         CASE
             WHEN v.orario_effettivo IS NULL
               OR v.orario_schedulato IS NULL THEN NULL
             WHEN v.orario_effettivo = v.orario_schedulato THEN 0
             WHEN v.orario_effettivo > v.orario_schedulato THEN
-                EXTRACT(EPOCH FROM
-                    (v.orario_effettivo - v.orario_schedulato)) / 60.0
+                CASE
+                    WHEN EXTRACT(EPOCH FROM
+                        (v.orario_effettivo - v.orario_schedulato)) / 60.0 <= 720
+                    THEN EXTRACT(EPOCH FROM
+                        (v.orario_effettivo - v.orario_schedulato)) / 60.0
+                    ELSE EXTRACT(EPOCH FROM
+                        (v.orario_effettivo - v.orario_schedulato)) / 60.0 - 1440
+                END
             ELSE
                 CASE
                     WHEN EXTRACT(EPOCH FROM
                         (v.orario_schedulato - v.orario_effettivo)) / 60.0 <= 720
-                    THEN
-                        -1 * EXTRACT(EPOCH FROM
-                            (v.orario_schedulato - v.orario_effettivo)) / 60.0
-                    ELSE
-                        1440 - EXTRACT(EPOCH FROM
-                            (v.orario_schedulato - v.orario_effettivo)) / 60.0
+                    THEN -1 * EXTRACT(EPOCH FROM
+                        (v.orario_schedulato - v.orario_effettivo)) / 60.0
+                    ELSE 1440 - EXTRACT(EPOCH FROM
+                        (v.orario_schedulato - v.orario_effettivo)) / 60.0
                 END
         END
     """
 
 
 def _empty_delay_agg():
+    """
+    v1.3.3: nuovi campi per la distribuzione per fasce del modal KPI.
+    - ritardi_fasce: dict fascia -> count (popolato in _finalize)
+    - ritardi_min: ritardo minimo tra i voli in ritardo
+    - ritardi_max: ritardo massimo tra i voli in ritardo
+    """
     return {
         "n_total": 0, "n_puntuali": 0, "n_ritardo": 0, "n_grave": 0,
         "n_anticipo": 0,
         "sum_delta": 0.0,
+        "sum_delta_ritardi": 0.0,
+        "deltas_ritardi": [],
+        "ritardi_min": None,
+        "ritardi_max": None,
     }
 
 
 def _finalize_delay_agg(agg):
+    """
+    v1.3.3: calcola 3 metriche + distribuzione per fasce.
+    """
     n = agg["n_total"]
+    n_rit = agg["n_ritardo"]
+
     agg["ritardo_medio"] = round(agg["sum_delta"] / n, 1) if n > 0 else 0.0
+
+    if n_rit > 0:
+        agg["ritardo_medio_ritardati"] = round(
+            agg["sum_delta_ritardi"] / n_rit, 1)
+    else:
+        agg["ritardo_medio_ritardati"] = 0.0
+
+    deltas = agg.pop("deltas_ritardi", [])
+
+    # Mediana
+    if deltas:
+        deltas_sorted = sorted(deltas)
+        n_d = len(deltas_sorted)
+        if n_d % 2 == 1:
+            agg["mediana_ritardi"] = float(deltas_sorted[n_d // 2])
+        else:
+            agg["mediana_ritardi"] = round(
+                (deltas_sorted[n_d // 2 - 1] + deltas_sorted[n_d // 2]) / 2, 1)
+    else:
+        agg["mediana_ritardi"] = 0.0
+
+    # v1.3.3: distribuzione per fasce
+    fasce = {
+        "15-30": 0,
+        "30-45": 0,
+        "45-60": 0,
+        "60-120": 0,
+        ">120": 0,
+    }
+    for d in deltas:
+        if d <= 30:
+            fasce["15-30"] += 1
+        elif d <= 45:
+            fasce["30-45"] += 1
+        elif d <= 60:
+            fasce["45-60"] += 1
+        elif d <= 120:
+            fasce["60-120"] += 1
+        else:
+            fasce[">120"] += 1
+    agg["ritardi_fasce"] = fasce
+
     return agg
 
 
@@ -1204,6 +1238,13 @@ def _add_delta_to_agg(agg, delta, soglia_punt, soglia_grave):
         agg["n_puntuali"] += 1
     if delta > soglia_punt:
         agg["n_ritardo"] += 1
+        agg["sum_delta_ritardi"] += delta
+        agg["deltas_ritardi"].append(delta)
+        # v1.3.3: min/max dei ritardati
+        if agg["ritardi_min"] is None or delta < agg["ritardi_min"]:
+            agg["ritardi_min"] = delta
+        if agg["ritardi_max"] is None or delta > agg["ritardi_max"]:
+            agg["ritardi_max"] = delta
     if delta > soglia_grave:
         agg["n_grave"] += 1
     if delta < -soglia_punt:
@@ -1471,10 +1512,6 @@ def save_delays_json(payload):
 
 
 def export_and_publish(days=90, skip_gate=False):
-    """
-    v1.3.1: aggiunto gate pre-publish (QA-02).
-    Se il gate fallisce, NON salva e NON pubblica.
-    """
     from bgy_core import bgy_wordpress
     payload = build_web_json(days=days)
     if not payload:
@@ -1497,9 +1534,6 @@ def export_and_publish(days=90, skip_gate=False):
 
 
 def export_delays_and_publish(days=90, skip_gate=False):
-    """
-    v1.3.1: aggiunto gate pre-publish (QA-02).
-    """
     from bgy_core import bgy_wordpress
     payload = build_delays_json(days=days)
     if not payload:

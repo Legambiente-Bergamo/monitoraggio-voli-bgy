@@ -1,6 +1,21 @@
 """
 bgy_reports/bgy_report_night.py - Report notturno integrato (SACBO + Avionio + radar).
-Versione 2.9.29
+Versione 2.9.30
+
+Novita v2.9.30 (BUG-02, 14/10/2026):
+- Gestione fase_volo = 'Incerto' introdotta dallo scanner radar v1.3.0.
+  Quando baro_rate non è significativo e il track è ambiguo (~90° dal
+  bearing verso BGY), lo scanner marca la fase come 'Incerto' invece di
+  indovinare.
+  Modifiche:
+    - BGY_PHASES include 'Incerto'
+    - _is_phase_compatible(): 'Incerto' è compatibile sia con D che con A
+    - _phase_priority(): aggiunto 'Incerto' (rank 2, sotto Avvicinamento)
+    - _dedup_radar_by_callsign(): PHASE_RANK include 'Incerto'
+    - _classify_unmatched_radar(): 'Incerto' → direzione_sacbo='?'
+    - _enrich_final() > _noise(): esclude 'Incerto' dal calcolo rumore
+    - generate_nightly_report(): conta e riporta gli Incerto nel messaggio
+  Vedi Addendum 5 (ciclo v3.8), voce BUG-02.
 
 Novita v2.9.29 (DATA-13, 12/10/2026):
 - _filter_excluded_callsigns(): rimuove dal report i movimenti il cui
@@ -11,54 +26,24 @@ Novita v2.9.29 (DATA-13, 12/10/2026):
   nome viene applicata automaticamente, senza modificare il codice.
 - generate_nightly_report() chiama _filter_excluded_callsigns() subito
   dopo match_flights(). Il messaggio finale riporta il numero di esclusi.
-- Sostituisce il workaround manuale (UPDATE diretto su nightly_reports)
-  applicato il 10/10.
 
 Novita v2.9.28 (DATA-11.C, 08/10/2026):
-- _dedup_unknown_via_icao24(): nuova dedup per radar-only con callsign
-  UNKNOWN/vuoto. Se lo stesso icao24 compare entro 5 minuti con callsign
-  noto e fase compatibile, il rilevamento UNKNOWN viene scartato.
-  Risolve i casi 48c221 (UNKNOWN + RYR9ZN) e 4d20b1 (UNKNOWN + WMT994)
-  della sessione 06-07/10.
-- _is_unknown_callsign(): helper per riconoscere callsign vuoto/UNKNOWN.
-- _dedup_radar_by_callsign() chiama la nuova funzione come secondo passaggio.
+- _dedup_unknown_via_icao24(): rimuove rilevamenti radar-only con callsign
+  UNKNOWN/vuoto quando esiste un altro rilevamento dello stesso icao24
+  con callsign noto entro ICAO24_UNKNOWN_DEDUP_MIN minuti e fase compatibile.
 
 Novita v2.9.27 (DATA-11.A, 08/10/2026):
-- _dedup_scheduled_soft_cross_source(): dedup tra scheduled con stesso
-  callsign + stessa direzione + fonti diverse + Δorario <= 15 min.
+- _dedup_scheduled_soft_cross_source(): dedup cross-fonte soft.
 
 Novita v2.9.26 (DATA-10, 08/10/2026):
 - _split_borderline_flights(): fallback su orario_effettivo (SACBO).
 
-Novita v2.9.25 (DATA-06.A, 08/10/2026):
-- Fix _try_alternative_same_icao(): rispetta la finestra di match.
-
-Novita v2.9.24 (DATA-06.A, 08/10/2026):
-- match_flights(): pista N/D -> cerca stesso icao24 con pista valida.
-
-Novita v2.9.22 (DATA-04, 07/10/2026):
-- match_flights(): finestra BEFORE differenziata per fonte.
-
-Novita v2.9.21 (fix KPI 40=40, 07/10/2026):
-- _tipo_movimento_from_callsign(): scheduled pax Avionio -> 'Passeggeri'.
-
-Novita v2.9.20 (INFRA-01, 07/10/2026):
-- _dedup_radar_only_via_icao24() estesa a Cargo e Charter radar-only.
-
-Novita v2.9.19 (INFRA-01, 07/10/2026):
-- Avionio fonte scheduled integrativa.
-
-Novita v2.9.18: dedup icao24 esteso a "Non classificato".
-Novita v2.9.17: dedup radar-only via icao24.
-Novita v2.9.16: dedup radar con priorita' fasi BGY.
-Novita v2.9.15: finestra borderline stringente.
-Novita v2.9.14: sistema borderline.
-Novita v2.9.13: fix out-of-window post match_flights.
-Novita v2.9.11: fix _propagate_runway_in_session (pd.isna).
-Novita v2.9.10: raggruppa per solo callsign.
-Novita v2.9.9: prima versione del fix propagazione pista.
-Novita v2.9.8: esclusione voli pomeridiani da anomalie.
-Novita v2.9.7: pattern callsign + priorita' numero commerciale.
+Novita v2.9.25: fix _try_alternative_same_icao() finestra.
+Novita v2.9.24: pista N/D -> cerca stesso icao24 con pista valida.
+Novita v2.9.22: finestra BEFORE differenziata per fonte.
+Novita v2.9.21: scheduled pax Avionio -> 'Passeggeri'.
+Novita v2.9.20: dedup radar-only estesa a Cargo e Charter.
+Novita v2.9.19: Avionio fonte scheduled integrativa.
 
 Principio documentato:
 - Il rumore conta solo se prodotto tra le 23:00:00 e le 05:59:59.
@@ -67,9 +52,10 @@ Principio documentato:
 - Un radar-only UNKNOWN con stesso icao24 di un callsign noto e' un duplicato.
 - La pista si assegna solo su evidenza radar, non su stima.
 - SACBO domina, Avionio integra, radar aggiunge.
-- Un callsign la cui categoria contiene "Escluso" e' fuori dal perimetro
-  del monitoraggio (sorvoli, elicotteri non BGY, militari, ecc.) e
-  viene scartato dal report (v2.9.29, DATA-13).
+- Un callsign la cui categoria contiene "Escluso" e' fuori dal perimetro.
+- v2.9.30: una fase 'Incerto' (radar senza baro_rate significativo e
+  track ambiguo) è compatibile con D e A nel match, ma non contribuisce
+  al calcolo rumore e viene marcata direzione='?' se radar-only.
 """
 import os
 import re
@@ -117,7 +103,9 @@ ICAO24_UNKNOWN_DEDUP_MIN = 5
 
 VALID_RUNWAYS = ('RWY 28', 'RWY 10')
 
-BGY_PHASES = ('Atterraggio', 'Decollo', 'Avvicinamento')
+# v2.9.30 (BUG-02): 'Incerto' è una fase valida (radar con baro_rate
+# non significativo e track ambiguo). È compatibile sia con D che con A.
+BGY_PHASES = ('Atterraggio', 'Decollo', 'Avvicinamento', 'Incerto')
 
 NIGHT_START_HOUR = 23
 NIGHT_END_HOUR = 6
@@ -993,6 +981,13 @@ def load_radar_data(date_str):
 
 
 def _is_phase_compatible(direzione_sacbo, fase_volo):
+    """
+    v2.9.30 (BUG-02): 'Incerto' è compatibile sia con D che con A,
+    perché lo scanner radar non ha potuto discriminare (baro_rate
+    non significativo + track ambiguo).
+    """
+    if fase_volo == 'Incerto':
+        return True
     if direzione_sacbo == 'D':
         return fase_volo == 'Decollo'
     if direzione_sacbo == 'A':
@@ -1001,10 +996,14 @@ def _is_phase_compatible(direzione_sacbo, fase_volo):
 
 
 def _phase_priority(fase_volo):
+    """
+    v2.9.30 (BUG-02): aggiunto 'Incerto' con rank 2 (sotto Avvicinamento).
+    """
     priorities = {
-        'Atterraggio': 4,
-        'Decollo': 3,
-        'Avvicinamento': 2,
+        'Atterraggio': 5,
+        'Decollo': 4,
+        'Avvicinamento': 3,
+        'Incerto': 2,
         'Non rilevato': 1,
         'N/D': 0,
         '': 0,
@@ -1090,18 +1089,6 @@ def _dedup_unknown_via_icao24(radar_df):
     UNKNOWN/vuoto quando esiste un altro rilevamento dello stesso
     icao24 con callsign noto entro ICAO24_UNKNOWN_DEDUP_MIN minuti
     e con fase compatibile (stessa direzione).
-
-    Caso tipico: il radar perde il callsign nella prima rilevazione
-    (aereo basso/veloce) e lo riacquisisce subito dopo. Stesso icao24,
-    stesso movimento fisico.
-
-    Criteri:
-      - icao24 non vuoto (uguale tra le due righe)
-      - una riga con callsign UNKNOWN/vuoto, l'altra con callsign noto
-      - fase compatibile (stessa direzione D/A)
-      - Δtimestamp <= ICAO24_UNKNOWN_DEDUP_MIN (default 5 min)
-
-    Azione: scarta la riga UNKNOWN, tieni quella con callsign noto.
     """
     if radar_df.empty:
         return radar_df
@@ -1211,7 +1198,6 @@ def _dedup_by_key(df):
     if with_sched.empty:
         return df
 
-    # v2.9.27: dedup soft cross-fonte prima della dedup esatta
     n_before_soft = len(with_sched)
     with_sched = _dedup_scheduled_soft_cross_source(with_sched)
     n_after_soft = len(with_sched)
@@ -1255,10 +1241,6 @@ def _dedup_scheduled_soft_cross_source(df):
     """
     v2.9.27 (DATA-11.A): dedup soft tra scheduled della stessa entità
     ma con fonte diversa (SACBO vs Avionio) e orari leggermente diversi.
-
-    Quando un volo e' dichiarato sia da SACBO che da Avionio con orari
-    che differiscono entro SCHED_DEDUP_TOLERANCE_MIN minuti, e' lo
-    stesso movimento fisico: tieni SACBO, scarta Avionio.
     """
     if df.empty:
         return df
@@ -1675,6 +1657,10 @@ def match_flights(scheduled_df, radar_df, session_date):
 
 
 def _classify_unmatched_radar(radar_df):
+    """
+    v2.9.30 (BUG-02): gestisce fase 'Incerto'. La direzione_sacbo viene
+    impostata a '?' (non ricavabile dalla fase).
+    """
     if radar_df.empty:
         return radar_df
     classified = []
@@ -1701,6 +1687,7 @@ def _classify_unmatched_radar(radar_df):
             elif fase in ('Atterraggio', 'Avvicinamento'):
                 row_dict['direzione_sacbo'] = 'A'
             else:
+                # v2.9.30 (BUG-02): 'Incerto' → direzione non determinabile
                 row_dict['direzione_sacbo'] = '?'
         categoria, nome = classify_callsign(cs)
         if categoria == 'Cargo':
@@ -1732,6 +1719,9 @@ def _classify_unmatched_radar(radar_df):
 
 
 def _dedup_radar_by_callsign(radar_df):
+    """
+    v2.9.30 (BUG-02): PHASE_RANK include 'Incerto' (rank 2).
+    """
     if radar_df.empty or 'callsign' not in radar_df.columns:
         return radar_df
     before = len(radar_df)
@@ -1745,9 +1735,10 @@ def _dedup_radar_by_callsign(radar_df):
         return radar_df
 
     PHASE_RANK = {
-        'Atterraggio': 4,
-        'Decollo': 3,
-        'Avvicinamento': 2,
+        'Atterraggio': 5,
+        'Decollo': 4,
+        'Avvicinamento': 3,
+        'Incerto': 2,
         'Sorvolo': 1,
         'Transito': 0,
         'N/D': 0,
@@ -1765,7 +1756,6 @@ def _dedup_radar_by_callsign(radar_df):
     )
     df = df.drop(columns=['_window', '_phase_rank'])
 
-    # v2.9.28: secondo passaggio per UNKNOWN vs callsign noto via icao24
     df = _dedup_unknown_via_icao24(df)
 
     after = len(df)
@@ -1881,6 +1871,9 @@ def _dedup_radar_only_via_icao24(result_df):
 
 
 def _enrich_final(df):
+    """
+    v2.9.30 (BUG-02): esclude 'Incerto' dal calcolo rumore.
+    """
     if df.empty:
         return df
     df = df.copy()
@@ -1960,7 +1953,8 @@ def _enrich_final(df):
             if not timestamp or pd.isna(timestamp) or str(timestamp).strip() == '':
                 return 0
             fase = row.get('fase_volo', '')
-            if not fase or fase in ('Non rilevato', 'N/D') or pd.isna(fase):
+            # v2.9.30 (BUG-02): esclude anche 'Incerto' dal calcolo rumore
+            if not fase or fase in ('Non rilevato', 'N/D', 'Incerto') or pd.isna(fase):
                 return 0
             modello = row.get('modello_aereo', 'N/D')
             if not modello or modello == 'N/D':
@@ -2139,8 +2133,6 @@ def generate_nightly_report(date_str=None):
 
     result_df = match_flights(scheduled_df, radar_df, date_norm)
 
-    # v2.9.29 (DATA-13): escludi callsign con categoria 'Escluso'
-    # (es. elicotteri/sorvoli non BGY marcati in callsign_classifications)
     result_df, n_esclusi = _filter_excluded_callsigns(result_df)
 
     if result_df.empty:
@@ -2223,6 +2215,11 @@ def generate_nightly_report(date_str=None):
             ((result_df['notte_categoria'] == 'anomalia') & visibili_mask).sum()
         )
 
+    # v2.9.30 (BUG-02): conteggio fase 'Incerto'
+    n_incerti = 0
+    if 'fase_volo' in result_df.columns:
+        n_incerti = int((result_df['fase_volo'] == 'Incerto').sum())
+
     fonte_counts = {'sacbo': 0, 'avionio': 0, '': 0}
     if 'fonte_scheduled' in result_df.columns:
         for f, n in result_df['fonte_scheduled'].value_counts().items():
@@ -2283,8 +2280,9 @@ def generate_nightly_report(date_str=None):
     anomalie_msg = f", anomalie {n_anomalie}" if n_anomalie > 0 else ""
     borderline_msg = (f", borderline {n_borderline}" if n_borderline > 0 else "")
     dedup_icao_msg = (f", dedup icao24 -{n_dedup_icao24}" if n_dedup_icao24 > 0 else "")
-    # v2.9.29 (DATA-13): menzione degli esclusi per categoria
     esclusi_msg = (f", esclusi {n_esclusi}" if n_esclusi > 0 else "")
+    # v2.9.30 (BUG-02): menzione degli incerti
+    incerti_msg = (f", incerti {n_incerti}" if n_incerti > 0 else "")
     fonte_msg = (f", fonti: SACBO {fonte_counts['sacbo']} + Avionio {fonte_counts['avionio']}"
                  if fonte_counts['avionio'] > 0 else "")
     cargo_av_msg = (f", cargo da Avionio {cargo_from_avionio}"
@@ -2292,7 +2290,7 @@ def generate_nightly_report(date_str=None):
 
     msg = (f"✅ Report notturno: {total} voli "
            f"(Visibili: {visibili} = Passeggeri {pax} + Cargo {cargo} "
-           f"+ Charter {charter} + Non classificato {non_class}{sconf_msg}{anomalie_msg}{borderline_msg}{esclusi_msg}{cargo_av_msg}{fonte_msg} | "
+           f"+ Charter {charter} + Non classificato {non_class}{sconf_msg}{anomalie_msg}{borderline_msg}{esclusi_msg}{incerti_msg}{cargo_av_msg}{fonte_msg} | "
            f"Opt-in: {optin} = Passeggeri radar {pax_radar}{dedup_icao_msg} | "
            f"PAX stimati: {pax_tot}, "
            f"Rumore su {rumore_count} voli, max {rumore_max} dB"

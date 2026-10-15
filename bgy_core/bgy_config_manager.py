@@ -1,6 +1,14 @@
 ﻿"""
 bgy_core/bgy_config_manager.py - Gestione centralizzata delle configurazioni.
-Versione 3.1.1
+Versione 3.1.2
+
+Novita v3.1.2 (INFRA-13 / INFRA-07, 13/10/2026):
+- _load_json() usa encoding='utf-8-sig' invece di 'utf-8'.
+  'utf-8-sig' tollera il BOM in testa (presente quando il file
+  viene scritto da PowerShell 5.1 con Set-Content -Encoding UTF8).
+  Retrocompatibile al 100%: se il file non ha BOM, si comporta
+  esattamente come 'utf-8'.
+  Riferimento: Finding #6 di INFRA-07.
 
 Novita v3.1.1 (INFRA-11, 12/10/2026):
 - Nuovo tracking degli errori di lettura JSON: la lista _load_errors
@@ -56,7 +64,9 @@ class ConfigManager:
     def _load_json(self, path, default):
         if os.path.exists(path):
             try:
-                with open(path, "r", encoding="utf-8") as f:
+                # v3.1.2 (INFRA-13): 'utf-8-sig' tollera il BOM in testa.
+                # Retrocompatibile: senza BOM si comporta come 'utf-8'.
+                with open(path, "r", encoding="utf-8-sig") as f:
                     return json.load(f)
             except Exception as e:
                 err_msg = str(e)

@@ -46,6 +46,7 @@
         "adsb_fi_radius_nm": 10,
         "airplanes_live_radius_nm": 10,
         "airplanes_live_enabled": false,
+        "baro_rate_threshold_fpm": 500,
         "http_timeout": 15,
         "user_agent": "BGY-Monitoring-Suite/2.6 (info@legambientebergamo.it)",
         "phase_thresholds": {
@@ -251,6 +252,7 @@
     "avionio": {
         "enabled": true,
         "run_at_every_scan": true,
+        "import_to_db": true,
         "retention_days": 7,
         "time_tolerance_min": 15,
         "http_timeout_sec": 20
@@ -296,7 +298,7 @@
             },
             "delays": {
                 "show_global": true,
-                "extra": ""
+                "extra": "Ritardi calcolati come differenza tra orario effettivo e orario schedulato (SACBO). Decolli e atterraggi analizzati separatamente. Voli cancellati esclusi.\n\nSoglie: puntuale se |Δ| ≤ 15 min, in ritardo se Δ > 15 min, ritardo grave se Δ > 60 min. Anticipi (Δ < −15 min) conteggiati come puntuali.\n\nDue metriche di ritardo medio sono mostrate:\n(a) \"Ritardo medio (tutti i voli)\" = media del Δ su tutti i voli, diluita verso zero dai puntuali.\n(b) \"Ritardo medio (voli in ritardo)\" = media del Δ solo sui voli con Δ ≥ 15 min.\nCliccando il valore (b) si apre un pannello con statistiche complete (media, mediana, min, max) e distribuzione per fasce (15-30, 30-45, 45-60, 60-120, oltre 120 min). Quest'ultima è la metrica più informativa per valutare la gravità dei ritardi quando si verificano."
             },
             "airports": {
                 "show_global": true,
