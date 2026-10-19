@@ -1,35 +1,15 @@
 """
 bgy_tools/confronto_sacbo_avionio.py - Confronto tra dati SACBO e Avionio.
-Versione 0.1.3
+Versione 0.1.4
 
-Scopo:
-  - Confrontare i dati dello scanner SACBO con quelli di Avionio.
-  - Rilevare TUTTE le differenze (senza soglie):
-      * Voli solo Avionio (in SACBO non ci sono)
-      * Voli con orario diverso (> tolleranza)
-  - Non modificare il report: solo diagnostica.
+Novità v0.1.4 (QA-04, 19/10/2026):
+- I voli "solo Avionio" classificati come Cargo vengono ignorati nel
+  conteggio delle incongruenze. È fisiologico che SACBO non li mostri
+  sul tabellone passeggeri.
+- Aggiunto import e load_rules() per classify_callsign().
 
 Novità v0.1.3 (07/10/2026):
-- run_confronto_summary() ora filtra su FINESTRA NOTTURNA 22:50-06:10.
-  Prima il check #10 dell'email del mattino riportava falsi positivi
-  con orari diurni (06:00-08:50), perché confrontava tutto il giorno.
-  Ora considera solo i voli schedulati in fascia notturna (estesa di
-  10 min per tolleranza).
-- Nuove costanti NIGHT_START_MIN, NIGHT_END_MIN.
-- Nuove helper _is_in_night_window(), _filter_night().
-- main() resta invariato (per debug manuale mostra tutto il giorno).
-
-Novità v0.1.2:
-- Aggiunta funzione run_confronto_summary() per il check 10 del job_daily.
-- Ritorna (ok, msg) pronto per il rendering nell'email.
-
-Novità v0.1.1:
-- Avviso se lo scan SACBO è più vecchio di 2 ore.
-- Metriche corrette (% Avionio confermato, % SACBO confermato).
-
-Uso:
-    py -3.12 -m bgy_tools.confronto_sacbo_avionio
-    py -3.12 -m bgy_tools.confronto_sacbo_avionio --scan-file <path>
+- run_confronto_summary() filtra su FINESTRA NOTTURNA 22:50-06:10.
 """
 import os
 import re
@@ -44,23 +24,18 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from bgy_core.bgy_logger import get_logger
 from bgy_core.bgy_paths import RAW_DIR
+from bgy_core.bgy_update_rules import load_rules, classify_callsign
 
 logger = get_logger("Confronto")
 
 TIME_TOLERANCE_MIN = 15
 SCAN_AGE_WARN_MIN = 120
 
-# v0.1.3: finestra notturna estesa (tolleranza 10 min per lato)
 NIGHT_START_MIN = 22 * 60 + 50   # 22:50
 NIGHT_END_MIN = 6 * 60 + 10      # 06:10
 
 
-# -----------------------------------------------------------------------------
-# UTILITY
-# -----------------------------------------------------------------------------
-
 def _normalize_callsign_key(callsign):
-    """Chiave di confronto robusta: 'FR 0460' e 'FR 460' → 'FR_460'."""
     if not callsign or pd.isna(callsign):
         return ""
     s = str(callsign).strip().upper()
@@ -92,10 +67,6 @@ def _times_match(t1, t2, tolerance=TIME_TOLERANCE_MIN):
 
 
 def _is_in_night_window(hhmm):
-    """
-    v0.1.3: True se l'orario schedulato è nella finestra notturna estesa
-    22:50-06:10. Ritorna False se l'orario non è parsabile.
-    """
     m = _parse_time_to_min(hhmm)
     if m is None:
         return False
@@ -103,10 +74,6 @@ def _is_in_night_window(hhmm):
 
 
 def _filter_night(df):
-    """
-    v0.1.3: tiene solo le righe con orario_schedulato in fascia notturna.
-    Se la colonna non esiste o il df è vuoto, ritorna df invariato.
-    """
     if df is None or df.empty:
         return df
     if "orario_schedulato" not in df.columns:
@@ -114,10 +81,6 @@ def _filter_night(df):
     mask = df["orario_schedulato"].apply(_is_in_night_window)
     return df[mask].copy()
 
-
-# -----------------------------------------------------------------------------
-# CARICAMENTO DATI
-# -----------------------------------------------------------------------------
 
 def _find_latest_scan():
     files = sorted(glob.glob(os.path.join(RAW_DIR, "scan_2026-*.csv")))
@@ -149,9 +112,7 @@ def _load_sacbo(scan_file=None):
         if age_min > SCAN_AGE_WARN_MIN:
             logger.warning(
                 f"⚠️  Scan SACBO vecchio di {int(age_min)} min. "
-                f"Alcuni voli Avionio potrebbero non essere visibili. "
-                f"Considera di lanciare prima: "
-                f"py -3.12 -m bgy_scanners.bgy_scanner_day"
+                f"Alcuni voli Avionio potrebbero non essere visibili."
             )
         logger.info(f"📄 SACBO: {os.path.basename(path)} ({len(df)} voli)")
         return df, path
@@ -173,10 +134,6 @@ def _load_avionio(movement_type):
         logger.error(f"❌ Errore lettura {path}: {e}")
         return None, None
 
-
-# -----------------------------------------------------------------------------
-# CONFRONTO
-# -----------------------------------------------------------------------------
 
 def confronta_direzionale(df_sacbo, df_avionio, tipo):
     result = {
@@ -330,26 +287,10 @@ def format_report_text(confronti):
     }
 
 
-# -----------------------------------------------------------------------------
-# FUNZIONE PER IL JOB GIORNALIERO (v0.1.3 — filtro notturno)
-# -----------------------------------------------------------------------------
-
 def run_confronto_summary(scan_file=None):
-    """
-    v0.1.3: come v0.1.2, ma con filtro FINESTRA NOTTURNA 22:50-06:10.
-
-    Prima: confrontava tutto il giorno, produceva falsi positivi con
-    orari diurni (es. DJ 6402 @ 06:20 - solo Avionio).
-
-    Ora: considera solo i voli con orario_schedulato in fascia notturna
-    (estesa di 10 min per tolleranza).
-
-    Ritorna (ok, msg):
-      - ok=True  se non ci sono incongruenze
-      - ok=False se ci sono incongruenze (warning, non errore)
-      - msg: messaggio multi-riga per l'email
-    """
     try:
+        load_rules()  # Necessario per classify_callsign()
+        
         df_sacbo, sacbo_path = _load_sacbo(scan_file)
         if df_sacbo is None:
             return True, "⚠️ Nessuno scan SACBO disponibile"
@@ -359,7 +300,6 @@ def run_confronto_summary(scan_file=None):
         if arr_avionio is None and dep_avionio is None:
             return True, "⚠️ Nessun dato Avionio disponibile"
 
-        # v0.1.3: filtra su fascia notturna prima del confronto
         n_sacbo_before = len(df_sacbo)
         n_arr_before = len(arr_avionio) if arr_avionio is not None else 0
         n_dep_before = len(dep_avionio) if dep_avionio is not None else 0
@@ -388,6 +328,11 @@ def run_confronto_summary(scan_file=None):
         for c in confronti:
             tipo_label = "D" if c["tipo"] == "D" else "A"
             for x in c["solo_avionio"]:
+                # v0.1.4 (QA-04): Salta i voli Cargo
+                categoria, _ = classify_callsign(x['callsign'])
+                if categoria == 'Cargo':
+                    continue
+                
                 incongruenze.append(
                     f"{x['callsign']} @ {x['sched']} ({tipo_label}) - solo Avionio"
                 )
@@ -419,16 +364,14 @@ def run_confronto_summary(scan_file=None):
         return True, f"Errore confronto: {str(e)[:80]}"
 
 
-# -----------------------------------------------------------------------------
-# MAIN
-# -----------------------------------------------------------------------------
-
 def main():
     parser = argparse.ArgumentParser(description="Confronto SACBO vs Avionio")
     parser.add_argument("--scan-file", type=str, default=None,
                         help="Path specifico dello scan SACBO (default: ultimo)")
     args = parser.parse_args()
 
+    load_rules()
+    
     df_sacbo, sacbo_path = _load_sacbo(args.scan_file)
     if df_sacbo is None:
         sys.exit(1)

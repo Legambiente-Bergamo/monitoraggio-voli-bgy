@@ -1,32 +1,29 @@
 """
 bgy_scanners/bgy_scanner_radar.py - Scanner radar h24 multi-fonte.
-Versione 1.3.0
+Versione 1.3.1
+
+Novità v1.3.1 (INFRA-18, 19/10/2026):
+- Circuit breaker per adsb.lol: dopo N errori HTTP 429
+  (config: scanner_radar.adsb_lol_max_429_before_cooldown, default 1),
+  adsb.lol viene saltato per adsb_lol_cooldown_min minuti
+  (default 30). Durante il cooldown, la cascata parte da adsb.fi.
+- Contatore 429 resettato al primo fetch adsb.lol riuscito.
+- Nuove funzioni: _get_adsb_lol_cooldown_min(), _get_adsb_lol_max_429(),
+  _set_adsb_lol_cooldown().
 
 Novità v1.3.0 (BUG-02, 14/10/2026):
 - detect_runway_and_phase(): fix discriminazione D/A quando baro_rate
-  è nullo o non significativo. Prima usava solo il track
-  (track > 180° → Atterraggio), ma il track NON distingue decollo da
-  atterraggio (un decollo da RWY 28 ha track ~280° esattamente come un
-  atterraggio sulla stessa pista). Ora:
-    1. Se baro_rate è significativo → logica esistente.
-    2. Altrimenti, calcola il bearing dall'aereo verso BGY e lo
-       confronta col track:
-         - diff < 85°  → aereo punta verso BGY → Atterraggio/Avvicinamento
-         - diff > 95°  → aereo punta via da BGY → Decollo
-         - 85-95°      → fascia ambigua → fase_volo = "Incerto"
-  Nuove funzioni: _bearing_to_bgy(), _angular_difference().
-- Soglia baro_rate ora configurabile in config_data.json >
-  scanner_radar.baro_rate_threshold_fpm (default 500).
+  è nullo o non significativo. Usa bearing verso BGY.
+- Nuove funzioni: _bearing_to_bgy(), _angular_difference().
+- Soglia baro_rate configurabile in
+  config_data.json > scanner_radar.baro_rate_threshold_fpm (default 500).
 
 Novità v1.2.0 (DST-01, 10/10/2026):
-- Aggiunto campo timestamp_utc a tutti i rilevamenti (ISO 8601 con offset).
-- Dedup differenziata: se timestamp_utc è valorizzato, la chiave è
-  (icao24, timestamp_utc); se è nullo (CSV vecchi), fallback a
-  (icao24, floor 1min di timestamp).
+- Campo timestamp_utc a tutti i rilevamenti (ISO 8601 con offset).
+- Dedup differenziata: timestamp_utc se valorizzato, altrimenti
+  fallback a (icao24, floor 1min di timestamp).
 
-Novità v1.1.2 (radar 1 min di notte):
-- Dedup: da floor("2min") a floor("1min").
-
+Novità v1.1.2: dedup floor 1 min.
 Novità v1.1.1: esclusi RWY 16 e RWY 34 da detect_runway_and_phase().
 Novità v1.1.0: baro_rate + conversione OpenSky m→ft.
 Novità v1.0.0: primo rilascio.
@@ -36,7 +33,7 @@ import sys
 import json
 import requests
 import pandas as pd
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from math import radians, degrees, sin, cos, sqrt, atan2
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -60,6 +57,10 @@ except Exception:
 BARO_RATE_THRESHOLD_FPM_DEFAULT = 500
 INCERT_DEAD_ZONE_DEG = 5
 
+# v1.3.1 (INFRA-18): stato circuit breaker adsb.lol
+_adsb_lol_cooldown_until = None
+_adsb_lol_429_count = 0
+
 
 def _cfg():
     return config_manager.get_scanner_radar_config()
@@ -72,6 +73,30 @@ def _get_baro_rate_threshold():
         return int(cfg.get("baro_rate_threshold_fpm", BARO_RATE_THRESHOLD_FPM_DEFAULT))
     except Exception:
         return BARO_RATE_THRESHOLD_FPM_DEFAULT
+
+
+def _get_adsb_lol_cooldown_min():
+    """v1.3.1 (INFRA-18): minuti di cooldown dopo 429 su adsb.lol."""
+    try:
+        cfg = _cfg()
+        return int(cfg.get("adsb_lol_cooldown_min", 30))
+    except Exception:
+        return 30
+
+
+def _get_adsb_lol_max_429():
+    """v1.3.1 (INFRA-18): numero di 429 prima di attivare il cooldown."""
+    try:
+        cfg = _cfg()
+        return int(cfg.get("adsb_lol_max_429_before_cooldown", 1))
+    except Exception:
+        return 1
+
+
+def _set_adsb_lol_cooldown(minutes):
+    """v1.3.1 (INFRA-18): attiva il cooldown per adsb.lol."""
+    global _adsb_lol_cooldown_until
+    _adsb_lol_cooldown_until = datetime.now() + timedelta(minutes=minutes)
 
 
 def _utc_now_iso():
@@ -191,7 +216,6 @@ def detect_runway_and_phase(lat, lon, track, alt, cfg, baro_rate=None):
 
     if distance < thresholds["landing_max_distance_km"] \
             and alt_val < thresholds["landing_max_altitude_ft"]:
-        # Vicino e basso: atterraggio o decollo in corso.
         if baro_rate is not None and abs(baro_rate) > threshold:
             phase = "Decollo" if baro_rate > 0 else "Atterraggio"
         else:
@@ -202,7 +226,6 @@ def detect_runway_and_phase(lat, lon, track, alt, cfg, baro_rate=None):
             )
     elif distance < thresholds["approach_max_distance_km"] \
             and alt_val < thresholds["approach_max_altitude_ft"]:
-        # Fascia intermedia: ambigua.
         if baro_rate is not None and baro_rate > threshold:
             phase = "Decollo"
         elif baro_rate is not None and baro_rate < -threshold:
@@ -267,6 +290,7 @@ def _http_get_robusto(url, timeout=15, auth=None):
 
 
 def _fetch_adsblol():
+    global _adsb_lol_429_count
     cfg = _cfg()
     url = (f"https://api.adsb.lol/v2/point/"
            f"{cfg['bgy_lat']}/{cfg['bgy_lon']}/{cfg['adsb_lol_radius_nm']}")
@@ -276,6 +300,21 @@ def _fetch_adsblol():
         return None
     if resp.status_code == 403:
         logger.warning("⚠️ adsb.lol: HTTP 403 (forbidden)")
+        return None
+    if resp.status_code == 429:
+        _adsb_lol_429_count += 1
+        max_429 = _get_adsb_lol_max_429()
+        if _adsb_lol_429_count >= max_429:
+            cooldown_min = _get_adsb_lol_cooldown_min()
+            _set_adsb_lol_cooldown(cooldown_min)
+            _adsb_lol_429_count = 0
+            logger.warning(
+                f"⚠️ adsb.lol: rate limit 429, cooldown {cooldown_min} min"
+            )
+        else:
+            logger.warning(
+                f"⚠️ adsb.lol: rate limit 429 ({_adsb_lol_429_count}/{max_429})"
+            )
         return None
     if resp.status_code != 200:
         logger.error(f"❌ adsb.lol HTTP {resp.status_code}")
@@ -289,6 +328,8 @@ def _fetch_adsblol():
     if not aircraft:
         logger.warning("⚠️ adsb.lol: nessun aereo nell'area")
         return None
+    # successo: reset contatore 429
+    _adsb_lol_429_count = 0
     logger.info(f"📡 adsb.lol: ricevuti {len(aircraft)} stati (primaria)")
     return _parse_adsb_generic(aircraft, "adsb.lol")
 
@@ -564,10 +605,24 @@ def run_radar_scan(parallel_test=False):
     os.makedirs(RAW_DIR, exist_ok=True)
     session_date = _get_session_date(now)
 
-    flights = _fetch_adsblol()
-    source = "adsb.lol"
+    flights = None
+    source = None
+
+    # v1.3.1 (INFRA-18): rispetta il cooldown di adsb.lol
+    if _adsb_lol_cooldown_until and datetime.now() < _adsb_lol_cooldown_until:
+        logger.info(
+            f"⏭️ adsb.lol in cooldown fino a "
+            f"{_adsb_lol_cooldown_until.strftime('%H:%M:%S')}, salto"
+        )
+    else:
+        flights = _fetch_adsblol()
+        source = "adsb.lol"
+
     if not flights:
-        logger.warning("⚠️ adsb.lol non disponibile, tento adsb.fi...")
+        if source is None:
+            logger.warning("⚠️ adsb.lol in cooldown, tento adsb.fi...")
+        else:
+            logger.warning("⚠️ adsb.lol non disponibile, tento adsb.fi...")
         flights = _fetch_adsbfi()
         source = "adsb.fi"
     if not flights:

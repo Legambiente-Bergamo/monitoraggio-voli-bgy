@@ -1,37 +1,21 @@
 """
 bgy_watchdog.py - Watchdog per il controllo anomalie BGY Monitoring Suite.
-Versione 2.6.1
+Versione 2.6.2
+
+Novità v2.6.2 (INFRA-17, 19/10/2026):
+- check_opensky(): corretto falso allarme. Conta SOLO le righe che
+  contengono sia "OpenSky" sia "429". Prima contava anche le righe
+  "[ScannerRadar] ... adsb.lol HTTP 429", attribuendo erroneamente
+  ad OpenSky i rate limit di adsb.lol.
+- Nuovo check_adsb_lol(): conta i 429 di adsb.lol e invia un alert
+  separato con chiave 'adsb_lol_429'. Soglia e finestra configurabili
+  in watchdog.adsb_lol_error_threshold / adsb_lol_error_window_min.
+- run_check() esegue anche il check adsb_lol.
+- Il check OpenSky ora è specifico: nessuna attribuzione incrociata.
 
 Novità v2.6.1:
 - check_radar(): fix falso allarme a inizio giornata.
-  Se il file radar di oggi non esiste ancora ma:
-    (a) l'ora è < 00:05 (primo scan del giorno non ancora eseguito), oppure
-    (b) lo scanner radar è attivo di recente (log fresco),
-  allora non viene inviata la notifica radar_missing.
-  Il falso allarme si verificava perché il watchdog gira alle 00:00,
-  mentre il primo scan radar del giorno parte alle 00:01:59 (dopo
-  lo scan SACBO notturno delle 00:01).
-
-Novità v2.6.0 (radar h24):
-- check_radar() riscritto per funzionare h24: il file radar_YYYY-MM-DD.csv
-  deve essere aggiornato ogni radar_stale_min minuti (default 10),
-  indipendentemente dalla fascia oraria.
-- Grace period all'avvio: se lo scheduler è partito da meno di
-  radar_missing_grace_min minuti (default 15), il file radar mancante
-  non genera allarme.
-- check_opensky() ora cerca "[ScannerRadar]" invece di "[ScannerNight]".
-- check_scheduler() ora verifica la freschezza del log sia di
-  "[Scheduler]" che di "[ScannerRadar]", h24.
-- Rimosso il check "Fuori dalla finestra notturna" da check_radar().
-
-Novità v2.5.6 (F11e-2 - Database service):
-- Aggiunto check 5 "database".
-
-Novità v2.5.5 (fix falsi positivi SACBO stale).
-
-Novità v2.5.4 (radar grace period notturno — superato da v2.6.0).
-
-Novità v2.5.3 (filtro righe [Watchdog] e [Mailer] in check_opensky).
+...
 """
 import os
 import sys
@@ -59,15 +43,8 @@ SCHEDULER_SCRIPT = os.path.join(PROJECT_ROOT, "bgy_scheduler.py")
 SCHEDULER_DOUBLE_CHECK_DELAY_SEC = 3
 DEFAULT_SCAN_SCHEDULES = ["02:00", "06:00", "10:00", "14:00", "18:00", "22:00"]
 
-# Radar h24: se il file non è aggiornato da più di X minuti, è un problema.
 DEFAULT_RADAR_STALE_MIN = 10
 DEFAULT_RADAR_MISSING_GRACE_MIN = 15
-
-# v2.6.1: tolleranza per il primo scan del giorno.
-# Il watchdog gira alle 00:00, ma il primo scan radar del giorno parte
-# alle 00:01:59 (dopo lo scan SACBO notturno delle 00:01). Quindi se
-# siamo nei primi minuti della giornata, il file radar non esiste ancora
-# ed è fisiologico.
 RADAR_STARTUP_TOLERANCE_MIN = 5
 
 
@@ -342,17 +319,6 @@ def check_sacbo():
 def check_radar():
     """
     Verifica la freschezza del file radar h24.
-
-    Logica:
-      1. Cerca radar_YYYY-MM-DD.csv (o il vecchio nome).
-      2. Se non esiste:
-         a. Se l'ora è < 00:05, OK (primo scan del giorno non ancora eseguito).
-         b. Se lo scanner radar è attivo di recente (log fresco), OK.
-         c. Se lo scheduler è partito da meno di grace_min, OK.
-         d. Altrimenti, allarme radar_missing.
-      3. Se esiste ma è fermo da più di radar_stale_min:
-         a. Se lo scanner radar è ancora attivo nel log, OK (nessun aereo).
-         b. Altrimenti, allarme radar_stale.
     """
     cfg = _cfg()
     radar_stale = int(cfg.get("radar_stale_min", DEFAULT_RADAR_STALE_MIN))
@@ -363,7 +329,6 @@ def check_radar():
         now = datetime.now()
         today = now.strftime("%Y-%m-%d")
 
-        # File atteso (h24: giorno solare)
         radar_file = os.path.join(RAW_DIR, f"radar_{today}.csv")
         old_file = os.path.join(RAW_DIR, f"bgy_night_flights_{today}.csv")
 
@@ -371,13 +336,6 @@ def check_radar():
             if os.path.exists(old_file):
                 radar_file = old_file
             else:
-                # v2.6.1 — Fix falso allarme a inizio giornata.
-                # Il watchdog gira alle 00:00, ma il primo scan radar del
-                # giorno parte alle 00:01:59 (dopo lo scan SACBO notturno).
-                # Quindi se siamo nei primi minuti della giornata, il file
-                # non esiste ancora ed è fisiologico.
-
-                # (a) tolleranza inizio giornata
                 minutes_since_midnight = now.hour * 60 + now.minute
                 if minutes_since_midnight < RADAR_STARTUP_TOLERANCE_MIN:
                     msg = (f"Radar non ancora creato "
@@ -386,14 +344,12 @@ def check_radar():
                     logger.info(f"ℹ️  {msg}")
                     return True, msg
 
-                # (b) scanner radar attivo di recente → il file è in arrivo
                 if _is_radar_recently_active(now, window_sec=log_window, min_hits=1):
                     msg = ("Radar non ancora creato per oggi ma scanner "
                            "attivo (file in arrivo)")
                     logger.info(f"ℹ️  {msg}")
                     return True, msg
 
-                # (c) grace period all'avvio
                 scheduler_start = _get_scheduler_start_time(now)
                 if scheduler_start is not None:
                     minutes_since_start = (now - scheduler_start).total_seconds() / 60
@@ -402,7 +358,6 @@ def check_radar():
                                       f"({int(minutes_since_start)} min dall'avvio, "
                                       f"grace period {grace_min} min)")
 
-                # (d) allarme reale
                 msg = f"File radar mancante per oggi ({today})"
                 _send_alert("radar_missing",
                             sessione=today,
@@ -415,7 +370,6 @@ def check_radar():
         if elapsed_min <= radar_stale:
             return True, f"Radar aggiornato {int(elapsed_min)} min fa"
 
-        # File stale. Verifica se lo scanner è ancora attivo.
         if _is_radar_recently_active(now, log_window):
             logger.info(
                 f"ℹ️  Radar fermo da {int(elapsed_min)} min ma scanner attivo "
@@ -435,7 +389,7 @@ def check_radar():
 
 
 # =============================================================================
-# CHECK 3 - OPENSKY
+# CHECK 3 - OPENSKY (solo OpenSky)
 # =============================================================================
 
 def check_opensky():
@@ -463,9 +417,8 @@ def check_opensky():
         for line in lines:
             if "[Watchdog]" in line or "[Mailer]" in line:
                 continue
-            if "OpenSky" not in line and "[ScannerRadar]" not in line:
-                continue
-            if "429" not in line:
+            # INFRA-17: solo righe che contengono OpenSky e 429
+            if "OpenSky" not in line or "429" not in line:
                 continue
             if "Rilevati" in line and "errori 429" in line:
                 continue
@@ -478,7 +431,7 @@ def check_opensky():
                 errors_429 += 1
 
         if errors_429 >= threshold:
-            msg = (f"Rilevati {errors_429} errori 429 negli ultimi "
+            msg = (f"Rilevati {errors_429} errori 429 OpenSky negli ultimi "
                    f"{window_min} min")
             _send_alert("opensky_429",
                         finestra_min=window_min,
@@ -486,10 +439,64 @@ def check_opensky():
                         soglia=threshold,
                         intervallo=radar_interval)
             return False, msg
-        return True, (f"Errori 429 recenti ({window_min}min): {errors_429} "
+        return True, (f"Errori 429 OpenSky recenti ({window_min}min): {errors_429} "
                       f"(sotto soglia)")
     except Exception as e:
         return False, f"Errore check OpenSky: {e}"
+
+
+# =============================================================================
+# CHECK 3-bis - ADSB.LOL (nuovo, INFRA-17)
+# =============================================================================
+
+def check_adsb_lol():
+    cfg = _cfg()
+    threshold = cfg.get("adsb_lol_error_threshold", 10)
+    window_min = cfg.get("adsb_lol_error_window_min", 15)
+    log_lines = cfg.get("opensky_log_lines", 500)  # riuso
+
+    try:
+        log_file = os.path.join(
+            LOGS_DIR, f"bgy_app_{datetime.now().strftime('%Y-%m-%d')}.log"
+        )
+        if not os.path.exists(log_file):
+            return True, "Nessun log di oggi (nessun errore)"
+
+        with open(log_file, "r", encoding="utf-8", errors="ignore") as f:
+            lines = f.readlines()[-log_lines:]
+
+        now = datetime.now()
+        cutoff = now - timedelta(minutes=window_min)
+        errors_429 = 0
+
+        for line in lines:
+            if "[Watchdog]" in line or "[Mailer]" in line:
+                continue
+            if "adsb.lol" not in line or "429" not in line:
+                continue
+            if "Rilevati" in line and "errori 429" in line:
+                continue
+            try:
+                ts_str = line.split(" - ")[0].strip()
+                ts = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S,%f")
+            except (ValueError, IndexError):
+                continue
+            if ts >= cutoff:
+                errors_429 += 1
+
+        if errors_429 >= threshold:
+            msg = (f"Rilevati {errors_429} errori 429 adsb.lol negli ultimi "
+                   f"{window_min} min")
+            _send_alert("adsb_lol_429",
+                        finestra_min=window_min,
+                        errori=errors_429,
+                        soglia=threshold,
+                        fallback_body=msg)
+            return False, msg
+        return True, (f"Errori 429 adsb.lol recenti ({window_min}min): {errors_429} "
+                      f"(sotto soglia)")
+    except Exception as e:
+        return False, f"Errore check adsb.lol: {e}"
 
 
 # =============================================================================
@@ -497,13 +504,6 @@ def check_opensky():
 # =============================================================================
 
 def check_scheduler():
-    """
-    Verifica che lo scheduler sia attivo.
-
-    Con il radar h24, lo scheduler scrive nel log almeno ogni 2 minuti
-    (ScannerRadar). Quindi il log non dovrebbe mai essere fermo per più
-    di 15 minuti, indipendentemente dall'ora.
-    """
     cfg = _cfg()
     log_stale = cfg.get("scheduler_log_stale_min", 15)
     try:
@@ -533,7 +533,6 @@ def check_scheduler():
                         ora=datetime.now().strftime("%Y-%m-%d %H:%M"))
             return False, msg
 
-        # Scheduler attivo: verifica freschezza del log (h24)
         stale_min = _scheduler_log_age_min()
         if stale_min is not None and stale_min > log_stale:
             logger.warning(
@@ -579,10 +578,6 @@ def _is_scheduler_process_running():
 
 
 def _scheduler_log_age_min():
-    """
-    Minuti dall'ultima riga di log che dimostri attività dello scheduler.
-    Cerca [Scheduler] e [ScannerRadar] (radar h24 scrive ogni 2 min).
-    """
     now = datetime.now()
     for days_back in (0, 1):
         check_date = (now - timedelta(days=days_back)).strftime("%Y-%m-%d")
@@ -653,7 +648,6 @@ def _kill_all_scheduler_processes():
 # =============================================================================
 
 def check_database():
-    """Verifica stato servizio PostgreSQL e raggiungibilità DB."""
     cfg = _db_cfg()
     if not cfg.get("enabled", True):
         return True, "Check DB disabilitato in config"
@@ -762,6 +756,7 @@ def run_check(manual=False):
 
     for name, fn in (("sacbo", check_sacbo),
                      ("radar", check_radar),
+                     ("adsb_lol", check_adsb_lol),
                      ("opensky", check_opensky),
                      ("scheduler", check_scheduler),
                      ("database", check_database)):

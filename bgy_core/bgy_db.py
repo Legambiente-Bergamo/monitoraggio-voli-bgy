@@ -1,29 +1,27 @@
 ﻿"""
 bgy_core/bgy_db.py - Modulo di accesso al database PostgreSQL.
-Versione 2.10.0
+Versione 2.11.1
+
+Novita v2.11.1 (INFRA-21, 19/10/2026):
+- SCHEMA_SQL: aggiunta colonna data_calendario alla tabella flights_avionio.
+  Allineamento a apply_schema_updates() (che la creava via ALTER).
+  Su DB vergine: la colonna ora esiste già alla CREATE.
+  Su DB esistente: invariato (già aggiunta da ALTER).
+- SCHEMA_VERSION resta 7: la struttura risultante è identica.
+
+Novita v2.11.0 (Cantiere B.2, 19/10/2026):
+- SCHEMA_VERSION bumpata da 6 a 7.
+- SCHEMA_SQL: aggiunta tabella h24_reports e vista v_h24_report.
 
 Novita v2.10.0 (Cantiere B.1, 14/10/2026):
 - SCHEMA_VERSION bumpata da 5 a 6.
-- SCHEMA_SQL: aggiunta tabella flights_avionio (Cantiere B.1).
-  Contiene i voli scheduled Avionio importati ogni scansione.
-  UNIQUE (data_riferimento, callsign_volo, orario_schedulato, tipo_movimento).
+- SCHEMA_SQL: aggiunta tabella flights_avionio.
 
 Novita v2.9.0 (BUG-05 / INFRA-07, 13/10/2026):
 - SCHEMA_VERSION bumpata da 4 a 5.
 - SCHEMA_SQL: aggiunto indice univoco parziale uniq_nightly_flight
   su (data_riferimento, callsign, orario_schedulato) WHERE
   orario_schedulato IS NOT NULL.
-
-Novita v2.8.0 (DST-01, 10/10/2026):
-- SCHEMA_VERSION bumpata da 3 a 4.
-- SCHEMA_SQL: colonna timestamp_utc TIMESTAMPTZ in radar_detections.
-
-Novita v2.7.0 (SCHEMA-01, 10/10/2026):
-- SCHEMA_VERSION bumpata da 2 a 3.
-
-Nota: la SCHEMA_SQL contiene ancora il DDL base v2. Gli ALTER
-aggiuntivi restano in apply_schema_updates() (idempotenti). Il
-flusso di creazione DB e': apply_schema() + apply_schema_updates().
 """
 import os
 import sys
@@ -35,7 +33,7 @@ from bgy_core.bgy_config_manager import config_manager
 
 logger = get_logger("DB")
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 
 SCHEMA_SQL = """
@@ -93,6 +91,7 @@ CREATE TABLE IF NOT EXISTS flights_avionio (
     compagnia_aerea TEXT,
     scan_timestamp TIMESTAMP NOT NULL,
     data_riferimento DATE NOT NULL,
+    data_calendario DATE,
     imported_at TIMESTAMP NOT NULL DEFAULT NOW(),
     UNIQUE (data_riferimento, callsign_volo, orario_schedulato, tipo_movimento)
 );
@@ -176,7 +175,43 @@ CREATE UNIQUE INDEX IF NOT EXISTS uniq_nightly_flight
 ON nightly_reports (data_riferimento, callsign, orario_schedulato)
 WHERE orario_schedulato IS NOT NULL;
 
--- Vista: report giornaliero deduplicato
+-- Report H24 multi-fonte (Cantiere B.2)
+CREATE TABLE IF NOT EXISTS h24_reports (
+    id BIGSERIAL PRIMARY KEY,
+    data_riferimento DATE NOT NULL,
+    data_calendario DATE NOT NULL,
+    callsign TEXT,
+    tipo_movimento TEXT,
+    direzione_sacbo VARCHAR(2),
+    fascia VARCHAR(10),
+    categoria VARCHAR(30),
+    is_scheduled BOOLEAN,
+    fonte_scheduled VARCHAR(10),
+    destinazione_finale TEXT,
+    stato_destinazione TEXT,
+    compagnia_aerea TEXT,
+    modello_aereo TEXT,
+    orario_schedulato TIME,
+    timestamp TIMESTAMP,
+    pista TEXT,
+    fase_volo TEXT,
+    direzione TEXT,
+    quota_ft INTEGER,
+    rotta_deg REAL,
+    distanza_km REAL,
+    paese TEXT,
+    matched_score INTEGER,
+    icao24 VARCHAR(6),
+    stima_passeggeri INTEGER,
+    stima_rumore_db INTEGER,
+    logic_version VARCHAR(20),
+    imported_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_h24_calendario ON h24_reports (data_calendario);
+CREATE INDEX IF NOT EXISTS idx_h24_riferimento ON h24_reports (data_riferimento);
+CREATE INDEX IF NOT EXISTS idx_h24_callsign ON h24_reports (callsign);
+
+-- Viste
 CREATE OR REPLACE VIEW v_daily_report AS
 WITH ranked AS (
     SELECT
@@ -188,17 +223,35 @@ WITH ranked AS (
     FROM flights_sacbo f
 )
 SELECT
-    id,
-    data_riferimento,
-    callsign_volo,
-    tipo_movimento,
-    destinazione_origine,
-    orario_schedulato,
-    orario_effettivo,
-    stato_volo,
-    scan_timestamp
+    id, data_riferimento, callsign_volo, tipo_movimento, destinazione_origine,
+    orario_schedulato, orario_effettivo, stato_volo, scan_timestamp
 FROM ranked
 WHERE rn = 1;
+
+CREATE OR REPLACE VIEW v_h24_report AS
+SELECT
+    data_calendario AS data,
+    callsign,
+    tipo_movimento,
+    direzione_sacbo,
+    categoria AS notte_categoria,
+    is_scheduled,
+    fonte_scheduled,
+    destinazione_finale,
+    compagnia_aerea,
+    modello_aereo,
+    orario_schedulato,
+    timestamp,
+    pista,
+    fase_volo,
+    quota_ft,
+    distanza_km,
+    matched_score,
+    icao24,
+    stima_passeggeri,
+    stima_rumore_db,
+    EXTRACT(HOUR FROM timestamp)::int AS ora_effettiva
+FROM h24_reports;
 """
 
 
@@ -207,8 +260,7 @@ def _db_cfg():
 
 
 def is_enabled():
-    cfg = _db_cfg()
-    return bool(cfg.get("enabled", False))
+    return bool(_db_cfg().get("enabled", False))
 
 
 def get_connection():
@@ -217,7 +269,7 @@ def get_connection():
     cfg = _db_cfg()
     try:
         import psycopg
-        conn = psycopg.connect(
+        return psycopg.connect(
             host=cfg.get("host", "localhost"),
             port=int(cfg.get("port", 5432)),
             dbname=cfg.get("dbname", "bgy_monitoring"),
@@ -226,7 +278,6 @@ def get_connection():
             connect_timeout=int(cfg.get("connect_timeout", 10)),
             application_name=cfg.get("application_name", "BGY Monitoring Suite"),
         )
-        return conn
     except Exception as e:
         logger.error(f"Errore connessione DB: {e}")
         return None
@@ -242,9 +293,8 @@ def test_connection():
         with conn.cursor() as cur:
             cur.execute("SELECT version()")
             row = cur.fetchone()
-            pg_version = row[0] if row else "unknown"
         conn.close()
-        return True, pg_version
+        return True, row[0] if row else "unknown"
     except Exception as e:
         return False, f"Errore: {e}"
 
@@ -255,20 +305,13 @@ def get_schema_version():
         return 0
     try:
         with conn.cursor() as cur:
-            cur.execute("""
-                SELECT EXISTS (
-                    SELECT FROM information_schema.tables
-                    WHERE table_name = 'schema_version'
-                )
-            """)
-            exists = cur.fetchone()[0]
-            if not exists:
+            cur.execute("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'schema_version')")
+            if not cur.fetchone()[0]:
                 return 0
             cur.execute("SELECT MAX(version) FROM schema_version")
             row = cur.fetchone()
             return row[0] if row and row[0] is not None else 0
-    except Exception as e:
-        logger.error(f"Errore lettura schema_version: {e}")
+    except Exception:
         return 0
     finally:
         conn.close()
@@ -282,34 +325,22 @@ def apply_schema():
         current = get_schema_version()
         if current >= SCHEMA_VERSION:
             return True, f"Schema già alla versione {current} (corrente: {SCHEMA_VERSION})"
-
-        logger.info(f"Applicazione schema v{SCHEMA_VERSION} (attuale: {current})...")
         with conn.cursor() as cur:
             cur.execute(SCHEMA_SQL)
             cur.execute(
-                "INSERT INTO schema_version (version, note) VALUES (%s, %s) "
-                "ON CONFLICT (version) DO NOTHING",
-                (SCHEMA_VERSION, "Schema BGY Monitoring Suite 2.10 (Cantiere B.1: flights_avionio)")
+                "INSERT INTO schema_version (version, note) VALUES (%s, %s) ON CONFLICT (version) DO NOTHING",
+                (SCHEMA_VERSION, "Schema BGY Monitoring Suite 2.11 (B.2: h24_reports + v_h24_report)")
             )
         conn.commit()
-        logger.info(f"✅ Schema v{SCHEMA_VERSION} applicato")
         return True, f"Schema v{SCHEMA_VERSION} applicato"
     except Exception as e:
         conn.rollback()
-        logger.error(f"Errore applicazione schema: {e}")
         return False, f"Errore: {e}"
     finally:
         conn.close()
 
 
 def execute_query(sql, params=None, fetch=True):
-    """
-    Esegue una query SQL.
-
-    - Se la query ritorna righe (SELECT, INSERT/UPDATE/DELETE ... RETURNING),
-      ritorna (True, rows).
-    - Altrimenti ritorna (True, rowcount).
-    """
     conn = get_connection()
     if conn is None:
         return False, "DB non disponibile"
@@ -329,25 +360,16 @@ def execute_query(sql, params=None, fetch=True):
             conn.rollback()
         except Exception:
             pass
-        logger.error(f"Errore query: {e}")
         return False, str(e)
     finally:
         conn.close()
 
 
 def execute_many(sql, params_list):
-    """
-    Esegue una lista di INSERT/UPDATE.
-
-    Ritorna (True, righe_effettivamente_modificate) dove righe_effettivamente_modificate
-    è il rowcount aggregato di tutti i batch. Con ON CONFLICT DO NOTHING, questo
-    è il numero di righe realmente inserite (esclude i conflitti scartati).
-    """
     conn = get_connection()
     if conn is None:
         return False, "DB non disponibile"
     try:
-        total_rowcount = 0
         with conn.cursor() as cur:
             cur.executemany(sql, params_list)
             total_rowcount = cur.rowcount
@@ -355,7 +377,6 @@ def execute_many(sql, params_list):
         return True, total_rowcount
     except Exception as e:
         conn.rollback()
-        logger.error(f"Errore executemany: {e}")
         return False, str(e)
     finally:
         conn.close()
@@ -364,7 +385,7 @@ def execute_many(sql, params_list):
 def get_table_counts():
     tables = [
         "scans", "flights_sacbo", "flights_avionio",
-        "radar_detections", "weather_hourly", "nightly_reports",
+        "radar_detections", "weather_hourly", "nightly_reports", "h24_reports"
     ]
     result = {}
     conn = get_connection()
@@ -404,8 +425,7 @@ if __name__ == "__main__":
     print("=== Test bgy_db ===")
     print(f"Abilitato: {is_enabled()}")
     ok, msg = test_connection()
-    print(f"Connessione: {'✅' if ok else '❌'} {msg}")
+    print(f"Connessione: {'OK' if ok else 'KO'} {msg}")
     if ok:
         print(f"Versione schema: {get_schema_version()}")
-        print(f"Dimensione DB: {get_db_size()} MB")
         print(f"Tabelle: {get_table_counts()}")
