@@ -1,31 +1,32 @@
 """
 bgy_core/bgy_mailer.py - Modulo unificato di invio email.
-Versione 2.8.1
+Versione 2.8.2
+
+Novità v2.8.2 (MAIL-05, 19/10/2026):
+- Nuova funzione send_h24_alert(): alert dedicato quando
+  generate_h24_report() fallisce (modello: send_backup_alert).
+- Aggiunto 'h24_enrichment' a WARNING_ONLY_CHECKS: se H24 fallisce,
+  l'email 06:30 diventa WARN (⚠️), non KO. L'alert dedicato è il
+  segnale forte.
+- Motivazione: l'alert dedicato ha visibilità immediata (oggetto
+  diverso); l'email 06:30 mantiene il ruolo di riepilogo.
 
 Novità v2.8.1 (INFRA-11, 12/10/2026):
-- _render_problems() ora include il check 'config_load' (0) Configurazione
-  sistema) in cima alla lista. Se config_manager ha accumulato errori di
-  lettura dei JSON di configurazione, la mail delle 06:30 li segnala.
+- _render_problems() include il check 'config_load' in cima.
 - Il check e' renderizzato multi-line (uno per file problematico).
 - Non e' in WARNING_ONLY_CHECKS: influisce sull'esito complessivo.
 
 Novità v2.8.0 (MAIL-03, 10/10/2026):
 - Logica "sezione sparisce se vuota" per tutte le sezioni.
-- PROBLEMI RILEVATI: già oggi sparisce se tutti i check sono OK.
-- SCONFINAMENTI / GRAVI / ANOMALIE: già oggi spariscono se 0.
-- MOVIMENTI BORDERLINE / VOLI NON CLASSIFICATI: già oggi spariscono se vuoti.
-- NUOVO: DISCORDANZE AVIONIO ↔ SACBO sparisce se non ci sono discordanze.
-- NUOVO: STATO SYNC E BACKUP sparisce se GitHub in_sync + backup OK.
+- PROBLEMI RILEVATI / SCONFINAMENTI / ANOMALIE / BORDERLINE /
+  VOLI NON CLASSIFICATI / DISCORDANZE AVIONIO / STATO SYNC-BACKUP:
+  spariscono se vuoti o in ordine.
 
 Novità v2.7.2 (INFRA-02, 07/10/2026):
-- Nuova sezione email "📊 STATO SYNC E BACKUP" con l'output di
-  bgy_tools.verify_sync.check_all().
+- Nuova sezione "📊 STATO SYNC E BACKUP".
 
-Novità v2.7.1:
-- Sezione "DISCORDANZE AVIONIO ↔ SACBO".
-
-Novità v2.7.0:
-- Sezione "MOVIMENTI BORDERLINE" nell'email del mattino.
+Novità v2.7.1: sezione "DISCORDANZE AVIONIO ↔ SACBO".
+Novità v2.7.0: sezione "MOVIMENTI BORDERLINE".
 """
 import os
 import csv
@@ -48,7 +49,10 @@ logger = get_logger("Mailer")
 COOLDOWN_FILE = os.path.join(LOGS_DIR, "notifier_cooldown.json")
 DEFAULT_COOLDOWN_MIN = 30
 
-WARNING_ONLY_CHECKS = {'avionio_confronto', 'backup'}
+# v2.8.2 (MAIL-05): h24_enrichment spostato in WARNING_ONLY_CHECKS.
+# Se H24 fallisce, l'email 06:30 diventa WARN (⚠️), non KO.
+# L'alert dedicato (send_h24_alert) è il segnale forte.
+WARNING_ONLY_CHECKS = {'avionio_confronto', 'backup', 'h24_enrichment'}
 
 HIDDEN_FROM_PROBLEMS = {'avionio_confronto'}
 
@@ -312,6 +316,62 @@ def send_backup_alert(reason):
     success = _send_smtp(cfg, subject, body, recipients=recipients)
     if success:
         logger.info(f"📧 Backup alert inviato: {subject}")
+    return success
+
+
+def send_h24_alert(reason):
+    """
+    v2.8.2 (MAIL-05, 19/10/2026): alert dedicato quando
+    generate_h24_report() fallisce. Modello: send_backup_alert().
+    """
+    if not are_alerts_enabled():
+        logger.info("🔕 H24 alert silenziato (notifications.alerts_enabled=False)")
+        return True
+
+    cfg = _load_mail_config()
+    if not cfg:
+        logger.error("❌ send_h24_alert: configurazione mail non disponibile")
+        return False
+
+    recipients = cfg.get("recipients_daily") or cfg.get("recipients", [])
+    if not recipients:
+        logger.error("❌ send_h24_alert: nessun destinatario configurato")
+        return False
+
+    now = datetime.now()
+    subject = f"🚨 BGY - Report H24 FALLITO - {now.strftime('%d/%m/%Y %H:%M')}"
+
+    body = (
+        f"Il report H24 del giorno precedente non è stato generato.\n\n"
+        f"Motivo:\n  {reason}\n\n"
+        f"Conseguenza:\n"
+        f"  La pagina BGY - Ritardi H24 mostrerà l'ultimo giorno disponibile\n"
+        f"  (probabilmente l'altro ieri) fino a risoluzione.\n"
+        f"  Il gate pre-publish (QA-03) non è ancora attivo:\n"
+        f"  bgy-delays.csv potrebbe essere pubblicato con dati mancanti.\n\n"
+        f"Dettagli:\n"
+        f"  • Data/ora: {now.strftime('%d/%m/%Y %H:%M:%S')}\n"
+        f"  • Log completo: bgy_data/bgy_logs/bgy_app_<oggi>.log\n"
+        f"  • Controlla: h24_reports per ieri\n\n"
+        f"Suggerimenti:\n"
+        f"  1. Verifica i log dello scheduler:\n"
+        f"       Select-String -Path 'bgy_data\\bgy_logs\\bgy_app_<oggi>.log' "
+        f"-Pattern 'ReportH24|h24_enrichment'\n"
+        f"  2. Rigenera manualmente:\n"
+        f"       py -3.12 -c \"from bgy_reports import generate_h24_report; "
+        f"print(generate_h24_report('<ieri>'))\"\n"
+        f"  3. Se il problema si ripete, verifica:\n"
+        f"       - che h24_reports contenga dati per ieri\n"
+        f"       - che v_h24_report risponda correttamente\n\n"
+        f"---\n"
+        f"Notifica automatica generata il "
+        f"{now.strftime('%d/%m/%Y alle %H:%M:%S')}\n"
+        f"{version_string()}"
+    )
+
+    success = _send_smtp(cfg, subject, body, recipients=recipients)
+    if success:
+        logger.info(f"📧 H24 alert inviato: {subject}")
     return success
 
 
@@ -769,14 +829,15 @@ def _render_problems(checks):
         ('sacbo_processing', '2) Elaborazione dati dal tabellone SACBO'),
         ('night_acquisition', '3) Acquisizione dati notturni (23:00-05:59)'),
         ('night_enrichment', '4) Arricchimento dati notturni'),
-        ('github_sync', '5) Sincronizzazione GitHub'),
-        ('db_sync', '6) Sincronizzazione Database'),
-        ('quality_check', '7) Verifica qualità dati'),
-        ('unresolved_airlines', '8) Compagnie da risolvere'),
-        ('scanner_day_status', '9) Diagnostica scanner diurno'),
-        ('avionio_confronto', '10) Conferma incrociata Avionio'),
-        ('db_service', '11) Servizio Database'),
-        ('backup', '12) Backup DB'),
+        ('h24_enrichment', '5) Arricchimento H24 (pagina Ritardi)'),
+        ('github_sync', '6) Sincronizzazione GitHub'),
+        ('db_sync', '7) Sincronizzazione Database'),
+        ('quality_check', '8) Verifica qualità dati'),
+        ('unresolved_airlines', '9) Compagnie da risolvere'),
+        ('scanner_day_status', '10) Diagnostica scanner diurno'),
+        ('avionio_confronto', '11) Conferma incrociata Avionio'),
+        ('db_service', '12) Servizio Database'),
+        ('backup', '13) Backup DB'),
     ]
 
     problems = []

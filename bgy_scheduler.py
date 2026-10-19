@@ -1,6 +1,11 @@
 ﻿"""
 bgy_scheduler.py - Pianificatore ed Orchestratore automatico.
-Versione 2.8.9
+Versione 2.8.10
+
+Novità v2.8.10 (MAIL-05, 19/10/2026):
+- job_daily() chiama send_h24_alert() se generate_h24_report() fallisce.
+- L'alert dedicato (🚨 BGY - Report H24 FALLITO) è il segnale forte;
+  l'email 06:30 resta WARN (grazie a h24_enrichment in WARNING_ONLY_CHECKS).
 
 Novità v2.8.9 (Cantiere B.2, 19/10/2026):
 - job_daily() ora chiama generate_h24_report() dopo il report notturno.
@@ -22,7 +27,7 @@ import schedule
 from bgy_core import get_logger, config_manager
 from bgy_core.bgy_paths import LOGS_DIR, RAW_DIR
 from bgy_core.bgy_github_sync import sync_to_github
-from bgy_core.bgy_mailer import send_daily_status
+from bgy_core.bgy_mailer import send_daily_status, send_h24_alert
 from bgy_core.bgy_dates import is_night_time, night_session_date
 from bgy_reports import (generate_daily_report, generate_nightly_report,
                          send_monthly_report, generate_h24_report)
@@ -442,6 +447,12 @@ def job_daily():
     h24_path, h24_msg = generate_h24_report(yesterday)
     h24_ok = h24_path is not None and os.path.exists(h24_path)
     logger.info(f"{'✅' if h24_ok else '❌'} Report H24: {h24_msg}")
+
+    if not h24_ok:
+        try:
+            send_h24_alert(reason=h24_msg)
+        except Exception as e:
+            logger.error(f"❌ Impossibile inviare H24 alert: {e}")
     
     try:
         sync_ok, sync_msg = sync_to_github()

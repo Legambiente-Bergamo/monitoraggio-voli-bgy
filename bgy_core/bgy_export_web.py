@@ -1,6 +1,14 @@
 """
 bgy_core/bgy_export_web.py - Esportazione dati aggregati per il web (F17).
-Versione 1.5.1
+Versione 1.5.2
+
+Novita v1.5.2 (MAIL-05, 19/10/2026):
+- QA-03: _gate_check_pre_publish() verifica anche h24_reports (giorno più
+  recente entro h24_lookback_days, con almeno min_h24_recent righe).
+  Se il check fallisce, export_delays_and_publish() NON pubblica
+  bgy-delays.csv: WordPress tiene il file precedente.
+- LOG-01: build_block_delays_h24() logga ⚠️ per ogni data del range
+  senza dati in v_h24_report. Serve a vedere nei log quali giorni mancano.
 
 Novita v1.5.1 (WEB-12.O, 19/10/2026):
 - Nuovo blocco build_block_delays_hourly_weather(): aggrega i ritardi
@@ -65,6 +73,8 @@ GATE_DEFAULTS = {
     "min_daily_rows": 30,
     "min_radar_recent": 50,
     "radar_lookback_days": 2,
+    "min_h24_recent": 20,
+    "h24_lookback_days": 2,
 }
 
 DISCLAIMER_MESSAGE = (
@@ -143,6 +153,8 @@ def _get_gate_config():
         "min_daily_rows": int(g.get("min_daily_rows", GATE_DEFAULTS["min_daily_rows"])),
         "min_radar_recent": int(g.get("min_radar_recent", GATE_DEFAULTS["min_radar_recent"])),
         "radar_lookback_days": int(g.get("radar_lookback_days", GATE_DEFAULTS["radar_lookback_days"])),
+        "min_h24_recent": int(g.get("min_h24_recent", GATE_DEFAULTS["min_h24_recent"])),
+        "h24_lookback_days": int(g.get("h24_lookback_days", GATE_DEFAULTS["h24_lookback_days"])),
     }
 
 
@@ -184,6 +196,30 @@ def _gate_check_pre_publish():
     if n_radar < cfg["min_radar_recent"]:
         errors.append(f"rilevamenti radar ultimi {lookback}g: {n_radar} (soglia {cfg['min_radar_recent']})")
 
+    # QA-03 (MAIL-05): h24_reports recente e corposa
+    h24_lookback = cfg["h24_lookback_days"]
+    rows = _query(
+        "SELECT data_calendario, COUNT(*) FROM h24_reports "
+        f"WHERE data_calendario >= (CURRENT_DATE - INTERVAL '{h24_lookback} days') "
+        "GROUP BY data_calendario ORDER BY data_calendario DESC LIMIT 1"
+    )
+    if not rows:
+        errors.append(f"h24_reports: nessuna riga negli ultimi {h24_lookback}g")
+    else:
+        max_d, n_h24 = rows[0]
+        max_d_str = _date_str(max_d)
+        expected_d = (datetime.now().date() - timedelta(days=1)).strftime("%Y-%m-%d")
+        if max_d_str < expected_d:
+            errors.append(
+                f"h24_reports: manca il giorno {expected_d} "
+                f"(ultimo: {max_d_str})"
+            )
+        if int(n_h24) < cfg["min_h24_recent"]:
+            errors.append(
+                f"h24_reports: ultimo giorno ({max_d_str}) ha solo "
+                f"{n_h24} righe (soglia {cfg['min_h24_recent']})"
+            )
+
     if errors:
         return False, " | ".join(errors)
     return True, "OK"
@@ -203,6 +239,43 @@ def _get_country(destination):
         return get_country(destination) or "N/D"
     except Exception:
         return "N/D"
+
+
+def _get_airline_safe(callsign):
+    if not callsign:
+        return 'N/D'
+    try:
+        from bgy_core import bgy_update_rules as ur
+        cs = str(callsign).strip().upper().replace(' ', '')
+        if len(cs) < 3:
+            return 'N/D'
+
+        airlines = getattr(ur, '_AIRLINES', {}) or {}
+        cargo = getattr(ur, '_CARGO_AIRLINES', {}) or {}
+        charter = getattr(ur, '_CHARTER_AIRLINES', {}) or {}
+
+        def _lookup(d):
+            if not isinstance(d, dict):
+                return None
+            for n in (3, 2):
+                if len(cs) > n:
+                    p = cs[:n]
+                    if p in d:
+                        return d[p]
+            return None
+
+        third_char = cs[2] if len(cs) >= 3 else ''
+        if third_char.isalpha():
+            v = _lookup(cargo) or _lookup(charter)
+            if v:
+                return v
+        v = _lookup(airlines)
+        if v:
+            return v
+        v = _lookup(cargo) or _lookup(charter)
+        return v or 'N/D'
+    except Exception:
+        return 'N/D'
 
 
 def _side_from_runway(runway):
@@ -969,7 +1042,7 @@ def build_block_runway_diagnostics(date_from, date_to):
 
 
 # =============================================================================
-# BLOCCO RITARDI H24 (v1.5.1 - WEB-12.O aggiunto)
+# BLOCCO RITARDI H24 (v1.5.2 - QA-03 + LOG-01)
 # =============================================================================
 
 def _delta_sql_expr():
@@ -1116,6 +1189,32 @@ def build_block_delays_h24(date_from, date_to):
     rows = _query(sql, (date_from, date_to))
 
     logger.info(f"   Ritardi (H24): {len(rows)} voli analizzati da v_h24_report")
+
+    # LOG-01 (MAIL-05): segnala date mancanti in v_h24_report
+    presenti = set()
+    for r in rows:
+        ds_r = _date_str(r[0])
+        if ds_r:
+            presenti.add(ds_r)
+
+    try:
+        date_from_dt = datetime.strptime(date_from, "%Y-%m-%d")
+        date_to_dt = datetime.strptime(date_to, "%Y-%m-%d")
+        current = date_from_dt
+        n_missing = 0
+        while current <= date_to_dt:
+            ds_cur = current.strftime("%Y-%m-%d")
+            if ds_cur not in presenti:
+                logger.warning(f"⚠️ v_h24_report: nessun dato per {ds_cur}")
+                n_missing += 1
+            current += timedelta(days=1)
+        if n_missing > 0:
+            logger.warning(
+                f"   LOG-01: {n_missing} giorni del range senza dati in "
+                f"v_h24_report (su {(date_to_dt - date_from_dt).days + 1} totali)"
+            )
+    except Exception as e:
+        logger.debug(f"LOG-01: impossibile verificare copertura date: {e}")
 
     by_date_acc = {}
     raw_delays = []
