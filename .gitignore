@@ -73,3 +73,6 @@ desktop.ini
 .vscode/
 .idea/
 *.swp
+bgy_data/bgy_raw/*
+bgy_data/bgy_raw/*.csv
+bgy_data/bgy_raw/*.json
