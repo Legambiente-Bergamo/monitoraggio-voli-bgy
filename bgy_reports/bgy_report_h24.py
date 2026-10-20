@@ -1,10 +1,15 @@
 """
 bgy_reports/bgy_report_h24.py - Report H24 integrato (SACBO + Avionio + radar).
-Versione 1.0.3
+Versione 1.0.0
 
-Novita v1.0.3 (20/10/2026):
-- Fix propagazione pista (allineamento a v2.9.31 di bgy_report_night.py).
-- Fallback geometrico per i decolli N/D.
+Novita v1.0.0 (Cantiere B.2, 19/10/2026):
+- Nuovo modulo per il match 3 vie su tutte le 24 ore.
+- Copia-adattata da bgy_report_night.py v2.9.30 (come da specifica v3.8).
+- Legge i voli Avionio da flights_avionio (DB) invece che da CSV.
+- Genera il file report_h24_YYYY-MM-DD.csv e lo rende disponibile
+  per l'import in DB (tramite bgy_db_migrate.py).
+- Nessuna logica di borderline: per l'H24 tutti i voli schedulati nel
+  giorno di calendario (00:00-23:59) sono validi.
 """
 import os
 import re
@@ -1152,31 +1157,18 @@ def _propagate_runway_in_session(radar_df):
             return ""
         return s
 
-    def _phase_to_dir(fase):
-        f = str(fase).strip()
-        if f == 'Decollo':
-            return 'D'
-        if f in ('Atterraggio', 'Avvicinamento'):
-            return 'A'
-        return ''
-
     df['_pista_clean'] = df['pista'].apply(_clean_pista)
-    df['_dir'] = df['fase_volo'].apply(_phase_to_dir)
 
     pista_map = {}
     for _, row in df.iterrows():
         cs = str(row.get('callsign', '') or '').strip().upper()
         if not cs:
             continue
-        d = row['_dir']
-        if not d:
-            continue
-        key = (cs, d)
-        if key in pista_map:
+        if cs in pista_map:
             continue
         p = row['_pista_clean']
         if p in VALID_RUNWAYS:
-            pista_map[key] = p
+            pista_map[cs] = p
 
     n_filled = 0
     for idx, row in df.iterrows():
@@ -1185,56 +1177,12 @@ def _propagate_runway_in_session(radar_df):
         cs = str(row.get('callsign', '') or '').strip().upper()
         if not cs:
             continue
-        d = row['_dir']
-        if not d:
-            continue
-        p = pista_map.get((cs, d))
+        p = pista_map.get(cs)
         if p:
             df.at[idx, 'pista'] = p
             n_filled += 1
 
-    df = df.drop(columns=['_pista_clean', '_dir'])
-    return df
-
-
-def _fill_unknown_runways_geometric(df):
-    """
-    v2.9.33 (Strada 1 - tappo): se la pista è N/D per un decollo, usa il track (rotta_deg).
-    Se l'aereo punta verso Est/Sud-Est (70° - 170°) -> Pista 10.
-    Se l'aereo punta verso Ovest/Sud-Ovest (190° - 290°) -> Pista 28.
-    Applicato solo se l'aereo è tra 2 km e 5 km di distanza.
-    Oltre i 5 km, la virata è troppo ampia e il track non è più affidabile.
-    """
-    if df.empty or 'pista' not in df.columns or 'rotta_deg' not in df.columns:
-        return df
-
-    df = df.copy()
-    
-    mask = (
-        ((df['pista'].isna()) | (df['pista'].astype(str).str.strip() == 'N/D') | (df['pista'].astype(str).str.strip() == ''))
-        & (df['fase_volo'] == 'Decollo')
-        & (df['distanza_km'] > 2.0)
-        & (df['distanza_km'] <= 5.0)
-        & (df['rotta_deg'].notna())
-    )
-
-    n_filled = 0
-    for idx, row in df[mask].iterrows():
-        try:
-            rotta = float(row['rotta_deg'])
-            if 70.0 <= rotta <= 170.0:
-                df.at[idx, 'pista'] = 'RWY 10'
-                n_filled += 1
-            elif 190.0 <= rotta <= 290.0:
-                df.at[idx, 'pista'] = 'RWY 28'
-                n_filled += 1
-        except (ValueError, TypeError):
-            continue
-
-    if n_filled > 0:
-        logger.info(f"📐 Fallback geometrico piste: {n_filled} decolli N/D "
-                    f"hanno ricevuto la pista in base al track (rotta 70-170=10, 190-290=28)")
-    
+    df = df.drop(columns=['_pista_clean'])
     return df
 
 
@@ -1412,7 +1360,6 @@ def load_radar_data_h24(date_str):
 
     combined = pd.concat(dfs, ignore_index=True)
     combined = _propagate_runway_in_session(combined)
-    combined = _fill_unknown_runways_geometric(combined)
     return combined
 
 
@@ -1450,7 +1397,7 @@ def generate_h24_report(date_str=None):
     out_path = os.path.join(OUTPUT_CSV_DIR, f"report_h24_{date_norm}.csv")
 
     result_df['data_calendario'] = date_norm
-    result_df['logic_version'] = "1.0.1"
+    result_df['logic_version'] = "1.0.0"
 
     final_columns = [
         'data_calendario', 'callsign', 'tipo_movimento', 'direzione_sacbo',
