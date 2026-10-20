@@ -9,7 +9,7 @@
     ],
     "night_scan_interval_minutes": 1,
     "day_scan_interval_minutes": 2,
-    "daily_report_time": "06:30",
+    "daily_report_time": "07:30",
     "sacbo_night_scans": [
         "23:00",
         "00:01",
