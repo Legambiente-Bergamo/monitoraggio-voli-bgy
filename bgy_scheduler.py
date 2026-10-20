@@ -1,17 +1,18 @@
 ﻿"""
 bgy_scheduler.py - Pianificatore ed Orchestratore automatico.
-Versione 2.8.12
+Versione 2.8.14
 
-Novità v2.8.12 (INFRA-16, 20/10/2026):
-- Aggiunto thread di heartbeat (_heartbeat_loop) che scrive
-  bgy_logs/scheduler_heartbeat.txt ogni 60 secondi.
-  Serve al watchdog per rilevare se lo scheduler è bloccato (hung).
+Novità v2.8.14 (20/10/2026):
+- Radar misto: 20 secondi di notte, 2 minuti di giorno.
+  Il job viene schedulato ogni 20 secondi, ma job_radar_scan() 
+  salta l'esecuzione di giorno se non sono passati almeno 120 secondi.
 
-Novità v2.8.11 (RADAR-08, 20/10/2026):
-- job_daily() chiama enrich_runways().
+Novità v2.8.13:
+- Radar solo notturno: job_radar_scan() esce subito se non è is_night_time.
+- Frequenza notturna portata a 20 secondi.
 
-Novità v2.8.10 (MAIL-05, 19/10/2026):
-- job_daily() chiama send_h24_alert() se generate_h24_report() fallisce.
+Novità v2.8.12 (INFRA-16):
+- Aggiunto thread di heartbeat.
 """
 import os
 import sys
@@ -40,6 +41,7 @@ os.makedirs(LOGS_DIR, exist_ok=True)
 
 _scheduler_lock = threading.Lock()
 _scheduler_started = False
+_last_day_radar_run = None
 
 SCHEDULER_LOCK_FILE = os.path.join(LOGS_DIR, "scheduler.lock")
 HEARTBEAT_FILE = os.path.join(LOGS_DIR, "scheduler_heartbeat.txt")
@@ -434,10 +436,20 @@ def job_recovery_scan(slot_key=None):
     except Exception as e: logger.error(f"❌ Errore recupero: {e}")
 
 def job_radar_scan():
+    """
+    v2.8.14: Esegue il radar con logica mista.
+    - Di notte: esegue sempre (la schedule chiama ogni 20 secondi).
+    - Di giorno: esegue solo se sono passati almeno 120 secondi dall'ultima esecuzione.
+    """
+    global _last_day_radar_run
     try:
         now = datetime.now()
-        if not is_night_time(now) and (now.minute % 2 != 0): return
-        run_radar_scan()
+        if is_night_time(now):
+            run_radar_scan()
+        else:
+            if _last_day_radar_run is None or (now - _last_day_radar_run).total_seconds() >= 120:
+                _last_day_radar_run = now
+                run_radar_scan()
     except Exception as e: logger.error(f"❌ Eccezione scansione radar: {e}")
 
 def job_daily():
@@ -583,15 +595,16 @@ def setup_scheduler():
         for t in config.get("sacbo_night_scans", ["23:00", "02:00", "05:00"]):
             schedule.every().day.at(t).do(job_sacbo_night_scan, slot=t)
 
-    base_interval = min(int(config.get("night_scan_interval_minutes", 1)), int(config.get("day_scan_interval_minutes", 2)))
-    schedule.every(base_interval if base_interval >= 1 else 1).minutes.do(job_radar_scan)
+    # v2.8.14: Imposta la pianificazione radar base ogni 20 secondi.
+    # La differenziazione notte/giorno è gestita dentro job_radar_scan().
+    night_interval_sec = int(config.get("night_scan_interval_seconds", 20))
+    schedule.every(night_interval_sec).seconds.do(job_radar_scan)
     
     schedule.every().day.at(config.get("daily_report_time", "07:30")).do(job_daily)
 
 def run_scheduler_loop():
     if not acquire_scheduler_lock(): sys.exit(0)
     
-    # INFRA-16: Avvia il thread di heartbeat
     threading.Thread(target=_heartbeat_loop, daemon=True).start()
     logger.info("💓 Heartbeat thread avviato.")
     

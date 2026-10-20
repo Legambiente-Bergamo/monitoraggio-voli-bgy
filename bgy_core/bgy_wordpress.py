@@ -1,45 +1,16 @@
 """
 bgy_core/bgy_wordpress.py - Pubblicazione dati su WordPress via REST API.
-Versione 1.0.3
+Versione 1.1.0
 
-Scopo:
-  - Caricare i file JSON aggregati (bgy-data.csv, bgy-delays.csv) nella
-    Media Library di WordPress, sovrascrivendo i precedenti.
-  - Verificare la connessione REST API.
-  - Gestire le credenziali via config_wordpress.json.
+Novità v1.1.0 (INFRA-08, 20/10/2026):
+- Opzione B: naming timestampato. Il file viene caricato con un nome
+  univoco (es. bgy-data_20261020_174500.csv). Il vecchio file non
+  viene cancellato prima del caricamento, eliminando la finestra 404.
+- Cleanup automatico: dopo l'upload, vengono eliminati i file vecchi
+  mantenendo solo i 3 più recenti per lo stesso prefisso.
 
-Architettura:
-  - Opzione A (raccomandata): JSON statici pubblicati su WordPress,
-    letti lato browser via endpoint REST custom (wp-json/bgy/v1/*).
-
-Sicurezza:
-  - Usa Application Password (Basic Auth over HTTPS).
-  - Non committare mai config_wordpress.json su Git.
-  - Il token è limitato all'utente BGY (ruolo amministratore).
-
-Novità v1.0.3 (08/10/2026):
-- FIX CRITICO: il filename remoto è ora derivato dal path locale
-  (os.path.basename), non più da config. Prima, qualsiasi file
-  pubblicato veniva rinominato in 'bgy-data.csv', sovrascrivendo
-  il file notturno quando si pubblicava bgy-delays.csv.
-- Ogni file locale mantiene il proprio nome su WordPress.
-
-Novità v1.0.2:
-- Ritorno a .csv con Content-Type text/csv, dopo che il filtro MIME
-  è stato autorizzato lato WordPress. Il file locale inizia con una
-  riga di prefisso '#' (gestita da bgy_export_web.py) per superare
-  il controllo magic-bytes di WordPress.
-
-Novità v1.0.1 (breve parentesi .txt):
-- Estensione file cambiata da .csv a .txt con Content-Type text/plain.
-  Tentativo di aggirare il blocco MIME. Non sufficiente.
-
-Novità v1.0.0:
-- Prima versione.
-
-Uso:
-    py -3.12 -m bgy_core.bgy_wordpress --test
-    py -3.12 -m bgy_core.bgy_wordpress --publish <path_to_json>
+Novità v1.0.3:
+- FIX CRITICO: il filename remoto è derivato dal path locale.
 """
 import os
 import sys
@@ -152,43 +123,42 @@ def test_connection():
 # GESTIONE MEDIA
 # -----------------------------------------------------------------------------
 
-def _find_media_by_filename(filename):
-    """
-    Cerca un media nella Media Library per nome file.
-    Ritorna l'ID del media se trovato, altrimenti None.
-    """
+def _find_all_media_by_prefix(base_name, ext):
+    """Trova tutti i media che iniziano con base_name e finiscono con ext."""
     headers = _auth_header()
     if not headers:
-        return None
+        return []
 
     cfg = _cfg()
     timeout = int(cfg.get("http_timeout", 30))
     verify = bool(cfg.get("verify_ssl", True))
 
-    search_term = filename.rsplit(".", 1)[0]
-
     try:
         r = requests.get(
             _api_url("/wp/v2/media"),
             headers=headers,
-            params={"search": search_term, "per_page": 20},
+            params={"search": base_name, "per_page": 20},
             timeout=timeout,
             verify=verify,
         )
         if r.status_code != 200:
-            logger.warning(f"Errore ricerca media: HTTP {r.status_code}")
-            return None
+            return []
 
         items = r.json()
+        valid_items = []
         for item in items:
-            slug = item.get("slug", "")
             source_url = item.get("source_url", "")
-            if search_term in slug or search_term in source_url:
-                return item.get("id")
-        return None
+            filename = source_url.split("/")[-1]
+            # Match esatto del prefisso e dell'estensione
+            if filename.startswith(f"{base_name}_") and filename.endswith(ext):
+                valid_items.append(item)
+        
+        # Ordina per ID discendente (il più recente prima)
+        valid_items.sort(key=lambda x: x.get("id", 0), reverse=True)
+        return valid_items
     except Exception as e:
         logger.warning(f"Errore ricerca media: {e}")
-        return None
+        return []
 
 
 def _delete_media(media_id):
@@ -266,18 +236,24 @@ def _upload_media(local_path, remote_filename):
         return False, None, f"Errore upload: {e}"
 
 
+def _cleanup_old_media(base_name, ext, keep=3):
+    """Mantiene solo i 'keep' file più recenti per un dato prefisso."""
+    all_media = _find_all_media_by_prefix(base_name, ext)
+    if len(all_media) <= keep:
+        return
+    
+    to_delete = all_media[keep:]
+    for item in to_delete:
+        _delete_media(item.get("id"))
+
+
 # -----------------------------------------------------------------------------
 # PUBBLICAZIONE
 # -----------------------------------------------------------------------------
 
 def publish_json(local_json_path):
     """
-    Pubblica un file JSON aggregato su WordPress, sostituendo il precedente
-    con lo stesso nome.
-
-    v1.0.3: il nome remoto è derivato da os.path.basename(local_json_path).
-    Così bgy-data.csv → bgy-data.csv e bgy-delays.csv → bgy-delays.csv.
-
+    Pubblica un file JSON aggregato su WordPress con un nome timestampato.
     Ritorna (ok, msg, source_url).
     """
     if not is_enabled():
@@ -286,21 +262,22 @@ def publish_json(local_json_path):
     if not os.path.exists(local_json_path):
         return False, f"File non trovato: {local_json_path}", None
 
-    # v1.0.3: filename dal path locale, non da config
     filename = os.path.basename(local_json_path)
-    if not filename:
-        cfg = _cfg()
-        filename = cfg.get("json_filename", "bgy-data.csv")
+    base_name, ext = os.path.splitext(filename)
+    
+    # Genera il nome timestampato (es. bgy-data_20261020_174500.csv)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    remote_filename = f"{base_name}_{timestamp}{ext}"
 
-    existing_id = _find_media_by_filename(filename)
-    if existing_id:
-        _delete_media(existing_id)
-
-    ok, media_id, source_url = _upload_media(local_json_path, filename)
+    # Carica il nuovo file (non cancelliamo nulla prima)
+    ok, media_id, source_url = _upload_media(local_json_path, remote_filename)
     if not ok:
         return False, source_url or "Upload fallito", None
 
-    return True, f"Pubblicato (id={media_id}, filename={filename})", source_url
+    # Cleanup: mantieni solo gli ultimi 3 file
+    _cleanup_old_media(base_name, ext, keep=3)
+
+    return True, f"Pubblicato (id={media_id}, filename={remote_filename})", source_url
 
 
 # -----------------------------------------------------------------------------
