@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 1853,D,Marseille,05:45,,Scheduled,Ryanair,MRS,20 Oct,avionio
+FR 3398,D,Malaga,05:45,,Estimated 05:45,Ryanair,AGP,20 Oct,avionio
+FR 2293,D,Pescara,05:50,,Scheduled,Ryanair,PSR,20 Oct,avionio
+FR 8334,D,Ibiza,05:50,,Scheduled,Ryanair,IBZ,20 Oct,avionio
+FR 1417,D,Lamezia Terme,05:55,,Scheduled,Ryanair,SUF,20 Oct,avionio
+FR 2698,D,Alghero,05:55,,Scheduled,Ryanair,AHO,20 Oct,avionio
+FR 3142,D,Barcelona,05:55,,Estimated 06:10,Ryanair,BCN,20 Oct,avionio
+DJ 6498,D,Bologna,06:00,,Scheduled,Air Djibouti,BLQ,20 Oct,avionio
+FR 2261,D,Catania,06:00,,Scheduled,Ryanair,CTA,20 Oct,avionio
+FR 2878,D,Stockholm,06:00,,Scheduled,Ryanair,ARN,20 Oct,avionio
+FR 1319,D,Athens,06:05,,Scheduled,Ryanair,ATH,20 Oct,avionio
+FR 2992,D,Copenhagen,06:05,,Scheduled,Ryanair,CPH,20 Oct,avionio
+FR 3200,D,Cagliari,06:05,,Scheduled,Ryanair,CAG,20 Oct,avionio
+FR 461,D,Newcastle,06:15,,Scheduled,Ryanair,NCL,20 Oct,avionio
+DJ 6402,D,Ancona,06:20,,Scheduled,Air Djibouti,AOI,20 Oct,avionio
+FR 2285,D,Naples,06:30,,Scheduled,Ryanair,NAP,20 Oct,avionio
+FR 2107,D,Budapest,06:40,,Scheduled,Ryanair,BUD,20 Oct,avionio
+FR 2087,D,Lisbon,06:50,,Scheduled,Ryanair,LIS,20 Oct,avionio
+FR 484,D,Duesseldorf,07:00,,Scheduled,Ryanair,NRN,20 Oct,avionio
+FR 6091,D,Gran Canaria,07:00,,Scheduled,Ryanair,LPA,20 Oct,avionio

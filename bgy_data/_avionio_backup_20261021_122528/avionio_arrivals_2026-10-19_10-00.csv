@@ -1,0 +1,23 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 5532,A,Cologne/Bonn,10:20,,Estimated 09:56,Ryanair,CGN,19 Oct,avionio
+FR 8335,A,Ibiza,10:25,,Estimated 10:20,Ryanair,IBZ,19 Oct,avionio
+FR 3433,A,Paris,10:30,,Estimated 11:08,Ryanair,BVA,19 Oct,avionio
+PC 1211,A,Istanbul,10:40,,Estimated 10:38,Pegasus1,SAW,19 Oct,avionio
+AZ 7051,A,Istanbul,10:40,,Estimated 10:38,ITA Airways,SAW,19 Oct,avionio
+FR 2696,A,London,10:50,,Estimated 10:38,Ryanair,STN,19 Oct,avionio
+FR 3654,A,Bari,10:50,,Estimated 10:41,Ryanair,BRI,19 Oct,avionio
+FR 889,A,Krakow/Balice,10:50,,Estimated 10:44,Ryanair,KRK,19 Oct,avionio
+FR 2831,A,Tenerife,11:05,,Estimated 10:53,Ryanair,TFS,19 Oct,avionio
+FR 3143,A,Barcelona,11:10,,Estimated 11:10,Ryanair,BCN,19 Oct,avionio
+FR 3658,A,Edinburgh,11:20,,Estimated 11:11,Ryanair,EDI,19 Oct,avionio
+E5 542,A,Cairo,11:25,,Estimated 11:21,Air Arabia Egypt,CAI,19 Oct,avionio
+FR 8192,A,Vienna,11:40,,Estimated 11:40,Ryanair,VIE,19 Oct,avionio
+VF 61,A,Istanbul,11:45,,Estimated 11:25,Ajet,SAW,19 Oct,avionio
+FR 1318,A,Athens,11:50,,Estimated 11:50,Ryanair,ATH,19 Oct,avionio
+FR 2879,A,Stockholm,11:50,,Estimated 11:28,Ryanair,ARN,19 Oct,avionio
+FR 5121,A,Madrid,11:50,,Estimated 11:50,Ryanair,MAD,19 Oct,avionio
+FR 8120,A,Tirana,11:55,,Estimated 11:55,Ryanair,TIA,19 Oct,avionio
+FR 4038,A,Dublin,12:10,,Estimated 12:05,Ryanair,DUB,19 Oct,avionio
+FZ 1573,A,Dubai,12:10,,Estimated 11:32,flydubai1,DXB,19 Oct,avionio
+EK 2140,A,Dubai,12:10,,Estimated 11:32,Emirates,DXB,19 Oct,avionio
+FR 3594,A,Poznan,12:20,,Estimated 12:20,Ryanair,POZ,19 Oct,avionio

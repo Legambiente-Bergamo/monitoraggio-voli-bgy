@@ -1,0 +1,22 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+W4 3932,D,Chisinau,22:00,,Estimated 22:10,Wizz Air Malta,RMO,20 Oct,avionio
+FR 5655,D,Palma de Mallorca,22:05,,Estimated 00:08,Ryanair,PMI,20 Oct,avionio
+W6 4508,D,Varna,22:10,,Estimated 22:44,Wizz Air,VAR,20 Oct,avionio
+FR 2990,D,Copenhagen,22:15,,Estimated 22:33,Ryanair,CPH,20 Oct,avionio
+FR 3280,D,Gdansk,22:45,,Scheduled,Ryanair,GDN,20 Oct,avionio
+FR 3673,D,London,22:45,,Estimated 23:48,Ryanair,STN,20 Oct,avionio
+DJ 6401,D,Cologne/Bonn,22:50,,Scheduled,Air Djibouti,CGN,20 Oct,avionio
+G9 696,D,Sharjah,22:50,,Scheduled,Air Arabia,SHJ,20 Oct,avionio
+A9 732,D,Tbilisi,23:00,,Scheduled,Georgian Airways1,TBS,20 Oct,avionio
+RM 1732,D,Tbilisi,23:00,,Scheduled,Aircompany Armenia,TBS,20 Oct,avionio
+FR 3413,D,Katowice,23:10,,Scheduled,Ryanair,KTW,20 Oct,avionio
+FR 6054,D,Zagreb,23:20,,Estimated 23:44,Ryanair,ZAG,20 Oct,avionio
+FR 847,D,Barcelona,23:30,,Estimated 00:05,Ryanair,BCN,20 Oct,avionio
+W6 4124,D,Belgrade,23:35,,Scheduled,Wizz Air,BEG,20 Oct,avionio
+FR 2830,D,Tenerife,05:45,,Scheduled,Ryanair,TFS,21 Oct,avionio
+FR 6178,D,Fuerteventura,05:45,,Scheduled,Ryanair,FUE,21 Oct,avionio
+FR 3402,D,Marrakech,05:50,,Scheduled,Ryanair,RAK,21 Oct,avionio
+FR 2669,D,Berlin,05:55,,Scheduled,Ryanair,BER,21 Oct,avionio
+FR 3200,D,Cagliari,05:55,,Scheduled,Ryanair,CAG,21 Oct,avionio
+FR 3273,D,Agadir,06:00,,Scheduled,Ryanair,AGA,21 Oct,avionio
+FR 3528,D,Prague,06:00,,Scheduled,Ryanair,PRG,21 Oct,avionio

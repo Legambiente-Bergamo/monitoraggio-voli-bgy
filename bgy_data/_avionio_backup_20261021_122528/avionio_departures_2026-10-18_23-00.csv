@@ -1,0 +1,22 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+A9 732,D,Tbilisi,23:00,,Estimated 23:10,Georgian Airways1,TBS,18 Oct,avionio
+RM 1732,D,Tbilisi,23:00,,Estimated 23:10,Aircompany Armenia,TBS,18 Oct,avionio
+G9 696,D,Sharjah,23:00,,Estimated 23:12,Air Arabia,SHJ,18 Oct,avionio
+FR 6846,D,Liverpool,23:35,,Estimated 00:00,Ryanair,LPL,18 Oct,avionio
+W6 4124,D,Belgrade,23:40,,Estimated 23:50,Wizz Air,BEG,18 Oct,avionio
+DJ 6498,D,Bologna,04:30,,Scheduled,Air Djibouti,BLQ,19 Oct,avionio
+FR 2261,D,Catania,05:45,,Scheduled,Ryanair,CTA,19 Oct,avionio
+FR 4650,D,Trapani,05:45,,Scheduled,Ryanair,TPS,19 Oct,avionio
+FR 3657,D,Edinburgh,05:50,,Scheduled,Ryanair,EDI,19 Oct,avionio
+FR 4311,D,Rovaniemi,06:00,,Scheduled,Ryanair,RVN,19 Oct,avionio
+FR 859,D,Brindisi,06:00,,Scheduled,Ryanair,BDS,19 Oct,avionio
+FR 8334,D,Ibiza,06:05,,Scheduled,Ryanair,IBZ,19 Oct,avionio
+FR 1417,D,Lamezia Terme,06:10,,Scheduled,Ryanair,SUF,19 Oct,avionio
+FR 3659,D,Brussels,06:15,,Scheduled,Ryanair,CRL,19 Oct,avionio
+FR 2697,D,London,06:25,,Scheduled,Ryanair,STN,19 Oct,avionio
+FR 1319,D,Athens,06:30,,Scheduled,Ryanair,ATH,19 Oct,avionio
+FR 3200,D,Cagliari,06:30,,Scheduled,Ryanair,CAG,19 Oct,avionio
+FR 5531,D,Cologne/Bonn,06:50,,Scheduled,Ryanair,CGN,19 Oct,avionio
+FR 6501,D,Olbia,06:50,,Scheduled,Ryanair,OLB,19 Oct,avionio
+FR 888,D,Krakow/Balice,06:55,,Scheduled,Ryanair,KRK,19 Oct,avionio
+FR 3432,D,Paris,07:00,,Scheduled,Ryanair,BVA,19 Oct,avionio

@@ -1,0 +1,22 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 3502,D,Zaragoza,10:15,,Estimated 10:32,Ryanair,ZAZ,18 Oct,avionio
+FR 6125,D,Dublin,10:20,,Estimated 10:36,Ryanair,DUB,18 Oct,avionio
+RK 9604,D,Belfast,10:20,,Estimated 10:39,Ryanair UK,BFS,18 Oct,avionio
+FR 259,D,Bucharest,10:25,,Estimated 10:38,Ryanair,OTP,18 Oct,avionio
+FR 3432,D,Paris,10:25,,Estimated 10:40,Ryanair,BVA,18 Oct,avionio
+FR 4201,D,Rhodes,10:25,,Estimated 10:37,Ryanair,RHO,18 Oct,avionio
+FR 820,D,Lisbon,10:35,,Scheduled,Ryanair,LIS,18 Oct,avionio
+FR 8844,D,Wroclaw,10:40,,Scheduled,Ryanair,WRO,18 Oct,avionio
+FR 3545,D,Fes,10:50,,Scheduled,Ryanair,FEZ,18 Oct,avionio
+FR 3653,D,Bari,10:55,,Scheduled,Ryanair,BRI,18 Oct,avionio
+FR 859,D,Brindisi,10:55,,Scheduled,Ryanair,BDS,18 Oct,avionio
+FR 3962,D,Marrakech,11:00,,Scheduled,Ryanair,RAK,18 Oct,avionio
+FR 4042,D,Porto,11:05,,Scheduled,Ryanair,OPO,18 Oct,avionio
+DY 1847,D,Oslo,11:10,,Scheduled,Norwegian,OSL,18 Oct,avionio
+FR 4698,D,Trapani,11:15,,Scheduled,Ryanair,TPS,18 Oct,avionio
+FR 2649,D,Malaga,11:25,,Estimated 11:25,Ryanair,AGP,18 Oct,avionio
+FR 3273,D,Agadir,11:25,,Scheduled,Ryanair,AGA,18 Oct,avionio
+PC 1212,D,Istanbul,11:45,,Scheduled,Pegasus1,SAW,18 Oct,avionio
+AZ 7048,D,Istanbul,11:45,,Scheduled,ITA Airways,SAW,18 Oct,avionio
+FR 2888,D,Catania,11:55,,Scheduled,Ryanair,CTA,18 Oct,avionio
+FR 847,D,Barcelona,11:55,,Estimated 12:45,Ryanair,BCN,18 Oct,avionio

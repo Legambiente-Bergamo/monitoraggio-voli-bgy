@@ -1,11 +1,13 @@
 """
 bgy_reports/bgy_report_night.py - Report notturno integrato (SACBO + Avionio + radar).
-Versione 2.9.37
+Versione 2.9.38
+
+Novita v2.9.38 (21/10/2026):
+- Aggiunto ordinamento cronologico del report finale (sessione notturna).
+  I voli sono ordinati per timestamp (o orario schedulato) con wrap-around mezzanotte.
 
 Novita v2.9.37 (21/10/2026, DATA-27):
-- Aggiunta _dedup_scheduled_same_icao24(): elimina i falsi duplicati scheduled
-  (stesso icao24, stessa direzione, delta < 15 min). Priorità a SACBO.
-- Aggiunto conteggio n_dedup_sched nel log finale.
+- Aggiunta _dedup_scheduled_same_icao24(): elimina i falsi duplicati scheduled.
 
 Novita v2.9.36 (21/10/2026, ARCH-01):
 - Refactor: logica pista estratta in bgy_reports/bgy_report_common.py v1.0.0.
@@ -1062,6 +1064,56 @@ def _write_borderline_files(date_norm, df_borderline):
     return daily_path
 
 
+def _sort_report_chronologically(df, session_date):
+    """
+    Ordina il report cronologicamente basandosi sulla sessione notturna.
+    Gestisce il wrap-around della mezzanotte: i voli dopo le 23:00 vengono prima.
+    """
+    if df.empty:
+        return df
+    df = df.copy()
+    
+    # Chiave di ordinamento temporanea
+    sort_keys = []
+    
+    for _, row in df.iterrows():
+        ts_str = str(row.get('timestamp', '')).strip()
+        sched_str = str(row.get('orario_schedulato', '')).strip()
+        
+        sort_val = None
+        # 1. Usa il timestamp completo (già ordinato cronologicamente dalla data)
+        if ts_str and ts_str != 'nan' and ts_str != '':
+            try:
+                dt = pd.to_datetime(ts_str)
+                sort_val = dt
+            except Exception:
+                pass
+                
+        # 2. Fallback: usa l'orario schedulato con wrap-around
+        if sort_val is None and sched_str and sched_str != 'nan' and sched_str != '':
+            try:
+                base = pd.to_datetime(f"{session_date} 23:00:00")
+                parts = sched_str.split(':')
+                sched_dt = base.replace(hour=int(parts[0]), minute=int(parts[1]), second=0)
+                # Se l'ora è < 12, significa che è dopo la mezzanotte (giorno successivo)
+                if sched_dt.hour < 12:
+                    sched_dt += pd.Timedelta(days=1)
+                sort_val = sched_dt
+            except Exception:
+                pass
+                
+        # 3. Fallback finale: usa il callsign o un valore di default
+        if sort_val is None:
+            sort_val = pd.to_datetime(f"{session_date} 23:59:59") + pd.Timedelta(minutes=1)
+            
+        sort_keys.append(sort_val)
+        
+    df['_sort_key'] = sort_keys
+    df = df.sort_values(by='_sort_key', ascending=True)
+    df = df.drop(columns=['_sort_key']).reset_index(drop=True)
+    return df
+
+
 def generate_nightly_report(date_str=None):
     load_rules()
     date_norm = normalize_date(date_str) if date_str else night_session_date()
@@ -1082,6 +1134,10 @@ def generate_nightly_report(date_str=None):
     result_df, df_borderline, n_borderline = _split_borderline_flights(result_df)
     _write_borderline_files(date_norm, df_borderline)
     result_df = _dedup_by_key(result_df)
+    
+    # ORDINAMENTO CRONOLOGICO
+    result_df = _sort_report_chronologically(result_df, date_norm)
+    
     os.makedirs(OUTPUT_CSV_DIR, exist_ok=True)
     out_path = os.path.join(OUTPUT_CSV_DIR, report_nightly_filename(date_norm))
     final_columns = ['callsign', 'tipo_movimento', 'direzione_sacbo', 'notte_categoria', 'is_scheduled', 'fonte_scheduled', 'destinazione_finale', 'stato_destinazione', 'compagnia_aerea', 'modello_aereo', 'orario_schedulato', 'timestamp', 'pista', 'fase_volo', 'direzione', 'quota_ft', 'rotta_deg', 'distanza_km', 'paese', 'matched_score', 'icao24', 'stima_passeggeri', 'stima_rumore_db']

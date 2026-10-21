@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 864,A,Bucharest,23:00,,Estimated 00:28,Ryanair,OTP,18 Oct,avionio
+W6 4123,A,Belgrade,23:00,,Estimated 22:45,Wizz Air,BEG,18 Oct,avionio
+FR 3660,A,Brussels,23:10,,Estimated 23:15,Ryanair,CRL,18 Oct,avionio
+FR 6847,A,Liverpool,23:10,,Estimated 23:16,Ryanair,LPL,18 Oct,avionio
+FR 7977,A,Kos,23:15,,Estimated 23:16,Ryanair,KGS,18 Oct,avionio
+FR 4000,A,Lanzarote,23:20,,Estimated 23:58,Ryanair,ACE,18 Oct,avionio
+FR 460,A,Newcastle,23:55,,Estimated 00:46,Ryanair,NCL,18 Oct,avionio
+FR 6467,A,Faro,23:55,,Estimated 23:55,Ryanair,FAO,18 Oct,avionio
+FR 4664,A,Valencia,00:00,,Estimated 00:00,Ryanair,VLC,19 Oct,avionio
+FR 77,A,Sevilla,00:25,,Estimated 00:03,Ryanair,SVQ,19 Oct,avionio
+FR 8422,A,Tirana,00:30,,Estimated 00:30,Ryanair,TIA,19 Oct,avionio
+FR 3505,A,Krakow/Balice,00:35,,Estimated 00:35,Ryanair,KRK,19 Oct,avionio
+FR 6863,A,Malaga,00:40,,Estimated 00:40,Ryanair,AGP,19 Oct,avionio
+FR 3650,A,Paphos,00:45,,Estimated 01:14,Ryanair,PFO,19 Oct,avionio
+FR 3892,A,Cagliari,00:45,,Estimated 00:45,Ryanair,CAG,19 Oct,avionio
+FR 5093,A,Lamezia Terme,00:45,,Estimated 00:45,Ryanair,SUF,19 Oct,avionio
+FR 6305,A,Barcelona,00:55,,Estimated 00:55,Ryanair,BCN,19 Oct,avionio
+FR 4787,A,Salerno,01:00,,Estimated 01:00,Ryanair,QSR,19 Oct,avionio
+FR 6859,A,Olbia,01:10,,Scheduled,Ryanair,OLB,19 Oct,avionio
+FR 6650,A,Catania,01:15,,Estimated 01:15,Ryanair,CTA,19 Oct,avionio

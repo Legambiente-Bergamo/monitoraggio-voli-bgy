@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 3401,A,Sofia,18:00,,Estimated 17:58,Ryanair,SOF,19 Oct,avionio
+FR 77,A,Sevilla,18:05,,Estimated 18:05,Ryanair,SVQ,19 Oct,avionio
+FR 3409,A,Katowice,18:20,,Estimated 17:54,Ryanair,KTW,19 Oct,avionio
+FR 3656,A,Stockholm,18:30,,Estimated 18:59,Ryanair,ARN,19 Oct,avionio
+FR 2290,A,Palermo,18:40,,Estimated 19:04,Ryanair,PMO,19 Oct,avionio
+FR 3397,A,Crotone,18:50,,Estimated 18:38,Ryanair,CRV,19 Oct,avionio
+FR 3113,A,Iasi,19:10,,Estimated 18:55,Ryanair,IAS,19 Oct,avionio
+FR 3461,A,Eindhoven,19:15,,Estimated 19:15,Ryanair,EIN,19 Oct,avionio
+3F247,A,Yerevan,19:25,,Estimated 19:23,FLYONE Armenia,EVN,19 Oct,avionio
+FR 8480,A,Tirana,19:30,,Estimated 19:30,Ryanair,TIA,19 Oct,avionio
+FR 4632,A,Valencia,19:40,,Estimated 19:40,Ryanair,VLC,19 Oct,avionio
+FR 1537,A,Castellon de la Plana,19:50,,Estimated 19:50,Ryanair,CDT,19 Oct,avionio
+W6 4389,A,Sofia,19:50,,Estimated,Wizz Air,SOF,19 Oct,avionio
+FR 5493,A,Madrid,19:55,,Estimated 19:55,Ryanair,MAD,19 Oct,avionio
+W4 3771,A,Craiova,19:55,,Scheduled,Wizz Air Malta,CRA,19 Oct,avionio
+FR 3503,A,Zaragoza,20:00,,Estimated 20:00,Ryanair,ZAZ,19 Oct,avionio
+FR 4637,A,Porto,20:05,,Estimated 20:11,Ryanair,OPO,19 Oct,avionio
+W6 1433,A,Warsaw,20:05,,Estimated,Wizz Air,WAW,19 Oct,avionio
+FR 2859,A,Brindisi,20:10,,Estimated 20:10,Ryanair,BDS,19 Oct,avionio
+FR 844,A,Cluj-Napoca,20:15,,Estimated 20:15,Ryanair,CLJ,19 Oct,avionio

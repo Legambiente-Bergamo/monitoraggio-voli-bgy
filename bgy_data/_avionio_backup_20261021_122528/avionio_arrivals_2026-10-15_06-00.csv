@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 1852,A,Marseille,07:00,,Estimated 06:56,Ryanair,MRS,15 Oct,avionio
+W4 3551,A,Timisoara,07:25,,Estimated 06:42,Wizz Air Malta,TSR,15 Oct,avionio
+FR 3409,A,Katowice,07:30,,Estimated 07:21,Ryanair,KTW,15 Oct,avionio
+FR 846,A,Barcelona,07:30,,Estimated 07:25,Ryanair,BCN,15 Oct,avionio
+W4 3131,A,Bucharest,07:30,,Estimated 07:23,Wizz Air Malta,OTP,15 Oct,avionio
+W4 3671,A,Iasi,07:30,,Estimated 07:14,Wizz Air Malta,IAS,15 Oct,avionio
+FR 2108,A,Budapest,07:35,,Estimated 07:35,Ryanair,BUD,15 Oct,avionio
+W6 4351,A,Sofia,07:35,,Estimated,Wizz Air,SOF,15 Oct,avionio
+FR 5093,A,Lamezia Terme,07:40,,Estimated 07:40,Ryanair,SUF,15 Oct,avionio
+FR 9094,A,Gdansk,07:50,,Estimated 07:46,Ryanair,GDN,15 Oct,avionio
+FR 6452,A,Palermo,08:00,,Estimated 08:00,Ryanair,PMO,15 Oct,avionio
+FR 1532,A,Vienna,08:05,,Estimated 08:05,Ryanair,VIE,15 Oct,avionio
+FR 3340,A,Nowy Dwor Mazowiecki,08:05,,Estimated 07:55,Ryanair,WMI,15 Oct,avionio
+W4 3771,A,Craiova,08:05,,Scheduled,Wizz Air Malta,CRA,15 Oct,avionio
+W6 1431,A,Warsaw,08:05,,Estimated,Wizz Air,WAW,15 Oct,avionio
+FR 2859,A,Brindisi,08:35,,Scheduled,Ryanair,BDS,15 Oct,avionio
+D8 3880,A,Billund,08:55,,Scheduled,Norwegian Air Sweden AOC,BLL,15 Oct,avionio
+FR 2989,A,Copenhagen,08:55,,Scheduled,Ryanair,CPH,15 Oct,avionio
+FR 3527,A,Prague,09:00,,Scheduled,Ryanair,PRG,15 Oct,avionio
+FR 3674,A,London,09:00,,Scheduled,Ryanair,STN,15 Oct,avionio

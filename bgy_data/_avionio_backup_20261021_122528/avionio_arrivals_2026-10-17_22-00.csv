@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 2859,A,Brindisi,22:00,,Estimated 22:00,Ryanair,BDS,17 Oct,avionio
+FR 2429,A,Sarajevo,22:10,,Estimated 22:14,Ryanair,SJJ,17 Oct,avionio
+FR 3562,A,Naples,22:15,,Estimated 22:15,Ryanair,NAP,17 Oct,avionio
+FR 8845,A,Wroclaw,22:30,,Estimated 22:17,Ryanair,WRO,17 Oct,avionio
+FR 6000,A,Zagreb,22:40,,Estimated 00:38,Ryanair,ZAG,17 Oct,avionio
+GH 1201,A,Turkmenabat,22:41,,Estimated 22:55,Georgian Airlines,CRZ,17 Oct,avionio
+FR 3409,A,Katowice,22:45,,Estimated 22:37,Ryanair,KTW,17 Oct,avionio
+FR 3536,A,Krakow/Balice,22:50,,Estimated 22:36,Ryanair,KRK,17 Oct,avionio
+FR 2879,A,Stockholm,22:55,,Estimated 23:32,Ryanair,ARN,17 Oct,avionio
+W6 4123,A,Belgrade,23:00,,Estimated 22:49,Wizz Air,BEG,17 Oct,avionio
+FR 3892,A,Cagliari,23:10,,Estimated 23:10,Ryanair,CAG,17 Oct,avionio
+FR 864,A,Bucharest,23:25,,Estimated 23:25,Ryanair,OTP,17 Oct,avionio
+FR 8350,A,Tirana,23:35,,Estimated 23:35,Ryanair,TIA,17 Oct,avionio
+FR 3393,A,Helsinki,23:50,,Estimated 23:33,Ryanair,HEL,17 Oct,avionio
+FR 4844,A,Dublin,23:50,,Estimated 23:50,Ryanair,DUB,17 Oct,avionio
+FR 2893,A,Catania,00:15,,Estimated 00:15,Ryanair,CTA,18 Oct,avionio
+FR 858,A,Brindisi,00:30,,Estimated 00:30,Ryanair,BDS,18 Oct,avionio
+FR 6502,A,Olbia,00:35,,Scheduled,Ryanair,OLB,18 Oct,avionio
+FR 3438,A,Sofia,00:40,,Estimated 00:40,Ryanair,SOF,18 Oct,avionio
+MT 3144,A,Sharm el-Sheikh,00:41,,Estimated 00:48,Malta MedAir,SSH,18 Oct,avionio

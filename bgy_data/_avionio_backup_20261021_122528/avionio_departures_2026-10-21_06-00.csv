@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+DJ 6498,D,Bologna,06:00,,Estimated 07:22,Air Djibouti,BLQ,21 Oct,avionio
+FR 3273,D,Agadir,06:00,,Estimated 06:09,Ryanair,AGA,21 Oct,avionio
+FR 3528,D,Prague,06:00,,Estimated 06:12,Ryanair,PRG,21 Oct,avionio
+FR 2087,D,Lisbon,06:05,,Estimated 06:16,Ryanair,LIS,21 Oct,avionio
+FR 4631,D,Valencia,06:05,,Estimated 06:14,Ryanair,VLC,21 Oct,avionio
+FR 8334,D,Ibiza,06:05,,Estimated 06:15,Ryanair,IBZ,21 Oct,avionio
+FR 888,D,Krakow/Balice,06:10,,Estimated 06:22,Ryanair,KRK,21 Oct,avionio
+DJ 6402,D,Ancona,06:20,,Estimated 06:27,Air Djibouti,AOI,21 Oct,avionio
+FR 9890,D,Lodz,06:20,,Estimated 06:31,Ryanair,LCJ,21 Oct,avionio
+FR 2285,D,Naples,06:45,,Scheduled,Ryanair,NAP,21 Oct,avionio
+FR 6304,D,Barcelona,06:45,,Estimated 07:00,Ryanair,BCN,21 Oct,avionio
+FR 4042,D,Porto,06:50,,Scheduled,Ryanair,OPO,21 Oct,avionio
+FR 3653,D,Bari,07:10,,Scheduled,Ryanair,BRI,21 Oct,avionio
+FR 1533,D,Vienna,07:35,,Scheduled,Ryanair,VIE,21 Oct,avionio
+FR 3432,D,Paris,07:40,,Scheduled,Ryanair,BVA,21 Oct,avionio
+FR 3593,D,Poznan,07:40,,Scheduled,Ryanair,POZ,21 Oct,avionio
+FR 5551,D,Cologne/Bonn,07:40,,Scheduled,Ryanair,CGN,21 Oct,avionio
+FR 2858,D,Brindisi,07:50,,Scheduled,Ryanair,BDS,21 Oct,avionio
+FR 4400,D,Heraklion,07:55,,Scheduled,Ryanair,HER,21 Oct,avionio
+FR 9604,D,Belfast,07:55,,Scheduled,Ryanair,BFS,21 Oct,avionio

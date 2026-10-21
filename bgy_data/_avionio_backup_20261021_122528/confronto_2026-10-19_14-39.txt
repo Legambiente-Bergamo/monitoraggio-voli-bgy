@@ -1,0 +1,64 @@
+============================================================
+CONFRONTO SACBO vs AVIONIO
+============================================================
+
+═══ DECOLLI ═══
+  SACBO:    60 voli
+  Avionio:  20 voli
+  Comuni:   19
+  Solo SACBO:    41
+  Solo Avionio:   1
+
+  Solo SACBO (Avionio non li vede):
+     • 3F 248 @ 19:55
+     • AZ 7058 @ 17:15
+     • EK 2141 @ 13:40
+     • FR 1853 @ 17:40
+     • FR 2285 @ 19:35
+     • FR 2669 @ 13:40
+     • FR 2735 @ 20:20
+     • FR 2858 @ 16:25
+     • FR 2892 @ 19:40
+     • FR 2990 @ 16:55
+     ... e altri 31
+
+  Solo Avionio (SACBO non li vede):
+     • LEJ 330 @ 15:30
+
+═══ ARRIVI ═══
+  SACBO:    60 voli
+  Avionio:  20 voli
+  Comuni:   19
+  Solo SACBO:    41
+  Solo Avionio:   1
+
+  Solo SACBO (Avionio non li vede):
+     • 3F 247 @ 18:55
+     • AZ 7053 @ 16:10
+     • FR 1532 @ 13:35
+     • FR 1537 @ 19:50
+     • FR 2290 @ 18:40
+     • FR 2650 @ 17:25
+     • FR 2670 @ 17:30
+     • FR 2859 @ 20:10
+     • FR 2989 @ 16:30
+     • FR 3113 @ 19:10
+     ... e altri 31
+
+  Solo Avionio (SACBO non li vede):
+     • C3 9511 @ 15:27
+
+============================================================
+RIEPILOGO
+============================================================
+  Totale comuni:        38
+  Totale solo SACBO:    82
+  Totale solo Avionio:  2
+
+  📊 Avionio confermato da SACBO: 38/40 (95.0%)
+  📊 SACBO confermato da Avionio: 38/120 (31.7%)
+
+  ℹ️  Nota: Avionio copre solo le prossime 4-6 ore, mentre SACBO
+     copre h24. La metrica principale da osservare è la prima.
+     'Solo SACBO' elevato è normale. 'Solo Avionio' elevato
+     o 'Mismatch orario' elevati meritano investigazione.

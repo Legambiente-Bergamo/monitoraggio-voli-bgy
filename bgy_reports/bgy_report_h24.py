@@ -1,10 +1,12 @@
 """
 bgy_reports/bgy_report_h24.py - Report H24 integrato (SACBO + Avionio + radar).
-Versione 1.0.9
+Versione 1.0.10
+
+Novita v1.0.10 (21/10/2026):
+- Aggiunto ordinamento cronologico del report finale.
 
 Novita v1.0.9 (21/10/2026, DATA-27):
 - Aggiunta _dedup_scheduled_same_icao24(): elimina i falsi duplicati scheduled.
-- Aggiunto conteggio n_dedup_sched nel log finale.
 
 Novita v1.0.8 (21/10/2026, ARCH-01):
 - Logica pista estratta in bgy_report_common.py.
@@ -33,7 +35,6 @@ from bgy_core.bgy_dates import (
 from bgy_core.bgy_config_manager import config_manager
 from bgy_core import bgy_db
 
-# ARCH-01: logica pista centralizzata
 from bgy_reports.bgy_report_common import (
     propagate_runway_in_session,
     fill_unknown_runways_geometric,
@@ -781,6 +782,47 @@ def _enrich_final(df, date_str):
     return df
 
 
+def _sort_report_chronologically(df, date_str):
+    """
+    Ordina il report cronologicamente basandosi sulla data di calendario.
+    """
+    if df.empty:
+        return df
+    df = df.copy()
+    sort_keys = []
+    
+    for _, row in df.iterrows():
+        ts_str = str(row.get('timestamp', '')).strip()
+        sched_str = str(row.get('orario_schedulato', '')).strip()
+        
+        sort_val = None
+        if ts_str and ts_str != 'nan' and ts_str != '':
+            try:
+                dt = pd.to_datetime(ts_str)
+                sort_val = dt
+            except Exception:
+                pass
+                
+        if sort_val is None and sched_str and sched_str != 'nan' and sched_str != '':
+            try:
+                base = pd.to_datetime(f"{date_str} 00:00:00")
+                parts = sched_str.split(':')
+                sched_dt = base.replace(hour=int(parts[0]), minute=int(parts[1]), second=0)
+                sort_val = sched_dt
+            except Exception:
+                pass
+                
+        if sort_val is None:
+            sort_val = pd.to_datetime(f"{date_str} 23:59:59") + pd.Timedelta(minutes=1)
+            
+        sort_keys.append(sort_val)
+        
+    df['_sort_key'] = sort_keys
+    df = df.sort_values(by='_sort_key', ascending=True)
+    df = df.drop(columns=['_sort_key']).reset_index(drop=True)
+    return df
+
+
 def load_scheduled_flights_h24(date_str, radar_df=None):
     date_norm = normalize_date(date_str)
     scan_files = [f for f in os.listdir(RAW_DIR) if f.startswith(f"scan_{date_norm}_") and f.endswith(".csv")] if os.path.isdir(RAW_DIR) else []
@@ -889,12 +931,15 @@ def generate_h24_report(date_str=None):
     result_df, n_dedup_sched = _dedup_scheduled_same_icao24(result_df)
     result_df, n_dedup_icao24 = _dedup_radar_only_via_icao24(result_df)
     result_df = _dedup_by_key(result_df)
+    
+    # ORDINAMENTO CRONOLOGICO
+    result_df = _sort_report_chronologically(result_df, date_norm)
 
     os.makedirs(OUTPUT_CSV_DIR, exist_ok=True)
     out_path = os.path.join(OUTPUT_CSV_DIR, f"report_h24_{date_norm}.csv")
 
     result_df['data_calendario'] = date_norm
-    result_df['logic_version'] = "1.0.9"
+    result_df['logic_version'] = "1.0.10"
 
     final_columns = [
         'data_calendario', 'callsign', 'tipo_movimento', 'direzione_sacbo',

@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+DJ 6402,A,Cologne/Bonn,04:00,,Scheduled,Air Djibouti,CGN,16 Oct,avionio
+DJ 6498,A,Cologne/Bonn,05:15,,Scheduled,Air Djibouti,CGN,16 Oct,avionio
+FR 3401,A,Sofia,07:05,,Scheduled,Ryanair,SOF,16 Oct,avionio
+FR 3412,A,Katowice,07:30,,Scheduled,Ryanair,KTW,16 Oct,avionio
+FR 4707,A,Cagliari,07:30,,Scheduled,Ryanair,CAG,16 Oct,avionio
+W4 3131,A,Bucharest,07:30,,Scheduled,Wizz Air Malta,OTP,16 Oct,avionio
+W4 3671,A,Iasi,07:30,,Scheduled,Wizz Air Malta,IAS,16 Oct,avionio
+FR 1418,A,Lamezia Terme,07:35,,Scheduled,Ryanair,SUF,16 Oct,avionio
+W6 4351,A,Sofia,07:35,,Scheduled,Wizz Air,SOF,16 Oct,avionio
+FR 6148,A,Palermo,07:45,,Scheduled,Ryanair,PMO,16 Oct,avionio
+V7 1317,A,Olbia,07:45,,Scheduled,Volotea,OLB,16 Oct,avionio
+W4 3381,A,Cluj-Napoca,07:50,,Scheduled,Wizz Air Malta,CLJ,16 Oct,avionio
+FR 4522,A,Brussels,07:55,,Scheduled,Ryanair,CRL,16 Oct,avionio
+FR 846,A,Barcelona,07:55,,Scheduled,Ryanair,BCN,16 Oct,avionio
+W6 1431,A,Warsaw,08:05,,Scheduled,Wizz Air,WAW,16 Oct,avionio
+FR 9195,A,Wroclaw,08:15,,Scheduled,Ryanair,WRO,16 Oct,avionio
+FR 1785,A,Copenhagen,08:35,,Scheduled,Ryanair,CPH,16 Oct,avionio
+FR 2286,A,Naples,09:00,,Scheduled,Ryanair,NAP,16 Oct,avionio
+FR 2865,A,Brindisi,09:10,,Scheduled,Ryanair,BDS,16 Oct,avionio
+D8 3750,A,Copenhagen,09:25,,Scheduled,Norwegian Air Sweden AOC,CPH,16 Oct,avionio

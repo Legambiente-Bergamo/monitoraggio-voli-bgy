@@ -1,28 +1,9 @@
 """
 bgy_core/bgy_export_web.py - Esportazione dati aggregati per il web (F17).
-Versione 1.5.2
+Versione 1.5.3
 
-Novita v1.5.2 (MAIL-05, 19/10/2026):
-- QA-03: _gate_check_pre_publish() verifica anche h24_reports (giorno più
-  recente entro h24_lookback_days, con almeno min_h24_recent righe).
-  Se il check fallisce, export_delays_and_publish() NON pubblica
-  bgy-delays.csv: WordPress tiene il file precedente.
-- LOG-01: build_block_delays_h24() logga ⚠️ per ogni data del range
-  senza dati in v_h24_report. Serve a vedere nei log quali giorni mancano.
-
-Novita v1.5.1 (WEB-12.O, 19/10/2026):
-- Nuovo blocco build_block_delays_hourly_weather(): aggrega i ritardi
-  per data e ora effettiva, incrociandoli con i dati meteo orari.
-  Serve per il grafico "Movimenti 24h e ritardi ≥15 min con meteo".
-
-Novita v1.5.0 (WEB-12.Q/R, 19/10/2026):
-- build_block_delays_h24(): aggiunge "raw_delays".
-
-Novita v1.4.0 (Cantiere B.3, 19/10/2026):
-- build_block_delays_h24() legge da v_h24_report.
-
-Novita v1.3.3 (RM-02, 14/10/2026):
-- _empty_delay_agg(): nuovi campi ritardi_fasce, ritardi_min, ritardi_max.
+Novita v1.5.3 (21/10/2026):
+- Aggiunto TAXI_TIME_MIN (default 15) per i decolli nei calcoli dei ritardi.
 """
 import os
 import sys
@@ -47,6 +28,7 @@ DELAYS_PREFIX = "# BGY Monitoring Suite - RITARDI H24 - dati JSON sotto questa r
 
 MIN_DATE_DEFAULT = "2026-09-30"
 TOP_N_PER_DATE_DEFAULT = 10
+TAXI_TIME_MIN_DEFAULT = 15
 
 DELAYS_DEFAULTS = {
     "enabled": True,
@@ -54,6 +36,7 @@ DELAYS_DEFAULTS = {
     "top_destination": 30,
     "soglia_puntuale_min": 15,
     "soglia_grave_min": 60,
+    "taxi_time_min": 15, # AGGIUNTO
     "disclaimer_message": (
         "DATI IN FASE DI VERIFICA\n"
         "Ritardi calcolati come differenza tra orario effettivo e orario "
@@ -135,6 +118,7 @@ def _get_delays_config():
         "top_destination": int(d.get("top_destination", DELAYS_DEFAULTS["top_destination"])),
         "soglia_puntuale_min": int(d.get("soglia_puntuale_min", DELAYS_DEFAULTS["soglia_puntuale_min"])),
         "soglia_grave_min": int(d.get("soglia_grave_min", DELAYS_DEFAULTS["soglia_grave_min"])),
+        "taxi_time_min": int(d.get("taxi_time_min", TAXI_TIME_MIN_DEFAULT)),
         "disclaimer_message": d.get("disclaimer_message", DELAYS_DEFAULTS["disclaimer_message"]),
     }
 
@@ -196,7 +180,6 @@ def _gate_check_pre_publish():
     if n_radar < cfg["min_radar_recent"]:
         errors.append(f"rilevamenti radar ultimi {lookback}g: {n_radar} (soglia {cfg['min_radar_recent']})")
 
-    # QA-03 (MAIL-05): h24_reports recente e corposa
     h24_lookback = cfg["h24_lookback_days"]
     rows = _query(
         "SELECT data_calendario, COUNT(*) FROM h24_reports "
@@ -1042,7 +1025,7 @@ def build_block_runway_diagnostics(date_from, date_to):
 
 
 # =============================================================================
-# BLOCCO RITARDI H24 (v1.5.2 - QA-03 + LOG-01)
+# BLOCCO RITARDI H24 (v1.5.3 - TAXI TIME)
 # =============================================================================
 
 def _delta_sql_expr():
@@ -1157,6 +1140,7 @@ def build_block_delays_h24(date_from, date_to):
     soglia_grave = cfg["soglia_grave_min"]
     top_company = cfg["top_company"]
     top_dest = cfg["top_destination"]
+    taxi_time = cfg["taxi_time_min"]
 
     try:
         from bgy_core.bgy_update_rules import load_rules
@@ -1166,6 +1150,7 @@ def build_block_delays_h24(date_from, date_to):
 
     delta_expr = _delta_sql_expr()
 
+    # Modifichiamo l'SQL per sottrarre il taxi time ai decolli
     sql = f"""
         SELECT
             v.data,
@@ -1176,7 +1161,12 @@ def build_block_delays_h24(date_from, date_to):
             v.ora_effettiva,
             v.compagnia_aerea,
             v.direzione_sacbo,
-            {delta_expr} AS delta_min
+            CASE 
+                WHEN v.direzione_sacbo = 'D' THEN 
+                    {delta_expr} - {taxi_time}
+                ELSE 
+                    {delta_expr}
+            END AS delta_min
         FROM v_h24_report v
         WHERE v.data BETWEEN %s AND %s
           AND v.orario_schedulato IS NOT NULL
@@ -1325,15 +1315,12 @@ def build_block_delays_h24(date_from, date_to):
 
 
 def build_block_delays_hourly_weather(date_from, date_to):
-    """
-    v1.5.1 (WEB-12.O): aggrega per data e ora effettiva i movimenti
-    e i ritardi, incrociandoli con i dati meteo.
-    """
     cfg = _get_delays_config()
     if not cfg["enabled"]:
         return None
 
     soglia_punt = cfg["soglia_puntuale_min"]
+    taxi_time = cfg["taxi_time_min"]
     delta_expr = _delta_sql_expr()
 
     sql = f"""
@@ -1341,7 +1328,12 @@ def build_block_delays_hourly_weather(date_from, date_to):
             v.data,
             v.ora_effettiva,
             v.direzione_sacbo,
-            {delta_expr} AS delta_min
+            CASE 
+                WHEN v.direzione_sacbo = 'D' THEN 
+                    {delta_expr} - {taxi_time}
+                ELSE 
+                    {delta_expr}
+            END AS delta_min
         FROM v_h24_report v
         WHERE v.data BETWEEN %s AND %s
           AND v.orario_schedulato IS NOT NULL
@@ -1355,7 +1347,6 @@ def build_block_delays_hourly_weather(date_from, date_to):
     
     weather_data = _load_weather(date_from, date_to)
 
-    # Struttura: agg[(data, ora)][dir] = {"n_total": X, "n_ritardo": Y}
     agg = {}
     
     for r in rows:
@@ -1383,7 +1374,6 @@ def build_block_delays_hourly_weather(date_from, date_to):
         if delta >= soglia_punt:
             agg[key][d]["n_ritardo"] += 1
 
-    # Costruisci la lista finale ordinata per data e ora
     result = []
     for (ds, hh) in sorted(agg.keys()):
         w = weather_data.get((ds, hh))

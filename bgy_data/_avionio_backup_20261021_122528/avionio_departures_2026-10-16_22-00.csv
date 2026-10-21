@@ -1,0 +1,22 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 3341,D,Nowy Dwor Mazowiecki,22:00,,Estimated 23:59,Ryanair,WMI,16 Oct,avionio
+FR 7960,D,Birmingham,22:00,,Estimated 22:19,Ryanair,BHX,16 Oct,avionio
+FR 3437,D,Sofia,22:15,,Estimated 22:30,Ryanair,SOF,16 Oct,avionio
+FR 3506,D,Alicante,22:15,,Estimated 22:45,Ryanair,ALC,16 Oct,avionio
+FR 5984,D,Madrid,22:20,,Estimated 23:53,Ryanair,MAD,16 Oct,avionio
+FR 9408,D,Fes,22:20,,Estimated 23:05,Ryanair,FEZ,16 Oct,avionio
+W4 3552,D,Timisoara,22:20,,Estimated 22:28,Wizz Air Malta,TSR,16 Oct,avionio
+FR 3867,D,Poznan,22:25,,Estimated 23:08,Ryanair,POZ,16 Oct,avionio
+FR 4188,D,London,22:40,,Estimated 00:04,Ryanair,STN,16 Oct,avionio
+FR 3657,D,Edinburgh,22:45,,Estimated 23:06,Ryanair,EDI,16 Oct,avionio
+DJ 6401,D,Cologne/Bonn,22:50,,Estimated 22:57,Air Djibouti,CGN,16 Oct,avionio
+FR 2990,D,Copenhagen,22:55,,Estimated 23:45,Ryanair,CPH,16 Oct,avionio
+FR 3535,D,Krakow/Balice,23:00,,Estimated 23:51,Ryanair,KRK,16 Oct,avionio
+W4 5020,D,Tirana,23:00,,Scheduled,Wizz Air Malta,TIA,16 Oct,avionio
+FR 8355,D,Tirana,23:10,,Estimated 00:18,Ryanair,TIA,16 Oct,avionio
+NP 222,D,Cairo,23:10,,Scheduled,Nile Air,CAI,16 Oct,avionio
+A9 732,D,Tbilisi,23:20,,Scheduled,Georgian Airways1,TBS,16 Oct,avionio
+RM 1732,D,Tbilisi,23:20,,Scheduled,Aircompany Armenia,TBS,16 Oct,avionio
+FR 3408,D,Katowice,23:35,,Scheduled,Ryanair,KTW,16 Oct,avionio
+W6 4124,D,Belgrade,23:40,,Scheduled,Wizz Air,BEG,16 Oct,avionio
+FR 2254,D,Alghero,05:45,,Scheduled,Ryanair,AHO,17 Oct,avionio

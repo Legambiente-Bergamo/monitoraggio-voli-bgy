@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 3440,D,Lamezia Terme,18:00,,Estimated 18:13,Ryanair,SUF,19 Oct,avionio
+FR 9196,D,Trapani,18:05,,Estimated 18:20,Ryanair,TPS,19 Oct,avionio
+BZ 155,D,Tel Aviv-Yafo,18:15,,Estimated,Blue Bird Airways,TLV,19 Oct,avionio
+FR 410,D,Luxembourg,18:20,,Estimated 18:42,Ryanair,LUX,19 Oct,avionio
+FR 4845,D,Dublin,18:20,,Cancelled,Ryanair,DUB,19 Oct,avionio
+FR 3400,D,Sofia,18:25,,Estimated 18:45,Ryanair,SOF,19 Oct,avionio
+FR 820,D,Lisbon,18:25,,Estimated 19:23,Ryanair,LIS,19 Oct,avionio
+FR 3408,D,Katowice,18:45,,Scheduled,Ryanair,KTW,19 Oct,avionio
+FR 3655,D,Stockholm,18:55,,Estimated 20:05,Ryanair,ARN,19 Oct,avionio
+FR 865,D,Bucharest,19:00,,Scheduled,Ryanair,OTP,19 Oct,avionio
+FR 2285,D,Naples,19:35,,Scheduled,Ryanair,NAP,19 Oct,avionio
+FR 2892,D,Catania,19:40,,Scheduled,Ryanair,CTA,19 Oct,avionio
+FR 8355,D,Tirana,19:40,,Scheduled,Ryanair,TIA,19 Oct,avionio
+FR 3341,D,Nowy Dwor Mazowiecki,19:55,,Scheduled,Ryanair,WMI,19 Oct,avionio
+FR 3504,D,Krakow/Balice,20:05,,Scheduled,Ryanair,KRK,19 Oct,avionio
+FR 3319,D,Barcelona,20:15,,Estimated 20:40,Ryanair,BCN,19 Oct,avionio
+FR 2735,D,London,20:20,,Scheduled,Ryanair,STN,19 Oct,avionio
+3F248,D,Yerevan,20:25,,Scheduled,FLYONE Armenia,EVN,19 Oct,avionio
+W6 4390,D,Sofia,20:25,,Scheduled,Wizz Air,SOF,19 Oct,avionio
+W4 3608,D,Suceava,20:30,,Scheduled,Wizz Air Malta,SCV,19 Oct,avionio

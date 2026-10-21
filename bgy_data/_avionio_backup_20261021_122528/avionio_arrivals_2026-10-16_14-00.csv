@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 5981,A,Toulouse,14:00,,Estimated 15:45,Ryanair,TLS,16 Oct,avionio
+FR 4131,A,Bari,14:05,,Cancelled,Ryanair,BRI,16 Oct,avionio
+FR 3503,A,Zaragoza,14:25,,Estimated 19:25,Ryanair,ZAZ,16 Oct,avionio
+W4 3607,A,Suceava,14:25,,Estimated 14:11,Wizz Air Malta,SCV,16 Oct,avionio
+FR 4312,A,Rovaniemi,14:35,,Estimated 15:20,Ryanair,RVN,16 Oct,avionio
+FR 1904,A,Nowy Dwor Mazowiecki,14:40,,Estimated 17:05,Ryanair,WMI,16 Oct,avionio
+FR 2255,A,Alghero,14:50,,Cancelled,Ryanair,AHO,16 Oct,avionio
+FR 5121,A,Madrid,14:55,,Estimated 15:55,Ryanair,MAD,16 Oct,avionio
+W4 5017,A,Tirana,15:10,,Estimated,Wizz Air Malta,TIA,16 Oct,avionio
+FR 3674,A,London,15:15,,Estimated 15:15,Ryanair,STN,16 Oct,avionio
+FR 4787,A,Salerno,15:20,,Cancelled,Ryanair,QSR,16 Oct,avionio
+FR 9891,A,Lodz,15:20,,Estimated 17:50,Ryanair,LCJ,16 Oct,avionio
+FR 218,A,Alicante,15:30,,Estimated 15:30,Ryanair,ALC,16 Oct,avionio
+FR 3216,A,Manchester,15:35,,Estimated 02:15,Ryanair,MAN,16 Oct,avionio
+FR 5103,A,Birmingham,15:35,,Estimated 01:20,Ryanair,BHX,16 Oct,avionio
+FR 6861,A,Oslo,15:35,,Estimated 19:15,Ryanair,TRF,16 Oct,avionio
+FR 8335,A,Ibiza,15:40,,Estimated 15:40,Ryanair,IBZ,16 Oct,avionio
+XZ 2825,A,Catania,15:40,,Estimated,Aeroitalia,CTA,16 Oct,avionio
+FR 4038,A,Dublin,15:55,,Estimated 00:30,Ryanair,DUB,16 Oct,avionio
+FR 8350,A,Tirana,15:55,,Estimated 15:55,Ryanair,TIA,16 Oct,avionio

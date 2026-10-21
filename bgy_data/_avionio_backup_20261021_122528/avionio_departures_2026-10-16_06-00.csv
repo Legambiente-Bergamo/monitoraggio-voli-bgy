@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+DJ 6498,D,Bologna,06:00,,Estimated 06:38,Air Djibouti,BLQ,16 Oct,avionio
+FR 2107,D,Budapest,06:00,,Estimated 06:13,Ryanair,BUD,16 Oct,avionio
+FR 7324,D,Malta,06:05,,Estimated 06:17,Ryanair,MLA,16 Oct,avionio
+FR 2872,D,Vilnius,06:10,,Estimated 06:21,Ryanair,VNO,16 Oct,avionio
+FR 3528,D,Prague,06:15,,Estimated 06:27,Ryanair,PRG,16 Oct,avionio
+DJ 6402,D,Ancona,06:20,,Estimated 06:27,Air Djibouti,AOI,16 Oct,avionio
+FR 1533,D,Vienna,06:25,,Estimated 06:34,Ryanair,VIE,16 Oct,avionio
+FR 3432,D,Paris,06:30,,Estimated 06:43,Ryanair,BVA,16 Oct,avionio
+FR 4311,D,Rovaniemi,06:30,,Estimated 06:42,Ryanair,RVN,16 Oct,avionio
+FR 259,D,Bucharest,06:35,,Estimated 06:48,Ryanair,OTP,16 Oct,avionio
+FR 2261,D,Catania,06:40,,Estimated 06:51,Ryanair,CTA,16 Oct,avionio
+FR 3460,D,Eindhoven,06:40,,Estimated 06:49,Ryanair,EIN,16 Oct,avionio
+FR 4650,D,Trapani,06:50,,Scheduled,Ryanair,TPS,16 Oct,avionio
+FR 2669,D,Berlin,07:10,,Scheduled,Ryanair,BER,16 Oct,avionio
+FR 76,D,Sevilla,07:15,,Scheduled,Ryanair,SVQ,16 Oct,avionio
+FR 2293,D,Pescara,07:20,,Scheduled,Ryanair,PSR,16 Oct,avionio
+FR 820,D,Lisbon,07:20,,Scheduled,Ryanair,LIS,16 Oct,avionio
+FR 3400,D,Sofia,07:30,,Scheduled,Ryanair,SOF,16 Oct,avionio
+FR 8121,D,Tirana,07:35,,Scheduled,Ryanair,TIA,16 Oct,avionio
+FR 3413,D,Katowice,07:55,,Scheduled,Ryanair,KTW,16 Oct,avionio

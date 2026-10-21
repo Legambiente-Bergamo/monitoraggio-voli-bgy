@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+W6 4124,D,Belgrade,23:35,,Scheduled,Wizz Air,BEG,14 Oct,avionio
+FR 1703,D,Nottingham,23:40,,Estimated 00:01,Ryanair,EMA,14 Oct,avionio
+FR 6846,D,Liverpool,23:40,,Scheduled,Ryanair,LPL,14 Oct,avionio
+NO 2474,D,Dakar,02:10,,Scheduled,Neos,DSS,15 Oct,avionio
+FR 3432,D,Paris,05:45,,Scheduled,Ryanair,BVA,15 Oct,avionio
+FR 3528,D,Prague,05:45,,Scheduled,Ryanair,PRG,15 Oct,avionio
+FR 9065,D,Alicante,05:45,,Scheduled,Ryanair,ALC,15 Oct,avionio
+FR 2261,D,Catania,05:50,,Scheduled,Ryanair,CTA,15 Oct,avionio
+FR 2830,D,Tenerife,05:50,,Scheduled,Ryanair,TFS,15 Oct,avionio
+FR 3200,D,Cagliari,05:50,,Scheduled,Ryanair,CAG,15 Oct,avionio
+FR 3400,D,Sofia,05:55,,Scheduled,Ryanair,SOF,15 Oct,avionio
+FR 8121,D,Tirana,06:00,,Scheduled,Ryanair,TIA,15 Oct,avionio
+FR 266,D,Fuerteventura,06:05,,Scheduled,Ryanair,FUE,15 Oct,avionio
+FR 3545,D,Fes,06:05,,Scheduled,Ryanair,FEZ,15 Oct,avionio
+FR 2289,D,Palermo,06:20,,Scheduled,Ryanair,PMO,15 Oct,avionio
+FR 3653,D,Bari,06:20,,Scheduled,Ryanair,BRI,15 Oct,avionio
+FR 410,D,Luxembourg,06:20,,Scheduled,Ryanair,LUX,15 Oct,avionio
+FR 6854,D,Helsinki,06:25,,Scheduled,Ryanair,HEL,15 Oct,avionio
+FR 5999,D,Zagreb,06:30,,Scheduled,Ryanair,ZAG,15 Oct,avionio
+FR 497,D,Valencia,06:35,,Scheduled,Ryanair,VLC,15 Oct,avionio

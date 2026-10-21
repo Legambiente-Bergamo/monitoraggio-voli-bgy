@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+DJ 6498,D,Bologna,06:00,,Estimated 06:30,Air Djibouti,BLQ,15 Oct,avionio
+FR 8121,D,Tirana,06:00,,Estimated 06:09,Ryanair,TIA,15 Oct,avionio
+FR 266,D,Fuerteventura,06:05,,Estimated 06:17,Ryanair,FUE,15 Oct,avionio
+FR 3545,D,Fes,06:05,,Estimated 06:17,Ryanair,FEZ,15 Oct,avionio
+DJ 6402,D,Ancona,06:20,,Estimated 06:27,Air Djibouti,AOI,15 Oct,avionio
+FR 2289,D,Palermo,06:20,,Estimated 06:31,Ryanair,PMO,15 Oct,avionio
+FR 3653,D,Bari,06:20,,Estimated 06:32,Ryanair,BRI,15 Oct,avionio
+FR 410,D,Luxembourg,06:20,,Estimated 06:33,Ryanair,LUX,15 Oct,avionio
+FR 6854,D,Helsinki,06:25,,Estimated 06:37,Ryanair,HEL,15 Oct,avionio
+FR 5999,D,Zagreb,06:30,,Estimated 06:41,Ryanair,ZAG,15 Oct,avionio
+FR 497,D,Valencia,06:35,,Scheduled,Ryanair,VLC,15 Oct,avionio
+FR 4993,D,Kefallinia,06:35,,Scheduled,Ryanair,EFL,15 Oct,avionio
+FR 2878,D,Stockholm,06:45,,Estimated 07:45,Ryanair,ARN,15 Oct,avionio
+FR 3154,D,Amman,07:05,,Cancelled,Ryanair,AMM,15 Oct,avionio
+FR 2285,D,Naples,07:10,,Scheduled,Ryanair,NAP,15 Oct,avionio
+FR 259,D,Bucharest,07:20,,Scheduled,Ryanair,OTP,15 Oct,avionio
+FR 1853,D,Marseille,07:25,,Scheduled,Ryanair,MRS,15 Oct,avionio
+FR 9890,D,Lodz,07:35,,Scheduled,Ryanair,LCJ,15 Oct,avionio
+FR 3408,D,Katowice,07:55,,Scheduled,Ryanair,KTW,15 Oct,avionio
+W4 3552,D,Timisoara,07:55,,Scheduled,Wizz Air Malta,TSR,15 Oct,avionio

@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 6175,D,Catania,18:00,,Estimated 18:12,Ryanair,CTA,14 Oct,avionio
+FR 3142,D,Barcelona,18:05,,Estimated 18:18,Ryanair,BCN,14 Oct,avionio
+FR 820,D,Lisbon,18:10,,Estimated 19:25,Ryanair,LIS,14 Oct,avionio
+BZ 151,D,Tel Aviv-Yafo,18:15,,Estimated,Blue Bird Airways,TLV,14 Oct,avionio
+FR 3460,D,Eindhoven,18:20,,Estimated 18:38,Ryanair,EIN,14 Oct,avionio
+FR 3545,D,Fes,18:20,,Estimated 19:24,Ryanair,FEZ,14 Oct,avionio
+FR 3164,D,Budapest,18:25,,Estimated 18:36,Ryanair,BUD,14 Oct,avionio
+FR 3392,D,Helsinki,18:25,,Estimated 18:59,Ryanair,HEL,14 Oct,avionio
+FR 3655,D,Stockholm,18:35,,Scheduled,Ryanair,ARN,14 Oct,avionio
+FR 4658,D,Bari,18:35,,Estimated 19:03,Ryanair,BRI,14 Oct,avionio
+FR 4663,D,Valencia,18:40,,Scheduled,Ryanair,VLC,14 Oct,avionio
+FR 3893,D,Cagliari,19:05,,Estimated 20:15,Ryanair,CAG,14 Oct,avionio
+VND8E,D,Rome,19:10,,Scheduled,Avionord,CIA,14 Oct,avionio
+FR 8801,D,Ibiza,19:15,,Scheduled,Ryanair,IBZ,14 Oct,avionio
+FR 7976,D,Kos,19:20,,Estimated 20:58,Ryanair,KGS,14 Oct,avionio
+FR 4638,D,Porto,19:50,,Scheduled,Ryanair,OPO,14 Oct,avionio
+FR 2892,D,Catania,20:05,,Scheduled,Ryanair,CTA,14 Oct,avionio
+FR 3665,D,Naples,20:10,,Scheduled,Ryanair,NAP,14 Oct,avionio
+FR 859,D,Brindisi,20:15,,Scheduled,Ryanair,BDS,14 Oct,avionio
+FR 3504,D,Krakow/Balice,20:25,,Scheduled,Ryanair,KRK,14 Oct,avionio

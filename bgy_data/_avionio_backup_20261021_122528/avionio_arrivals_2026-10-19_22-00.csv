@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+W4 5019,A,Tirana,22:00,,Estimated 21:44,Wizz Air Malta,TIA,19 Oct,avionio
+FR 4715,A,Riga,22:40,,Estimated 01:57,Ryanair,RIX,19 Oct,avionio
+FR 3412,A,Katowice,22:45,,Estimated 22:33,Ryanair,KTW,19 Oct,avionio
+FR 2286,A,Naples,22:50,,Estimated 22:55,Ryanair,NAP,19 Oct,avionio
+W6 4123,A,Belgrade,23:00,,Estimated 22:55,Wizz Air,BEG,19 Oct,avionio
+RK 3218,A,Manchester,23:20,,Estimated 23:42,Ryanair UK,MAN,19 Oct,avionio
+FR 8356,A,Tirana,23:40,,Estimated 02:25,Ryanair,TIA,19 Oct,avionio
+FR 2893,A,Catania,23:50,,Estimated 23:50,Ryanair,CTA,19 Oct,avionio
+FR 864,A,Bucharest,23:55,,Estimated 23:55,Ryanair,OTP,19 Oct,avionio
+FR 3505,A,Krakow/Balice,00:00,,Estimated 00:00,Ryanair,KRK,20 Oct,avionio
+FR 3320,A,Barcelona,00:15,,Estimated 00:15,Ryanair,BCN,20 Oct,avionio
+FR 4659,A,Bari,00:20,,Estimated 00:20,Ryanair,BRI,20 Oct,avionio
+FR 2865,A,Brindisi,00:25,,Scheduled,Ryanair,BDS,20 Oct,avionio
+FR 3340,A,Nowy Dwor Mazowiecki,00:25,,Estimated 00:25,Ryanair,WMI,20 Oct,avionio
+FR 4968,A,Palermo,00:25,,Estimated 00:25,Ryanair,PMO,20 Oct,avionio
+FR 3963,A,Marrakech,00:30,,Estimated 00:30,Ryanair,RAK,20 Oct,avionio
+FR 4787,A,Salerno,00:40,,Estimated 00:40,Ryanair,QSR,20 Oct,avionio
+FR 2734,A,London,00:45,,Estimated 03:31,Ryanair,STN,20 Oct,avionio
+FR 5109,A,Lourdes/Tarbes,00:45,,Estimated 02:40,Ryanair,LDE,20 Oct,avionio
+FR 821,A,Lisbon,00:45,,Estimated 00:45,Ryanair,LIS,20 Oct,avionio

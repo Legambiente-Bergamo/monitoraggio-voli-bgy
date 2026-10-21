@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 2254,D,Alghero,14:25,,Estimated 14:37,Ryanair,AHO,15 Oct,avionio
+FR 6513,D,Olbia,14:35,,Estimated 14:48,Ryanair,OLB,15 Oct,avionio
+FR 219,D,Alicante,14:50,,Scheduled,Ryanair,ALC,15 Oct,avionio
+FR 3460,D,Eindhoven,14:55,,Scheduled,Ryanair,EIN,15 Oct,avionio
+FR 3480,D,Cagliari,14:55,,Scheduled,Ryanair,CAG,15 Oct,avionio
+FR 1903,D,Nowy Dwor Mazowiecki,15:25,,Scheduled,Ryanair,WMI,15 Oct,avionio
+FR 3396,D,Crotone,15:35,,Scheduled,Ryanair,CRV,15 Oct,avionio
+FR 3437,D,Sofia,15:35,,Scheduled,Ryanair,SOF,15 Oct,avionio
+FR 3319,D,Barcelona,15:45,,Scheduled,Ryanair,BCN,15 Oct,avionio
+FR 3530,D,Prague,15:45,,Scheduled,Ryanair,PRG,15 Oct,avionio
+W4 5018,D,Tirana,15:45,,Scheduled,Wizz Air Malta,TIA,15 Oct,avionio
+FR 3448,D,Brindisi,15:50,,Scheduled,Ryanair,BDS,15 Oct,avionio
+FR 3561,D,Naples,15:50,,Scheduled,Ryanair,NAP,15 Oct,avionio
+FR 865,D,Bucharest,16:00,,Scheduled,Ryanair,OTP,15 Oct,avionio
+FR 484,D,Duesseldorf,16:20,,Scheduled,Ryanair,NRN,15 Oct,avionio
+FR 4042,D,Porto,16:25,,Scheduled,Ryanair,OPO,15 Oct,avionio
+FR 6149,D,Palermo,16:40,,Scheduled,Ryanair,PMO,15 Oct,avionio
+FR 8800,D,Ibiza,16:55,,Scheduled,Ryanair,IBZ,15 Oct,avionio
+JSF 298,D,Milan,17:00,,Scheduled,Jet Stream Charter,LIN,15 Oct,avionio
+FR 4663,D,Valencia,17:05,,Scheduled,Ryanair,VLC,15 Oct,avionio

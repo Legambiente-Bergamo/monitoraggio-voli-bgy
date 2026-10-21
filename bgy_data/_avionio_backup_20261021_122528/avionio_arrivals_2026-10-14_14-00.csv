@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 1904,A,Nowy Dwor Mazowiecki,14:05,,Estimated 14:45,Ryanair,WMI,14 Oct,avionio
+FR 4401,A,Heraklion,14:05,,Estimated 14:33,Ryanair,HER,14 Oct,avionio
+FR 844,A,Cluj-Napoca,14:05,,Estimated 13:59,Ryanair,CLJ,14 Oct,avionio
+FR 6179,A,Fuerteventura,14:30,,Estimated 14:28,Ryanair,FUE,14 Oct,avionio
+FR 9094,A,Gdansk,14:30,,Estimated 14:19,Ryanair,GDN,14 Oct,avionio
+FR 9891,A,Lodz,14:35,,Estimated 14:16,Ryanair,LCJ,14 Oct,avionio
+W4 3607,A,Suceava,14:45,,Estimated 14:57,Wizz Air Malta,SCV,14 Oct,avionio
+FR 8192,A,Vienna,14:50,,Estimated 14:44,Ryanair,VIE,14 Oct,avionio
+FR 3438,A,Sofia,14:55,,Estimated 14:53,Ryanair,SOF,14 Oct,avionio
+Z7 582,A,Tbilisi,14:56,,Estimated 14:52,CAMEX Airlines,TBS,14 Oct,avionio
+FR 2831,A,Tenerife,15:10,,Estimated 15:02,Ryanair,TFS,14 Oct,avionio
+FR 3503,A,Zaragoza,15:10,,Estimated 14:52,Ryanair,ZAZ,14 Oct,avionio
+FR 5656,A,Palma de Mallorca,15:10,,Estimated 15:07,Ryanair,PMI,14 Oct,avionio
+W4 5017,A,Tirana,15:10,,Estimated,Wizz Air Malta,TIA,14 Oct,avionio
+FR 4981,A,Kerkyra,15:15,,Estimated 15:30,Ryanair,CFU,14 Oct,avionio
+FR 3562,A,Naples,15:20,,Estimated 15:20,Ryanair,NAP,14 Oct,avionio
+FR 496,A,Valencia,15:25,,Estimated 15:32,Ryanair,VLC,14 Oct,avionio
+FR 218,A,Alicante,15:50,,Estimated 15:46,Ryanair,ALC,14 Oct,avionio
+FR 8356,A,Tirana,15:55,,Estimated 15:55,Ryanair,TIA,14 Oct,avionio
+FR 5935,A,Dubrovnik,16:00,,Estimated 16:00,Ryanair,DBV,14 Oct,avionio

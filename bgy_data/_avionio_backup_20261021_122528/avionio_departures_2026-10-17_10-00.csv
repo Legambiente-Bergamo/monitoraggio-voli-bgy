@@ -1,0 +1,22 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 2888,D,Catania,10:00,,Estimated 10:12,Ryanair,CTA,17 Oct,avionio
+FR 461,D,Newcastle,10:00,,Estimated 10:15,Ryanair,NCL,17 Oct,avionio
+FR 4201,D,Rhodes,10:10,,Estimated 10:22,Ryanair,RHO,17 Oct,avionio
+FR 9239,D,Lublin,10:15,,Estimated 11:26,Ryanair,LUZ,17 Oct,avionio
+FR 5108,D,Lourdes/Tarbes,10:30,,Estimated 10:42,Ryanair,LDE,17 Oct,avionio
+FR 9618,D,Riga,10:35,,Estimated 10:46,Ryanair,RIX,17 Oct,avionio
+FR 4196,D,Kerkyra,10:40,,Estimated 10:53,Ryanair,CFU,17 Oct,avionio
+FR 497,D,Valencia,10:45,,Estimated 11:24,Ryanair,VLC,17 Oct,avionio
+FR 1903,D,Nowy Dwor Mazowiecki,10:55,,Scheduled,Ryanair,WMI,17 Oct,avionio
+FR 259,D,Bucharest,10:55,,Estimated 11:19,Ryanair,OTP,17 Oct,avionio
+V7 3511,D,Asturias,10:55,,Scheduled,Volotea,OVD,17 Oct,avionio
+FR 9292,D,Kaunas,11:05,,Scheduled,Ryanair,KUN,17 Oct,avionio
+FR 4548,D,Chania,11:30,,Scheduled,Ryanair,CHQ,17 Oct,avionio
+FR 6125,D,Dublin,11:35,,Scheduled,Ryanair,DUB,17 Oct,avionio
+FR 5655,D,Palma de Mallorca,11:40,,Scheduled,Ryanair,PMI,17 Oct,avionio
+FR 3450,D,Tangier,11:45,,Estimated 13:11,Ryanair,TNG,17 Oct,avionio
+PC 1212,D,Istanbul,11:45,,Scheduled,Pegasus1,SAW,17 Oct,avionio
+AZ 7048,D,Istanbul,11:45,,Scheduled,ITA Airways,SAW,17 Oct,avionio
+FR 3460,D,Eindhoven,12:00,,Scheduled,Ryanair,EIN,17 Oct,avionio
+DY 1843,D,Stavanger,12:10,,Scheduled,Norwegian,SVG,17 Oct,avionio
+FR 4658,D,Bari,12:25,,Scheduled,Ryanair,BRI,17 Oct,avionio

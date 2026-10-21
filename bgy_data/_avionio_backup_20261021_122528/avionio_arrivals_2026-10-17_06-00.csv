@@ -1,0 +1,23 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 1532,A,Vienna,07:10,,Estimated 07:02,Ryanair,VIE,17 Oct,avionio
+DN 421,A,Bacau,07:20,,Estimated 06:58,Dan Air2,BCM,17 Oct,avionio
+A1 5244,A,Bacau,07:20,,Estimated 06:58,A.P.G. Distribution System,BCM,17 Oct,avionio
+X1 1505,A,Bacau,07:20,,Estimated 06:58,Hahn Air,BCM,17 Oct,avionio
+FR 412,A,Thessaloniki,07:25,,Estimated 07:24,Ryanair,SKG,17 Oct,avionio
+FR 5981,A,Toulouse,07:30,,Estimated 07:30,Ryanair,TLS,17 Oct,avionio
+W4 3131,A,Bucharest,07:30,,Estimated 07:22,Wizz Air Malta,OTP,17 Oct,avionio
+FR 2865,A,Brindisi,07:35,,Estimated 07:27,Ryanair,BDS,17 Oct,avionio
+W6 4351,A,Sofia,07:35,,Estimated,Wizz Air,SOF,17 Oct,avionio
+FR 2108,A,Budapest,07:45,,Estimated 07:45,Ryanair,BUD,17 Oct,avionio
+W6 1431,A,Warsaw,08:05,,Estimated,Wizz Air,WAW,17 Oct,avionio
+FR 1785,A,Copenhagen,08:40,,Estimated 08:40,Ryanair,CPH,17 Oct,avionio
+FR 2255,A,Alghero,08:40,,Scheduled,Ryanair,AHO,17 Oct,avionio
+FR 2738,A,London,08:45,,Scheduled,Ryanair,STN,17 Oct,avionio
+FR 4680,A,Stockholm,08:50,,Estimated 08:50,Ryanair,ARN,17 Oct,avionio
+FR 4668,A,Bari,09:05,,Scheduled,Ryanair,BRI,17 Oct,avionio
+FR 77,A,Sevilla,09:15,,Estimated 09:15,Ryanair,SVQ,17 Oct,avionio
+FR 3660,A,Brussels,09:25,,Scheduled,Ryanair,CRL,17 Oct,avionio
+FR 5550,A,Cologne/Bonn,09:25,,Scheduled,Ryanair,CGN,17 Oct,avionio
+FR 2286,A,Naples,09:35,,Scheduled,Ryanair,NAP,17 Oct,avionio
+FR 2670,A,Berlin,09:35,,Scheduled,Ryanair,BER,17 Oct,avionio
+FR 3527,A,Prague,09:45,,Scheduled,Ryanair,PRG,17 Oct,avionio

@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 2428,D,Sarajevo,14:00,,Estimated 14:12,Ryanair,SJJ,18 Oct,avionio
+FR 3112,D,Iasi,14:10,,Estimated 14:23,Ryanair,IAS,18 Oct,avionio
+FR 6513,D,Olbia,14:20,,Estimated 14:33,Ryanair,OLB,18 Oct,avionio
+FR 2289,D,Palermo,14:30,,Estimated 14:43,Ryanair,PMO,18 Oct,avionio
+FR 4001,D,Lanzarote,14:40,,Estimated 14:52,Ryanair,ACE,18 Oct,avionio
+FR 2669,D,Berlin,14:45,,Scheduled,Ryanair,BER,18 Oct,avionio
+FR 3645,D,Edinburgh,14:55,,Scheduled,Ryanair,EDI,18 Oct,avionio
+FR 9095,D,Gdansk,14:55,,Scheduled,Ryanair,GDN,18 Oct,avionio
+FR 2739,D,London,15:00,,Scheduled,Ryanair,STN,18 Oct,avionio
+FR 219,D,Alicante,15:05,,Scheduled,Ryanair,ALC,18 Oct,avionio
+FR 5407,D,Prague,15:10,,Scheduled,Ryanair,PRG,18 Oct,avionio
+FR 3413,D,Katowice,15:20,,Scheduled,Ryanair,KTW,18 Oct,avionio
+FR 9890,D,Lodz,15:25,,Scheduled,Ryanair,LCJ,18 Oct,avionio
+FR 1853,D,Marseille,15:30,,Scheduled,Ryanair,MRS,18 Oct,avionio
+W4 3772,D,Craiova,15:30,,Scheduled,Wizz Air Malta,CRA,18 Oct,avionio
+FR 2864,D,Brindisi,15:35,,Scheduled,Ryanair,BDS,18 Oct,avionio
+W4 5018,D,Tirana,15:45,,Scheduled,Wizz Air Malta,TIA,18 Oct,avionio
+FR 3561,D,Naples,15:50,,Scheduled,Ryanair,NAP,18 Oct,avionio
+D8 3881,D,Billund,16:00,,Scheduled,Norwegian Air Sweden AOC,BLL,18 Oct,avionio
+UJ 931,D,Cairo,16:00,,Scheduled,Almasria Universal Airlines,CAI,18 Oct,avionio

@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 9891,A,Lodz,00:00,,Estimated 00:40,Ryanair,LCJ,21 Oct,avionio
+FR 3439,A,Lamezia Terme,00:05,,Estimated 00:15,Ryanair,SUF,21 Oct,avionio
+FR 4968,A,Palermo,00:05,,Estimated 00:05,Ryanair,PMO,21 Oct,avionio
+FR 821,A,Lisbon,00:10,,Estimated 02:21,Ryanair,LIS,21 Oct,avionio
+FR 4131,A,Bari,00:20,,Estimated 00:20,Ryanair,BRI,21 Oct,avionio
+FR 6514,A,Olbia,00:35,,Estimated 03:10,Ryanair,OLB,21 Oct,avionio
+FR 265,A,Fuerteventura,00:40,,Estimated 02:09,Ryanair,FUE,21 Oct,avionio
+FR 8350,A,Tirana,00:45,,Estimated 01:01,Ryanair,TIA,21 Oct,avionio
+FR 3401,A,Sofia,00:50,,Estimated 00:50,Ryanair,SOF,21 Oct,avionio
+FR 6174,A,Catania,00:50,,Estimated 00:50,Ryanair,CTA,21 Oct,avionio
+FR 2734,A,London,00:55,,Estimated 02:55,Ryanair,STN,21 Oct,avionio
+FR 4632,A,Valencia,00:55,,Estimated 01:15,Ryanair,VLC,21 Oct,avionio
+FR 4651,A,Trapani,00:55,,Estimated 03:05,Ryanair,TPS,21 Oct,avionio
+FR 3320,A,Barcelona,01:15,,Estimated 03:27,Ryanair,BCN,21 Oct,avionio
+NO 2421,A,Dakar,03:00,,Estimated 04:08,Neos,DSS,21 Oct,avionio
+DJ 6402,A,Cologne/Bonn,04:00,,Scheduled,Air Djibouti,CGN,21 Oct,avionio
+DJ 6498,A,Cologne/Bonn,05:20,,Scheduled,Air Djibouti,CGN,21 Oct,avionio
+FR 1532,A,Vienna,07:10,,Scheduled,Ryanair,VIE,21 Oct,avionio
+FR 5550,A,Cologne/Bonn,07:15,,Scheduled,Ryanair,CGN,21 Oct,avionio
+FR 2859,A,Brindisi,07:25,,Scheduled,Ryanair,BDS,21 Oct,avionio

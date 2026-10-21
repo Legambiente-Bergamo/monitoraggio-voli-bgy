@@ -1,0 +1,22 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 3301,A,Vitoria,18:05,,Estimated 19:38,Ryanair,VIT,17 Oct,avionio
+LEJ 330,A,Birmingham,18:17,,Estimated 18:22,FSH Aviation,BHX,17 Oct,avionio
+FR 3588,A,Oslo,18:20,,Estimated 18:20,Ryanair,TRF,17 Oct,avionio
+FR 3481,A,Cagliari,19:10,,Estimated 19:06,Ryanair,CAG,17 Oct,avionio
+VR 630,A,Sal Island,19:15,,Estimated 18:35,Cabo Verde Airlines1,SID,17 Oct,avionio
+X1 5094,A,Sal Island,19:15,,Estimated 18:35,Hahn Air,SID,17 Oct,avionio
+FR 3433,A,Paris,19:20,,Estimated 19:20,Ryanair,BVA,17 Oct,avionio
+FR 5112,A,Crotone,19:30,,Estimated 19:24,Ryanair,CRV,17 Oct,avionio
+FR 3216,A,Manchester,19:35,,Estimated 20:03,Ryanair,MAN,17 Oct,avionio
+FR 3165,A,Budapest,19:40,,Estimated 19:40,Ryanair,BUD,17 Oct,avionio
+FR 8822,A,Biarritz,19:40,,Estimated 19:40,Ryanair,BIQ,17 Oct,avionio
+FR 411,A,Luxembourg,19:45,,Estimated 19:45,Ryanair,LUX,17 Oct,avionio
+FR 7360,A,Vienna,19:55,,Estimated 19:55,Ryanair,VIE,17 Oct,avionio
+W4 3469,A,Targu-Mures,20:05,,Scheduled,Wizz Air Malta,TGM,17 Oct,avionio
+W6 1433,A,Warsaw,20:05,,Estimated,Wizz Air,WAW,17 Oct,avionio
+W6 4773,A,Skopje,20:10,,Estimated,Wizz Air,SKP,17 Oct,avionio
+FR 2290,A,Palermo,20:20,,Estimated 20:20,Ryanair,PMO,17 Oct,avionio
+FR 5493,A,Madrid,20:20,,Estimated 20:20,Ryanair,MAD,17 Oct,avionio
+E5 544,A,Cairo,20:30,,Estimated 20:21,Air Arabia Egypt,CAI,17 Oct,avionio
+FR 4522,A,Brussels,20:35,,Scheduled,Ryanair,CRL,17 Oct,avionio
+FR 5532,A,Cologne/Bonn,20:45,,Scheduled,Ryanair,CGN,17 Oct,avionio

@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 1533,D,Vienna,14:00,,Estimated 14:31,Ryanair,VIE,19 Oct,avionio
+FR 3112,D,Iasi,14:05,,Estimated 14:17,Ryanair,IAS,19 Oct,avionio
+V7 1316,D,Olbia,14:05,,Estimated 14:43,Volotea,OLB,19 Oct,avionio
+FR 4132,D,Bari,14:10,,Estimated 14:37,Ryanair,BRI,19 Oct,avionio
+FR 3448,D,Brindisi,14:30,,Estimated 14:46,Ryanair,BDS,19 Oct,avionio
+FR 3398,D,Malaga,14:40,,Estimated 14:55,Ryanair,AGP,19 Oct,avionio
+FR 3665,D,Naples,14:40,,Estimated 14:50,Ryanair,NAP,19 Oct,avionio
+FR 2289,D,Palermo,14:55,,Estimated 15:27,Ryanair,PMO,19 Oct,avionio
+FR 3396,D,Crotone,14:55,,Scheduled,Ryanair,CRV,19 Oct,avionio
+FR 4631,D,Valencia,15:10,,Scheduled,Ryanair,VLC,19 Oct,avionio
+W4 3772,D,Craiova,15:20,,Scheduled,Wizz Air Malta,CRA,19 Oct,avionio
+FR 1536,D,Castellon de la Plana,15:30,,Scheduled,Ryanair,CDT,19 Oct,avionio
+FR 8479,D,Tirana,15:30,,Scheduled,Ryanair,TIA,19 Oct,avionio
+LEJ 330,D,Dublin,15:30,,Scheduled,FSH Aviation,DUB,19 Oct,avionio
+FR 3502,D,Zaragoza,15:40,,Scheduled,Ryanair,ZAZ,19 Oct,avionio
+W4 5018,D,Tirana,15:45,,Scheduled,Wizz Air Malta,TIA,19 Oct,avionio
+FR 3673,D,London,15:50,,Scheduled,Ryanair,STN,19 Oct,avionio
+FR 845,D,Cluj-Napoca,15:50,,Scheduled,Ryanair,CLJ,19 Oct,avionio
+FR 8844,D,Wroclaw,15:55,,Scheduled,Ryanair,WRO,19 Oct,avionio
+FR 7324,D,Malta,16:10,,Scheduled,Ryanair,MLA,19 Oct,avionio

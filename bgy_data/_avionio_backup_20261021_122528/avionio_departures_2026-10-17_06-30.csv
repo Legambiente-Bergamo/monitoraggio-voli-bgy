@@ -1,0 +1,23 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 8334,D,Ibiza,06:00,,Estimated 06:06,Ryanair,IBZ,17 Oct,avionio
+FR 5551,D,Cologne/Bonn,06:05,,Estimated 06:12,Ryanair,CGN,17 Oct,avionio
+FR 9196,D,Trapani,06:05,,Estimated 06:14,Ryanair,TPS,17 Oct,avionio
+FR 3142,D,Barcelona,06:10,,Estimated 06:17,Ryanair,BCN,17 Oct,avionio
+FR 2285,D,Naples,06:20,,Estimated 06:29,Ryanair,NAP,17 Oct,avionio
+FR 5120,D,Madrid,06:20,,Estimated 06:26,Ryanair,MAD,17 Oct,avionio
+FR 3528,D,Prague,06:30,,Estimated 06:42,Ryanair,PRG,17 Oct,avionio
+FR 3593,D,Poznan,06:30,,Estimated 06:39,Ryanair,POZ,17 Oct,avionio
+FR 1417,D,Lamezia Terme,06:45,,Estimated 06:54,Ryanair,SUF,17 Oct,avionio
+FR 2261,D,Catania,06:45,,Estimated 06:57,Ryanair,CTA,17 Oct,avionio
+FR 3400,D,Sofia,06:45,,Estimated 06:56,Ryanair,SOF,17 Oct,avionio
+FR 3645,D,Edinburgh,07:15,,Scheduled,Ryanair,EDI,17 Oct,avionio
+FR 1746,D,Knock,07:20,,Scheduled,Ryanair,NOC,17 Oct,avionio
+FR 4663,D,Valencia,07:25,,Scheduled,Ryanair,VLC,17 Oct,avionio
+FR 8121,D,Tirana,07:30,,Scheduled,Ryanair,TIA,17 Oct,avionio
+FR 1533,D,Vienna,07:35,,Scheduled,Ryanair,VIE,17 Oct,avionio
+FR 413,D,Thessaloniki,07:50,,Scheduled,Ryanair,SKG,17 Oct,avionio
+FR 5980,D,Toulouse,07:55,,Scheduled,Ryanair,TLS,17 Oct,avionio
+DN 422,D,Bacau,08:05,,Scheduled,Dan Air2,BCM,17 Oct,avionio
+A1 5245,D,Bacau,08:05,,Scheduled,A.P.G. Distribution System,BCM,17 Oct,avionio
+X1 1506,D,Bacau,08:05,,Scheduled,Hahn Air,BCM,17 Oct,avionio
+W4 3132,D,Bucharest,08:05,,Scheduled,Wizz Air Malta,OTP,17 Oct,avionio

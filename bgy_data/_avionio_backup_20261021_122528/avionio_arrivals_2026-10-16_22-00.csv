@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 3868,A,Poznan,22:00,,Estimated 22:46,Ryanair,POZ,16 Oct,avionio
+W4 5019,A,Tirana,22:00,,Estimated 22:36,Wizz Air Malta,TIA,16 Oct,avionio
+NP 221,A,Cairo,22:10,,Estimated 22:14,Nile Air,CAI,16 Oct,avionio
+FR 4189,A,London,22:15,,Estimated 00:15,Ryanair,STN,16 Oct,avionio
+FR 3658,A,Edinburgh,22:20,,Estimated 22:31,Ryanair,EDI,16 Oct,avionio
+FR 2989,A,Copenhagen,22:30,,Estimated 23:03,Ryanair,CPH,16 Oct,avionio
+FR 3536,A,Krakow/Balice,22:35,,Estimated 22:35,Ryanair,KRK,16 Oct,avionio
+FR 8356,A,Tirana,22:45,,Estimated 22:45,Ryanair,TIA,16 Oct,avionio
+FR 864,A,Bucharest,22:50,,Estimated 01:35,Ryanair,OTP,16 Oct,avionio
+FR 1177,A,Menorca,22:55,,Estimated 01:00,Ryanair,MAH,16 Oct,avionio
+W6 4123,A,Belgrade,23:00,,Estimated,Wizz Air,BEG,16 Oct,avionio
+FR 3481,A,Cagliari,23:05,,Estimated 23:05,Ryanair,CAG,16 Oct,avionio
+FR 5877,A,Paris,23:05,,Estimated 00:55,Ryanair,BVA,16 Oct,avionio
+FR 3409,A,Katowice,23:10,,Estimated 23:22,Ryanair,KTW,16 Oct,avionio
+FR 8802,A,Ibiza,23:20,,Estimated 01:20,Ryanair,IBZ,16 Oct,avionio
+FR 3218,A,Manchester,23:40,,Estimated 03:20,Ryanair,MAN,16 Oct,avionio
+FR 3562,A,Naples,23:50,,Estimated 02:05,Ryanair,NAP,16 Oct,avionio
+FR 9051,A,Cork,00:00,,Estimated 00:00,Ryanair,ORK,17 Oct,avionio
+FR 1318,A,Athens,00:15,,Estimated 02:55,Ryanair,ATH,17 Oct,avionio
+FR 3113,A,Iasi,00:35,,Estimated 03:52,Ryanair,IAS,17 Oct,avionio

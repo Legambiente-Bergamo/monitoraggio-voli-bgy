@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 5999,D,Zagreb,23:05,,Estimated 01:08,Ryanair,ZAG,17 Oct,avionio
+FR 3408,D,Katowice,23:10,,Estimated 23:18,Ryanair,KTW,17 Oct,avionio
+FR 3535,D,Krakow/Balice,23:15,,Estimated 23:28,Ryanair,KRK,17 Oct,avionio
+W6 4124,D,Belgrade,23:35,,Scheduled,Wizz Air,BEG,17 Oct,avionio
+GH 1202,D,Tbilisi,00:50,,Scheduled,Georgian Airlines,TBS,18 Oct,avionio
+3O458,D,Casablanca,02:45,,Scheduled,Air Arabia Maroc,CMN,18 Oct,avionio
+FR 6086,D,Kalamata,05:45,,Scheduled,Ryanair,KLX,18 Oct,avionio
+FR 2830,D,Tenerife,05:50,,Scheduled,Ryanair,TFS,18 Oct,avionio
+FR 2254,D,Alghero,05:55,,Scheduled,Ryanair,AHO,18 Oct,avionio
+FR 2293,D,Pescara,05:55,,Scheduled,Ryanair,PSR,18 Oct,avionio
+FR 8511,D,Beni Mellal,05:55,,Scheduled,Ryanair,BEM,18 Oct,avionio
+FR 3142,D,Barcelona,06:00,,Scheduled,Ryanair,BCN,18 Oct,avionio
+FR 3200,D,Cagliari,06:00,,Scheduled,Ryanair,CAG,18 Oct,avionio
+FR 410,D,Luxembourg,06:05,,Scheduled,Ryanair,LUX,18 Oct,avionio
+FR 8334,D,Ibiza,06:05,,Scheduled,Ryanair,IBZ,18 Oct,avionio
+FR 5139,D,Faro,06:15,,Scheduled,Ryanair,FAO,18 Oct,avionio
+FR 2878,D,Stockholm,06:30,,Scheduled,Ryanair,ARN,18 Oct,avionio
+FR 3392,D,Helsinki,06:30,,Scheduled,Ryanair,HEL,18 Oct,avionio
+FR 3400,D,Sofia,06:30,,Scheduled,Ryanair,SOF,18 Oct,avionio
+FR 3528,D,Prague,06:35,,Scheduled,Ryanair,PRG,18 Oct,avionio

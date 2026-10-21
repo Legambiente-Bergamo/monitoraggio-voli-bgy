@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 2878,D,Stockholm,10:00,,Estimated 10:12,Ryanair,ARN,14 Oct,avionio
+FR 3332,D,Vienna,10:10,,Estimated 10:25,Ryanair,VIE,14 Oct,avionio
+FR 4845,D,Dublin,10:10,,Estimated 10:38,Ryanair,DUB,14 Oct,avionio
+FR 3437,D,Sofia,10:25,,Estimated 10:37,Ryanair,SOF,14 Oct,avionio
+FR 9890,D,Lodz,10:30,,Estimated 10:43,Ryanair,LCJ,14 Oct,avionio
+FR 5999,D,Zagreb,10:40,,Estimated 10:53,Ryanair,ZAG,14 Oct,avionio
+FR 3502,D,Zaragoza,10:50,,Estimated 11:02,Ryanair,ZAZ,14 Oct,avionio
+FR 497,D,Valencia,10:55,,Scheduled,Ryanair,VLC,14 Oct,avionio
+FR 4980,D,Kerkyra,11:00,,Scheduled,Ryanair,CFU,14 Oct,avionio
+FR 2649,D,Malaga,11:10,,Estimated 11:25,Ryanair,AGP,14 Oct,avionio
+FR 3217,D,Manchester,11:20,,Scheduled,Ryanair,MAN,14 Oct,avionio
+FR 4548,D,Chania,11:25,,Scheduled,Ryanair,CHQ,14 Oct,avionio
+FR 76,D,Sevilla,11:35,,Scheduled,Ryanair,SVQ,14 Oct,avionio
+FR 4650,D,Trapani,11:40,,Scheduled,Ryanair,TPS,14 Oct,avionio
+FR 2864,D,Brindisi,12:00,,Scheduled,Ryanair,BDS,14 Oct,avionio
+FR 3561,D,Naples,12:05,,Scheduled,Ryanair,NAP,14 Oct,avionio
+E5 543,D,Cairo,12:20,,Scheduled,Air Arabia Egypt,CAI,14 Oct,avionio
+FR 4523,D,Brussels,12:20,,Scheduled,Ryanair,CRL,14 Oct,avionio
+FR 1319,D,Athens,12:25,,Scheduled,Ryanair,ATH,14 Oct,avionio
+VF 62,D,Istanbul,12:45,,Scheduled,Ajet,SAW,14 Oct,avionio

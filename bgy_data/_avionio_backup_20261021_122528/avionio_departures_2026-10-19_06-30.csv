@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 4311,D,Rovaniemi,06:00,,Departed 06:00,Ryanair,RVN,19 Oct,avionio
+FR 859,D,Brindisi,06:00,,Departed 05:58,Ryanair,BDS,19 Oct,avionio
+FR 8334,D,Ibiza,06:05,,Estimated 06:00,Ryanair,IBZ,19 Oct,avionio
+FR 1417,D,Lamezia Terme,06:10,,Estimated 06:02,Ryanair,SUF,19 Oct,avionio
+FR 3659,D,Brussels,06:15,,Estimated 06:16,Ryanair,CRL,19 Oct,avionio
+FR 2697,D,London,06:25,,Estimated 06:26,Ryanair,STN,19 Oct,avionio
+FR 1319,D,Athens,06:30,,Estimated 06:42,Ryanair,ATH,19 Oct,avionio
+FR 3200,D,Cagliari,06:30,,Estimated 06:42,Ryanair,CAG,19 Oct,avionio
+FR 5531,D,Cologne/Bonn,06:50,,Estimated 07:03,Ryanair,CGN,19 Oct,avionio
+FR 6501,D,Olbia,06:50,,Estimated 07:02,Ryanair,OLB,19 Oct,avionio
+FR 888,D,Krakow/Balice,06:55,,Estimated 07:08,Ryanair,KRK,19 Oct,avionio
+FR 3432,D,Paris,07:00,,Estimated 07:09,Ryanair,BVA,19 Oct,avionio
+FR 3142,D,Barcelona,07:10,,Estimated 07:25,Ryanair,BCN,19 Oct,avionio
+FR 3653,D,Bari,07:15,,Scheduled,Ryanair,BRI,19 Oct,avionio
+FR 4235,D,Vilnius,07:30,,Scheduled,Ryanair,VNO,19 Oct,avionio
+C3 9510,D,Eindhoven,07:45,,Scheduled,Trade Air,EIN,19 Oct,avionio
+FR 2876,D,Brindisi,07:55,,Scheduled,Ryanair,BDS,19 Oct,avionio
+FR 8121,D,Tirana,07:55,,Scheduled,Ryanair,TIA,19 Oct,avionio
+FR 3530,D,Prague,08:00,,Scheduled,Ryanair,PRG,19 Oct,avionio
+W4 3672,D,Iasi,08:00,,Scheduled,Wizz Air Malta,IAS,19 Oct,avionio

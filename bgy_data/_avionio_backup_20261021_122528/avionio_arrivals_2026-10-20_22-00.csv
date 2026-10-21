@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 4038,A,Dublin,22:15,,Estimated 23:20,Ryanair,DUB,20 Oct,avionio
+FR 3279,A,Gdansk,22:20,,Estimated 22:05,Ryanair,GDN,20 Oct,avionio
+FR 3674,A,London,22:20,,Estimated 22:20,Ryanair,STN,20 Oct,avionio
+FR 3666,A,Naples,22:35,,Estimated 22:35,Ryanair,NAP,20 Oct,avionio
+FR 3412,A,Katowice,22:45,,Estimated 22:20,Ryanair,KTW,20 Oct,avionio
+FR 6055,A,Zagreb,22:55,,Estimated 22:55,Ryanair,ZAG,20 Oct,avionio
+W6 4123,A,Belgrade,23:00,,Estimated 22:36,Wizz Air,BEG,20 Oct,avionio
+FR 846,A,Barcelona,23:05,,Estimated 23:05,Ryanair,BCN,20 Oct,avionio
+FR 3113,A,Iasi,23:10,,Estimated 23:10,Ryanair,IAS,20 Oct,avionio
+FR 4707,A,Cagliari,23:15,,Estimated 23:15,Ryanair,CAG,20 Oct,avionio
+FR 2288,A,Bucharest,23:20,,Estimated 23:20,Ryanair,OTP,20 Oct,avionio
+FR 2877,A,Brindisi,23:30,,Estimated 23:30,Ryanair,BDS,20 Oct,avionio
+FR 3536,A,Krakow/Balice,23:40,,Estimated 23:40,Ryanair,KRK,20 Oct,avionio
+FR 3451,A,Tangier,23:55,,Estimated 23:55,Ryanair,TNG,20 Oct,avionio
+FR 9891,A,Lodz,00:00,,Estimated 00:00,Ryanair,LCJ,21 Oct,avionio
+FR 3439,A,Lamezia Terme,00:05,,Estimated 00:05,Ryanair,SUF,21 Oct,avionio
+FR 4968,A,Palermo,00:05,,Estimated 00:05,Ryanair,PMO,21 Oct,avionio
+FR 821,A,Lisbon,00:10,,Estimated 00:10,Ryanair,LIS,21 Oct,avionio
+FR 4131,A,Bari,00:20,,Estimated 00:20,Ryanair,BRI,21 Oct,avionio
+FR 6514,A,Olbia,00:35,,Estimated 03:10,Ryanair,OLB,21 Oct,avionio

@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 2893,A,Catania,00:15,,Estimated 00:50,Ryanair,CTA,18 Oct,avionio
+FR 858,A,Brindisi,00:30,,Estimated 01:05,Ryanair,BDS,18 Oct,avionio
+FR 6502,A,Olbia,00:35,,Estimated 00:23,Ryanair,OLB,18 Oct,avionio
+FR 3438,A,Sofia,00:40,,Estimated 00:29,Ryanair,SOF,18 Oct,avionio
+MT 3144,A,Sharm el-Sheikh,00:41,,Estimated 00:49,Malta MedAir,SSH,18 Oct,avionio
+FR 6090,A,Gran Canaria,00:45,,Estimated 00:45,Ryanair,LPA,18 Oct,avionio
+FR 8799,A,Ibiza,00:45,,Estimated 00:58,Ryanair,IBZ,18 Oct,avionio
+FR 5935,A,Dubrovnik,00:55,,Estimated 01:11,Ryanair,DBV,18 Oct,avionio
+FR 4131,A,Bari,01:00,,Estimated 03:15,Ryanair,BRI,18 Oct,avionio
+FR 4968,A,Palermo,01:05,,Estimated 01:05,Ryanair,PMO,18 Oct,avionio
+FR 3439,A,Lamezia Terme,01:10,,Estimated 01:26,Ryanair,SUF,18 Oct,avionio
+FR 4632,A,Valencia,01:15,,Estimated 01:15,Ryanair,VLC,18 Oct,avionio
+FR 4651,A,Trapani,01:15,,Estimated 01:15,Ryanair,TPS,18 Oct,avionio
+3O457,A,Casablanca,01:55,,Estimated 02:16,Air Arabia Maroc,CMN,18 Oct,avionio
+FR 6055,A,Zagreb,07:10,,Scheduled,Ryanair,ZAG,18 Oct,avionio
+FR 4668,A,Bari,07:20,,Scheduled,Ryanair,BRI,18 Oct,avionio
+FR 5115,A,Lamezia Terme,07:25,,Scheduled,Ryanair,SUF,18 Oct,avionio
+FR 2108,A,Budapest,07:30,,Scheduled,Ryanair,BUD,18 Oct,avionio
+W4 3131,A,Bucharest,07:30,,Scheduled,Wizz Air Malta,OTP,18 Oct,avionio
+W4 3671,A,Iasi,07:30,,Scheduled,Wizz Air Malta,IAS,18 Oct,avionio

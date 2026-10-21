@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 3439,A,Lamezia Terme,22:00,,Estimated 22:08,Ryanair,SUF,15 Oct,avionio
+FR 2734,A,London,22:25,,Estimated 22:10,Ryanair,STN,15 Oct,avionio
+FR 2991,A,Copenhagen,22:30,,Estimated 22:03,Ryanair,CPH,15 Oct,avionio
+FR 4041,A,Porto,22:45,,Estimated 22:37,Ryanair,OPO,15 Oct,avionio
+FR 3588,A,Oslo,22:50,,Estimated 22:31,Ryanair,TRF,15 Oct,avionio
+FR 3412,A,Katowice,23:00,,Estimated 22:33,Ryanair,KTW,15 Oct,avionio
+W6 4123,A,Belgrade,23:00,,Estimated 22:44,Wizz Air,BEG,15 Oct,avionio
+FR 3536,A,Krakow/Balice,23:25,,Estimated 23:10,Ryanair,KRK,15 Oct,avionio
+FR 3279,A,Gdansk,23:40,,Estimated 23:22,Ryanair,GDN,15 Oct,avionio
+FR 7977,A,Kos,23:45,,Estimated 23:45,Ryanair,KGS,15 Oct,avionio
+FR 8802,A,Ibiza,23:50,,Estimated 23:50,Ryanair,IBZ,15 Oct,avionio
+FR 3500,A,Paris,23:55,,Estimated 23:55,Ryanair,BVA,15 Oct,avionio
+FR 3666,A,Naples,00:20,,Scheduled,Ryanair,NAP,16 Oct,avionio
+FR 3301,A,Vitoria,00:25,,Estimated 00:25,Ryanair,VIT,16 Oct,avionio
+FR 412,A,Thessaloniki,00:35,,Estimated 00:35,Ryanair,SKG,16 Oct,avionio
+FR 4236,A,Vilnius,00:35,,Estimated 00:35,Ryanair,VNO,16 Oct,avionio
+FR 3892,A,Cagliari,00:40,,Estimated 00:40,Ryanair,CAG,16 Oct,avionio
+FR 4968,A,Palermo,00:40,,Scheduled,Ryanair,PMO,16 Oct,avionio
+FR 8512,A,Beni Mellal,00:50,,Scheduled,Ryanair,BEM,16 Oct,avionio
+FR 8845,A,Wroclaw,00:55,,Scheduled,Ryanair,WRO,16 Oct,avionio

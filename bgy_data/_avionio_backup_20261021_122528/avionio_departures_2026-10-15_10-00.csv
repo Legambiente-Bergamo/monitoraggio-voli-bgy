@@ -1,0 +1,22 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 8355,D,Tirana,10:00,,Estimated 10:13,Ryanair,TIA,15 Oct,avionio
+FR 1536,D,Castellon de la Plana,10:25,,Estimated 10:37,Ryanair,CDT,15 Oct,avionio
+FR 2888,D,Catania,10:25,,Estimated 10:36,Ryanair,CTA,15 Oct,avionio
+FR 8334,D,Ibiza,10:30,,Cancelled,Ryanair,IBZ,15 Oct,avionio
+FR 5980,D,Toulouse,10:35,,Scheduled,Ryanair,TLS,15 Oct,avionio
+FR 2087,D,Lisbon,10:45,,Scheduled,Ryanair,LIS,15 Oct,avionio
+FR 2649,D,Malaga,10:50,,Estimated 11:05,Ryanair,AGP,15 Oct,avionio
+FR 4201,D,Rhodes,10:50,,Scheduled,Ryanair,RHO,15 Oct,avionio
+FR 1417,D,Lamezia Terme,11:15,,Scheduled,Ryanair,SUF,15 Oct,avionio
+FR 1784,D,Copenhagen,11:35,,Estimated 11:54,Ryanair,CPH,15 Oct,avionio
+FR 4650,D,Trapani,11:35,,Scheduled,Ryanair,TPS,15 Oct,avionio
+FR 4658,D,Bari,11:35,,Scheduled,Ryanair,BRI,15 Oct,avionio
+FR 7324,D,Malta,11:45,,Scheduled,Ryanair,MLA,15 Oct,avionio
+PC 1212,D,Istanbul,11:45,,Scheduled,Pegasus1,SAW,15 Oct,avionio
+AZ 7048,D,Istanbul,11:45,,Scheduled,ITA Airways,SAW,15 Oct,avionio
+FR 6257,D,Krakow/Balice,11:55,,Scheduled,Ryanair,KRK,15 Oct,avionio
+FR 2872,D,Vilnius,12:05,,Scheduled,Ryanair,VNO,15 Oct,avionio
+FR 845,D,Cluj-Napoca,12:05,,Scheduled,Ryanair,CLJ,15 Oct,avionio
+FR 3450,D,Tangier,12:15,,Scheduled,Ryanair,TNG,15 Oct,avionio
+FR 2669,D,Berlin,12:45,,Scheduled,Ryanair,BER,15 Oct,avionio
+VF 62,D,Istanbul,12:45,,Scheduled,Ajet,SAW,15 Oct,avionio

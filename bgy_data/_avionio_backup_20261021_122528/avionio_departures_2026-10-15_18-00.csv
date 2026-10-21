@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 2735,D,London,18:00,,Estimated 18:21,Ryanair,STN,15 Oct,avionio
+FR 2876,D,Brindisi,18:10,,Estimated 18:20,Ryanair,BDS,15 Oct,avionio
+XZ 2223,D,Foggia,18:10,,Estimated 18:20,Aeroitalia,FOG,15 Oct,avionio
+FR 3440,D,Lamezia Terme,18:15,,Estimated 18:37,Ryanair,SUF,15 Oct,avionio
+FR 8511,D,Beni Mellal,18:20,,Scheduled,Ryanair,BEM,15 Oct,avionio
+FR 6175,D,Catania,18:40,,Estimated 18:53,Ryanair,CTA,15 Oct,avionio
+FR 4235,D,Vilnius,18:45,,Scheduled,Ryanair,VNO,15 Oct,avionio
+FR 3280,D,Gdansk,19:00,,Scheduled,Ryanair,GDN,15 Oct,avionio
+FR 4698,D,Trapani,19:00,,Estimated 19:39,Ryanair,TPS,15 Oct,avionio
+BZ 151,D,Tel Aviv-Yafo,19:25,,Scheduled,Blue Bird Airways,TLV,15 Oct,avionio
+FR 3535,D,Krakow/Balice,19:25,,Scheduled,Ryanair,KRK,15 Oct,avionio
+FR 5120,D,Madrid,19:30,,Scheduled,Ryanair,MAD,15 Oct,avionio
+FR 8801,D,Ibiza,19:30,,Scheduled,Ryanair,IBZ,15 Oct,avionio
+FR 413,D,Thessaloniki,19:55,,Scheduled,Ryanair,SKG,15 Oct,avionio
+FR 3300,D,Vitoria,20:00,,Scheduled,Ryanair,VIT,15 Oct,avionio
+D8 2941,D,Helsinki,20:15,,Scheduled,Norwegian Air Sweden AOC,HEL,15 Oct,avionio
+FR 3501,D,Paris,20:25,,Scheduled,Ryanair,BVA,15 Oct,avionio
+FR 7361,D,Vienna,20:30,,Scheduled,Ryanair,VIE,15 Oct,avionio
+W4 3470,D,Targu-Mures,20:35,,Scheduled,Wizz Air Malta,TGM,15 Oct,avionio
+W6 1434,D,Warsaw,20:40,,Scheduled,Wizz Air,WAW,15 Oct,avionio

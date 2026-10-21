@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 3666,A,Naples,14:00,,Landed 13:32,Ryanair,NAP,19 Oct,avionio
+FR 3449,A,Brindisi,14:05,,Landed 13:40,Ryanair,BDS,19 Oct,avionio
+FR 4312,A,Rovaniemi,14:05,,Landed 13:37,Ryanair,RVN,19 Oct,avionio
+FR 8350,A,Tirana,14:20,,Estimated 14:09,Ryanair,TIA,19 Oct,avionio
+FR 4549,A,Chania,14:30,,Estimated 14:10,Ryanair,CHQ,19 Oct,avionio
+FR 496,A,Valencia,14:40,,Estimated 15:19,Ryanair,VLC,19 Oct,avionio
+FR 8799,A,Ibiza,14:40,,Estimated 15:34,Ryanair,IBZ,19 Oct,avionio
+W4 3607,A,Suceava,14:45,,Estimated 14:15,Wizz Air Malta,SCV,19 Oct,avionio
+FR 260,A,Bucharest,14:50,,Estimated 14:35,Ryanair,OTP,19 Oct,avionio
+FR 5701,A,Palma de Mallorca,14:55,,Estimated 16:45,Ryanair,PMI,19 Oct,avionio
+FR 1177,A,Menorca,15:00,,Estimated 14:49,Ryanair,MAH,19 Oct,avionio
+FR 1904,A,Nowy Dwor Mazowiecki,15:00,,Estimated 14:37,Ryanair,WMI,19 Oct,avionio
+W4 5017,A,Tirana,15:10,,Estimated,Wizz Air Malta,TIA,19 Oct,avionio
+FR 9891,A,Lodz,15:20,,Estimated 15:20,Ryanair,LCJ,19 Oct,avionio
+FR 3674,A,London,15:25,,Estimated 15:22,Ryanair,STN,19 Oct,avionio
+C3 9511,A,Kaunas,15:27,,Estimated,Trade Air,KUN,19 Oct,avionio
+FR 8845,A,Wroclaw,15:30,,Estimated 15:30,Ryanair,WRO,19 Oct,avionio
+FR 3481,A,Cagliari,15:40,,Estimated 15:40,Ryanair,CAG,19 Oct,avionio
+FR 2887,A,Catania,15:50,,Estimated 15:50,Ryanair,CTA,19 Oct,avionio
+FR 3216,A,Manchester,15:55,,Estimated 15:55,Ryanair,MAN,19 Oct,avionio

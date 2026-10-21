@@ -1,0 +1,22 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+LEJ 330,D,Birmingham,22:00,,Estimated 22:10,FSH Aviation,BHX,18 Oct,avionio
+W4 3932,D,Chisinau,22:00,,Estimated 23:08,Wizz Air Malta,RMO,18 Oct,avionio
+FR 3341,D,Nowy Dwor Mazowiecki,22:10,,Estimated 22:27,Ryanair,WMI,18 Oct,avionio
+FR 413,D,Thessaloniki,22:10,,Estimated 22:22,Ryanair,SKG,18 Oct,avionio
+FR 6858,D,Olbia,22:10,,Estimated 22:25,Ryanair,OLB,18 Oct,avionio
+FR 8980,D,Trapani,22:40,,Estimated 23:05,Ryanair,TPS,18 Oct,avionio
+FR 3219,D,Manchester,22:45,,Estimated 23:56,Ryanair,MAN,18 Oct,avionio
+FR 3673,D,London,22:45,,Scheduled,Ryanair,STN,18 Oct,avionio
+FR 5700,D,Palma de Mallorca,22:50,,Estimated 23:56,Ryanair,PMI,18 Oct,avionio
+FR 5984,D,Madrid,22:50,,Scheduled,Ryanair,MAD,18 Oct,avionio
+A9 732,D,Tbilisi,23:00,,Scheduled,Georgian Airways1,TBS,18 Oct,avionio
+RM 1732,D,Tbilisi,23:00,,Scheduled,Aircompany Armenia,TBS,18 Oct,avionio
+G9 696,D,Sharjah,23:00,,Scheduled,Air Arabia,SHJ,18 Oct,avionio
+FR 6846,D,Liverpool,23:35,,Estimated 00:02,Ryanair,LPL,18 Oct,avionio
+W6 4124,D,Belgrade,23:40,,Scheduled,Wizz Air,BEG,18 Oct,avionio
+FR 2261,D,Catania,05:45,,Scheduled,Ryanair,CTA,19 Oct,avionio
+FR 4650,D,Trapani,05:45,,Scheduled,Ryanair,TPS,19 Oct,avionio
+FR 3657,D,Edinburgh,05:50,,Scheduled,Ryanair,EDI,19 Oct,avionio
+FR 4311,D,Rovaniemi,06:00,,Scheduled,Ryanair,RVN,19 Oct,avionio
+FR 859,D,Brindisi,06:00,,Scheduled,Ryanair,BDS,19 Oct,avionio
+FR 8334,D,Ibiza,06:05,,Scheduled,Ryanair,IBZ,19 Oct,avionio

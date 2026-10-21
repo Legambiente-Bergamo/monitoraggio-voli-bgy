@@ -1,0 +1,23 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 3143,A,Barcelona,10:00,,Landed 09:47,Ryanair,BCN,18 Oct,avionio
+FR 3963,A,Marrakech,10:05,,Estimated 09:59,Ryanair,RAK,18 Oct,avionio
+FR 821,A,Lisbon,10:10,,Estimated 09:54,Ryanair,LIS,18 Oct,avionio
+FR 8845,A,Wroclaw,10:15,,Landed 09:51,Ryanair,WRO,18 Oct,avionio
+DY 1846,A,Oslo,10:25,,Estimated 10:36,Norwegian,OSL,18 Oct,avionio
+FR 3546,A,Fes,10:25,,Estimated 10:16,Ryanair,FEZ,18 Oct,avionio
+FR 8335,A,Ibiza,10:25,,Estimated 10:34,Ryanair,IBZ,18 Oct,avionio
+FR 4041,A,Porto,10:40,,Estimated 10:25,Ryanair,OPO,18 Oct,avionio
+PC 1211,A,Istanbul,10:40,,Estimated 10:30,Pegasus1,SAW,18 Oct,avionio
+AZ 7051,A,Istanbul,10:40,,Estimated 10:30,ITA Airways,SAW,18 Oct,avionio
+FR 6087,A,Kalamata,10:50,,Estimated 10:26,Ryanair,KLX,18 Oct,avionio
+FR 3274,A,Agadir,11:00,,Estimated 10:39,Ryanair,AGA,18 Oct,avionio
+FR 3461,A,Eindhoven,11:00,,Estimated 11:03,Ryanair,EIN,18 Oct,avionio
+FR 3401,A,Sofia,11:05,,Estimated 10:54,Ryanair,SOF,18 Oct,avionio
+E5 542,A,Cairo,11:25,,Estimated 11:05,Air Arabia Egypt,CAI,18 Oct,avionio
+FR 8120,A,Tirana,11:30,,Estimated 11:25,Ryanair,TIA,18 Oct,avionio
+FR 846,A,Barcelona,11:30,,Estimated 11:30,Ryanair,BCN,18 Oct,avionio
+VF 61,A,Istanbul,11:45,,Estimated 11:27,Ajet,SAW,18 Oct,avionio
+FR 5981,A,Toulouse,12:05,,Scheduled,Ryanair,TLS,18 Oct,avionio
+FR 889,A,Krakow/Balice,12:10,,Estimated 12:10,Ryanair,KRK,18 Oct,avionio
+FZ 1573,A,Dubai,12:10,,Cancelled,flydubai1,DXB,18 Oct,avionio
+EK 2140,A,Dubai,12:10,,Cancelled,Emirates,DXB,18 Oct,avionio

@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 8846,D,Marrakech,14:00,,Estimated 14:21,Ryanair,RAK,17 Oct,avionio
+FR 4698,D,Trapani,14:15,,Estimated 14:29,Ryanair,TPS,17 Oct,avionio
+FR 219,D,Alicante,14:40,,Estimated 14:53,Ryanair,ALC,17 Oct,avionio
+FR 3673,D,London,14:55,,Scheduled,Ryanair,STN,17 Oct,avionio
+FR 2698,D,Alghero,15:00,,Scheduled,Ryanair,AHO,17 Oct,avionio
+FR 5494,D,Madrid,15:05,,Scheduled,Ryanair,MAD,17 Oct,avionio
+FR 6257,D,Krakow/Balice,15:20,,Estimated 20:11,Ryanair,KRK,17 Oct,avionio
+FR 4037,D,Dublin,15:25,,Scheduled,Ryanair,DUB,17 Oct,avionio
+FR 6856,D,Porto,15:30,,Scheduled,Ryanair,OPO,17 Oct,avionio
+FR 5113,D,Crotone,15:35,,Scheduled,Ryanair,CRV,17 Oct,avionio
+FR 6091,D,Gran Canaria,15:35,,Scheduled,Ryanair,LPA,17 Oct,avionio
+FR 820,D,Lisbon,15:35,,Estimated 16:02,Ryanair,LIS,17 Oct,avionio
+FR 8821,D,Biarritz,15:40,,Estimated 16:22,Ryanair,BIQ,17 Oct,avionio
+FR 3480,D,Cagliari,15:45,,Scheduled,Ryanair,CAG,17 Oct,avionio
+W4 5018,D,Tirana,15:45,,Scheduled,Wizz Air Malta,TIA,17 Oct,avionio
+FR 3432,D,Paris,15:50,,Scheduled,Ryanair,BVA,17 Oct,avionio
+FR 6846,D,Liverpool,16:00,,Cancelled,Ryanair,LPL,17 Oct,avionio
+DY 1849,D,Bergen,16:10,,Scheduled,Norwegian,BGO,17 Oct,avionio
+FR 4993,D,Kefallinia,16:10,,Scheduled,Ryanair,EFL,17 Oct,avionio
+SM 832,D,Sharm el-Sheikh,16:10,,Scheduled,Air Cairo,SSH,17 Oct,avionio

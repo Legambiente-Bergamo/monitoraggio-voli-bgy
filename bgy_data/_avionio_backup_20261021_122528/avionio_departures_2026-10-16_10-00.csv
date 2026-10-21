@@ -1,0 +1,22 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+CY 2014,D,Paphos,10:00,,Estimated 10:07,Cyprus Airways,PFO,16 Oct,avionio
+FR 3502,D,Zaragoza,10:05,,Estimated 11:30,Ryanair,ZAZ,16 Oct,avionio
+FR 6860,D,Oslo,10:05,,Estimated 12:08,Ryanair,TRF,16 Oct,avionio
+D8 3751,D,Copenhagen,10:10,,Estimated 10:21,Norwegian Air Sweden AOC,CPH,16 Oct,avionio
+FR 410,D,Luxembourg,10:10,,Estimated 10:59,Ryanair,LUX,16 Oct,avionio
+FR 4037,D,Dublin,10:25,,Estimated 18:11,Ryanair,DUB,16 Oct,avionio
+FR 2878,D,Stockholm,10:30,,Estimated 10:49,Ryanair,ARN,16 Oct,avionio
+FR 4132,D,Bari,10:40,,Estimated 10:49,Ryanair,BRI,16 Oct,avionio
+FR 3217,D,Manchester,10:45,,Estimated 22:43,Ryanair,MAN,16 Oct,avionio
+FR 5102,D,Birmingham,11:00,,Estimated 00:00,Ryanair,BHX,16 Oct,avionio
+FR 497,D,Valencia,11:05,,Estimated 11:35,Ryanair,VLC,16 Oct,avionio
+FR 3645,D,Edinburgh,11:15,,Estimated 13:50,Ryanair,EDI,16 Oct,avionio
+FR 9890,D,Lodz,11:15,,Estimated 11:30,Ryanair,LCJ,16 Oct,avionio
+MJF1X,D,Barcelona,11:15,,Scheduled,Mjet,BCN,16 Oct,avionio
+FR 8334,D,Ibiza,11:20,,Scheduled,Ryanair,IBZ,16 Oct,avionio
+PC 1212,D,Istanbul,11:45,,Scheduled,Pegasus1,SAW,16 Oct,avionio
+AZ 7048,D,Istanbul,11:45,,Scheduled,ITA Airways,SAW,16 Oct,avionio
+FR 2254,D,Alghero,11:55,,Scheduled,Ryanair,AHO,16 Oct,avionio
+FR 2649,D,Malaga,12:00,,Estimated 12:00,Ryanair,AGP,16 Oct,avionio
+FR 4786,D,Salerno,12:00,,Scheduled,Ryanair,QSR,16 Oct,avionio
+E5 543,D,Cairo,12:20,,Scheduled,Air Arabia Egypt,CAI,16 Oct,avionio

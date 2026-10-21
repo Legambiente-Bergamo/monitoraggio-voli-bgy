@@ -1,0 +1,22 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 2286,A,Naples,10:00,,Estimated 09:54,Ryanair,NAP,21 Oct,avionio
+FR 889,A,Krakow/Balice,10:05,,Estimated 09:46,Ryanair,KRK,21 Oct,avionio
+FR 8335,A,Ibiza,10:25,,Estimated 10:25,Ryanair,IBZ,21 Oct,avionio
+FR 9891,A,Lodz,10:25,,Estimated 10:10,Ryanair,LCJ,21 Oct,avionio
+FR 3654,A,Bari,10:35,,Estimated 11:02,Ryanair,BRI,21 Oct,avionio
+FR 4632,A,Valencia,10:35,,Estimated 10:20,Ryanair,VLC,21 Oct,avionio
+FR 6305,A,Barcelona,10:45,,Estimated 10:34,Ryanair,BCN,21 Oct,avionio
+FR 3216,A,Manchester,10:55,,Estimated 10:41,Ryanair,MAN,21 Oct,avionio
+FR 3433,A,Paris,11:10,,Estimated 11:10,Ryanair,BVA,21 Oct,avionio
+FR 4651,A,Trapani,11:15,,Estimated 11:05,Ryanair,TPS,21 Oct,avionio
+E5 542,A,Cairo,11:25,,Estimated 11:14,Air Arabia Egypt,CAI,21 Oct,avionio
+FR 2865,A,Brindisi,11:35,,Estimated 11:35,Ryanair,BDS,21 Oct,avionio
+FR 3594,A,Poznan,11:40,,Estimated 11:40,Ryanair,POZ,21 Oct,avionio
+VF 61,A,Istanbul,11:45,,Estimated 11:30,Ajet,SAW,21 Oct,avionio
+FR 4522,A,Brussels,11:55,,Estimated 11:55,Ryanair,CRL,21 Oct,avionio
+FR 8120,A,Tirana,12:00,,Estimated 12:00,Ryanair,TIA,21 Oct,avionio
+BN 2302,A,Genoa,12:05,,Scheduled,Luxwing,GOA,21 Oct,avionio
+FZ 1573,A,Dubai,12:10,,Cancelled,flydubai1,DXB,21 Oct,avionio
+EK 2140,A,Dubai,12:10,,Cancelled,Emirates,DXB,21 Oct,avionio
+FR 2086,A,Lisbon,12:15,,Estimated 12:27,Ryanair,LIS,21 Oct,avionio
+FR 1852,A,Marseille,12:25,,Scheduled,Ryanair,MRS,21 Oct,avionio
