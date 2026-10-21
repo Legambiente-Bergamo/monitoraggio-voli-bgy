@@ -1,20 +1,26 @@
 """
 bgy_reports/bgy_report_common.py - Logica condivisa tra bgy_report_night e bgy_report_h24.
-Versione 1.0.0
+Versione 1.1.0
+
+Novita v1.1.0 (21/10/2026, RADAR-14):
+- propagate_runway_in_session riscritta: per ogni (callsign, direzione) seleziona
+  UN SOLO record valido invece della moda. Criterio:
+    * filtro stretto: quota_ft > pista_min_quota_ft (default 100),
+      distanza_km < pista_max_distanza_km (default 5.0), pista != 'N/D'
+    * se vuoto, rilassa a quota_ft > 0
+    * se ancora vuoto, fallback a distanza < 5 senza filtro quota
+    * se direzione == 'D': primo record (timestamp ASC)
+    * se direzione == 'A': ultimo record (timestamp DESC)
+    * la pista del record selezionato viene propagata a TUTTI i record
+      dello stesso (callsign, direzione)
+- Nuove chiavi config (scanner_radar):
+    pista_min_quota_ft     (default 100)
+    pista_max_distanza_km  (default 5.0)
+- fill_unknown_runways_geometric invariata (identica a v1.0.0).
 
 Novita v1.0.0 (21/10/2026, ARCH-01):
 - Estrazione della logica pista da bgy_report_night v2.9.35 e bgy_report_h24 v1.0.7.
-- Zero modifiche di comportamento rispetto a v2.9.35/v1.0.7: stessi default,
-  stesso ordine di operazioni, stesso output.
-- Funzioni esportate:
-    propagate_runway_in_session(radar_df, cfg=None)
-    fill_unknown_runways_geometric(df, cfg=None)
-- Config keys predisposte per RADAR-14 (default compatibili con il comportamento
-  attuale):
-    scanner_radar.pista_min_quota_ft   (default 100)
-    scanner_radar.pista_max_distanza_km (default 5.0)
-  In v1.0.0 i default replicano esattamente i valori hardcoded delle versioni
-  precedenti. Le chiavi verranno effettivamente usate in v1.1.0 (RADAR-14).
+- Zero modifiche di comportamento rispetto a v2.9.35/v1.0.7.
 """
 import pandas as pd
 
@@ -27,6 +33,7 @@ VALID_RUNWAYS = ('RWY 28', 'RWY 10')
 
 _DEFAULT_PISTA_MIN_QUOTA_FT = 100
 _DEFAULT_PISTA_MAX_DISTANZA_KM = 5.0
+_MAX_QUOTA_FT = 2000
 
 
 def _get_runway_cfg():
@@ -58,22 +65,70 @@ def _phase_to_dir(fase):
     return 'D' if f == 'Decollo' else ('A' if f in ('Atterraggio', 'Avvicinamento') else '')
 
 
+def _select_valid_record(traccia, direzione, min_quota, max_dist):
+    """
+    Seleziona UN record valido per la pista, con criterio direzione-dipendente.
+
+    Args:
+        traccia: DataFrame dei record dello stesso (callsign, direzione),
+                 già ordinati per timestamp ASC.
+        direzione: 'D' o 'A'.
+        min_quota: soglia quota minima (ft) per il filtro stretto.
+        max_dist: soglia distanza massima (km).
+
+    Returns:
+        pista (str) o None se nessun record valido.
+    """
+    if traccia.empty:
+        return None
+
+    # Filtro stretto: quota > min_quota, distanza < max_dist, pista valida
+    stretto = traccia[
+        (traccia['_pista_clean'].isin(VALID_RUNWAYS))
+        & (traccia['quota_ft'].fillna(0) > min_quota)
+        & (traccia['distanza_km'].fillna(999) < max_dist)
+    ]
+    # Rilassato 1: quota > 0 (include takeoff roll / touchdown)
+    if stretto.empty:
+        stretto = traccia[
+            (traccia['_pista_clean'].isin(VALID_RUNWAYS))
+            & (traccia['quota_ft'].fillna(0) > 0)
+            & (traccia['distanza_km'].fillna(999) < max_dist)
+        ]
+    # Rilassato 2: solo distanza < max_dist (include rullaggio, ultima spiaggia)
+    if stretto.empty:
+        stretto = traccia[
+            (traccia['_pista_clean'].isin(VALID_RUNWAYS))
+            & (traccia['distanza_km'].fillna(999) < max_dist)
+        ]
+
+    if stretto.empty:
+        return None
+
+    if direzione == 'D':
+        # Primo record (timestamp minore) = più allineato alla pista al liftoff
+        record = stretto.sort_values('timestamp', ascending=True).iloc[0]
+    else:
+        # Ultimo record (timestamp maggiore) = più allineato alla pista in finale corta
+        record = stretto.sort_values('timestamp', ascending=True).iloc[-1]
+
+    return record['_pista_clean']
+
+
 def propagate_runway_in_session(radar_df, cfg=None):
     """
     Propaga la pista tra i record radar dello stesso callsign e direzione.
 
-    Comportamento v1.0.0 (identico a bgy_report_night v2.9.35 e
-    bgy_report_h24 v1.0.7):
-    - I record con quota_ft < pista_min_quota_ft (default 100) sono esclusi
-      dal calcolo della moda (track a terra inaffidabile).
-    - Solo i record con pista valida, distanza < pista_max_distanza_km
-      (default 5.0) e quota < 2000 ft contribuiscono alla moda.
-    - Per ogni (callsign, direzione) senza pista valida, viene applicata
-      la moda dei record validi.
+    Comportamento v1.1.0 (RADAR-14):
+    - Per ogni (callsign, direzione) seleziona UN record valido con criterio
+      "primo per D, ultimo per A" sui record filtrati per quota/distanza.
+    - La pista del record selezionato viene propagata a tutti i record dello
+      stesso (callsign, direzione).
+    - Se nessun record valido, la pista resta invariata.
 
     Args:
         radar_df: DataFrame dei rilevamenti radar (deve avere le colonne
-                  callsign, pista, fase_volo, quota_ft, distanza_km).
+                  callsign, pista, fase_volo, quota_ft, distanza_km, timestamp).
         cfg: dict opzionale {pista_min_quota_ft, pista_max_distanza_km}.
              Se None, letto da config_manager con fallback ai default.
 
@@ -89,28 +144,27 @@ def propagate_runway_in_session(radar_df, cfg=None):
     max_dist = cfg.get("pista_max_distanza_km", _DEFAULT_PISTA_MAX_DISTANZA_KM)
 
     df = radar_df.copy()
+    if 'timestamp' in df.columns:
+        df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+
     df['_pista_clean'] = df['pista'].apply(_clean_pista)
     df['_dir'] = df['fase_volo'].apply(_phase_to_dir)
 
-    # Azzera la pista per i record a terra (track inaffidabile)
+    # Azzera la pista per i record a terra sotto la soglia (track inaffidabile)
     if 'quota_ft' in df.columns:
-        df.loc[df['quota_ft'] < min_quota, '_pista_clean'] = ''
+        df.loc[df['quota_ft'].fillna(0) < min_quota, '_pista_clean'] = ''
 
-    valid_mask = df['_pista_clean'].isin(VALID_RUNWAYS)
-    if 'distanza_km' in df.columns:
-        valid_mask &= (df['distanza_km'] < max_dist)
-    if 'quota_ft' in df.columns:
-        valid_mask &= (df['quota_ft'] < 2000)
-
+    # Per ogni (callsign, direzione): seleziona un record valido e propaga la pista
     pista_map = {}
-    for (cs, d), group in df[valid_mask].groupby(
-        [df['callsign'].str.strip().str.upper(), df['_dir']]
+    for (cs, d), group in df.groupby(
+        [df['callsign'].str.strip().str.upper(), df['_dir']],
+        sort=False
     ):
         if not cs or not d:
             continue
-        mode_series = group['_pista_clean'].mode()
-        if not mode_series.empty:
-            pista_map[(cs, d)] = mode_series.iloc[0]
+        pista_scelta = _select_valid_record(group, d, min_quota, max_dist)
+        if pista_scelta:
+            pista_map[(cs, d)] = pista_scelta
 
     n_filled = 0
     for idx, row in df.iterrows():
@@ -128,6 +182,8 @@ def propagate_runway_in_session(radar_df, cfg=None):
             n_filled += 1
 
     df = df.drop(columns=['_pista_clean', '_dir'])
+    if n_filled:
+        logger.debug(f"RADAR-14: propagate {n_filled} record (pista dedotta da record valido per direzione)")
     return df
 
 
@@ -135,16 +191,11 @@ def fill_unknown_runways_geometric(df, cfg=None):
     """
     Fallback geometrico per piste N/D sui decolli (RADAR-07).
 
-    Comportamento v1.0.0 (identico a bgy_report_night v2.9.35 e
-    bgy_report_h24 v1.0.7):
+    Comportamento v1.0.0 (invariato):
     - Solo per i decolli con pista N/D, distanza 2-5 km, rotta valida.
     - Track 70-170°  → RWY 10
     - Track 190-290° → RWY 28
     - Altrimenti resta N/D.
-
-    Nota: nella v2.9.35 questa funzione NON è chiamata da nessun punto del
-    modulo bgy_report_night. È stata mantenuta per compatibilità con
-    RADAR-07 e verrà eventualmente riattivata in una sessione dedicata.
     """
     if df.empty or 'pista' not in df.columns or 'rotta_deg' not in df.columns:
         return df
