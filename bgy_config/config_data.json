@@ -40,7 +40,7 @@
             "lomax": 9.89
         },
         "pista_min_quota_ft": 100,
-        "pista_max_distanza_km": 5.0,
+        "pista_max_distanza_km": 7.0,
         "bgy_lat": 45.6739,
         "bgy_lon": 9.7042,
         "max_distance_km": 15.0,
@@ -313,4 +313,5 @@
         }
     }
 }
+
 
