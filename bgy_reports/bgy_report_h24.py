@@ -1,21 +1,13 @@
 """
 bgy_reports/bgy_report_h24.py - Report H24 integrato (SACBO + Avionio + radar).
-Versione 1.0.8
+Versione 1.0.9
+
+Novita v1.0.9 (21/10/2026, DATA-27):
+- Aggiunta _dedup_scheduled_same_icao24(): elimina i falsi duplicati scheduled.
+- Aggiunto conteggio n_dedup_sched nel log finale.
 
 Novita v1.0.8 (21/10/2026, ARCH-01):
-- Logica pista estratta in bgy_reports/bgy_report_common.py v1.0.0.
-  Funzioni rimosse da questo file:
-    _propagate_runway_in_session   (ora propagate_runway_in_session)
-    _fill_unknown_runways_geometric (ora fill_unknown_runways_geometric)
-- Comportamento equivalente a v1.0.7 (stesse finestre, stesso TAXI_TIME_MIN,
-  stessa logica moda + quota<100 nel common).
-
-Novita v1.0.7 (21/10/2026):
-- Fix definitivo propagazione pista: i record a terra (quota < 100 ft) hanno la pista
-  forzata a 'N/D' prima del calcolo della moda, perché il track a terra non è affidabile.
-
-Novita v1.0.4 (20/10/2026):
-- Fallback timestamp: se il radar non ha fornito un timestamp, usa l'orario_effettivo di SACBO.
+- Logica pista estratta in bgy_report_common.py.
 """
 import os
 import re
@@ -289,6 +281,65 @@ def _filter_excluded_callsigns(df):
     mask = df['callsign'].apply(_is_excluded)
     n_excluded = int(mask.sum())
     return (df[~mask].reset_index(drop=True), n_excluded) if n_excluded > 0 else (df, 0)
+
+
+def _dedup_scheduled_same_icao24(df):
+    if df.empty or 'icao24' not in df.columns:
+        return df, 0
+        
+    df = df.copy()
+    df['_icao_norm'] = df['icao24'].apply(lambda x: str(x).strip().lower() if pd.notna(x) and str(x).strip() != '' else '')
+    sched_mask = (df['is_scheduled'] == True) & (df['_icao_norm'] != '')
+    
+    if not sched_mask.any():
+        return df.drop(columns=['_icao_norm']), 0
+        
+    to_drop = []
+    
+    for (icao, dir_), group in df[sched_mask].groupby(['_icao_norm', 'direzione_sacbo']):
+        if len(group) <= 1:
+            continue
+            
+        group = group.copy()
+        group['_fonte_priority'] = group['fonte_scheduled'].fillna('').astype(str).str.lower().apply(lambda x: 1 if x == 'sacbo' else 0)
+        group = group.sort_values(by=['_fonte_priority', 'timestamp'], ascending=[False, True])
+        
+        kept_idx = []
+        for idx, row in group.iterrows():
+            if not kept_idx:
+                kept_idx.append(idx)
+                continue
+            
+            is_dup = False
+            ts_r = pd.to_datetime(row.get('timestamp'), errors='coerce')
+            
+            for k_idx in kept_idx:
+                k_row = group.loc[k_idx]
+                ts_k = pd.to_datetime(k_row.get('timestamp'), errors='coerce')
+                
+                if pd.notna(ts_r) and pd.notna(ts_k):
+                    delta_min = abs((ts_r - ts_k).total_seconds()) / 60
+                    if delta_min <= ICAO24_DEDUP_NEAR_MIN:
+                        is_dup = True
+                        break
+                else:
+                    s_r = str(row.get('orario_schedulato', '')).strip()
+                    s_k = str(k_row.get('orario_schedulato', '')).strip()
+                    if s_r and s_r == s_k:
+                        is_dup = True
+                        break
+                        
+            if is_dup:
+                to_drop.append(idx)
+            else:
+                kept_idx.append(idx)
+                
+    df = df.drop(columns=['_icao_norm'])
+    if not to_drop:
+        return df, 0
+        
+    df = df.drop(index=to_drop)
+    return df.reset_index(drop=True), len(to_drop)
 
 
 def _dedup_unknown_via_icao24(radar_df):
@@ -817,7 +868,6 @@ def load_radar_data_h24(date_str):
         dfs.append(df[df['ts'].dt.hour < 6].drop(columns=['ts']))
     if not dfs: return pd.DataFrame()
     combined = pd.concat(dfs, ignore_index=True)
-    # ARCH-01: chiamate alle funzioni del modulo common
     return fill_unknown_runways_geometric(propagate_runway_in_session(combined))
 
 
@@ -835,6 +885,8 @@ def generate_h24_report(date_str=None):
     result_df, n_esclusi = _filter_excluded_callsigns(result_df)
     if result_df.empty: return None, f"Nessun dato per {date_norm}"
 
+    # DATA-27
+    result_df, n_dedup_sched = _dedup_scheduled_same_icao24(result_df)
     result_df, n_dedup_icao24 = _dedup_radar_only_via_icao24(result_df)
     result_df = _dedup_by_key(result_df)
 
@@ -842,7 +894,7 @@ def generate_h24_report(date_str=None):
     out_path = os.path.join(OUTPUT_CSV_DIR, f"report_h24_{date_norm}.csv")
 
     result_df['data_calendario'] = date_norm
-    result_df['logic_version'] = "1.0.8"
+    result_df['logic_version'] = "1.0.9"
 
     final_columns = [
         'data_calendario', 'callsign', 'tipo_movimento', 'direzione_sacbo',
@@ -855,7 +907,7 @@ def generate_h24_report(date_str=None):
     for col in final_columns:
         if col not in result_df.columns: result_df[col] = ''
     result_df[final_columns].to_csv(out_path, index=False, encoding='utf-8-sig')
-    msg = f"✅ Report H24: {len(result_df)} voli (esclusi {n_esclusi}, dedup icao24 -{n_dedup_icao24})"
+    msg = f"✅ Report H24: {len(result_df)} voli (esclusi {n_esclusi}, dedup sched {n_dedup_sched}, dedup icao {n_dedup_icao24})"
     logger.info(msg)
     return out_path, msg
 
