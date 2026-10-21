@@ -290,8 +290,8 @@
         "enabled": true,
         "global": {
             "show": true,
-            "title": "âš ï¸ DATI IN FASE DI VERIFICA",
-            "body": "Siamo in fase di test del sistema di monitoraggio. I dati pubblicati sono il risultato di elaborazioni automatiche in corso di validazione e possono contenere errori. La raccolta dei dati per i grafici Ã¨ iniziata il {min_date}. Non Ã¨ possibile visualizzare periodi precedenti a questa data."
+            "title": "⚠️ DATI IN FASE DI VERIFICA",
+            "body": "Siamo in fase di test del sistema di monitoraggio. I dati pubblicati sono il risultato di elaborazioni automatiche in corso di validazione e possono contenere errori. La raccolta dei dati per i grafici è iniziata il {min_date}. Non è possibile visualizzare periodi precedenti a questa data."
         },
         "pages": {
             "night": {
@@ -300,7 +300,7 @@
             },
             "delays": {
                 "show_global": true,
-                "extra": "Ritardi calcolati come differenza tra orario effettivo e orario schedulato (SACBO). Decolli e atterraggi analizzati separatamente. Voli cancellati esclusi.\n\nSoglie: puntuale se |Î”| â‰¤ 15 min, in ritardo se Î” > 15 min, ritardo grave se Î” > 60 min. Anticipi (Î” < âˆ’15 min) conteggiati come puntuali.\n\nDue metriche di ritardo medio sono mostrate:\n(a) \"Ritardo medio (tutti i voli)\" = media del Î” su tutti i voli, diluita verso zero dai puntuali.\n(b) \"Ritardo medio (voli in ritardo)\" = media del Î” solo sui voli con Î” â‰¥ 15 min.\nCliccando il valore (b) si apre un pannello con statistiche complete (media, mediana, min, max) e distribuzione per fasce (15-30, 30-45, 45-60, 60-120, oltre 120 min). Quest'ultima Ã¨ la metrica piÃ¹ informativa per valutare la gravitÃ  dei ritardi quando si verificano."
+                "extra": "Ritardi calcolati come differenza tra orario effettivo e orario schedulato (SACBO). Decolli e atterraggi analizzati separatamente. Voli cancellati esclusi.\n\nSoglie: puntuale se |Δ| ≤ 15 min, in ritardo se Δ > 15 min, ritardo grave se Δ > 60 min. Anticipi (Δ < −15 min) conteggiati come puntuali.\n\nDue metriche di ritardo medio sono mostrate:\n(a) \"Ritardo medio (tutti i voli)\" = media del Δ su tutti i voli, diluita verso zero dai puntuali.\n(b) \"Ritardo medio (voli in ritardo)\" = media del Δ solo sui voli con Δ ≥ 15 min.\nCliccando il valore (b) si apre un pannello con statistiche complete (media, mediana, min, max) e distribuzione per fasce (15-30, 30-45, 45-60, 60-120, oltre 120 min). Quest'ultima è la metrica più informativa per valutare la gravità dei ritardi quando si verificano."
             },
             "airports": {
                 "show_global": true,
@@ -309,9 +309,11 @@
             "noise": {
                 "show_global": false,
                 "extra": "Le stime di rumore sono basate su curve NPD generiche e modelli semplificati. Non sostituiscono misurazioni fonometriche reali."
+            },
+            "runway": {
+                "show_global": false,
+                "extra": "La pista utilizzata è dedotta dai rilevamenti radar ADS-B, non dichiarata da SACBO (che non la pubblica). Per ogni movimento, il sistema cerca il record radar più affidabile e ne deduce la pista.\n\n**Come viene assegnata (dal più al meno affidabile)**\n\n• **Radar diretto** — il radar vede l'aereo con un tracciato allineato a una pista (70-120° per RWY 10, 250-300° per RWY 28) entro 7 km. È il caso più affidabile.\n\n• **Propagazione** — se il radar ha visto l'aereo in un punto della traccia con pista valida, quella pista viene propagata a tutti i record dello stesso callsign e direzione. Usato quando il radar \"becca\" l'aereo già virato.\n\n• **Fallback geometrico** — tracciato tra 70-170° (→ RWY 10) o 190-290° (→ RWY 28) tra 2 e 5 km. Meno preciso, ma sufficiente per la statistica.\n\n• **N/D (non determinato)** — nessun record valido. Il sistema dichiara l'incertezza invece di inventare una pista (principio: \"meglio N/D che falso\").\n\n**Cosa NON è**\n\n• Non è la pista dichiarata da SACBO (SACBO non la pubblica).\n• Non è una misura fisica diretta.\n• Non è validata con dati ARPA o METAR.\n\n**Limiti noti**\n\n• Aerei senza ADS-B attivo → N/D.\n• Buco di copertura della rete di ricezione → N/D.\n• Tracciato ambiguo (perpendicolare alla pista) → N/D.\n• La soglia di 7 km è empirica (RADAR-14c, 21/10/2026).\n\nVedi anche: pagina \"Fonti e Metodo\" (in preparazione, WEB-21)."
             }
         }
     }
 }
-
-
