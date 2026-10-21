@@ -1,6 +1,18 @@
 """
 bgy_reports/bgy_report_h24.py - Report H24 integrato (SACBO + Avionio + radar).
-Versione 1.0.4
+Versione 1.0.8
+
+Novita v1.0.8 (21/10/2026, ARCH-01):
+- Logica pista estratta in bgy_reports/bgy_report_common.py v1.0.0.
+  Funzioni rimosse da questo file:
+    _propagate_runway_in_session   (ora propagate_runway_in_session)
+    _fill_unknown_runways_geometric (ora fill_unknown_runways_geometric)
+- Comportamento equivalente a v1.0.7 (stesse finestre, stesso TAXI_TIME_MIN,
+  stessa logica moda + quota<100 nel common).
+
+Novita v1.0.7 (21/10/2026):
+- Fix definitivo propagazione pista: i record a terra (quota < 100 ft) hanno la pista
+  forzata a 'N/D' prima del calcolo della moda, perché il track a terra non è affidabile.
 
 Novita v1.0.4 (20/10/2026):
 - Fallback timestamp: se il radar non ha fornito un timestamp, usa l'orario_effettivo di SACBO.
@@ -29,16 +41,23 @@ from bgy_core.bgy_dates import (
 from bgy_core.bgy_config_manager import config_manager
 from bgy_core import bgy_db
 
+# ARCH-01: logica pista centralizzata
+from bgy_reports.bgy_report_common import (
+    propagate_runway_in_session,
+    fill_unknown_runways_geometric,
+)
+
 logger = get_logger("ReportH24")
 
 BGY_LAT = 45.6739
 BGY_LON = 9.7042
 
-MATCH_WINDOW_BEFORE_MIN = 30
-MATCH_WINDOW_BEFORE_MIN_AVIONIO = 90
-MATCH_WINDOW_AFTER_MIN = 180
-MATCH_WINDOW_WIDE_BEFORE_MIN = 180
+MATCH_WINDOW_BEFORE_MIN = 15
+MATCH_WINDOW_BEFORE_MIN_AVIONIO = 60
+MATCH_WINDOW_AFTER_MIN = 60
+MATCH_WINDOW_WIDE_BEFORE_MIN = 60
 RADAR_DEDUP_WINDOW_MIN = 15
+TAXI_TIME_MIN = 15
 
 ICAO24_DEDUP_NEAR_MIN = 15
 ICAO24_DEDUP_SAMEDIR_MIN = 120
@@ -439,7 +458,7 @@ def match_flights_h24(scheduled_df, radar_df, date_str):
     inv_patterns = _get_inverted_patterns()
     matched = []
     used_radar_idx = set()
-    
+
     for _, s in sched.iterrows():
         sched_min = s['_sched_min']
         direzione = s.get('direzione_sacbo', '')
@@ -483,13 +502,13 @@ def match_flights_h24(scheduled_df, radar_df, date_str):
             if r_min is None or r_min < low or r_min > high: continue
             fase = str(r.get('fase_volo', '') or '')
             if not _is_phase_compatible(direzione, fase): continue
-            
+
             prefix_radar = _icao_prefix_from_radar(r.get('callsign', ''))
             if prefix_sacbo is None or prefix_radar is None or prefix_sacbo != prefix_radar: continue
 
             delta = abs(r_min - sched_min)
             _, num_radar = _extract_icao_number(r.get('callsign', ''))
-            
+
             if num_sched is not None and num_radar is not None and num_sched == num_radar:
                 if best_num_delta is None or delta < best_num_delta: best_num_delta = delta; best_num_idx = idx
             else:
@@ -516,6 +535,14 @@ def match_flights_h24(scheduled_df, radar_df, date_str):
             combined['callsign_radar'] = r.get('callsign', '')
             combined['callsign'] = cs_sacbo_norm
             combined['fonte_scheduled'] = fonte_sched
+
+            if direzione == 'D' and combined.get('timestamp'):
+                try:
+                    ts_dt = pd.to_datetime(combined['timestamp'])
+                    ts_dt = ts_dt - timedelta(minutes=TAXI_TIME_MIN)
+                    combined['timestamp'] = ts_dt.strftime("%Y-%m-%d %H:%M:%S")
+                except: pass
+
             matched.append(combined)
         else:
             combined = dict(s)
@@ -637,7 +664,6 @@ def _enrich_final(df, date_str):
     else: df['fonte_scheduled'] = df['fonte_scheduled'].fillna('')
     if 'icao24' not in df.columns: df['icao24'] = ''
 
-    # FALLBACK TIMESTAMP (v1.0.4)
     mask_ts_empty = (df['timestamp'].isna() | (df['timestamp'].astype(str).str.strip() == ''))
     if 'orario_effettivo' in df.columns:
         mask_has_eff = (df['orario_effettivo'].notna() & (df['orario_effettivo'].astype(str).str.strip() != ''))
@@ -701,58 +727,6 @@ def _enrich_final(df, date_str):
         df['stima_rumore_db'] = df.apply(_noise, axis=1)
     except: df['stima_rumore_db'] = 0
 
-    return df
-
-
-def _propagate_runway_in_session(radar_df):
-    if radar_df.empty or 'callsign' not in radar_df.columns or 'pista' not in radar_df.columns: return radar_df
-    df = radar_df.copy()
-    def _clean_pista(p):
-        if p is None: return ""
-        try:
-            if pd.isna(p): return ""
-        except: pass
-        s = str(p).strip()
-        return "" if s in ("", "N/D", "nan", "None", "NaN") else s
-    def _phase_to_dir(fase):
-        f = str(fase).strip()
-        return 'D' if f == 'Decollo' else ('A' if f in ('Atterraggio', 'Avvicinamento') else '')
-    df['_pista_clean'] = df['pista'].apply(_clean_pista)
-    df['_dir'] = df['fase_volo'].apply(_phase_to_dir)
-    pista_map = {}
-    for _, row in df.iterrows():
-        cs = str(row.get('callsign', '') or '').strip().upper()
-        if not cs: continue
-        d = row['_dir']
-        if not d: continue
-        key = (cs, d)
-        if key in pista_map: continue
-        p = row['_pista_clean']
-        if p in VALID_RUNWAYS: pista_map[key] = p
-    n_filled = 0
-    for idx, row in df.iterrows():
-        if row['_pista_clean']: continue
-        cs = str(row.get('callsign', '') or '').strip().upper()
-        if not cs: continue
-        d = row['_dir']
-        if not d: continue
-        p = pista_map.get((cs, d))
-        if p: df.at[idx, 'pista'] = p; n_filled += 1
-    df = df.drop(columns=['_pista_clean', '_dir'])
-    return df
-
-
-def _fill_unknown_runways_geometric(df):
-    if df.empty or 'pista' not in df.columns or 'rotta_deg' not in df.columns: return df
-    df = df.copy()
-    mask = (((df['pista'].isna()) | (df['pista'].astype(str).str.strip() == 'N/D') | (df['pista'].astype(str).str.strip() == '')) & (df['fase_volo'] == 'Decollo') & (df['distanza_km'] > 2.0) & (df['distanza_km'] <= 5.0) & (df['rotta_deg'].notna()))
-    n_filled = 0
-    for idx, row in df[mask].iterrows():
-        try:
-            rotta = float(row['rotta_deg'])
-            if 70.0 <= rotta <= 170.0: df.at[idx, 'pista'] = 'RWY 10'; n_filled += 1
-            elif 190.0 <= rotta <= 290.0: df.at[idx, 'pista'] = 'RWY 28'; n_filled += 1
-        except: continue
     return df
 
 
@@ -843,7 +817,8 @@ def load_radar_data_h24(date_str):
         dfs.append(df[df['ts'].dt.hour < 6].drop(columns=['ts']))
     if not dfs: return pd.DataFrame()
     combined = pd.concat(dfs, ignore_index=True)
-    return _fill_unknown_runways_geometric(_propagate_runway_in_session(combined))
+    # ARCH-01: chiamate alle funzioni del modulo common
+    return fill_unknown_runways_geometric(propagate_runway_in_session(combined))
 
 
 def generate_h24_report(date_str=None):
@@ -867,7 +842,7 @@ def generate_h24_report(date_str=None):
     out_path = os.path.join(OUTPUT_CSV_DIR, f"report_h24_{date_norm}.csv")
 
     result_df['data_calendario'] = date_norm
-    result_df['logic_version'] = "1.0.4"
+    result_df['logic_version'] = "1.0.8"
 
     final_columns = [
         'data_calendario', 'callsign', 'tipo_movimento', 'direzione_sacbo',
@@ -883,6 +858,7 @@ def generate_h24_report(date_str=None):
     msg = f"✅ Report H24: {len(result_df)} voli (esclusi {n_esclusi}, dedup icao24 -{n_dedup_icao24})"
     logger.info(msg)
     return out_path, msg
+
 
 if __name__ == "__main__":
     path, msg = generate_h24_report()
