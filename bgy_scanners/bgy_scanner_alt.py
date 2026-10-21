@@ -1,17 +1,30 @@
 """
 bgy_scanners/bgy_scanner_alt.py - Scanner alternativo (Avionio).
-Versione 0.3.0
+Versione 0.3.1
 
 Scopo:
   - Fonte alternativa di confronto per i dati SACBO.
   - Fallback quando SACBO è irraggiungibile (Cloudflare, sito giù).
   - INFRA-01: fonte scheduled integrativa per il cargo.
-  - I dati sono salvati in bgy_data/bgy_avionio/ (rotazione 7 giorni).
+  - I dati sono salvati in bgy_data/bgy_avionio/ (retention da config:
+    0 = mai cancellare, >0 = cancella file più vecchi di N giorni).
 
 Fonte: https://www.avionio.com/en/airport/bgy/{arrivals,departures}
 
 Struttura tabella HTML:
     Time | Date | IATA | Origin/Destination | Flight | Airline | Status
+
+Novità v0.3.1 (21/10/2026, DATA-30 — Avionio mai cancellato):
+- cleanup_old_files(days) ora ha guard esplicito: se days <= 0 NON cancella
+  nulla (retention infinita). Prima days=0 cancellava TUTTI i file (bug latente).
+- Nuova _get_retention_days(): legge avionio.retention_days da config_data.json
+  con fallback a _DEFAULT_RETENTION_DAYS (7). Semantica:
+    * > 0: cancella file più vecchi di N giorni
+    * <= 0: nessuna cancellazione (retention infinita)
+- RETENTION_DAYS rinominata in _DEFAULT_RETENTION_DAYS: ora è SOLO fallback,
+  non valore operativo. Le chiamate in main() passano _get_retention_days()
+  esplicitamente.
+- Log informativo quando retention <= 0 (avviso "Avionio mai cancellato").
 
 Novità v0.3.0 (INFRA-01, 07/10/2026):
 - Aggiunta fetch_as_scheduled_rows(date_norm): ritorna i voli Avionio
@@ -66,7 +79,9 @@ AVIONIO_DEPARTURES = f"{AVIONIO_BASE}/departures"
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 AVIONIO_DIR = os.path.join(_PROJECT_ROOT, "bgy_data", "bgy_avionio")
 
-RETENTION_DAYS = 7
+# v0.3.1: solo fallback. La retention effettiva viene da config_data.json
+# (avionio.retention_days). 0 = mai cancellare.
+_DEFAULT_RETENTION_DAYS = 7
 
 # Finestra oraria schedulata ammessa per il report notturno (filtro STRETTO)
 NIGHT_START_MIN = 23 * 60   # 23:00
@@ -229,6 +244,31 @@ def _is_in_night_schedule_extended(hhmm):
     return (mins >= 22 * 60 + 30) or (mins < 6 * 60 + 30)
 
 
+def _get_retention_days():
+    """
+    v0.3.1: legge avionio.retention_days da config_data.json.
+
+    Semantica:
+      - > 0: cancella file Avionio più vecchi di N giorni
+      - <= 0: nessuna cancellazione (retention infinita)
+      - errore/None: fallback a _DEFAULT_RETENTION_DAYS (7)
+
+    Returns:
+        int: numero di giorni di retention (0 o negativo = mai cancellare).
+    """
+    try:
+        from bgy_core.bgy_config_manager import config_manager
+        cfg = config_manager.get_data_config() or {}
+        val = cfg.get("avionio", {}).get("retention_days", _DEFAULT_RETENTION_DAYS)
+        return int(val)
+    except Exception as e:
+        logger.warning(
+            f"Impossibile leggere avionio.retention_days da config: {e}. "
+            f"Uso fallback {_DEFAULT_RETENTION_DAYS} giorni."
+        )
+        return _DEFAULT_RETENTION_DAYS
+
+
 # -----------------------------------------------------------------------------
 # FETCH E PARSING (invariati da v0.2.0)
 # -----------------------------------------------------------------------------
@@ -349,8 +389,28 @@ def save_to_csv(flights, movement_type):
         return None
 
 
-def cleanup_old_files(days=RETENTION_DAYS):
-    """Rimuove i file Avionio più vecchi di N giorni."""
+def cleanup_old_files(days=None):
+    """
+    Rimuove i file Avionio più vecchi di N giorni.
+
+    v0.3.1: se days <= 0, NON cancella nulla (retention infinita).
+    Se days is None, usa _DEFAULT_RETENTION_DAYS (7) come fallback.
+
+    Args:
+        days: numero di giorni di retention. None = fallback.
+              0 o negativo = nessuna cancellazione.
+
+    Returns:
+        int: numero di file rimossi (0 se retention infinita).
+    """
+    if days is None:
+        days = _DEFAULT_RETENTION_DAYS
+    if days <= 0:
+        logger.debug(
+            f"Retention Avionio: {days} giorni (<=0) — nessuna cancellazione"
+        )
+        return 0
+
     if not os.path.isdir(AVIONIO_DIR):
         return 0
 
@@ -665,7 +725,7 @@ def main():
     args = parser.parse_args()
 
     if args.cleanup:
-        n = cleanup_old_files()
+        n = cleanup_old_files(days=_get_retention_days())
         print(f"🧹 Rimossi {n} file vecchi")
         return
 
@@ -695,9 +755,10 @@ def main():
         path = v["path"] if v["path"] else "n/d"
         print(f"  {k:12s}: {v['count']:3d} voli  →  {path}")
 
-    n = cleanup_old_files()
+    _ret = _get_retention_days()
+    n = cleanup_old_files(days=_ret)
     if n > 0:
-        print(f"\n🧹 Rimossi {n} file Avionio più vecchi di {RETENTION_DAYS} giorni")
+        print(f"\n🧹 Rimossi {n} file Avionio più vecchi di {_ret} giorni")
 
 
 if __name__ == "__main__":
