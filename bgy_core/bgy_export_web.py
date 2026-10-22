@@ -1,9 +1,13 @@
 """
 bgy_core/bgy_export_web.py - Esportazione dati aggregati per il web (F17).
-Versione 1.5.3
+Versione 1.6.1
 
-Novita v1.5.3 (21/10/2026):
-- Aggiunto TAXI_TIME_MIN (default 15) per i decolli nei calcoli dei ritardi.
+Novita v1.6.1 (21/10/2026):
+- Aggiunto calcolo by_category nel blocco delays (necessario per il grafico
+  % Ritardi per giorno a barre impilate).
+
+Novita v1.6.0 (21/10/2026, WEB-26):
+- Aggiunto build_block_pista_fonte() per esporre i conteggi di pista_fonte.
 """
 import os
 import sys
@@ -36,7 +40,7 @@ DELAYS_DEFAULTS = {
     "top_destination": 30,
     "soglia_puntuale_min": 15,
     "soglia_grave_min": 60,
-    "taxi_time_min": 15, # AGGIUNTO
+    "taxi_time_min": 15,
     "disclaimer_message": (
         "DATI IN FASE DI VERIFICA\n"
         "Ritardi calcolati come differenza tra orario effettivo e orario "
@@ -305,7 +309,7 @@ def _date_str(v):
 
 
 # =============================================================================
-# BLOCCHI NOTTURNI (invariati)
+# BLOCCHI NOTTURNI
 # =============================================================================
 
 def _empty_by_date_item(date_str):
@@ -1024,8 +1028,38 @@ def build_block_runway_diagnostics(date_from, date_to):
     return {"by_date": by_date, "totals": totals}
 
 
+def build_block_pista_fonte(date_from, date_to):
+    """
+    WEB-26: Conteggio per fonte della pista (radar_diretto, propagato,
+    geometrico, N/D) per il periodo selezionato. Serve al modal frontend.
+    """
+    rows = _query(
+        """SELECT direzione_sacbo, COALESCE(pista_fonte, 'N/D') as fonte, COUNT(*)
+           FROM nightly_reports
+           WHERE data_riferimento BETWEEN %s AND %s
+             AND is_scheduled = TRUE
+           GROUP BY direzione_sacbo, fonte""",
+        (date_from, date_to))
+    
+    result = {
+        "D": {"radar_diretto": 0, "propagato": 0, "geometrico": 0, "N/D": 0},
+        "A": {"radar_diretto": 0, "propagato": 0, "geometrico": 0, "N/D": 0},
+    }
+    
+    for r in rows:
+        d = (r[0] or "").strip().upper()
+        if d not in ("D", "A"):
+            continue
+        fonte = (r[1] or "N/D").strip()
+        if fonte not in result[d]:
+            fonte = "N/D"
+        result[d][fonte] += int(r[2] or 0)
+        
+    return result
+
+
 # =============================================================================
-# BLOCCO RITARDI H24 (v1.5.3 - TAXI TIME)
+# BLOCCO RITARDI H24 (v1.6.1 - by_category)
 # =============================================================================
 
 def _delta_sql_expr():
@@ -1150,7 +1184,6 @@ def build_block_delays_h24(date_from, date_to):
 
     delta_expr = _delta_sql_expr()
 
-    # Modifichiamo l'SQL per sottrarre il taxi time ai decolli
     sql = f"""
         SELECT
             v.data,
@@ -1180,7 +1213,6 @@ def build_block_delays_h24(date_from, date_to):
 
     logger.info(f"   Ritardi (H24): {len(rows)} voli analizzati da v_h24_report")
 
-    # LOG-01 (MAIL-05): segnala date mancanti in v_h24_report
     presenti = set()
     for r in rows:
         ds_r = _date_str(r[0])
@@ -1233,13 +1265,20 @@ def build_block_delays_h24(date_from, date_to):
         comp = comp_db if comp_db and comp_db != 'N/D' else _get_airline_safe(callsign)
 
         day = by_date_acc.setdefault(ds, {
-            "D": {"agg": _empty_delay_agg(), "hours": {}, "companies": {}, "dests": {}},
-            "A": {"agg": _empty_delay_agg(), "hours": {}, "companies": {}, "dests": {}},
+            "D": {"agg": _empty_delay_agg(), "hours": {}, "companies": {}, "dests": {}, "by_category": {}},
+            "A": {"agg": _empty_delay_agg(), "hours": {}, "companies": {}, "dests": {}, "by_category": {}},
         })
 
         dir_block = day[d]
 
         _add_delta_to_agg(dir_block["agg"], delta, soglia_punt, soglia_grave)
+
+        # v1.6.1: Aggregazione per categoria
+        cat = _category_from_tipo(tipo)
+        if cat:
+            if cat not in dir_block["by_category"]:
+                dir_block["by_category"][cat] = _empty_delay_agg()
+            _add_delta_to_agg(dir_block["by_category"][cat], delta, soglia_punt, soglia_grave)
 
         if hh is not None:
             if hh not in dir_block["hours"]:
@@ -1300,6 +1339,12 @@ def build_block_delays_h24(date_from, date_to):
                 dests_list.append(dout_dest)
             dests_list.sort(key=lambda x: -x["n_total"])
             dout["by_destination"] = dests_list[:top_dest]
+
+            # v1.6.1: Finalizzazione by_category
+            cat_aggs = {}
+            for cat_name, cat_agg in din["by_category"].items():
+                cat_aggs[cat_name] = _finalize_delay_agg(cat_agg)
+            dout["by_category"] = cat_aggs
 
             day_out[d] = dout
 
@@ -1422,6 +1467,7 @@ def build_web_json(days=90):
     airlines = build_block_night_airlines(date_from, date_to, top_n)
     weather = build_block_night_weather(date_from, date_to)
     runway_diag = build_block_runway_diagnostics(date_from, date_to)
+    pista_fonte = build_block_pista_fonte(date_from, date_to) # WEB-26
 
     payload = {
         "generated_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
@@ -1437,6 +1483,7 @@ def build_web_json(days=90):
         "block_night_airlines": airlines,
         "block_night_weather": weather,
         "block_runway_diagnostics": runway_diag,
+        "block_pista_fonte": pista_fonte, # WEB-26
     }
 
     logger.info(

@@ -1,16 +1,9 @@
 """
 bgy_reports/bgy_report_night.py - Report notturno integrato (SACBO + Avionio + radar).
-Versione 2.9.38
+Versione 2.9.39
 
-Novita v2.9.38 (21/10/2026):
-- Aggiunto ordinamento cronologico del report finale (sessione notturna).
-  I voli sono ordinati per timestamp (o orario schedulato) con wrap-around mezzanotte.
-
-Novita v2.9.37 (21/10/2026, DATA-27):
-- Aggiunta _dedup_scheduled_same_icao24(): elimina i falsi duplicati scheduled.
-
-Novita v2.9.36 (21/10/2026, ARCH-01):
-- Refactor: logica pista estratta in bgy_reports/bgy_report_common.py v1.0.0.
+Novita v2.9.39 (21/10/2026, DATA-32):
+- Aggiunta la colonna pista_fonte al CSV finale.
 """
 import os
 import re
@@ -37,7 +30,6 @@ from bgy_core.bgy_config_manager import config_manager
 from bgy_core import bgy_db
 from bgy_utils.bgy_utils_meteo import save_night_weather
 
-# ARCH-01: logica pista centralizzata
 from bgy_reports.bgy_report_common import propagate_runway_in_session
 
 logger = get_logger("ReportNight")
@@ -740,6 +732,8 @@ def match_flights(scheduled_df, radar_df, session_date):
         radar_df['notte_categoria'] = ''
         radar_df['matched_score'] = 0
         radar_df['fonte_scheduled'] = ''
+        if 'pista_fonte' not in radar_df.columns:
+            radar_df['pista_fonte'] = 'N/D'
         radar_df = radar_df[radar_df['timestamp'].apply(lambda t: _is_timestamp_in_night(t, session_date))].copy()
         radar_df = _dedup_radar_by_callsign(radar_df)
         classified = _classify_unmatched_radar(radar_df)
@@ -749,6 +743,7 @@ def match_flights(scheduled_df, radar_df, session_date):
         scheduled_df['is_scheduled'] = True
         scheduled_df['timestamp'] = ''
         scheduled_df['pista'] = 'N/D'
+        scheduled_df['pista_fonte'] = 'N/D' # DATA-32
         scheduled_df['fase_volo'] = 'Non rilevato'
         scheduled_df['direzione'] = 'N/D'
         scheduled_df['quota_ft'] = 0
@@ -784,6 +779,7 @@ def match_flights(scheduled_df, radar_df, session_date):
             combined['is_scheduled'] = True
             combined['timestamp'] = ''
             combined['pista'] = 'N/D'
+            combined['pista_fonte'] = 'N/D' # DATA-32
             combined['fase_volo'] = 'Non rilevato'
             combined['direzione'] = 'N/D'
             combined['quota_ft'] = 0
@@ -839,6 +835,7 @@ def match_flights(scheduled_df, radar_df, session_date):
             combined['is_scheduled'] = True
             combined['timestamp'] = ''
             combined['pista'] = 'N/D'
+            combined['pista_fonte'] = 'N/D' # DATA-32
             combined['fase_volo'] = 'Non rilevato'
             combined['direzione'] = 'N/D'
             combined['quota_ft'] = 0
@@ -877,6 +874,7 @@ def _classify_unmatched_radar(radar_df):
         row_dict['matched_score'] = 0
         row_dict['fonte_scheduled'] = ''
         if not row_dict.get('notte_categoria'): row_dict['notte_categoria'] = ''
+        if not row_dict.get('pista_fonte'): row_dict['pista_fonte'] = 'N/D' # DATA-32
         if not row_dict.get('direzione_sacbo'):
             row_dict['direzione_sacbo'] = 'D' if fase == 'Decollo' else ('A' if fase in ('Atterraggio', 'Avvicinamento') else '?')
         categoria, nome = classify_callsign(cs)
@@ -947,6 +945,9 @@ def _enrich_final(df):
     if 'fonte_scheduled' not in df.columns: df['fonte_scheduled'] = ''
     else: df['fonte_scheduled'] = df['fonte_scheduled'].fillna('')
     if 'icao24' not in df.columns: df['icao24'] = ''
+    if 'pista_fonte' not in df.columns: df['pista_fonte'] = 'N/D' # DATA-32
+    else: df['pista_fonte'] = df['pista_fonte'].fillna('N/D')
+    
     df['compagnia_aerea'] = df['callsign'].apply(lambda x: get_airline(x) if pd.notna(x) else 'N/D')
     df['modello_aereo'] = df['callsign'].apply(lambda x: get_aircraft_model(x) if pd.notna(x) else 'N/D')
     if 'destinazione_origine' in df.columns:
@@ -1073,7 +1074,6 @@ def _sort_report_chronologically(df, session_date):
         return df
     df = df.copy()
     
-    # Chiave di ordinamento temporanea
     sort_keys = []
     
     for _, row in df.iterrows():
@@ -1081,7 +1081,6 @@ def _sort_report_chronologically(df, session_date):
         sched_str = str(row.get('orario_schedulato', '')).strip()
         
         sort_val = None
-        # 1. Usa il timestamp completo (già ordinato cronologicamente dalla data)
         if ts_str and ts_str != 'nan' and ts_str != '':
             try:
                 dt = pd.to_datetime(ts_str)
@@ -1089,20 +1088,17 @@ def _sort_report_chronologically(df, session_date):
             except Exception:
                 pass
                 
-        # 2. Fallback: usa l'orario schedulato con wrap-around
         if sort_val is None and sched_str and sched_str != 'nan' and sched_str != '':
             try:
                 base = pd.to_datetime(f"{session_date} 23:00:00")
                 parts = sched_str.split(':')
                 sched_dt = base.replace(hour=int(parts[0]), minute=int(parts[1]), second=0)
-                # Se l'ora è < 12, significa che è dopo la mezzanotte (giorno successivo)
                 if sched_dt.hour < 12:
                     sched_dt += pd.Timedelta(days=1)
                 sort_val = sched_dt
             except Exception:
                 pass
                 
-        # 3. Fallback finale: usa il callsign o un valore di default
         if sort_val is None:
             sort_val = pd.to_datetime(f"{session_date} 23:59:59") + pd.Timedelta(minutes=1)
             
@@ -1127,7 +1123,6 @@ def generate_nightly_report(date_str=None):
     result_df, n_esclusi = _filter_excluded_callsigns(result_df)
     if result_df.empty: return None, f"Nessun dato per {date_norm}"
     
-    # DATA-27
     result_df, n_dedup_sched = _dedup_scheduled_same_icao24(result_df)
     result_df, n_dedup_icao24 = _dedup_radar_only_via_icao24(result_df)
     
@@ -1135,12 +1130,11 @@ def generate_nightly_report(date_str=None):
     _write_borderline_files(date_norm, df_borderline)
     result_df = _dedup_by_key(result_df)
     
-    # ORDINAMENTO CRONOLOGICO
     result_df = _sort_report_chronologically(result_df, date_norm)
     
     os.makedirs(OUTPUT_CSV_DIR, exist_ok=True)
     out_path = os.path.join(OUTPUT_CSV_DIR, report_nightly_filename(date_norm))
-    final_columns = ['callsign', 'tipo_movimento', 'direzione_sacbo', 'notte_categoria', 'is_scheduled', 'fonte_scheduled', 'destinazione_finale', 'stato_destinazione', 'compagnia_aerea', 'modello_aereo', 'orario_schedulato', 'timestamp', 'pista', 'fase_volo', 'direzione', 'quota_ft', 'rotta_deg', 'distanza_km', 'paese', 'matched_score', 'icao24', 'stima_passeggeri', 'stima_rumore_db']
+    final_columns = ['callsign', 'tipo_movimento', 'direzione_sacbo', 'notte_categoria', 'is_scheduled', 'fonte_scheduled', 'destinazione_finale', 'stato_destinazione', 'compagnia_aerea', 'modello_aereo', 'orario_schedulato', 'timestamp', 'pista', 'pista_fonte', 'fase_volo', 'direzione', 'quota_ft', 'rotta_deg', 'distanza_km', 'paese', 'matched_score', 'icao24', 'stima_passeggeri', 'stima_rumore_db']
     for col in final_columns:
         if col not in result_df.columns: result_df[col] = ''
     result_df[final_columns].to_csv(out_path, index=False, encoding='utf-8-sig')

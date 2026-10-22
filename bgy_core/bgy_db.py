@@ -1,27 +1,15 @@
 ﻿"""
 bgy_core/bgy_db.py - Modulo di accesso al database PostgreSQL.
-Versione 2.11.1
+Versione 2.12.2
 
-Novita v2.11.1 (INFRA-21, 19/10/2026):
-- SCHEMA_SQL: aggiunta colonna data_calendario alla tabella flights_avionio.
-  Allineamento a apply_schema_updates() (che la creava via ALTER).
-  Su DB vergine: la colonna ora esiste già alla CREATE.
-  Su DB esistente: invariato (già aggiunta da ALTER).
-- SCHEMA_VERSION resta 7: la struttura risultante è identica.
+Novita v2.12.2 (21/10/2026, DATA-32 hotfix 2):
+- Aggiunto DROP VIEW IF EXISTS prima delle CREATE OR REPLACE VIEW per
+  v_daily_report e v_h24_report. CREATE OR REPLACE non permette di
+  aggiungere colonne in mezzo alla vista.
 
-Novita v2.11.0 (Cantiere B.2, 19/10/2026):
-- SCHEMA_VERSION bumpata da 6 a 7.
-- SCHEMA_SQL: aggiunta tabella h24_reports e vista v_h24_report.
-
-Novita v2.10.0 (Cantiere B.1, 14/10/2026):
-- SCHEMA_VERSION bumpata da 5 a 6.
-- SCHEMA_SQL: aggiunta tabella flights_avionio.
-
-Novita v2.9.0 (BUG-05 / INFRA-07, 13/10/2026):
-- SCHEMA_VERSION bumpata da 4 a 5.
-- SCHEMA_SQL: aggiunto indice univoco parziale uniq_nightly_flight
-  su (data_riferimento, callsign, orario_schedulato) WHERE
-  orario_schedulato IS NOT NULL.
+Novita v2.12.1 (21/10/2026, DATA-32 hotfix):
+- Aggiunti ALTER TABLE ... ADD COLUMN IF NOT EXISTS pista_fonte per
+  nightly_reports e h24_reports prima della creazione delle viste.
 """
 import os
 import sys
@@ -33,8 +21,7 @@ from bgy_core.bgy_config_manager import config_manager
 
 logger = get_logger("DB")
 
-SCHEMA_VERSION = 7
-
+SCHEMA_VERSION = 8
 
 SCHEMA_SQL = """
 -- Tabella di versioning dello schema
@@ -155,6 +142,7 @@ CREATE TABLE IF NOT EXISTS nightly_reports (
     orario_schedulato TIME,
     timestamp TIMESTAMP,
     pista TEXT,
+    pista_fonte VARCHAR(20),
     fase_volo TEXT,
     direzione TEXT,
     quota_ft INTEGER,
@@ -194,6 +182,7 @@ CREATE TABLE IF NOT EXISTS h24_reports (
     orario_schedulato TIME,
     timestamp TIMESTAMP,
     pista TEXT,
+    pista_fonte VARCHAR(20),
     fase_volo TEXT,
     direzione TEXT,
     quota_ft INTEGER,
@@ -210,6 +199,14 @@ CREATE TABLE IF NOT EXISTS h24_reports (
 CREATE INDEX IF NOT EXISTS idx_h24_calendario ON h24_reports (data_calendario);
 CREATE INDEX IF NOT EXISTS idx_h24_riferimento ON h24_reports (data_riferimento);
 CREATE INDEX IF NOT EXISTS idx_h24_callsign ON h24_reports (callsign);
+
+-- v2.12.1 (DATA-32): aggiunta colonne pista_fonte su DB esistenti
+ALTER TABLE nightly_reports ADD COLUMN IF NOT EXISTS pista_fonte VARCHAR(20);
+ALTER TABLE h24_reports ADD COLUMN IF NOT EXISTS pista_fonte VARCHAR(20);
+
+-- v2.12.2: Drop esplicito delle viste per permettere l'aggiunta di colonne
+DROP VIEW IF EXISTS v_h24_report;
+DROP VIEW IF EXISTS v_daily_report;
 
 -- Viste
 CREATE OR REPLACE VIEW v_daily_report AS
@@ -243,6 +240,7 @@ SELECT
     orario_schedulato,
     timestamp,
     pista,
+    pista_fonte,
     fase_volo,
     quota_ft,
     distanza_km,
@@ -254,14 +252,11 @@ SELECT
 FROM h24_reports;
 """
 
-
 def _db_cfg():
     return config_manager.get_database_config()
 
-
 def is_enabled():
     return bool(_db_cfg().get("enabled", False))
-
 
 def get_connection():
     if not is_enabled():
@@ -282,7 +277,6 @@ def get_connection():
         logger.error(f"Errore connessione DB: {e}")
         return None
 
-
 def test_connection():
     if not is_enabled():
         return False, "Database disabilitato in configurazione"
@@ -297,7 +291,6 @@ def test_connection():
         return True, row[0] if row else "unknown"
     except Exception as e:
         return False, f"Errore: {e}"
-
 
 def get_schema_version():
     conn = get_connection()
@@ -316,7 +309,6 @@ def get_schema_version():
     finally:
         conn.close()
 
-
 def apply_schema():
     conn = get_connection()
     if conn is None:
@@ -329,7 +321,7 @@ def apply_schema():
             cur.execute(SCHEMA_SQL)
             cur.execute(
                 "INSERT INTO schema_version (version, note) VALUES (%s, %s) ON CONFLICT (version) DO NOTHING",
-                (SCHEMA_VERSION, "Schema BGY Monitoring Suite 2.11 (B.2: h24_reports + v_h24_report)")
+                (SCHEMA_VERSION, "Schema BGY Monitoring Suite 2.12 (DATA-32: pista_fonte)")
             )
         conn.commit()
         return True, f"Schema v{SCHEMA_VERSION} applicato"
@@ -338,7 +330,6 @@ def apply_schema():
         return False, f"Errore: {e}"
     finally:
         conn.close()
-
 
 def execute_query(sql, params=None, fetch=True):
     conn = get_connection()
@@ -364,7 +355,6 @@ def execute_query(sql, params=None, fetch=True):
     finally:
         conn.close()
 
-
 def execute_many(sql, params_list):
     conn = get_connection()
     if conn is None:
@@ -380,7 +370,6 @@ def execute_many(sql, params_list):
         return False, str(e)
     finally:
         conn.close()
-
 
 def get_table_counts():
     tables = [
@@ -404,7 +393,6 @@ def get_table_counts():
     finally:
         conn.close()
 
-
 def get_db_size():
     conn = get_connection()
     if conn is None:
@@ -419,7 +407,6 @@ def get_db_size():
         return None
     finally:
         conn.close()
-
 
 if __name__ == "__main__":
     print("=== Test bgy_db ===")

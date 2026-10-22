@@ -1,15 +1,9 @@
 """
 bgy_reports/bgy_report_h24.py - Report H24 integrato (SACBO + Avionio + radar).
-Versione 1.0.10
+Versione 1.0.11
 
-Novita v1.0.10 (21/10/2026):
-- Aggiunto ordinamento cronologico del report finale.
-
-Novita v1.0.9 (21/10/2026, DATA-27):
-- Aggiunta _dedup_scheduled_same_icao24(): elimina i falsi duplicati scheduled.
-
-Novita v1.0.8 (21/10/2026, ARCH-01):
-- Logica pista estratta in bgy_report_common.py.
+Novita v1.0.11 (21/10/2026, DATA-32):
+- Aggiunta la colonna pista_fonte al CSV finale.
 """
 import os
 import re
@@ -477,6 +471,8 @@ def match_flights_h24(scheduled_df, radar_df, date_str):
         radar_df['notte_categoria'] = ''
         radar_df['matched_score'] = 0
         radar_df['fonte_scheduled'] = ''
+        if 'pista_fonte' not in radar_df.columns:
+            radar_df['pista_fonte'] = 'N/D'
         radar_df = radar_df[radar_df['timestamp'].apply(lambda t: _is_timestamp_in_h24(t, date_str))].copy()
         radar_df = _dedup_radar_by_callsign(radar_df)
         classified = _classify_unmatched_radar(radar_df)
@@ -487,6 +483,7 @@ def match_flights_h24(scheduled_df, radar_df, date_str):
         scheduled_df['is_scheduled'] = True
         scheduled_df['timestamp'] = ''
         scheduled_df['pista'] = 'N/D'
+        scheduled_df['pista_fonte'] = 'N/D' # DATA-32
         scheduled_df['fase_volo'] = 'Non rilevato'
         scheduled_df['direzione'] = 'N/D'
         scheduled_df['quota_ft'] = 0
@@ -528,6 +525,7 @@ def match_flights_h24(scheduled_df, radar_df, date_str):
             combined['is_scheduled'] = True
             combined['timestamp'] = ''
             combined['pista'] = 'N/D'
+            combined['pista_fonte'] = 'N/D' # DATA-32
             combined['fase_volo'] = 'Non rilevato'
             combined['direzione'] = 'N/D'
             combined['quota_ft'] = 0
@@ -601,6 +599,7 @@ def match_flights_h24(scheduled_df, radar_df, date_str):
             combined['is_scheduled'] = True
             combined['timestamp'] = ''
             combined['pista'] = 'N/D'
+            combined['pista_fonte'] = 'N/D' # DATA-32
             combined['fase_volo'] = 'Non rilevato'
             combined['direzione'] = 'N/D'
             combined['quota_ft'] = 0
@@ -643,6 +642,7 @@ def _classify_unmatched_radar(radar_df):
         row_dict['matched_score'] = 0
         row_dict['fonte_scheduled'] = ''
         if not row_dict.get('notte_categoria'): row_dict['notte_categoria'] = ''
+        if not row_dict.get('pista_fonte'): row_dict['pista_fonte'] = 'N/D' # DATA-32
         if not row_dict.get('direzione_sacbo'):
             row_dict['direzione_sacbo'] = 'D' if fase == 'Decollo' else ('A' if fase in ('Atterraggio', 'Avvicinamento') else '?')
         categoria, nome = classify_callsign(cs)
@@ -715,6 +715,8 @@ def _enrich_final(df, date_str):
     if 'fonte_scheduled' not in df.columns: df['fonte_scheduled'] = ''
     else: df['fonte_scheduled'] = df['fonte_scheduled'].fillna('')
     if 'icao24' not in df.columns: df['icao24'] = ''
+    if 'pista_fonte' not in df.columns: df['pista_fonte'] = 'N/D' # DATA-32
+    else: df['pista_fonte'] = df['pista_fonte'].fillna('N/D')
 
     mask_ts_empty = (df['timestamp'].isna() | (df['timestamp'].astype(str).str.strip() == ''))
     if 'orario_effettivo' in df.columns:
@@ -927,25 +929,23 @@ def generate_h24_report(date_str=None):
     result_df, n_esclusi = _filter_excluded_callsigns(result_df)
     if result_df.empty: return None, f"Nessun dato per {date_norm}"
 
-    # DATA-27
     result_df, n_dedup_sched = _dedup_scheduled_same_icao24(result_df)
     result_df, n_dedup_icao24 = _dedup_radar_only_via_icao24(result_df)
     result_df = _dedup_by_key(result_df)
     
-    # ORDINAMENTO CRONOLOGICO
     result_df = _sort_report_chronologically(result_df, date_norm)
 
     os.makedirs(OUTPUT_CSV_DIR, exist_ok=True)
     out_path = os.path.join(OUTPUT_CSV_DIR, f"report_h24_{date_norm}.csv")
 
     result_df['data_calendario'] = date_norm
-    result_df['logic_version'] = "1.0.10"
+    result_df['logic_version'] = "1.0.11"
 
     final_columns = [
         'data_calendario', 'callsign', 'tipo_movimento', 'direzione_sacbo',
         'fonte_scheduled', 'destinazione_finale', 'stato_destinazione',
         'compagnia_aerea', 'modello_aereo', 'orario_schedulato', 'timestamp',
-        'pista', 'fase_volo', 'direzione', 'quota_ft', 'rotta_deg',
+        'pista', 'pista_fonte', 'fase_volo', 'direzione', 'quota_ft', 'rotta_deg',
         'distanza_km', 'paese', 'matched_score', 'icao24',
         'stima_passeggeri', 'stima_rumore_db', 'is_scheduled', 'logic_version'
     ]
