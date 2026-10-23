@@ -1,9 +1,11 @@
 """
 bgy_reports/bgy_report_night.py - Report notturno integrato (SACBO + Avionio + radar).
-Versione 2.9.39
+Versione 2.9.41
 
 Novita v2.9.39 (21/10/2026, DATA-32):
 - Aggiunta la colonna pista_fonte al CSV finale.
+
+Novita v2.9.41 (23/10/2026, BUG-13): dedup non scarta voli con callsign diversi.
 """
 import os
 import re
@@ -77,6 +79,7 @@ PAX_CATEGORIES = ('Passeggeri', 'Charter')
 
 _callsign_patterns_cache = None
 _inverted_patterns_cache = None
+_DST_CACHE = {}  # DST-05 (22/10/2026): cache session_date -> bool
 
 
 def _cfg():
@@ -155,7 +158,38 @@ def _minutes_since_sched(sched, effective):
     return eff_min - sched_min
 
 
-def _timestamp_to_minutes_session(ts, session_date):
+def _session_crosses_dst(session_date):
+    """DST-05 (22/10/2026): True se la sessione (23:00 -> 06:00) attraversa cambio DST."""
+    if session_date in _DST_CACHE:
+        return _DST_CACHE[session_date]
+    try:
+        from zoneinfo import ZoneInfo
+        _tz = ZoneInfo("Europe/Rome")
+        _d1 = datetime.strptime(session_date, "%Y-%m-%d").replace(hour=23, minute=0, tzinfo=_tz)
+        _d2 = _d1 + timedelta(hours=7)
+        result = _d1.utcoffset() != _d2.utcoffset()
+    except Exception:
+        result = False
+    _DST_CACHE[session_date] = result
+    return result
+
+
+def _utc_minutes_from_base_23cest(session_date):
+    """Base della sessione in UTC: date_norm 23:00 CEST = date_norm 21:00 UTC."""
+    return pd.Timestamp(f"{session_date} 21:00:00", tz="UTC")
+
+
+def _timestamp_to_minutes_session(ts, session_date, ts_utc=None):
+    if _session_crosses_dst(session_date) and ts_utc:
+        try:
+            dt_utc = pd.to_datetime(ts_utc, utc=True, errors="coerce")
+            if pd.notna(dt_utc):
+                base_utc = _utc_minutes_from_base_23cest(session_date)
+                diff = (dt_utc - base_utc).total_seconds() / 60
+                if diff < -MATCH_WINDOW_BEFORE_MIN: return None
+                return int(diff)
+        except Exception:
+            pass
     if not ts: return None
     try: dt = pd.to_datetime(ts)
     except Exception: return None
@@ -165,7 +199,17 @@ def _timestamp_to_minutes_session(ts, session_date):
     return int(diff)
 
 
-def _timestamp_to_minutes_session_wide(ts, session_date):
+def _timestamp_to_minutes_session_wide(ts, session_date, ts_utc=None):
+    if _session_crosses_dst(session_date) and ts_utc:
+        try:
+            dt_utc = pd.to_datetime(ts_utc, utc=True, errors="coerce")
+            if pd.notna(dt_utc):
+                base_utc = _utc_minutes_from_base_23cest(session_date)
+                diff = (dt_utc - base_utc).total_seconds() / 60
+                if diff < -MATCH_WINDOW_WIDE_BEFORE_MIN: return None
+                return int(diff)
+        except Exception:
+            pass
     if not ts: return None
     try: dt = pd.to_datetime(ts)
     except Exception: return None
@@ -175,7 +219,16 @@ def _timestamp_to_minutes_session_wide(ts, session_date):
     return int(diff)
 
 
-def _is_timestamp_in_night(ts, session_date):
+def _is_timestamp_in_night(ts, session_date, ts_utc=None):
+    if _session_crosses_dst(session_date) and ts_utc:
+        try:
+            dt_utc = pd.to_datetime(ts_utc, utc=True, errors="coerce")
+            if pd.notna(dt_utc):
+                base_utc = _utc_minutes_from_base_23cest(session_date)
+                end_utc = base_utc + pd.Timedelta(hours=8)
+                return base_utc <= dt_utc < end_utc
+        except Exception:
+            pass
     if not ts: return False
     try: dt = pd.to_datetime(ts)
     except Exception: return False
@@ -309,7 +362,10 @@ def _find_radar_match_ts(callsign_sacbo, direzione_sacbo, sched, radar_df, sessi
         if prefix_radar != prefix_sacbo: continue
         fase = str(r.get('fase_volo', '') or '')
         if not _is_phase_compatible(direzione_sacbo, fase): continue
-        r_min = _timestamp_to_minutes_session_wide(r.get('timestamp'), session_date)
+        r_min = _timestamp_to_minutes_session_wide(
+            r.get('timestamp'), session_date,
+            ts_utc=(r.get('timestamp_utc') if hasattr(r, 'get') else None)
+        )
         if r_min is None or r_min < low or r_min > high: continue
         delta = abs(r_min - sched_min)
         if best_delta is None or delta < best_delta: best_delta = delta; best_ts = r.get('timestamp')
@@ -569,11 +625,17 @@ def _dedup_scheduled_same_icao24(df):
                 continue
             
             is_dup = False
+            cs_r = _normalize_callsign(row.get('callsign', ''))
             ts_r = pd.to_datetime(row.get('timestamp'), errors='coerce')
             
             for k_idx in kept_idx:
                 k_row = group.loc[k_idx]
+                cs_k = _normalize_callsign(k_row.get('callsign', ''))
                 ts_k = pd.to_datetime(k_row.get('timestamp'), errors='coerce')
+                
+                # BUG-13: se i callsign sono diversi (e nessuno è UNKNOWN), non è un duplicato
+                if cs_r and cs_k and cs_r != cs_k and not _is_unknown_callsign(cs_r) and not _is_unknown_callsign(cs_k):
+                    continue
                 
                 if pd.notna(ts_r) and pd.notna(ts_k):
                     delta_min = abs((ts_r - ts_k).total_seconds()) / 60
@@ -600,7 +662,7 @@ def _dedup_scheduled_same_icao24(df):
     return df.reset_index(drop=True), len(to_drop)
 
 
-def _dedup_unknown_via_icao24(radar_df):
+def _dedup_unknown_via_icao24(radar_df, session_date=None):
     if radar_df.empty or 'icao24' not in radar_df.columns or 'callsign' not in radar_df.columns: return radar_df
     df = radar_df.copy()
     def _norm_icao(v):
@@ -612,7 +674,24 @@ def _dedup_unknown_via_icao24(radar_df):
     def _norm_ts(v):
         if v is None or (isinstance(v, float) and pd.isna(v)): return None
         s = str(v).strip(); return None if s == '' else (pd.to_datetime(s) if s else None)
-    df['_ts_norm'] = df['timestamp'].apply(_norm_ts)
+    use_utc = bool(session_date and _session_crosses_dst(session_date) and 'timestamp_utc' in df.columns)
+    if use_utc:
+        def _norm_ts_utc(v, fallback_naive):
+            if v is not None and not (isinstance(v, float) and pd.isna(v)):
+                s = str(v).strip()
+                if s:
+                    try:
+                        return pd.to_datetime(s, utc=True)
+                    except Exception:
+                        pass
+            dt = _norm_ts(fallback_naive)
+            return dt.tz_localize('UTC') if dt is not None else None
+        df['_ts_norm'] = df.apply(
+            lambda r: _norm_ts_utc(r.get('timestamp_utc'), r.get('timestamp')),
+            axis=1
+        )
+    else:
+        df['_ts_norm'] = df['timestamp'].apply(_norm_ts)
     def _phase_to_dir(fase):
         f = str(fase).strip()
         return 'D' if f == 'Decollo' else ('A' if f in ('Atterraggio', 'Avvicinamento') else '')
@@ -734,8 +813,13 @@ def match_flights(scheduled_df, radar_df, session_date):
         radar_df['fonte_scheduled'] = ''
         if 'pista_fonte' not in radar_df.columns:
             radar_df['pista_fonte'] = 'N/D'
-        radar_df = radar_df[radar_df['timestamp'].apply(lambda t: _is_timestamp_in_night(t, session_date))].copy()
-        radar_df = _dedup_radar_by_callsign(radar_df)
+        radar_df = radar_df[radar_df.apply(
+            lambda r: _is_timestamp_in_night(
+                r['timestamp'], session_date,
+                ts_utc=(r['timestamp_utc'] if 'timestamp_utc' in r.index else None)
+            ), axis=1
+        )].copy()
+        radar_df = _dedup_radar_by_callsign(radar_df, session_date)
         classified = _classify_unmatched_radar(radar_df)
         return _enrich_final(classified) if not classified.empty else pd.DataFrame()
     if radar_df.empty:
@@ -759,7 +843,12 @@ def match_flights(scheduled_df, radar_df, session_date):
     sched = scheduled_df.copy()
     radar = radar_df.copy()
     sched['_sched_min'] = sched.apply(lambda r: _scheduled_minutes_from_session(r.get('orario_schedulato'), session_date), axis=1)
-    radar['_radar_min'] = radar['timestamp'].apply(lambda t: _timestamp_to_minutes_session(t, session_date))
+    radar['_radar_min'] = radar.apply(
+    lambda r: _timestamp_to_minutes_session(
+        r['timestamp'], session_date,
+        ts_utc=(r['timestamp_utc'] if 'timestamp_utc' in r.index else None)
+    ), axis=1
+)
     radar = radar[radar['_radar_min'].notna()].copy()
     inv_patterns = _get_inverted_patterns()
     matched = []
@@ -850,8 +939,13 @@ def match_flights(scheduled_df, radar_df, session_date):
             combined['fonte_scheduled'] = fonte_sched
             matched.append(combined)
     unmatched = radar[~radar.index.isin(used_radar_idx)].copy()
-    unmatched = unmatched[unmatched['timestamp'].apply(lambda t: _is_timestamp_in_night(t, session_date))].copy()
-    unmatched = _dedup_radar_by_callsign(unmatched)
+    unmatched = unmatched[unmatched.apply(
+        lambda r: _is_timestamp_in_night(
+            r['timestamp'], session_date,
+            ts_utc=(r['timestamp_utc'] if 'timestamp_utc' in r.index else None)
+        ), axis=1
+    )].copy()
+    unmatched = _dedup_radar_by_callsign(unmatched, session_date)
     classified = _classify_unmatched_radar(unmatched)
     for _, row in classified.iterrows(): matched.append(row.to_dict())
     result = pd.DataFrame(matched)
@@ -886,21 +980,27 @@ def _classify_unmatched_radar(radar_df):
     return pd.DataFrame(classified) if classified else pd.DataFrame()
 
 
-def _dedup_radar_by_callsign(radar_df):
+def _dedup_radar_by_callsign(radar_df, session_date=None):
     if radar_df.empty or 'callsign' not in radar_df.columns: return radar_df
     df = radar_df.copy()
     try:
-        ts_min = (pd.to_datetime(df['timestamp']).astype('int64') // 60_000_000_000)
+        if session_date and _session_crosses_dst(session_date) and 'timestamp_utc' in df.columns:
+            ts_utc = pd.to_datetime(df['timestamp_utc'], errors='coerce', utc=True)
+            ts_min_naive = (pd.to_datetime(df['timestamp']).astype('int64') // 60_000_000_000)
+            ts_min_utc = ts_utc.astype('int64') // 60_000_000_000
+            ts_min = ts_min_utc.where(ts_utc.notna(), ts_min_naive)
+        else:
+            ts_min = (pd.to_datetime(df['timestamp']).astype('int64') // 60_000_000_000)
         df['_window'] = ts_min // RADAR_DEDUP_WINDOW_MIN
     except: return radar_df
     PHASE_RANK = {'Atterraggio': 5, 'Decollo': 4, 'Avvicinamento': 3, 'Incerto': 2, 'Sorvolo': 1, 'Transito': 0, 'N/D': 0, 'Non rilevato': 0, '': 0}
     df['_phase_rank'] = df['fase_volo'].apply(lambda f: PHASE_RANK.get(str(f).strip(), 0))
     df = df.sort_values(by=['_phase_rank', 'timestamp'], ascending=[False, False]).drop_duplicates(subset=['callsign', '_window'], keep='first')
     df = df.drop(columns=['_window', '_phase_rank'])
-    return _dedup_unknown_via_icao24(df)
+    return _dedup_unknown_via_icao24(df, session_date)
 
 
-def _dedup_radar_only_via_icao24(result_df):
+def _dedup_radar_only_via_icao24(result_df, session_date=None):
     if result_df.empty or 'icao24' not in result_df.columns: return result_df, 0
     df = result_df.copy()
     def _norm_icao(v):
@@ -911,7 +1011,24 @@ def _dedup_radar_only_via_icao24(result_df):
     def _norm_ts(v):
         if v is None or (isinstance(v, float) and pd.isna(v)): return None
         s = str(v).strip(); return None if s == '' else (pd.to_datetime(s) if s else None)
-    df['_ts_norm'] = df['timestamp'].apply(_norm_ts)
+    use_utc = bool(session_date and _session_crosses_dst(session_date) and 'timestamp_utc' in df.columns)
+    if use_utc:
+        def _norm_ts_utc(v, fallback_naive):
+            if v is not None and not (isinstance(v, float) and pd.isna(v)):
+                s = str(v).strip()
+                if s:
+                    try:
+                        return pd.to_datetime(s, utc=True)
+                    except Exception:
+                        pass
+            dt = _norm_ts(fallback_naive)
+            return dt.tz_localize('UTC') if dt is not None else None
+        df['_ts_norm'] = df.apply(
+            lambda r: _norm_ts_utc(r.get('timestamp_utc'), r.get('timestamp')),
+            axis=1
+        )
+    else:
+        df['_ts_norm'] = df['timestamp'].apply(_norm_ts)
     sched_mask = ((df['is_scheduled'] == True) & (df['_icao_norm'] != '') & (df['_ts_norm'].notna()))
     sched_records = df[sched_mask][['_icao_norm', '_ts_norm', 'direzione_sacbo', 'callsign']].to_dict('records')
     sched_by_icao = defaultdict(list)
@@ -1114,6 +1231,24 @@ def generate_nightly_report(date_str=None):
     load_rules()
     date_norm = normalize_date(date_str) if date_str else night_session_date()
     logger.info(f"🌙 Avvio report notturno per {date_norm} (23:00-05:59)")
+    # DST-03 (22/10/2026, fix 22/10/2026): warning se la sessione attraversa cambio DST.
+    # La sessione notturna va da date_norm 23:00 a (date_norm+1) 06:00.
+    # Se gli offset UTC degli estremi differiscono, la sessione attraversa il cambio.
+    # La fascia 02:00-02:59 puo' essere ambigua nei timestamp naive.
+    # Vedi bgy_docs/DST_2026.md e backlog DST-05.
+    try:
+        from zoneinfo import ZoneInfo
+        _tz_rome = ZoneInfo("Europe/Rome")
+        _dst_d1 = datetime.strptime(date_norm, "%Y-%m-%d").replace(hour=23, minute=0, tzinfo=_tz_rome)
+        _dst_d2 = _dst_d1 + timedelta(hours=7)
+        if _dst_d1.utcoffset() != _dst_d2.utcoffset():
+            logger.warning(
+                f"DST: sessione {date_norm} (23:00 -> {_dst_d2.strftime('%Y-%m-%d %H:%M')}) "
+                f"attraversa cambio ora legale/solare. "
+                f"Timestamp 02:00-02:59 possono essere ambigui. Verificare manualmente il report."
+            )
+    except Exception:
+        pass
     radar_df = load_radar_data(date_norm)
     sacbo_df = load_scheduled_flights(date_norm, radar_df=radar_df)
     avionio_df = load_avionio_scheduled(date_norm)
@@ -1124,7 +1259,7 @@ def generate_nightly_report(date_str=None):
     if result_df.empty: return None, f"Nessun dato per {date_norm}"
     
     result_df, n_dedup_sched = _dedup_scheduled_same_icao24(result_df)
-    result_df, n_dedup_icao24 = _dedup_radar_only_via_icao24(result_df)
+    result_df, n_dedup_icao24 = _dedup_radar_only_via_icao24(result_df, date_norm)
     
     result_df, df_borderline, n_borderline = _split_borderline_flights(result_df)
     _write_borderline_files(date_norm, df_borderline)

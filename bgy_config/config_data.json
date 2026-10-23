@@ -1,4 +1,4 @@
-﻿{
+{
     "scan_schedules": [
         "02:00",
         "06:00",
@@ -7,7 +7,7 @@
         "18:00",
         "22:00"
     ],
-    "night_scan_interval_seconds": 10,
+    "night_scan_interval_seconds": 5,
     "day_scan_interval_minutes": 2,
     "daily_report_time": "07:30",
     "sacbo_night_scans": [
@@ -170,7 +170,7 @@
     "quality_check": {
         "enabled": true,
         "thresholds": {
-            "max_flights_per_night": 50,
+            "max_flights_per_night": 100,
             "min_flights_per_night": 3,
             "max_cargo_per_night": 15,
             "max_pax_zero_pct": 10,

@@ -375,6 +375,12 @@ def save_to_csv(flights, movement_type):
         filename = f"avionio_{movement_type}_{ts}.csv"
         filepath = os.path.join(AVIONIO_DIR, filename)
 
+        # DST-03 (22/10/2026): warning se il file esiste gia' (collisione DST 02:00).
+        if os.path.exists(filepath):
+            logger.warning(
+                f"File {os.path.basename(filepath)} esiste gia', verra' sovrascritto. "
+                f"Possibile collisione DST."
+            )
         with open(filepath, "w", encoding="utf-8-sig", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=FIELDNAMES)
             writer.writeheader()

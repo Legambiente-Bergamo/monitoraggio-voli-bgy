@@ -1,405 +1,351 @@
 """
-bgy_core/bgy_db.py - Modulo di accesso al database PostgreSQL.
-Versione 2.12.0
+bgy_reports/bgy_report_common.py - Logica condivisa per i report notturni e H24.
+Versione 1.3.1
 
-Novita v2.12.0 (21/10/2026, DATA-32):
-- SCHEMA_VERSION bumpata da 7 a 8.
-- SCHEMA_SQL: aggiunta colonna pista_fonte a nightly_reports e h24_reports.
+Novita v1.3.1 (22/10/2026):
+- File ricostruito dopo corruzione (BUG-08): il file era stato sovrascritto
+  con il contenuto di bgy_core/bgy_db.py, perdendo ogni logica di pista.
+- propagate_runway_in_session: first-for-D / last-for-A (RADAR-14),
+  fallback icao24 per callsign UNKNOWN (RADAR-14b), soglia distanza da
+  config (RADAR-14c, default 7 km).
+- fill_unknown_runways_geometric: fallback geometrico (RADAR-07),
+  track 70-170 deg -> RWY 10, 190-290 deg -> RWY 28, distanza 2-5 km.
+- Tracciamento pista_fonte: 'radar_diretto' | 'propagato' | 'geometrico' | 'N/D'
+  (DATA-32).
+
+Novita v1.3.0 (21/10/2026, DATA-32 - PERDUTA per corruzione):
+- Aggiunto tracciamento pista_fonte.
 """
-import os
-import sys
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import pandas as pd
 
 from bgy_core.bgy_logger import get_logger
 from bgy_core.bgy_config_manager import config_manager
 
-logger = get_logger("DB")
+logger = get_logger("ReportCommon")
 
-SCHEMA_VERSION = 8
+# ---------------------------------------------------------------------------
+# Costanti
+# ---------------------------------------------------------------------------
+VALID_RUNWAYS = ('RWY 28', 'RWY 10')
 
-SCHEMA_SQL = """
--- Tabella di versioning dello schema
-CREATE TABLE IF NOT EXISTS schema_version (
-    version INTEGER PRIMARY KEY,
-    applied_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    note TEXT
-);
+PISTA_FONTE_RADAR = 'radar_diretto'
+PISTA_FONTE_PROPAGATO = 'propagato'
+PISTA_FONTE_GEOMETRICO = 'geometrico'
+PISTA_FONTE_ND = 'N/D'
 
--- Metadati delle scansioni SACBO
-CREATE TABLE IF NOT EXISTS scans (
-    id BIGSERIAL PRIMARY KEY,
-    scan_timestamp TIMESTAMP NOT NULL,
-    file_name TEXT NOT NULL,
-    data_riferimento DATE NOT NULL,
-    tipo VARCHAR(10) NOT NULL CHECK (tipo IN ('diurno', 'notturno')),
-    righe_importate INTEGER DEFAULT 0,
-    imported_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    UNIQUE (file_name)
-);
-CREATE INDEX IF NOT EXISTS idx_scans_data ON scans (data_riferimento);
-CREATE INDEX IF NOT EXISTS idx_scans_timestamp ON scans (scan_timestamp);
+# Soglie geometriche (RADAR-07)
+GEOMETRIC_MIN_DISTANCE_KM = 2.0
+GEOMETRIC_MAX_DISTANCE_KM = 5.0
+GEOMETRIC_RWY10_TRACK = (70, 170)
+GEOMETRIC_RWY28_TRACK = (190, 290)
 
--- Voli dal tabellone SACBO (raw, tutte le scansioni)
-CREATE TABLE IF NOT EXISTS flights_sacbo (
-    id BIGSERIAL PRIMARY KEY,
-    scan_id BIGINT REFERENCES scans(id) ON DELETE CASCADE,
-    callsign_volo TEXT NOT NULL,
-    tipo_movimento VARCHAR(2),
-    destinazione_origine TEXT,
-    orario_schedulato TIME,
-    orario_effettivo TIME,
-    stato_volo TEXT,
-    scan_timestamp TIMESTAMP NOT NULL,
-    data_riferimento DATE NOT NULL,
-    imported_at TIMESTAMP NOT NULL DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_flights_data ON flights_sacbo (data_riferimento);
-CREATE INDEX IF NOT EXISTS idx_flights_callsign ON flights_sacbo (callsign_volo);
-CREATE INDEX IF NOT EXISTS idx_flights_scan ON flights_sacbo (scan_id);
-CREATE INDEX IF NOT EXISTS idx_flights_ts ON flights_sacbo (scan_timestamp);
+# Soglia quota per record "validi" (RADAR-16: aerei in volo, non in rullaggio)
+MAX_QUOTA_VALID_FT = 2000
 
--- Voli scheduled Avionio (Cantiere B.1)
-CREATE TABLE IF NOT EXISTS flights_avionio (
-    id BIGSERIAL PRIMARY KEY,
-    scan_id BIGINT REFERENCES scans(id) ON DELETE CASCADE,
-    callsign_volo TEXT NOT NULL,
-    tipo_movimento VARCHAR(2),
-    destinazione_origine TEXT,
-    orario_schedulato TIME,
-    orario_effettivo TIME,
-    stato_volo TEXT,
-    codice_iata VARCHAR(3),
-    compagnia_aerea TEXT,
-    scan_timestamp TIMESTAMP NOT NULL,
-    data_riferimento DATE NOT NULL,
-    data_calendario DATE,
-    imported_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    UNIQUE (data_riferimento, callsign_volo, orario_schedulato, tipo_movimento)
-);
-CREATE INDEX IF NOT EXISTS idx_avionio_data ON flights_avionio (data_riferimento);
-CREATE INDEX IF NOT EXISTS idx_avionio_callsign ON flights_avionio (callsign_volo);
-CREATE INDEX IF NOT EXISTS idx_avionio_scan ON flights_avionio (scan_id);
-CREATE INDEX IF NOT EXISTS idx_avionio_ts ON flights_avionio (scan_timestamp);
+UNKNOWN_CALLSIGNS = ('', 'UNKNOWN', 'NAN', 'NONE', 'N/D', 'NA', 'N.A.')
 
--- Rilevamenti radar (h24 multi-fonte, v2.7.0)
-CREATE TABLE IF NOT EXISTS radar_detections (
-    id BIGSERIAL PRIMARY KEY,
-    timestamp TIMESTAMP NOT NULL,
-    callsign TEXT,
-    icao24 TEXT,
-    pista TEXT,
-    fase_volo TEXT,
-    direzione TEXT,
-    quota_ft INTEGER,
-    rotta_deg REAL,
-    distanza_km REAL,
-    paese TEXT,
-    sessione_notturna DATE,
-    data_riferimento DATE,
-    fonte TEXT,
-    timestamp_utc TIMESTAMPTZ,
-    imported_at TIMESTAMP NOT NULL DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_radar_sessione ON radar_detections (sessione_notturna);
-CREATE INDEX IF NOT EXISTS idx_radar_data ON radar_detections (data_riferimento);
-CREATE INDEX IF NOT EXISTS idx_radar_icao ON radar_detections (icao24);
-CREATE INDEX IF NOT EXISTS idx_radar_ts ON radar_detections (timestamp);
 
--- Meteo orario notturno
-CREATE TABLE IF NOT EXISTS weather_hourly (
-    id BIGSERIAL PRIMARY KEY,
-    data_riferimento DATE NOT NULL,
-    orario TIME NOT NULL,
-    temperatura_c REAL,
-    precipitazioni_mm REAL,
-    vento_kmh REAL,
-    vento_direzione_deg INTEGER,
-    condizioni TEXT,
-    imported_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    UNIQUE (data_riferimento, orario)
-);
-CREATE INDEX IF NOT EXISTS idx_weather_data ON weather_hourly (data_riferimento);
-
--- Report notturni (con arricchimento)
-CREATE TABLE IF NOT EXISTS nightly_reports (
-    id BIGSERIAL PRIMARY KEY,
-    data_riferimento DATE NOT NULL,
-    callsign TEXT,
-    tipo_movimento TEXT,
-    direzione_sacbo VARCHAR(2),
-    notte_categoria VARCHAR(30),
-    is_scheduled BOOLEAN,
-    destinazione_finale TEXT,
-    stato_destinazione TEXT,
-    compagnia_aerea TEXT,
-    modello_aereo TEXT,
-    orario_schedulato TIME,
-    timestamp TIMESTAMP,
-    pista TEXT,
-    pista_fonte VARCHAR(20),
-    fase_volo TEXT,
-    direzione TEXT,
-    quota_ft INTEGER,
-    rotta_deg REAL,
-    distanza_km REAL,
-    paese TEXT,
-    matched_score INTEGER,
-    stima_passeggeri INTEGER,
-    stima_rumore_db INTEGER,
-    imported_at TIMESTAMP NOT NULL DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_nightly_data ON nightly_reports (data_riferimento);
-CREATE INDEX IF NOT EXISTS idx_nightly_callsign ON nightly_reports (callsign);
-CREATE INDEX IF NOT EXISTS idx_nightly_compagnia ON nightly_reports (compagnia_aerea);
-
--- v2.9.0 (BUG-05): vincolo univoco sui voli scheduled.
-CREATE UNIQUE INDEX IF NOT EXISTS uniq_nightly_flight
-ON nightly_reports (data_riferimento, callsign, orario_schedulato)
-WHERE orario_schedulato IS NOT NULL;
-
--- Report H24 multi-fonte (Cantiere B.2)
-CREATE TABLE IF NOT EXISTS h24_reports (
-    id BIGSERIAL PRIMARY KEY,
-    data_riferimento DATE NOT NULL,
-    data_calendario DATE NOT NULL,
-    callsign TEXT,
-    tipo_movimento TEXT,
-    direzione_sacbo VARCHAR(2),
-    fascia VARCHAR(10),
-    categoria VARCHAR(30),
-    is_scheduled BOOLEAN,
-    fonte_scheduled VARCHAR(10),
-    destinazione_finale TEXT,
-    stato_destinazione TEXT,
-    compagnia_aerea TEXT,
-    modello_aereo TEXT,
-    orario_schedulato TIME,
-    timestamp TIMESTAMP,
-    pista TEXT,
-    pista_fonte VARCHAR(20),
-    fase_volo TEXT,
-    direzione TEXT,
-    quota_ft INTEGER,
-    rotta_deg REAL,
-    distanza_km REAL,
-    paese TEXT,
-    matched_score INTEGER,
-    icao24 VARCHAR(6),
-    stima_passeggeri INTEGER,
-    stima_rumore_db INTEGER,
-    logic_version VARCHAR(20),
-    imported_at TIMESTAMP NOT NULL DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_h24_calendario ON h24_reports (data_calendario);
-CREATE INDEX IF NOT EXISTS idx_h24_riferimento ON h24_reports (data_riferimento);
-CREATE INDEX IF NOT EXISTS idx_h24_callsign ON h24_reports (callsign);
-
--- Viste
-CREATE OR REPLACE VIEW v_daily_report AS
-WITH ranked AS (
-    SELECT
-        f.*,
-        ROW_NUMBER() OVER (
-            PARTITION BY f.data_riferimento, f.callsign_volo, f.orario_schedulato
-            ORDER BY f.scan_timestamp DESC
-        ) AS rn
-    FROM flights_sacbo f
-)
-SELECT
-    id, data_riferimento, callsign_volo, tipo_movimento, destinazione_origine,
-    orario_schedulato, orario_effettivo, stato_volo, scan_timestamp
-FROM ranked
-WHERE rn = 1;
-
-CREATE OR REPLACE VIEW v_h24_report AS
-SELECT
-    data_calendario AS data,
-    callsign,
-    tipo_movimento,
-    direzione_sacbo,
-    categoria AS notte_categoria,
-    is_scheduled,
-    fonte_scheduled,
-    destinazione_finale,
-    compagnia_aerea,
-    modello_aereo,
-    orario_schedulato,
-    timestamp,
-    pista,
-    pista_fonte,
-    fase_volo,
-    quota_ft,
-    distanza_km,
-    matched_score,
-    icao24,
-    stima_passeggeri,
-    stima_rumore_db,
-    EXTRACT(HOUR FROM timestamp)::int AS ora_effettiva
-FROM h24_reports;
-"""
-
-def _db_cfg():
-    return config_manager.get_database_config()
-
-def is_enabled():
-    return bool(_db_cfg().get("enabled", False))
-
-def get_connection():
-    if not is_enabled():
-        return None
-    cfg = _db_cfg()
+# ---------------------------------------------------------------------------
+# Helper
+# ---------------------------------------------------------------------------
+def _cfg_scanner_radar():
     try:
-        import psycopg
-        return psycopg.connect(
-            host=cfg.get("host", "localhost"),
-            port=int(cfg.get("port", 5432)),
-            dbname=cfg.get("dbname", "bgy_monitoring"),
-            user=cfg.get("user", "bgy_user"),
-            password=cfg.get("password", ""),
-            connect_timeout=int(cfg.get("connect_timeout", 10)),
-            application_name=cfg.get("application_name", "BGY Monitoring Suite"),
-        )
-    except Exception as e:
-        logger.error(f"Errore connessione DB: {e}")
-        return None
-
-def test_connection():
-    if not is_enabled():
-        return False, "Database disabilitato in configurazione"
-    try:
-        conn = get_connection()
-        if conn is None:
-            return False, "Impossibile connettersi al database"
-        with conn.cursor() as cur:
-            cur.execute("SELECT version()")
-            row = cur.fetchone()
-        conn.close()
-        return True, row[0] if row else "unknown"
-    except Exception as e:
-        return False, f"Errore: {e}"
-
-def get_schema_version():
-    conn = get_connection()
-    if conn is None:
-        return 0
-    try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'schema_version')")
-            if not cur.fetchone()[0]:
-                return 0
-            cur.execute("SELECT MAX(version) FROM schema_version")
-            row = cur.fetchone()
-            return row[0] if row and row[0] is not None else 0
+        return config_manager.get_scanner_radar_config() or {}
     except Exception:
-        return 0
-    finally:
-        conn.close()
+        return {}
 
-def apply_schema():
-    conn = get_connection()
-    if conn is None:
-        return False, "Impossibile connettersi al database"
-    try:
-        current = get_schema_version()
-        if current >= SCHEMA_VERSION:
-            return True, f"Schema già alla versione {current} (corrente: {SCHEMA_VERSION})"
-        with conn.cursor() as cur:
-            cur.execute(SCHEMA_SQL)
-            cur.execute(
-                "INSERT INTO schema_version (version, note) VALUES (%s, %s) ON CONFLICT (version) DO NOTHING",
-                (SCHEMA_VERSION, "Schema BGY Monitoring Suite 2.12 (DATA-32: pista_fonte)")
-            )
-        conn.commit()
-        return True, f"Schema v{SCHEMA_VERSION} applicato"
-    except Exception as e:
-        conn.rollback()
-        return False, f"Errore: {e}"
-    finally:
-        conn.close()
 
-def execute_query(sql, params=None, fetch=True):
-    conn = get_connection()
-    if conn is None:
-        return False, "DB non disponibile"
+def _safe_float(value, default=None):
+    if value is None:
+        return default
     try:
-        with conn.cursor() as cur:
-            cur.execute(sql, params or ())
-            has_results = cur.description is not None
-            if fetch and has_results:
-                rows = cur.fetchall()
-                conn.commit()
-                return True, rows
-            else:
-                conn.commit()
-                return True, cur.rowcount
-    except Exception as e:
+        if pd.isna(value):
+            return default
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
+
+def _safe_str(value, default=''):
+    if value is None:
+        return default
+    try:
+        if pd.isna(value):
+            return default
+    except (TypeError, ValueError):
+        pass
+    s = str(value).strip()
+    return s if s else default
+
+
+def _normalize_callsign(cs):
+    if not cs:
+        return ''
+    try:
+        if pd.isna(cs):
+            return ''
+    except (TypeError, ValueError):
+        pass
+    return str(cs).strip().upper()
+
+
+def _is_unknown_callsign(cs):
+    return _normalize_callsign(cs) in UNKNOWN_CALLSIGNS
+
+
+def _is_valid_pista(pista):
+    return _safe_str(pista).strip() in VALID_RUNWAYS
+
+
+def _phase_to_dir(fase):
+    f = _safe_str(fase).strip()
+    if f == 'Decollo':
+        return 'D'
+    if f in ('Atterraggio', 'Avvicinamento'):
+        return 'A'
+    return ''
+
+
+def _is_valid_radar_record(row, max_distance_km):
+    """
+    Un record è "valido" per la propagazione se:
+      - pista già assegnata e in VALID_RUNWAYS
+      - quota < MAX_QUOTA_VALID_FT (esclude aerei in rullaggio)
+      - distanza < max_distance_km (esclude aerei troppo lontani)
+    """
+    if not _is_valid_pista(row.get('pista')):
+        return False
+    quota = _safe_float(row.get('quota_ft'), None)
+    if quota is None or quota >= MAX_QUOTA_VALID_FT:
+        return False
+    dist = _safe_float(row.get('distanza_km'), None)
+    if dist is None or dist > max_distance_km:
+        return False
+    return True
+
+
+# ---------------------------------------------------------------------------
+# RADAR-14: propagazione pista per (callsign, direzione)
+# ---------------------------------------------------------------------------
+def _propagate_by_callsign(df, max_distance_km):
+    """
+    Per ogni (callsign_normalizzato, direzione):
+      - Decollo (D): usa il PRIMO record valido (più allineato alla pista)
+      - Atterraggio (A): usa l'ULTIMO record valido (fine pista)
+    Propaga la pista ai record del gruppo che non ce l'hanno.
+    Ritorna il numero di record propagati.
+    """
+    propagated = 0
+    for (key_val, dir_val), group in df.groupby(['_callsign_norm', '_dir']):
+        if not key_val or dir_val not in ('D', 'A'):
+            continue
+        valid_mask = group.apply(lambda r: _is_valid_radar_record(r, max_distance_km), axis=1)
+        valid_idx = group[valid_mask].index
+        if len(valid_idx) == 0:
+            continue
         try:
-            conn.rollback()
+            donors = group.loc[valid_idx].copy()
+            donors['_ts'] = pd.to_datetime(donors['timestamp'], errors='coerce')
+            donors = donors.dropna(subset=['_ts']).sort_values('_ts')
         except Exception:
-            pass
-        return False, str(e)
-    finally:
-        conn.close()
+            continue
+        if len(donors) == 0:
+            continue
+        chosen = donors.iloc[0] if dir_val == 'D' else donors.iloc[-1]
+        pista_val = _safe_str(chosen.get('pista')).strip()
+        if not _is_valid_pista(pista_val):
+            continue
+        for idx in group.index:
+            if _is_valid_pista(df.at[idx, 'pista']):
+                continue
+            df.at[idx, 'pista'] = pista_val
+            df.at[idx, 'pista_fonte'] = PISTA_FONTE_PROPAGATO
+            propagated += 1
+    return propagated
 
-def execute_many(sql, params_list):
-    conn = get_connection()
-    if conn is None:
-        return False, "DB non disponibile"
+
+# ---------------------------------------------------------------------------
+# RADAR-14b: fallback via icao24 per callsign UNKNOWN
+# ---------------------------------------------------------------------------
+def _propagate_by_icao24(df, max_distance_km):
+    """
+    Per i record con callsign UNKNOWN (o comunque senza pista dopo il passo 1):
+      - costruisce una mappa icao24 -> {D: [donatori], A: [donatori]}
+      - per ogni record senza pista, se il suo icao24 ha un donatore
+        con la stessa direzione, eredita la pista
+    """
+    if 'icao24' not in df.columns:
+        return 0
+
+    # Costruisci la mappa dei donatori
+    mappa = {}
+    for idx, row in df.iterrows():
+        icao = _safe_str(row.get('icao24')).lower()
+        if not icao or icao in ('nan', 'none', 'n/d'):
+            continue
+        if not _is_valid_pista(row.get('pista')):
+            continue
+        dir_val = _phase_to_dir(row.get('fase_volo'))
+        if dir_val not in ('D', 'A'):
+            continue
+        mappa.setdefault(icao, {}).setdefault(dir_val, []).append(idx)
+
+    if not mappa:
+        return 0
+
+    propagated = 0
+    for idx, row in df.iterrows():
+        if _is_valid_pista(row.get('pista')):
+            continue
+        icao = _safe_str(row.get('icao24')).lower()
+        if not icao or icao not in mappa:
+            continue
+        dir_val = _phase_to_dir(row.get('fase_volo'))
+        if dir_val not in ('D', 'A'):
+            continue
+        donor_idxs = mappa[icao].get(dir_val, [])
+        if not donor_idxs:
+            continue
+        try:
+            donor_rows = df.loc[donor_idxs].copy()
+            donor_rows['_ts'] = pd.to_datetime(donor_rows['timestamp'], errors='coerce')
+            donor_rows = donor_rows.dropna(subset=['_ts']).sort_values('_ts')
+        except Exception:
+            continue
+        if len(donor_rows) == 0:
+            continue
+        chosen = donor_rows.iloc[0] if dir_val == 'D' else donor_rows.iloc[-1]
+        pista_val = _safe_str(chosen.get('pista')).strip()
+        if not _is_valid_pista(pista_val):
+            continue
+        df.at[idx, 'pista'] = pista_val
+        df.at[idx, 'pista_fonte'] = PISTA_FONTE_PROPAGATO
+        propagated += 1
+    return propagated
+
+
+# ---------------------------------------------------------------------------
+# API pubblica
+# ---------------------------------------------------------------------------
+def propagate_runway_in_session(radar_df):
+    """
+    Propaga la pista dai record radar "validi" a quelli dello stesso
+    (callsign, direzione) che non ce l'hanno.
+
+    - Decollo: primo record valido (allineato alla pista)
+    - Atterraggio: ultimo record valido (fine pista)
+    - Fallback via icao24 per callsign UNKNOWN (RADAR-14b)
+    - Soglia distanza da config (RADAR-14c, default 7 km)
+    - Traccia pista_fonte: 'radar_diretto' | 'propagato' | 'N/D' (DATA-32)
+    """
+    if radar_df is None or radar_df.empty:
+        return radar_df
+
+    df = radar_df.copy()
+
+    # Assicura colonne minime
+    if 'pista' not in df.columns:
+        df['pista'] = PISTA_FONTE_ND
+    if 'pista_fonte' not in df.columns:
+        df['pista_fonte'] = PISTA_FONTE_ND
+    if 'callsign' not in df.columns:
+        df['callsign'] = ''
+    if 'timestamp' not in df.columns:
+        df['timestamp'] = ''
+    if 'fase_volo' not in df.columns:
+        df['fase_volo'] = ''
+
+    # Normalizza pista (solo RWY 10 / RWY 28 validi)
+    df['pista'] = df['pista'].apply(
+        lambda x: _safe_str(x).strip() if _is_valid_pista(x) else PISTA_FONTE_ND
+    )
+
+    # Normalizza pista_fonte
+    df['pista_fonte'] = df['pista_fonte'].apply(
+        lambda x: _safe_str(x, PISTA_FONTE_ND) or PISTA_FONTE_ND
+    )
+
+    # Record con pista valida e fonte non ancora impostata -> radar_diretto
+    mask_direct = df['pista'].apply(_is_valid_pista) & (df['pista_fonte'] == PISTA_FONTE_ND)
+    df.loc[mask_direct, 'pista_fonte'] = PISTA_FONTE_RADAR
+
+    # Colonne temporanee per il raggruppamento
+    df['_dir'] = df['fase_volo'].apply(_phase_to_dir)
+    df['_callsign_norm'] = df['callsign'].apply(
+        lambda x: '' if _is_unknown_callsign(x) else _normalize_callsign(x)
+    )
+
+    cfg = _cfg_scanner_radar()
+    max_distance_km = _safe_float(cfg.get('pista_max_distanza_km'), 7.0) or 7.0
+
     try:
-        with conn.cursor() as cur:
-            cur.executemany(sql, params_list)
-            total_rowcount = cur.rowcount
-        conn.commit()
-        return True, total_rowcount
-    except Exception as e:
-        conn.rollback()
-        return False, str(e)
+        n1 = _propagate_by_callsign(df, max_distance_km)
+        n2 = _propagate_by_icao24(df, max_distance_km)
+        if n1 or n2:
+            logger.info(
+                f"🛬 Pista propagata: {n1} via callsign, {n2} via icao24 "
+                f"(soglia {max_distance_km:.1f} km)"
+            )
     finally:
-        conn.close()
+        df.drop(columns=['_dir', '_callsign_norm'], inplace=True, errors='ignore')
 
-def get_table_counts():
-    tables = [
-        "scans", "flights_sacbo", "flights_avionio",
-        "radar_detections", "weather_hourly", "nightly_reports", "h24_reports"
-    ]
-    result = {}
-    conn = get_connection()
-    if conn is None:
-        return result
-    try:
-        with conn.cursor() as cur:
-            for t in tables:
-                try:
-                    cur.execute(f"SELECT COUNT(1) FROM {t}")
-                    result[t] = cur.fetchone()[0]
-                except Exception:
-                    result[t] = None
-        conn.rollback()
-        return result
-    finally:
-        conn.close()
+    return df
 
-def get_db_size():
-    conn = get_connection()
-    if conn is None:
-        return None
-    try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT pg_database_size(current_database())")
-            size_bytes = cur.fetchone()[0]
-        conn.rollback()
-        return round(size_bytes / 1024 / 1024, 2)
-    except Exception:
-        return None
-    finally:
-        conn.close()
 
-if __name__ == "__main__":
-    print("=== Test bgy_db ===")
-    print(f"Abilitato: {is_enabled()}")
-    ok, msg = test_connection()
-    print(f"Connessione: {'OK' if ok else 'KO'} {msg}")
-    if ok:
-        print(f"Versione schema: {get_schema_version()}")
-        print(f"Tabelle: {get_table_counts()}")
+def fill_unknown_runways_geometric(radar_df):
+    """
+    RADAR-07: fallback geometrico per i record rimasti con pista N/D.
+    Condizioni: distanza tra 2 e 5 km, rotta valida.
+      - Track 70-170°  -> RWY 10
+      - Track 190-290° -> RWY 28
+      - Altri track    -> resta N/D (principio: meglio N/D che falso)
+    Imposta pista_fonte = 'geometrico' sui record dedotti.
+    """
+    if radar_df is None or radar_df.empty:
+        return radar_df
+
+    df = radar_df.copy()
+    if 'pista' not in df.columns:
+        df['pista'] = PISTA_FONTE_ND
+    if 'pista_fonte' not in df.columns:
+        df['pista_fonte'] = PISTA_FONTE_ND
+    if 'rotta_deg' not in df.columns:
+        df['rotta_deg'] = None
+    if 'distanza_km' not in df.columns:
+        df['distanza_km'] = None
+
+    n_filled = 0
+    for idx, row in df.iterrows():
+        if _is_valid_pista(row.get('pista')):
+            continue
+        dist = _safe_float(row.get('distanza_km'), None)
+        if dist is None or dist < GEOMETRIC_MIN_DISTANCE_KM or dist > GEOMETRIC_MAX_DISTANCE_KM:
+            continue
+        track = _safe_float(row.get('rotta_deg'), None)
+        if track is None:
+            continue
+        track = track % 360.0
+        pista_new = None
+        if GEOMETRIC_RWY10_TRACK[0] <= track <= GEOMETRIC_RWY10_TRACK[1]:
+            pista_new = 'RWY 10'
+        elif GEOMETRIC_RWY28_TRACK[0] <= track <= GEOMETRIC_RWY28_TRACK[1]:
+            pista_new = 'RWY 28'
+        if pista_new:
+            df.at[idx, 'pista'] = pista_new
+            df.at[idx, 'pista_fonte'] = PISTA_FONTE_GEOMETRICO
+            n_filled += 1
+
+    if n_filled:
+        logger.info(f"🛬 Pista assegnata geometricamente: {n_filled} record")
+    return df
+
+
+__all__ = [
+    'propagate_runway_in_session',
+    'fill_unknown_runways_geometric',
+    'VALID_RUNWAYS',
+    'PISTA_FONTE_RADAR',
+    'PISTA_FONTE_PROPAGATO',
+    'PISTA_FONTE_GEOMETRICO',
+    'PISTA_FONTE_ND',
+]

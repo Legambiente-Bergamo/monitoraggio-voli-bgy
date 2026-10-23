@@ -682,6 +682,12 @@ def run_scan(is_recovery=False, recovered_slot=None):
         df['scan_timestamp'] = now.strftime("%Y-%m-%d %H:%M:%S")
 
         out_file = os.path.join(RAW_DIR, scan_filename(now))
+        # DST-03 (22/10/2026): warning se il file esiste gia' (collisione DST 02:00).
+        if os.path.exists(out_file):
+            logger.warning(
+                f"File {os.path.basename(out_file)} esiste gia', verra' sovrascritto. "
+                f"Possibile collisione DST (02:00 CEST -> 02:00 CET)."
+            )
         df.to_csv(out_file, index=False, encoding="utf-8-sig")
 
         n_d = len(df[df['tipo_movimento'] == 'D'])
