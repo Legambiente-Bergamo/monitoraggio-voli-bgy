@@ -14,8 +14,8 @@ Storico versioni:
 - 2.10.0 (19/10/2026): milestone Cantiere B chiuso.
 - 2.9.0 (24/09/2026): baseline pre-Cantiere B.
 """
-__version__ = "2.10.8"
-__release_date__ = "2026-10-20"
+__version__ = "3.9.0"
+__release_date__ = "2026-10-22"
 __suite_name__ = "BGY Monitoring Suite"
 __author__ = "Circolo Legambiente Bergamo APS"
 __license__ = "Custom (vedi Licenza.txt)"

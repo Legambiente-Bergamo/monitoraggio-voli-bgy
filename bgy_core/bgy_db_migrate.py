@@ -1,6 +1,12 @@
 """
 bgy_core/bgy_db_migrate.py - Import e sincronizzazione CSV -> PostgreSQL.
-Versione 2.10.5
+Versione 2.10.6
+
+Novita v2.10.6 (23/10/2026, MAIL-06):
+- get_nightly_stats() ora separa i movimenti scheduled da quelli radar-only.
+  Ritorna un dizionario con due chiavi: 'scheduled' e 'radar_only'.
+  Questo permette alla mail di mostrare il numero allineato al sito
+  (scheduled) e la diagnostica separata (radar-only).
 
 Novita v2.10.3 (22/10/2026, BUG-09):
 - run_quality_check() ora legge le soglie da config_data.json > quality_check.thresholds
@@ -737,10 +743,12 @@ def _empty_sconf_block():
 
 def get_nightly_stats(date_str):
     """
-    v2.10.4 (BUG-10, 22/10/2026): implementazione completa.
+    v2.10.6 (MAIL-06, 23/10/2026): separa scheduled da radar-only.
 
     Aggrega nightly_reports per data_riferimento = date_str, producendo
-    la struttura attesa da bgy_mailer._format_nightly_section().
+    un dizionario con due chiavi: 'scheduled' e 'radar_only'.
+    Ogni chiave contiene i conteggi per categoria, direzione e le
+    eventuali anomalie/sconfinamenti (solo per scheduled).
 
     Ritorna None se il DB non è abilitato o se non ci sono righe.
     """
@@ -748,72 +756,77 @@ def get_nightly_stats(date_str):
         return None
     ok, rows = bgy_db.execute_query(
         """
-        SELECT tipo_movimento, direzione_sacbo, notte_categoria, COUNT(*)
+        SELECT is_scheduled, tipo_movimento, direzione_sacbo, notte_categoria, COUNT(*)
         FROM nightly_reports
         WHERE data_riferimento = %s
-        GROUP BY tipo_movimento, direzione_sacbo, notte_categoria
+        GROUP BY is_scheduled, tipo_movimento, direzione_sacbo, notte_categoria
         """,
         (date_str,)
     )
     if not ok or not rows:
         return None
 
-    categories = {
-        'passeggeri': _empty_category_block(),
-        'cargo': _empty_category_block(),
-        'charter': _empty_category_block(),
-        'non_classificato': _empty_category_block(),
+    res = {
+        'scheduled': {
+            'totale': 0,
+            'passeggeri': _empty_category_block(),
+            'cargo': _empty_category_block(),
+            'charter': _empty_category_block(),
+            'non_classificato': _empty_category_block(),
+            'sconfinamenti': _empty_sconf_block(),
+            'sconfinamenti_gravi': _empty_sconf_block(),
+            'anomalie': {'totale': 0, 'dettagli': []}
+        },
+        'radar_only': {
+            'totale': 0,
+            'passeggeri': _empty_category_block(),
+            'cargo': _empty_category_block(),
+            'charter': _empty_category_block(),
+            'non_classificato': _empty_category_block(),
+        }
     }
-    sconfinamenti = _empty_sconf_block()
-    sconfinamenti_gravi = _empty_sconf_block()
-    totale = 0
 
-    for tipo, direzione, categoria, n in rows:
+    for is_sched, tipo, direzione, categoria, n in rows:
         n = int(n)
-        totale += n
+        target = res['scheduled'] if is_sched else res['radar_only']
+        target['totale'] += n
+
         cat_key = _categorize_tipo_movimento(tipo)
         dir_key = 'decolli' if str(direzione or '').strip().upper() == 'D' else 'atterraggi'
-        cat = categories[cat_key]
-        cat[dir_key] += n
-        cat['totale'] += n
 
-        cat_norm = str(categoria or '').strip().lower()
-        if cat_norm == 'sconfinamento':
-            sconfinamenti[cat_key][dir_key] += n
-            sconfinamenti['totale'] += n
-        elif cat_norm in ('sconfinamento_grave', 'sconfinamento grave'):
-            sconfinamenti_gravi[cat_key][dir_key] += n
-            sconfinamenti_gravi['totale'] += n
+        if cat_key in target:
+            target[cat_key][dir_key] += n
+            target[cat_key]['totale'] += n
 
-    anomalie = {'totale': 0, 'dettagli': []}
+        if is_sched:
+            cat_norm = str(categoria or '').strip().lower()
+            if cat_norm == 'sconfinamento':
+                target['sconfinamenti'][cat_key][dir_key] += n
+                target['sconfinamenti']['totale'] += n
+            elif cat_norm in ('sconfinamento_grave', 'sconfinamento grave'):
+                target['sconfinamenti_gravi'][cat_key][dir_key] += n
+                target['sconfinamenti_gravi']['totale'] += n
+
+    # Anomalie (solo scheduled)
     ok_anom, rows_anom = bgy_db.execute_query(
         """
         SELECT callsign, direzione_sacbo, orario_schedulato
         FROM nightly_reports
-        WHERE data_riferimento = %s AND notte_categoria = 'anomalia'
+        WHERE data_riferimento = %s AND notte_categoria = 'anomalia' AND is_scheduled = TRUE
         ORDER BY orario_schedulato
         """,
         (date_str,)
     )
     if ok_anom and rows_anom:
         for cs, direz, sched in rows_anom:
-            anomalie['dettagli'].append({
+            res['scheduled']['anomalie']['dettagli'].append({
                 'callsign': str(cs or '?'),
                 'direzione_sacbo': str(direz or '?'),
                 'orario_schedulato': str(sched or '?'),
             })
-        anomalie['totale'] = len(rows_anom)
+        res['scheduled']['anomalie']['totale'] = len(rows_anom)
 
-    return {
-        'totale': totale,
-        'passeggeri': categories['passeggeri'],
-        'cargo': categories['cargo'],
-        'charter': categories['charter'],
-        'non_classificato': categories['non_classificato'],
-        'sconfinamenti': sconfinamenti,
-        'sconfinamenti_gravi': sconfinamenti_gravi,
-        'anomalie': anomalie,
-    }
+    return res
 
 
 def get_non_classified_flights(date_str):

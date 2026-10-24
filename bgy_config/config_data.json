@@ -76,7 +76,9 @@
             ]
         },
         "parallel_test_mode": false,
-        "parallel_test_days": 5
+        "parallel_test_days": 5,
+        "adsb_lol_cooldown_min": 30,
+        "adsb_lol_max_429_before_cooldown": 1
     },
     "scanner_night": {
         "bbox": {
@@ -165,7 +167,9 @@
         "sacbo_max_age_hours": 7,
         "opensky_error_threshold": 5,
         "opensky_error_window_min": 15,
-        "opensky_log_lines": 500
+        "opensky_log_lines": 500,
+        "adsb_lol_error_threshold": 10,
+        "adsb_lol_error_window_min": 15
     },
     "quality_check": {
         "enabled": true,

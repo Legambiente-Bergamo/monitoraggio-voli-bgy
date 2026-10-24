@@ -1,3 +1,4 @@
+__version__ = "1.6.1"
 """
 bgy_core/bgy_export_web.py - Esportazione dati aggregati per il web (F17).
 Versione 1.6.1

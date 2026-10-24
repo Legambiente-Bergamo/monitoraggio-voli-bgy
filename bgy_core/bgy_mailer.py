@@ -1,6 +1,12 @@
 """
 bgy_core/bgy_mailer.py - Modulo unificato di invio email.
-Versione 2.8.2
+Versione 2.8.3
+
+Novità v2.8.3 (MAIL-06, 23/10/2026):
+- _format_nightly_section() ora mostra due blocchi separati:
+  'Scheduled (allineato al sito)' e 'Radar-only (diagnostica)'.
+  Il totale generale è mostrato a parte.
+  Questo risolve la divergenza tra i numeri della mail e quelli del sito.
 
 Novità v2.8.2 (MAIL-05, 19/10/2026):
 - Nuova funzione send_h24_alert(): alert dedicato quando
@@ -467,6 +473,12 @@ def _format_nightly_section(nightly, yesterday_str, night_import_failed):
     if not nightly:
         return ""
 
+    sched = nightly.get('scheduled', {})
+    ro = nightly.get('radar_only', {})
+    
+    if not sched and not ro:
+        return ""
+
     lines = []
 
     if night_import_failed:
@@ -476,27 +488,62 @@ def _format_nightly_section(nightly, yesterday_str, night_import_failed):
         lines.append("")
 
     lines.append(f"🌙 MOVIMENTI DELLA NOTTE ({yesterday_str})")
+    
+    # Sezione Scheduled
+    sched_tot = sched.get('totale', 0)
+    if sched_tot > 0:
+        lines.append("   Scheduled (allineato al sito):")
+        for cat_key, cat_label in (
+            ("passeggeri", "Passeggeri"),
+            ("cargo", "Cargo"),
+            ("charter", "Charter"),
+            ("non_classificato", "Non classificato"),
+        ):
+            cat = sched.get(cat_key, {})
+            d = cat.get("decolli", 0)
+            a = cat.get("atterraggi", 0)
+            t = cat.get("totale", 0)
+            if t > 0:
+                lines.append(f"     • {cat_label}:")
+                lines.append(f"       - Decolli:    {d:>3}")
+                lines.append(f"       - Atterraggi: {a:>3}")
+                lines.append(f"       - Sub-totale: {t:>3}")
+        lines.append("     ─────────────────────")
+        lines.append(f"     SUB-TOTALE SCHEDULED: {sched_tot}")
+        lines.append("")
 
-    for cat_key, cat_label in (
-        ("passeggeri", "Passeggeri"),
-        ("cargo", "Cargo"),
-        ("charter", "Charter"),
-        ("non_classificato", "Non classificato"),
-    ):
-        cat = nightly.get(cat_key, {})
-        d = cat.get("decolli", 0)
-        a = cat.get("atterraggi", 0)
-        t = cat.get("totale", 0)
-        lines.append(f"   {cat_label}:")
-        lines.append(f"     • Decolli:    {d:>3}")
-        lines.append(f"     • Atterraggi: {a:>3}")
-        lines.append(f"     • Sub-totale: {t:>3}")
+    # Sezione Radar-only
+    ro_tot = ro.get('totale', 0)
+    if ro_tot > 0:
+        lines.append("   Radar-only (non dichiarati, solo diagnostica):")
+        for cat_key, cat_label in (
+            ("passeggeri", "Passeggeri"),
+            ("cargo", "Cargo"),
+            ("charter", "Charter"),
+            ("non_classificato", "Non classificato"),
+        ):
+            cat = ro.get(cat_key, {})
+            d = cat.get("decolli", 0)
+            a = cat.get("atterraggi", 0)
+            t = cat.get("totale", 0)
+            if t > 0:
+                lines.append(f"     • {cat_label}:")
+                lines.append(f"       - Decolli:    {d:>3}")
+                lines.append(f"       - Atterraggi: {a:>3}")
+                lines.append(f"       - Sub-totale: {t:>3}")
+        lines.append("     ─────────────────────")
+        lines.append(f"     SUB-TOTALE RADAR-ONLY: {ro_tot}")
+        lines.append("")
 
-    lines.append("   ─────────────────────")
-    lines.append(f"   TOTALE NOTTE: {nightly.get('totale', 0)}")
+    # Totale complessivo
+    totale_rilevato = sched_tot + ro_tot
+    lines.append(f"   TOTALE RILEVATO: {totale_rilevato}")
+    lines.append("   ℹ️ I radar-only non sono conteggiati nei KPI ufficiali.")
+    lines.append("      Se superano il 50% degli scheduled, verificare acquisizione SACBO/Avionio.")
     lines.append("")
 
-    sconf = nightly.get("sconfinamenti", {})
+    # Sconfinamenti (solo scheduled)
+    sconf = sched.get("sconfinamenti", {})
     sconf_tot = sconf.get("totale", 0)
     if sconf_tot > 0:
         lines.append("🚨 SCONFINAMENTI")
@@ -514,7 +561,7 @@ def _format_nightly_section(nightly, yesterday_str, night_import_failed):
         lines.append(f"   TOTALE SCONFINAMENTI: {sconf_tot}")
         lines.append("")
 
-    sconf_gravi = nightly.get("sconfinamenti_gravi", {})
+    sconf_gravi = sched.get("sconfinamenti_gravi", {})
     sconf_gravi_tot = sconf_gravi.get("totale", 0)
     if sconf_gravi_tot > 0:
         lines.append("🚨🚨 SCONFINAMENTI GRAVI")
@@ -532,7 +579,7 @@ def _format_nightly_section(nightly, yesterday_str, night_import_failed):
         lines.append(f"   TOTALE GRAVI: {sconf_gravi_tot}")
         lines.append("")
 
-    anomalie = nightly.get("anomalie", {})
+    anomalie = sched.get("anomalie", {})
     anom_tot = anomalie.get("totale", 0)
     if anom_tot > 0:
         lines.append("⚠️  ANOMALIE NOTTURNE")
