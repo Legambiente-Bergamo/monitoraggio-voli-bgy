@@ -248,7 +248,7 @@ def check_opensky():
             except (ValueError, IndexError): continue
             if ts >= cutoff: errors_429 += 1
         if errors_429 >= threshold:
-            _send_alert("opensky_429", finestra_min=window_min, errori=errors_429, soglia=threshold)
+            _send_alert("opensky_429", finestra_min=window_min, errori=errors_429, soglia=threshold, intervallo=int(cfg.get("night_scan_interval_seconds", 5)))
             return False, f"Rilevati {errors_429} errori 429 OpenSky negli ultimi {window_min} min"
         return True, f"Errori 429 OpenSky recenti ({window_min}min): {errors_429} (sotto soglia)"
     except Exception as e: return False, f"Errore check OpenSky: {e}"

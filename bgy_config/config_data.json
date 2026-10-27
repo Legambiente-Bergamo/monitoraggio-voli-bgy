@@ -317,6 +317,10 @@
             "runway": {
                 "show_global": false,
                 "extra": "La pista utilizzata è dedotta dai rilevamenti radar ADS-B, non dichiarata da SACBO (che non la pubblica). Per ogni movimento, il sistema cerca il record radar più affidabile e ne deduce la pista.\n\n**Come viene assegnata (dal più al meno affidabile)**\n\n• **Radar diretto** — il radar vede l'aereo con un tracciato allineato a una pista (70-120° per RWY 10, 250-300° per RWY 28) entro 7 km. È il caso più affidabile.\n\n• **Propagazione** — se il radar ha visto l'aereo in un punto della traccia con pista valida, quella pista viene propagata a tutti i record dello stesso callsign e direzione. Usato quando il radar \"becca\" l'aereo già virato.\n\n• **Fallback geometrico** — tracciato tra 70-170° (→ RWY 10) o 190-290° (→ RWY 28) tra 2 e 5 km. Meno preciso, ma sufficiente per la statistica.\n\n• **N/D (non determinato)** — nessun record valido. Il sistema dichiara l'incertezza invece di inventare una pista (principio: \"meglio N/D che falso\").\n\n**Cosa NON è**\n\n• Non è la pista dichiarata da SACBO (SACBO non la pubblica).\n• Non è una misura fisica diretta.\n• Non è validata con dati ARPA o METAR.\n\n**Limiti noti**\n\n• Aerei senza ADS-B attivo → N/D.\n• Buco di copertura della rete di ricezione → N/D.\n• Tracciato ambiguo (perpendicolare alla pista) → N/D.\n• La soglia di 7 km è empirica (RADAR-14c, 21/10/2026).\n\nVedi anche: pagina \"Fonti e Metodo\" (in preparazione, WEB-21)."
+            },
+            "anticipi": {
+                "show_global": true,
+                "extra": "Questa pagina mostra i voli operati **in anticipo** rispetto all'orario schedulato. Un anticipo è considerato significativo se pari o superiore a 15 minuti (franchigia). I voli operati tra -5 e -14 minuti sono considerati puntuali. I voli in anticipo estremo (oltre 180 minuti) sono esclusi dal calcolo in quanto probabili errori di schedulazione del tabellone SACBO. Le medie e le percentuali sono calcolate sul totale dei movimenti del periodo selezionato."
             }
         }
     }

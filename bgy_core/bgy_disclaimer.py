@@ -40,7 +40,7 @@ WEB_OUTPUT_DIR = os.path.join(DATA_DIR, "bgy_output", "bgy_web")
 DISCLAIMER_OUTPUT_FILE = os.path.join(WEB_OUTPUT_DIR, "bgy-disclaimer.csv")
 DISCLAIMER_PREFIX = "# BGY Monitoring Suite - DISCLAIMER - dati JSON sotto questa riga\n"
 
-PAGES_KNOWN = ("night", "delays", "airports", "noise")
+PAGES_KNOWN = ("night", "delays", "airports", "noise", "runway", "anticipi")
 
 
 def _cfg_disclaimers():
