@@ -3,7 +3,7 @@ bgy_scheduler.py - Pianificatore ed Orchestratore automatico.
 Versione 2.8.14
 
 Novità v2.8.14 (20/10/2026):
-- Radar misto: 20 secondi di notte, 2 minuti di giorno.
+- Radar misto: 5 secondi di notte, 2 minuti di giorno.
   Il job viene schedulato ogni 20 secondi, ma job_radar_scan() 
   salta l'esecuzione di giorno se non sono passati almeno 120 secondi.
 

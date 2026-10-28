@@ -67,6 +67,24 @@ HIDDEN_FROM_PROBLEMS = {'avionio_confronto'}
 # FLAG DI SILENZIAMENTO
 # =============================================================================
 
+
+def _get_disclaimer_text_for_email() -> str:
+    """Recupera il disclaimer globale da config_data.json > disclaimers > global."""
+    try:
+        from bgy_core.bgy_config_manager import config_manager
+        cfg = config_manager.get_data_config()
+        d = cfg.get("disclaimers", {}).get("global", {})
+        title = d.get("title", "DATI IN FASE DI VERIFICA")
+        body = d.get("body", "")
+        min_date = cfg.get("web_export", {}).get("min_date", "")
+        if min_date:
+            body = body.replace("{min_date}", str(min_date))
+        return f"**{title}**\n\n{body}" if body else ""
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Disclaimer non disponibile: {e}")
+        return ""
+
 def _notifications_config():
     try:
         cfg = config_manager.get_data_config()
@@ -1046,6 +1064,12 @@ def send_email_with_attachments(attachment_paths, subject=None,
         subject = f"📊 Report BGY - {datetime.now().strftime('%d/%m/%Y')}"
     if body is None:
         body = "In allegato i report richiesti."
+
+    # T10: aggiunge il disclaimer alla mail mensile
+    if recipient_type == "monthly":
+        disclaimer = _get_disclaimer_text_for_email()
+        if disclaimer:
+            body = f"{body}\n\n---\n\n{disclaimer}"
 
     return send_status_email(
         subject, body, is_success,
