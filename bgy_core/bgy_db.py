@@ -1,15 +1,17 @@
 ﻿"""
 bgy_core/bgy_db.py - Modulo di accesso al database PostgreSQL.
-Versione 2.12.2
+Versione 2.13.0
+
+Novita v2.13.0 (28/10/2026, LOGIC-01):
+- Aggiunta colonna logic_version a nightly_reports.
+- Aggiunta ALTER TABLE per aggiornare DB esistenti.
+- Aggiunta logic_version alla vista v_h24_report.
+- SCHEMA_VERSION portato a 9.
 
 Novita v2.12.2 (21/10/2026, DATA-32 hotfix 2):
 - Aggiunto DROP VIEW IF EXISTS prima delle CREATE OR REPLACE VIEW per
   v_daily_report e v_h24_report. CREATE OR REPLACE non permette di
   aggiungere colonne in mezzo alla vista.
-
-Novita v2.12.1 (21/10/2026, DATA-32 hotfix):
-- Aggiunti ALTER TABLE ... ADD COLUMN IF NOT EXISTS pista_fonte per
-  nightly_reports e h24_reports prima della creazione delle viste.
 """
 import os
 import sys
@@ -21,7 +23,7 @@ from bgy_core.bgy_config_manager import config_manager
 
 logger = get_logger("DB")
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 SCHEMA_SQL = """
 -- Tabella di versioning dello schema
@@ -152,6 +154,7 @@ CREATE TABLE IF NOT EXISTS nightly_reports (
     matched_score INTEGER,
     stima_passeggeri INTEGER,
     stima_rumore_db INTEGER,
+    logic_version VARCHAR(20),
     imported_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_nightly_data ON nightly_reports (data_riferimento);
@@ -204,6 +207,10 @@ CREATE INDEX IF NOT EXISTS idx_h24_callsign ON h24_reports (callsign);
 ALTER TABLE nightly_reports ADD COLUMN IF NOT EXISTS pista_fonte VARCHAR(20);
 ALTER TABLE h24_reports ADD COLUMN IF NOT EXISTS pista_fonte VARCHAR(20);
 
+-- v2.13.0 (LOGIC-01): aggiunta colonna logic_version su DB esistenti
+ALTER TABLE nightly_reports ADD COLUMN IF NOT EXISTS logic_version VARCHAR(20);
+ALTER TABLE h24_reports ADD COLUMN IF NOT EXISTS logic_version VARCHAR(20);
+
 -- v2.12.2: Drop esplicito delle viste per permettere l'aggiunta di colonne
 DROP VIEW IF EXISTS v_h24_report;
 DROP VIEW IF EXISTS v_daily_report;
@@ -248,6 +255,7 @@ SELECT
     icao24,
     stima_passeggeri,
     stima_rumore_db,
+    logic_version,
     EXTRACT(HOUR FROM timestamp)::int AS ora_effettiva
 FROM h24_reports;
 """
@@ -321,7 +329,7 @@ def apply_schema():
             cur.execute(SCHEMA_SQL)
             cur.execute(
                 "INSERT INTO schema_version (version, note) VALUES (%s, %s) ON CONFLICT (version) DO NOTHING",
-                (SCHEMA_VERSION, "Schema BGY Monitoring Suite 2.12 (DATA-32: pista_fonte)")
+                (SCHEMA_VERSION, "Schema BGY Monitoring Suite 2.13 (LOGIC-01: logic_version)")
             )
         conn.commit()
         return True, f"Schema v{SCHEMA_VERSION} applicato"

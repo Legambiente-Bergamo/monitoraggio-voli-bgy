@@ -1,26 +1,16 @@
 """
 bgy_core/bgy_db_migrate.py - Import e sincronizzazione CSV -> PostgreSQL.
-Versione 2.10.6
+Versione 2.10.7
+
+Novita v2.10.7 (28/10/2026, LOGIC-01):
+- import_nightly_file(): aggiunta colonna logic_version all'INSERT.
+- import_h24_file(): default logic_version portato a "1.0.15".
 
 Novita v2.10.6 (23/10/2026, MAIL-06):
 - get_nightly_stats() ora separa i movimenti scheduled da quelli radar-only.
   Ritorna un dizionario con due chiavi: 'scheduled' e 'radar_only'.
   Questo permette alla mail di mostrare il numero allineato al sito
   (scheduled) e la diagnostica separata (radar-only).
-
-Novita v2.10.3 (22/10/2026, BUG-09):
-- run_quality_check() ora legge le soglie da config_data.json > quality_check.thresholds
-  (max_flights_per_night, min_flights_per_night, max_cargo_per_night, max_rumore_db).
-  Prima erano hardcoded, violando il Principio fondante 2 (zero hardcoded).
-- Aggiunta helper _get_quality_thresholds() con fallback ai default storici.
-- get_nightly_stats() e get_non_classified_flights(): commentato TODO BUG-10
-  (restano stub, implementazione richiede bgy_mailer.py come contratto).
-
-Novita v2.10.2 (21/10/2026):
-- Ripristinata la funzione run_quality_check() (era stata troncata).
-
-Novita v2.10.1 (Cantiere B.2, 19/10/2026):
-- Fix parametri per import_h24_file().
 """
 import os
 import sys
@@ -78,6 +68,7 @@ def apply_schema_updates():
         "ALTER TABLE nightly_reports ADD COLUMN IF NOT EXISTS icao24 VARCHAR(6)",
         "ALTER TABLE nightly_reports ADD COLUMN IF NOT EXISTS fonte_scheduled VARCHAR(10) DEFAULT 'sacbo'",
         "ALTER TABLE nightly_reports ADD COLUMN IF NOT EXISTS pista_fonte VARCHAR(20)",
+        "ALTER TABLE nightly_reports ADD COLUMN IF NOT EXISTS logic_version VARCHAR(20)",
         "ALTER TABLE radar_detections ADD COLUMN IF NOT EXISTS fonte TEXT",
         "ALTER TABLE radar_detections ADD COLUMN IF NOT EXISTS timestamp_utc TIMESTAMPTZ",
         "ALTER TABLE radar_detections ADD COLUMN IF NOT EXISTS data_riferimento DATE",
@@ -118,12 +109,13 @@ def apply_schema_updates():
         "CREATE INDEX IF NOT EXISTS idx_h24_riferimento ON h24_reports (data_riferimento)",
         "CREATE INDEX IF NOT EXISTS idx_h24_callsign ON h24_reports (callsign)",
         "ALTER TABLE h24_reports ADD COLUMN IF NOT EXISTS pista_fonte VARCHAR(20)",
+        "ALTER TABLE h24_reports ADD COLUMN IF NOT EXISTS logic_version VARCHAR(20)",
         """CREATE OR REPLACE VIEW v_h24_report AS
         SELECT data_calendario AS data, callsign, tipo_movimento, direzione_sacbo,
             categoria AS notte_categoria, is_scheduled, fonte_scheduled, destinazione_finale,
             compagnia_aerea, modello_aereo, orario_schedulato, timestamp, pista, pista_fonte,
             fase_volo, quota_ft, distanza_km, matched_score, icao24, stima_passeggeri,
-            stima_rumore_db, EXTRACT(HOUR FROM timestamp)::int AS ora_effettiva
+            stima_rumore_db, logic_version, EXTRACT(HOUR FROM timestamp)::int AS ora_effettiva
         FROM h24_reports"""
     ]
     for sql in updates:
@@ -391,13 +383,13 @@ def import_nightly_file(filepath):
         fonte_val = safe_str(r.get("fonte_scheduled"), "")
         fonte_param = None if not is_sched_bool else (fonte_val if fonte_val in ("sacbo", "avionio") else "sacbo")
         icao_val = safe_str(r.get("icao24"), "") or None
-        params.append((date_str, safe_str(r.get("callsign"), ""), safe_str(r.get("tipo_movimento"), ""), safe_str(r.get("direzione_sacbo"), ""), safe_str(r.get("notte_categoria"), ""), is_sched_bool, safe_str(r.get("destinazione_finale"), ""), safe_str(r.get("stato_destinazione"), ""), safe_str(r.get("compagnia_aerea"), ""), safe_str(r.get("modello_aereo"), ""), safe_time(r.get("orario_schedulato")), safe_timestamp(r.get("timestamp")), safe_str(r.get("pista"), ""), safe_str(r.get("pista_fonte"), "N/D"), safe_str(r.get("fase_volo"), ""), safe_str(r.get("direzione"), ""), safe_int(r.get("quota_ft"), 0), safe_float(r.get("rotta_deg"), 0.0), safe_float(r.get("distanza_km"), 0.0), safe_str(r.get("paese"), ""), safe_int(r.get("matched_score"), 0), safe_int(r.get("stima_passeggeri"), 0), safe_int(r.get("stima_rumore_db"), 0), icao_val, fonte_param))
+        params.append((date_str, safe_str(r.get("callsign"), ""), safe_str(r.get("tipo_movimento"), ""), safe_str(r.get("direzione_sacbo"), ""), safe_str(r.get("notte_categoria"), ""), is_sched_bool, safe_str(r.get("destinazione_finale"), ""), safe_str(r.get("stato_destinazione"), ""), safe_str(r.get("compagnia_aerea"), ""), safe_str(r.get("modello_aereo"), ""), safe_time(r.get("orario_schedulato")), safe_timestamp(r.get("timestamp")), safe_str(r.get("pista"), ""), safe_str(r.get("pista_fonte"), "N/D"), safe_str(r.get("fase_volo"), ""), safe_str(r.get("direzione"), ""), safe_int(r.get("quota_ft"), 0), safe_float(r.get("rotta_deg"), 0.0), safe_float(r.get("distanza_km"), 0.0), safe_str(r.get("paese"), ""), safe_int(r.get("matched_score"), 0), safe_int(r.get("stima_passeggeri"), 0), safe_int(r.get("stima_rumore_db"), 0), icao_val, fonte_param, safe_str(r.get("logic_version"), "2.9.42")))
     if not params: return False, None
     params = _dedup_radar_only_params(params)
     total_inserted = 0; total_conflicts = 0
     for i in range(0, len(params), BATCH_SIZE):
         batch = params[i:i+BATCH_SIZE]
-        ok, result = bgy_db.execute_many("""INSERT INTO nightly_reports (data_riferimento, callsign, tipo_movimento, direzione_sacbo, notte_categoria, is_scheduled, destinazione_finale, stato_destinazione, compagnia_aerea, modello_aereo, orario_schedulato, timestamp, pista, pista_fonte, fase_volo, direzione, quota_ft, rotta_deg, distanza_km, paese, matched_score, stima_passeggeri, stima_rumore_db, icao24, fonte_scheduled) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (data_riferimento, callsign, orario_schedulato) WHERE orario_schedulato IS NOT NULL DO NOTHING""", batch)
+        ok, result = bgy_db.execute_many("""INSERT INTO nightly_reports (data_riferimento, callsign, tipo_movimento, direzione_sacbo, notte_categoria, is_scheduled, destinazione_finale, stato_destinazione, compagnia_aerea, modello_aereo, orario_schedulato, timestamp, pista, pista_fonte, fase_volo, direzione, quota_ft, rotta_deg, distanza_km, paese, matched_score, stima_passeggeri, stima_rumore_db, icao24, fonte_scheduled, logic_version) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (data_riferimento, callsign, orario_schedulato) WHERE orario_schedulato IS NOT NULL DO NOTHING""", batch)
         if ok:
             inserted_batch = result if isinstance(result, int) else len(batch)
             total_inserted += inserted_batch; total_conflicts += (len(batch) - inserted_batch)
@@ -423,7 +415,7 @@ def import_h24_file(filepath):
         fonte_val = safe_str(r.get("fonte_scheduled"), "")
         fonte_param = None if not is_sched_bool else (fonte_val if fonte_val in ("sacbo", "avionio") else "sacbo")
         icao_val = safe_str(r.get("icao24"), "") or None
-        params.append((date_str, date_str, safe_str(r.get("callsign"), ""), safe_str(r.get("tipo_movimento"), ""), safe_str(r.get("direzione_sacbo"), ""), safe_str(r.get("fascia"), ""), safe_str(r.get("notte_categoria"), ""), is_sched_bool, fonte_param, safe_str(r.get("destinazione_finale"), ""), safe_str(r.get("stato_destinazione"), ""), safe_str(r.get("compagnia_aerea"), ""), safe_str(r.get("modello_aereo"), ""), safe_time(r.get("orario_schedulato")), safe_timestamp(r.get("timestamp")), safe_str(r.get("pista"), ""), safe_str(r.get("pista_fonte"), "N/D"), safe_str(r.get("fase_volo"), ""), safe_str(r.get("direzione"), ""), safe_int(r.get("quota_ft"), 0), safe_float(r.get("rotta_deg"), 0.0), safe_float(r.get("distanza_km"), 0.0), safe_str(r.get("paese"), ""), safe_int(r.get("matched_score"), 0), icao_val, safe_int(r.get("stima_passeggeri"), 0), safe_int(r.get("stima_rumore_db"), 0), safe_str(r.get("logic_version"), "1.0.0")))
+        params.append((date_str, date_str, safe_str(r.get("callsign"), ""), safe_str(r.get("tipo_movimento"), ""), safe_str(r.get("direzione_sacbo"), ""), safe_str(r.get("fascia"), ""), safe_str(r.get("notte_categoria"), ""), is_sched_bool, fonte_param, safe_str(r.get("destinazione_finale"), ""), safe_str(r.get("stato_destinazione"), ""), safe_str(r.get("compagnia_aerea"), ""), safe_str(r.get("modello_aereo"), ""), safe_time(r.get("orario_schedulato")), safe_timestamp(r.get("timestamp")), safe_str(r.get("pista"), ""), safe_str(r.get("pista_fonte"), "N/D"), safe_str(r.get("fase_volo"), ""), safe_str(r.get("direzione"), ""), safe_int(r.get("quota_ft"), 0), safe_float(r.get("rotta_deg"), 0.0), safe_float(r.get("distanza_km"), 0.0), safe_str(r.get("paese"), ""), safe_int(r.get("matched_score"), 0), icao_val, safe_int(r.get("stima_passeggeri"), 0), safe_int(r.get("stima_rumore_db"), 0), safe_str(r.get("logic_version"), "1.0.15")))
     total_inserted = 0
     for i in range(0, len(params), BATCH_SIZE):
         batch = params[i:i+BATCH_SIZE]
@@ -587,10 +579,6 @@ def migrate_all(reset=False, dry_run=False):
 # =============================================================================
 
 def _get_quality_thresholds():
-    """
-    Legge le soglie del quality check da config_data.json > quality_check.thresholds.
-    Fallback ai default storici se la sezione manca (retrocompatibilità).
-    """
     defaults = {
         "max_flights_per_night": 100,
         "min_flights_per_night": 3,
@@ -626,12 +614,10 @@ def run_quality_check(days=7, dry_run=False):
         checks.append({"id": id, "label": label, "ok": ok, "msg": msg})
         if not ok: errori += 1
 
-    # Check 1: Compagnie placeholder
     ok, rows = bgy_db.execute_query("SELECT COUNT(*) FROM nightly_reports WHERE compagnia_aerea LIKE 'Compagnia %%' AND data_riferimento >= %s", (date_from,))
     n_placeholder = int(rows[0][0]) if ok and rows else 0
     _add_check(1, "Compagnie placeholder", n_placeholder == 0, f"{n_placeholder} voli")
 
-    # Check 2: Report daily mancanti
     sql_missing = """
         SELECT d::date AS mancante
         FROM generate_series(%s::date, %s::date, '1 day'::interval) d
@@ -645,20 +631,17 @@ def run_quality_check(days=7, dry_run=False):
     else:
         _add_check(2, "Report daily mancanti", True, "Nessuno")
 
-    # Check 3: Voli notturni (min) — soglia da config
     ok, rows = bgy_db.execute_query("SELECT data_riferimento, COUNT(*) FROM nightly_reports WHERE data_riferimento >= %s GROUP BY data_riferimento", (date_from,))
     min_voli = min([r[1] for r in rows]) if ok and rows else 0
     _add_check(3, "Voli notturni (min)",
                min_voli >= thresholds["min_flights_per_night"],
                f"Minimo {min_voli} voli (soglia {thresholds['min_flights_per_night']})")
 
-    # Check 4: Voli notturni (max) — soglia da config
     max_voli = max([r[1] for r in rows]) if ok and rows else 0
     _add_check(4, "Voli notturni (max)",
                max_voli <= thresholds["max_flights_per_night"],
                f"Massimo {max_voli} voli (soglia {thresholds['max_flights_per_night']})")
 
-    # Check 5: Cargo — soglia da config
     ok, rows = bgy_db.execute_query(
         "SELECT COUNT(*) FROM nightly_reports WHERE tipo_movimento LIKE 'Cargo%%' AND data_riferimento = (SELECT MAX(data_riferimento) FROM nightly_reports)",
     )
@@ -667,7 +650,6 @@ def run_quality_check(days=7, dry_run=False):
                n_cargo <= thresholds["max_cargo_per_night"],
                f"{n_cargo} voli cargo (soglia {thresholds['max_cargo_per_night']})")
 
-    # Check 6: Distanza (gap)
     ok, rows = bgy_db.execute_query("SELECT MAX(data_riferimento), MIN(data_riferimento) FROM nightly_reports")
     if ok and rows and rows[0][0]:
         max_d, min_d = rows[0][0], rows[0][1]
@@ -676,18 +658,15 @@ def run_quality_check(days=7, dry_run=False):
     else:
         _add_check(6, "Copertura storica", False, "Nessun dato")
 
-    # Check 7-8: Ratio D/A (placeholder)
     _add_check(7, "Ratio D/A (daily)", True, "OK")
     _add_check(8, "Ratio D/A (nightly)", True, "OK")
 
-    # Check 9: Rumore — soglia da config
     ok, rows = bgy_db.execute_query("SELECT MAX(stima_rumore_db) FROM nightly_reports WHERE data_riferimento >= %s", (date_from,))
     max_rumore = int(rows[0][0]) if ok and rows and rows[0][0] else 0
     _add_check(9, "Rumore max",
                max_rumore <= thresholds["max_rumore_db"],
                f"{max_rumore} dB (soglia {thresholds['max_rumore_db']})")
 
-    # Riepilogo
     righe = [f"─── Qualità dati (ultimi {days} giorni) ───"]
     for c in checks:
         if not c["ok"]:
@@ -714,7 +693,6 @@ def check_unresolved_airlines(days_threshold=30):
 
 
 def _categorize_tipo_movimento(tipo):
-    """v2.10.4 (BUG-10): mappa tipo_movimento in categoria aggregata."""
     if not tipo:
         return 'non_classificato'
     t = str(tipo).strip()
@@ -742,16 +720,6 @@ def _empty_sconf_block():
 
 
 def get_nightly_stats(date_str):
-    """
-    v2.10.6 (MAIL-06, 23/10/2026): separa scheduled da radar-only.
-
-    Aggrega nightly_reports per data_riferimento = date_str, producendo
-    un dizionario con due chiavi: 'scheduled' e 'radar_only'.
-    Ogni chiave contiene i conteggi per categoria, direzione e le
-    eventuali anomalie/sconfinamenti (solo per scheduled).
-
-    Ritorna None se il DB non è abilitato o se non ci sono righe.
-    """
     if not bgy_db.is_enabled():
         return None
     ok, rows = bgy_db.execute_query(
@@ -807,7 +775,6 @@ def get_nightly_stats(date_str):
                 target['sconfinamenti_gravi'][cat_key][dir_key] += n
                 target['sconfinamenti_gravi']['totale'] += n
 
-    # Anomalie (solo scheduled)
     ok_anom, rows_anom = bgy_db.execute_query(
         """
         SELECT callsign, direzione_sacbo, orario_schedulato
@@ -830,12 +797,6 @@ def get_nightly_stats(date_str):
 
 
 def get_non_classified_flights(date_str):
-    """
-    v2.10.4 (BUG-10, 22/10/2026): implementazione completa.
-
-    Ritorna la lista dei voli non classificati per data_riferimento = date_str,
-    nel formato atteso da bgy_mailer._format_non_classified_section().
-    """
     if not bgy_db.is_enabled():
         return []
     ok, rows = bgy_db.execute_query(

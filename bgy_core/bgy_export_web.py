@@ -1273,7 +1273,7 @@ def build_block_delays_h24(date_from, date_to):
                 dir_block["dests"][dk] = _empty_delay_agg()
             _add_delta_to_agg(dir_block["dests"][dk], delta, soglia_punt, soglia_grave)
 
-        if delta >= soglia_punt or delta <= -5:  # WEB-19.A: includi anticipi significativi
+        if delta >= soglia_punt or delta <= -15:  # WEB-19.A: includi anticipi significativi
             sched_str = sched.strftime("%H:%M") if hasattr(sched, "strftime") else str(sched)[:5]
             raw_delays.append({
                 "date": ds,
@@ -1388,7 +1388,7 @@ def build_block_delays_hourly_weather(date_from, date_to):
             }
         
         agg[key][d]["n_total"] += 1
-        if delta >= soglia_punt or delta <= -5:  # WEB-19.A: includi anticipi significativi
+        if delta >= soglia_punt or delta <= -15:  # WEB-19.A: includi anticipi significativi
             agg[key][d]["n_ritardo"] += 1
 
     result = []

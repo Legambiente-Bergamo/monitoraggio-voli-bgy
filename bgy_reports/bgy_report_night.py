@@ -1301,8 +1301,10 @@ def generate_nightly_report(date_str=None):
     result_df = _sort_report_chronologically(result_df, date_norm)
     
     os.makedirs(OUTPUT_CSV_DIR, exist_ok=True)
+    result_df['logic_version'] = "2.9.42"
+
     out_path = os.path.join(OUTPUT_CSV_DIR, report_nightly_filename(date_norm))
-    final_columns = ['callsign', 'tipo_movimento', 'direzione_sacbo', 'notte_categoria', 'is_scheduled', 'fonte_scheduled', 'destinazione_finale', 'stato_destinazione', 'compagnia_aerea', 'modello_aereo', 'orario_schedulato', 'timestamp', 'pista', 'pista_fonte', 'fase_volo', 'direzione', 'quota_ft', 'rotta_deg', 'distanza_km', 'paese', 'matched_score', 'icao24', 'stima_passeggeri', 'stima_rumore_db']
+    final_columns = ['callsign', 'tipo_movimento', 'direzione_sacbo', 'notte_categoria', 'is_scheduled', 'fonte_scheduled', 'destinazione_finale', 'stato_destinazione', 'compagnia_aerea', 'modello_aereo', 'orario_schedulato', 'timestamp', 'pista', 'pista_fonte', 'fase_volo', 'direzione', 'quota_ft', 'rotta_deg', 'distanza_km', 'paese', 'matched_score', 'icao24', 'stima_passeggeri', 'stima_rumore_db', 'logic_version']
     for col in final_columns:
         if col not in result_df.columns: result_df[col] = ''
     result_df[final_columns].to_csv(out_path, index=False, encoding='utf-8-sig')
