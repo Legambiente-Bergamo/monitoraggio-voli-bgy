@@ -39,9 +39,9 @@ def calculate_delay_status(sched, eff):
             diff += 1440
         elif diff > wrap:
             diff -= 1440
-        if diff > delay_th:
+        if diff >= delay_th:
             return diff, f"Ritardo (+{diff} min)"
-        elif diff < early_th:
+        elif diff <= early_th:
             return diff, f"In Anticipo ({diff} min)"
         else:
             return diff, "In Orario"

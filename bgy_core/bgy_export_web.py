@@ -1132,7 +1132,7 @@ def _add_delta_to_agg(agg, delta, soglia_punt, soglia_grave):
     agg["sum_delta"] += delta
     if abs(delta) <= soglia_punt:
         agg["n_puntuali"] += 1
-    if delta > soglia_punt:
+    if delta >= soglia_punt:
         agg["n_ritardo"] += 1
         agg["sum_delta_ritardi"] += delta
         agg["deltas_ritardi"].append(delta)
@@ -1142,7 +1142,7 @@ def _add_delta_to_agg(agg, delta, soglia_punt, soglia_grave):
             agg["ritardi_max"] = delta
     if delta > soglia_grave:
         agg["n_grave"] += 1
-    if delta < -soglia_punt:
+    if delta <= -soglia_punt:
         agg["n_anticipo"] += 1
 
 
