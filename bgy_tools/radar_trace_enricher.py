@@ -1,12 +1,11 @@
-"""
+﻿"""
 bgy_tools/radar_trace_enricher.py - Arricchimento piste tramite tracce radar locali.
-Versione 1.0.0
+Versione 1.1.0
 
-Novita v1.0.0 (20/10/2026):
-- Legge il report notturno e i file radar locali.
-- Per i voli con pista N/D e icao24 valido, cerca il punto a bassa quota
-  e deduce la pista dal track (70-120 -> RWY 10, 250-300 -> RWY 28).
-- Sovrascrive il CSV del report notturno con i dati aggiornati.
+Novita v1.1.0 (30/10/2026, FIX-PISTE):
+- Corregge le piste propagate erroneamente basandosi sulla rotta reale (rotta_deg).
+- Include i voli con pista_fonte = 'propagato' tra quelli da verificare, non solo N/D.
+- Se un decollo vira (track 110-245), la pista viene corretta in RWY 10.
 """
 import os
 import pandas as pd
@@ -18,7 +17,6 @@ logger = get_logger("TraceEnricher")
 
 def _get_radar_data(date_str):
     date_norm = normalize_date(date_str)
-    # Convertiamo in datetime per gestire il giorno prima e dopo
     from datetime import datetime, timedelta
     dt = datetime.strptime(date_norm, "%Y-%m-%d")
     prev_date = (dt - timedelta(days=1)).strftime("%Y-%m-%d")
@@ -48,10 +46,6 @@ def _get_radar_data(date_str):
     return combined
 
 def enrich_runways(date_str):
-    """
-    Arricchisce il report notturno per la data specificata.
-    Ritorna (ok, msg).
-    """
     date_norm = normalize_date(date_str)
     report_path = os.path.join(OUTPUT_CSV_DIR, f"report_nightly_{date_norm}.csv")
     
@@ -65,45 +59,51 @@ def enrich_runways(date_str):
     except Exception as e:
         return False, f"Errore lettura report: {e}"
 
-    # Filtriamo i voli con pista N/D e icao24 valido
-    mask_nd = (
-        (df_report['pista'].isna() | (df_report['pista'].astype(str).str.strip().isin(['', 'N/D', 'nan']))) &
+    if 'pista_fonte' not in df_report.columns:
+        df_report['pista_fonte'] = 'N/D'
+    df_report['pista_fonte'] = df_report['pista_fonte'].fillna('N/D').astype(str)
+
+    # Filtriamo i voli con pista N/D OPPURE propagata erroneamente
+    mask_target = (
+        (
+            df_report['pista'].isna() | 
+            df_report['pista'].astype(str).str.strip().isin(['', 'N/D', 'nan']) |
+            (df_report['pista_fonte'].str.lower().str.strip() == 'propagato')
+        ) &
         (df_report['icao24'].notna()) & 
         (df_report['icao24'].astype(str).str.strip() != '')
     )
     
-    voli_nd = df_report[mask_nd].copy()
+    voli_target = df_report[mask_target].copy()
     
-    if voli_nd.empty:
-        logger.info("✅ Nessun volo N/D con icao24 da arricchire.")
+    if voli_target.empty:
+        logger.info("✅ Nessun volo N/D o propagato da arricchire.")
         return True, "Nessun volo da arricchire"
 
-    logger.info(f"Trovati {len(voli_nd)} voli N/D con icao24 valido. Carico tracce radar...")
+    logger.info(f"Trovati {len(voli_target)} voli da verificare (N/D o propagati). Carico tracce radar...")
     
     df_radar = _get_radar_data(date_norm)
     if df_radar.empty:
         logger.warning("⚠️ Nessun file radar trovato per questa sessione.")
         return False, "Nessun file radar trovato"
 
-    successi = 0
     modificati = 0
+    verificati = 0
     
-    # Data di riferimento per filtrare la sessione notturna
     data_target = pd.to_datetime(date_norm).date()
     data_prec = data_target - pd.Timedelta(days=1)
 
-    for idx, volo in voli_nd.iterrows():
+    for idx, volo in voli_target.iterrows():
         icao = str(volo['icao24']).lower().strip()
         cs = volo.get('callsign', '?')
         direzione = str(volo.get('direzione_sacbo', '')).upper()
+        pista_attuale = str(volo.get('pista', 'N/D')).strip()
         
-        # Filtriamo la traccia di questo aereo
         traccia = df_radar[df_radar['icao24'].astype(str).str.lower() == icao].copy()
         
         if traccia.empty:
             continue
             
-        # Filtriamo per la sessione notturna (dalle 20:00 del giorno prima alle 10:00 del giorno stesso)
         traccia = traccia[
             ((traccia['timestamp'].dt.date == data_target) & (traccia['timestamp'].dt.hour <= 10)) |
             ((traccia['timestamp'].dt.date == data_prec) & (traccia['timestamp'].dt.hour >= 20))
@@ -113,36 +113,50 @@ def enrich_runways(date_str):
             continue
             
         traccia = traccia.sort_values('timestamp')
-        punti_bassi = traccia[traccia['quota_ft'] <= 2000]
+        punti_bassi = traccia[traccia['quota_ft'].notna() & (traccia['quota_ft'] <= 3000)]
         
         if punti_bassi.empty:
             continue
             
-        # Per i decolli prendiamo il primo punto a bassa quota, per gli atterraggi l'ultimo
         if direzione == 'D':
             punto_contatto = punti_bassi.iloc[0]
         else:
             punto_contatto = punti_bassi.iloc[-1]
             
         track = punto_contatto['rotta_deg']
+        if pd.isna(track):
+            continue
         
+        verificati += 1
         pista_dedotta = None
+        
+        # 1. Deduzione diretta
         if 70 <= track <= 120:
             pista_dedotta = "RWY 10"
         elif 250 <= track <= 300:
             pista_dedotta = "RWY 28"
+        # 2. Gestione virata post-decollo o pre-atterraggio
+        elif 110 < track < 200 or 200 < track < 250:
+            if direzione == 'D':
+                pista_dedotta = "RWY 10" # Decollo che vira: solitamente da pista 10
+            elif direzione == 'A':
+                pista_dedotta = "RWY 10" if track < 180 else "RWY 28"
             
         if pista_dedotta:
-            df_report.at[idx, 'pista'] = pista_dedotta
-            successi += 1
-            logger.info(f"  ✅ {cs} ({direzione}): pista dedotta {pista_dedotta} (track {track:.1f}°, quota {punto_contatto['quota_ft']} ft)")
-            modificati += 1
+            if pista_attuale != pista_dedotta:
+                df_report.at[idx, 'pista'] = pista_dedotta
+                df_report.at[idx, 'pista_fonte'] = 'geometrico'
+                logger.info(f"  ✅ {cs} ({direzione}): corretta da {pista_attuale} a {pista_dedotta} (track {track:.1f}°)")
+                modificati += 1
+            else:
+                if df_report.at[idx, 'pista_fonte'].lower() == 'propagato':
+                    df_report.at[idx, 'pista_fonte'] = 'radar_diretto'
+                    modificati += 1
 
     if modificati > 0:
-        # Salvataggio
         df_report.to_csv(report_path, index=False, encoding='utf-8-sig')
-        logger.info(f"💾 Report aggiornato salvato: {report_path} ({modificati} piste arricchite)")
-        return True, f"Arricchiti {modificati} voli"
+        logger.info(f"💾 Report aggiornato salvato: {report_path} ({modificati} piste corrette)")
+        return True, f"Corrette {modificati} piste"
     else:
-        logger.info("Nessun volo è stato arricchito (tracce assenti o track ambigui).")
-        return True, "Nessun volo arricchito"
+        logger.info(f"Nessuna pista da correggere (verificati {verificati} voli).")
+        return True, "Nessuna pista corretta"
