@@ -1,6 +1,6 @@
-"""
+﻿"""
 bgy_scanners/bgy_scanner_day.py - Scanner diurno per il tabellone SACBO.
-Versione 2.6.1
+Versione 2.7.0
 
 Novità v2.6.1 (11/10/2026, INFRA-06):
 - Parametro headless letto da config_data.json > scanner_day.headless
@@ -86,6 +86,8 @@ _scan_status = {
     "fonte_scan": "sacbo",
     "fallback_attivato": False,
     "messaggio": "",
+    "cumulative_path": None,
+    "cumulative_rows": 0
 }
 
 
@@ -102,6 +104,8 @@ def _reset_scan_status(is_recovery=False, recovered_slot=None):
     _scan_status["recovered_slot"] = recovered_slot
     _scan_status["fonte_scan"] = "sacbo"
     _scan_status["fallback_attivato"] = False
+    _scan_status["cumulative_path"] = None
+    _scan_status["cumulative_rows"] = 0
     _scan_status["messaggio"] = (
         f"Recupero scansione {recovered_slot} in corso"
         if is_recovery else "Scansione avviata"
@@ -605,6 +609,48 @@ def _componi_messaggio_finale(n_d, n_a):
         return f"Nessun decollo estratto (D={n_d}, A={n_a}): possibile modifica al tabellone"
     return f"{prefix} OK ({n_d} D + {n_a} A)"
 
+
+
+# =============================================================================
+# LOGICA CUMULATIVA (v2.7.0)
+# =============================================================================
+
+def _cumulative_filename(date_norm):
+    return os.path.join(RAW_DIR, f"scan_{date_norm}_daily.csv")
+
+def _merge_with_cumulative(new_df, date_norm):
+    cumulative_file = _cumulative_filename(date_norm)
+    existing_df = pd.DataFrame()
+    if os.path.exists(cumulative_file):
+        try:
+            existing_df = pd.read_csv(cumulative_file, encoding="utf-8-sig", dtype=str)
+            logger.info(f"📂 Cumulativo esistente: {len(existing_df)} voli")
+        except Exception as e:
+            logger.warning(f"Errore lettura cumulativo: {e}")
+    if existing_df.empty and new_df.empty:
+        return pd.DataFrame(), 0
+    combined = pd.concat([existing_df, new_df], ignore_index=True)
+    combined["callsign_volo"] = combined["callsign_volo"].fillna("").astype(str)
+    combined["orario_schedulato"] = combined["orario_schedulato"].fillna("").astype(str)
+    combined["tipo_movimento"] = combined["tipo_movimento"].fillna("").astype(str)
+    combined["_priority"] = combined["orario_effettivo"].fillna("").astype(str).apply(lambda x: 1 if x and x != "nan" and x != "" else 0)
+    combined = combined.sort_values("_priority", ascending=False)
+    combined = combined.drop_duplicates(subset=["callsign_volo", "orario_schedulato", "tipo_movimento"], keep="first")
+    combined = combined.drop(columns=["_priority"])
+    combined = combined.sort_values(["tipo_movimento", "orario_schedulato"]).reset_index(drop=True)
+    n_added = len(combined) - len(existing_df)
+    return combined, n_added
+
+def _save_cumulative(df, date_norm):
+    cumulative_file = _cumulative_filename(date_norm)
+    try:
+        os.makedirs(RAW_DIR, exist_ok=True)
+        df.to_csv(cumulative_file, index=False, encoding="utf-8-sig")
+        logger.info(f"💾 Cumulativo salvato: {cumulative_file} ({len(df)} voli)")
+        return cumulative_file
+    except Exception as e:
+        logger.error(f"❌ Errore salvataggio cumulativo: {e}")
+        return None
 
 def run_scan(is_recovery=False, recovered_slot=None):
     """

@@ -1,6 +1,6 @@
-"""
+﻿"""
 bgy_core/bgy_db_migrate.py - Import e sincronizzazione CSV -> PostgreSQL.
-Versione 2.10.7
+Versione 2.11.0
 
 Novita v2.10.7 (28/10/2026, LOGIC-01):
 - import_nightly_file(): aggiunta colonna logic_version all'INSERT.
@@ -484,19 +484,28 @@ def list_files_for_date(date_str):
     if os.path.isdir(RAW_DIR):
         for f in sorted(os.listdir(RAW_DIR)):
             full = os.path.join(RAW_DIR, f)
-            if not f.endswith(".csv"): continue
-            if f.startswith("scan_") and _date_matches(f, date_str): scan_files.append(full)
-            elif (f.startswith("radar_") or f.startswith("bgy_night_flights_")) and _date_matches(f, date_str): radar_files.append(full)
+            if not f.endswith(".csv"):
+                continue
+            if f.startswith("scan_") and _date_matches(f, date_str):
+                scan_files.append(full)
+            elif (f.startswith("radar_") or f.startswith("bgy_night_flights_")) and _date_matches(f, date_str):
+                radar_files.append(full)
+    # v2.11.0: i file cumulativi (_daily) hanno precedenza sui timestampati
+    scan_files.sort(key=lambda p: (0 if "_daily" in os.path.basename(p) else 1, p))
+
     meteo_files, nightly_files, h24_files = [], [], []
     if os.path.isdir(OUTPUT_CSV_DIR):
         for f in sorted(os.listdir(OUTPUT_CSV_DIR)):
             full = os.path.join(OUTPUT_CSV_DIR, f)
-            if not f.endswith(".csv"): continue
-            if f.startswith("meteo_") and _date_matches(f, date_str): meteo_files.append(full)
-            elif f.startswith("report_nightly_") and _date_matches(f, date_str): nightly_files.append(full)
-            elif f.startswith("report_h24_") and _date_matches(f, date_str): h24_files.append(full)
+            if not f.endswith(".csv"):
+                continue
+            if f.startswith("meteo_") and _date_matches(f, date_str):
+                meteo_files.append(full)
+            elif f.startswith("report_nightly_") and _date_matches(f, date_str):
+                nightly_files.append(full)
+            elif f.startswith("report_h24_") and _date_matches(f, date_str):
+                h24_files.append(full)
     return {"scans": scan_files, "radar": radar_files, "meteo": meteo_files, "nightly": nightly_files, "h24": h24_files}
-
 
 def sync_date(date_str, force=False):
     global _FORCE_REIMPORT

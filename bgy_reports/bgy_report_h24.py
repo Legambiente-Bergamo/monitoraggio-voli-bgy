@@ -54,6 +54,7 @@ SCHED_DEDUP_TOLERANCE_MIN = 15
 ICAO24_UNKNOWN_DEDUP_MIN = 5
 
 SAME_DETECTION_MAX_SEC = 120
+SCHED_CLUSTER_TOLERANCE_MIN = 30
 
 VALID_RUNWAYS = ('RWY 28', 'RWY 10')
 BGY_PHASES = ('Atterraggio', 'Decollo', 'Avvicinamento', 'Incerto')
@@ -957,36 +958,93 @@ def _sort_report_chronologically(df, date_str):
 
 def load_scheduled_flights_h24(date_str, radar_df=None):
     date_norm = normalize_date(date_str)
-    scan_files = [f for f in os.listdir(RAW_DIR) if f.startswith(f"scan_{date_norm}_") and f.endswith(".csv")] if os.path.isdir(RAW_DIR) else []
+    scan_files = [f for f in os.listdir(RAW_DIR)
+                  if f.startswith(f"scan_{date_norm}_") and f.endswith(".csv")] if os.path.isdir(RAW_DIR) else []
     scan_files.sort()
+
+    # 1. Raccogli TUTTI i record, indicizzati per (callsign, orario)
     flights = defaultdict(list)
     for f in scan_files:
         filepath = os.path.join(RAW_DIR, f)
         scan_time = _extract_scan_time(f)
-        if not scan_time: continue
+        if not scan_time:
+            continue
         try:
-            df = pd.read_csv(filepath); df = normalize_scan_columns(df)
+            df = pd.read_csv(filepath)
+            df = normalize_scan_columns(df)
             for _, row in df.iterrows():
                 sched_raw = row.get('orario_schedulato')
-                if not sched_raw: continue
-                cs_norm = _normalize_callsign(row.get('callsign_volo', '')); sched_norm = _normalize_hhmm(sched_raw)
-                if not cs_norm or not sched_norm: continue
+                if not sched_raw:
+                    continue
+                cs_norm = _normalize_callsign(row.get('callsign_volo', ''))
+                sched_norm = _normalize_hhmm(sched_raw)
+                if not cs_norm or not sched_norm:
+                    continue
                 flights[(cs_norm, sched_norm)].append({
-                    'scan_time': scan_time, 'callsign_volo': cs_norm, 'orario_schedulato': sched_norm,
-                    'orario_effettivo': row.get('orario_effettivo'), 'stato_volo': row.get('stato_volo'),
-                    'tipo_movimento': row.get('tipo_movimento'), 'destinazione_origine': row.get('destinazione_origine'),
+                    'scan_time': scan_time,
+                    'callsign_volo': cs_norm,
+                    'orario_schedulato': sched_norm,
+                    'orario_effettivo': row.get('orario_effettivo'),
+                    'stato_volo': row.get('stato_volo'),
+                    'tipo_movimento': row.get('tipo_movimento'),
+                    'destinazione_origine': row.get('destinazione_origine'),
                 })
-        except: pass
-    for key in flights: flights[key].sort(key=lambda r: _scan_time_to_order_h24(r['scan_time']))
-    scheduled = []
+        except Exception:
+            pass
+
+    # 2. Per ogni (callsign, orario), tieni la scansione piu' recente
+    #    (comportamento identico al codice originale)
+    latest_by_key = {}
     for key, records in flights.items():
-        row_dict = records[-1].copy(); row_dict.pop('scan_time', None)
+        records.sort(key=lambda r: _scan_time_to_order_h24(r['scan_time']))
+        latest_by_key[key] = records[-1]
+
+    # 3. Raggruppa per (callsign, destinazione)
+    def _dest_key(rec):
+        return (str(rec.get('destinazione_origine') or '').strip().upper())
+
+    by_flight = defaultdict(list)
+    for (cs, _sched), rec in latest_by_key.items():
+        by_flight[(cs, _dest_key(rec))].append(rec)
+
+    # 4. Clusterizza per vicinanza temporale (complete linkage:
+    #    un record entra nel cluster solo se e' entro la tolleranza
+    #    da TUTTI i record gia' nel cluster). Per ogni cluster tieni
+    #    la voce della scansione piu' VECCHIA (orario originale).
+    scheduled = []
+    for (cs, dest), records in by_flight.items():
+        records.sort(key=lambda r: _time_to_minutes(r['orario_schedulato']) or 0)
+        clusters = []
+        for rec in records:
+            sched_min = _time_to_minutes(rec['orario_schedulato'])
+            if sched_min is None:
+                scheduled.append(rec)
+                continue
+            placed = False
+            for cluster in clusters:
+                if all(abs(sched_min - (_time_to_minutes(m['orario_schedulato']) or 0))
+                       <= SCHED_CLUSTER_TOLERANCE_MIN for m in cluster):
+                    cluster.append(rec)
+                    placed = True
+                    break
+            if not placed:
+                clusters.append([rec])
+        for cluster in clusters:
+            best = min(cluster, key=lambda r: _scan_time_to_order_h24(r['scan_time']))
+            scheduled.append(best)
+
+    # 5. Prepara il DataFrame finale
+    result = []
+    for row_dict in scheduled:
+        row_dict = row_dict.copy()
+        row_dict.pop('scan_time', None)
         row_dict['direzione_sacbo'] = str(row_dict.get('tipo_movimento', '')).strip().upper()[:1]
-        row_dict['notte_categoria'] = ''; row_dict.pop('tipo_movimento', None); row_dict['fonte_scheduled'] = 'sacbo'
-        scheduled.append(row_dict)
-    return pd.DataFrame(scheduled) if scheduled else pd.DataFrame()
+        row_dict['notte_categoria'] = ''
+        row_dict.pop('tipo_movimento', None)
+        row_dict['fonte_scheduled'] = 'sacbo'
+        result.append(row_dict)
 
-
+    return pd.DataFrame(result) if result else pd.DataFrame()
 def load_avionio_scheduled_h24(date_str):
     date_norm = normalize_date(date_str)
     ok, rows = bgy_db.execute_query("""
@@ -1048,12 +1106,12 @@ def load_radar_data_h24(date_str):
 def generate_h24_report(date_str=None):
     load_rules()
     date_norm = normalize_date(date_str) if date_str else datetime.now().strftime("%Y-%m-%d")
-    logger.info(f"🌞 Avvio report h24 per {date_norm}")
+    logger.info(f"ðŸŒž Avvio report h24 per {date_norm}")
     radar_df = load_radar_data_h24(date_norm)
     sacbo_df = load_scheduled_flights_h24(date_norm, radar_df=radar_df)
     avionio_df = load_avionio_scheduled_h24(date_norm)
     scheduled_df = merge_scheduled_sources(sacbo_df, avionio_df)
-    logger.info(f"📋 Scheduled totali: {len(scheduled_df)} (SACBO {len(sacbo_df)}, Avionio {len(avionio_df)})")
+    logger.info(f"ðŸ“‹ Scheduled totali: {len(scheduled_df)} (SACBO {len(sacbo_df)}, Avionio {len(avionio_df)})")
 
     result_df = match_flights_h24(scheduled_df, radar_df, date_norm)
     result_df, n_esclusi = _filter_excluded_callsigns(result_df)
@@ -1082,7 +1140,7 @@ def generate_h24_report(date_str=None):
     for col in final_columns:
         if col not in result_df.columns: result_df[col] = ''
     result_df[final_columns].to_csv(out_path, index=False, encoding='utf-8-sig')
-    msg = f"✅ Report H24: {len(result_df)} voli (esclusi {n_esclusi}, dedup sched {n_dedup_sched}, dedup icao {n_dedup_icao24})"
+    msg = f"âœ… Report H24: {len(result_df)} voli (esclusi {n_esclusi}, dedup sched {n_dedup_sched}, dedup icao {n_dedup_icao24})"
     logger.info(msg)
     return out_path, msg
 
@@ -1090,4 +1148,4 @@ def generate_h24_report(date_str=None):
 if __name__ == "__main__":
     path, msg = generate_h24_report()
     print(msg)
-    if path: print(f"📁 File: {path}")
+    if path: print(f"ðŸ“ File: {path}")
