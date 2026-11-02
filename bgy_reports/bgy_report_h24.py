@@ -1,4 +1,4 @@
-"""
+﻿"""
 bgy_reports/bgy_report_h24.py - Report H24 integrato (SACBO + Avionio + radar).
 Versione 1.0.15
 
@@ -50,7 +50,7 @@ RADAR_DEDUP_WINDOW_MIN = 15
 ICAO24_DEDUP_NEAR_MIN = 15
 ICAO24_DEDUP_SAMEDIR_MIN = 120
 
-SCHED_DEDUP_TOLERANCE_MIN = 15
+SCHED_DEDUP_TOLERANCE_MIN = 60
 ICAO24_UNKNOWN_DEDUP_MIN = 5
 
 SAME_DETECTION_MAX_SEC = 120
@@ -962,7 +962,6 @@ def load_scheduled_flights_h24(date_str, radar_df=None):
                   if f.startswith(f"scan_{date_norm}_") and f.endswith(".csv")] if os.path.isdir(RAW_DIR) else []
     scan_files.sort()
 
-    # 1. Raccogli TUTTI i record, indicizzati per (callsign, orario)
     flights = defaultdict(list)
     for f in scan_files:
         filepath = os.path.join(RAW_DIR, f)
@@ -992,14 +991,11 @@ def load_scheduled_flights_h24(date_str, radar_df=None):
         except Exception:
             pass
 
-    # 2. Per ogni (callsign, orario), tieni la scansione piu' recente
-    #    (comportamento identico al codice originale)
     latest_by_key = {}
     for key, records in flights.items():
         records.sort(key=lambda r: _scan_time_to_order_h24(r['scan_time']))
         latest_by_key[key] = records[-1]
 
-    # 3. Raggruppa per (callsign, destinazione)
     def _dest_key(rec):
         return (str(rec.get('destinazione_origine') or '').strip().upper())
 
@@ -1007,10 +1003,6 @@ def load_scheduled_flights_h24(date_str, radar_df=None):
     for (cs, _sched), rec in latest_by_key.items():
         by_flight[(cs, _dest_key(rec))].append(rec)
 
-    # 4. Clusterizza per vicinanza temporale (complete linkage:
-    #    un record entra nel cluster solo se e' entro la tolleranza
-    #    da TUTTI i record gia' nel cluster). Per ogni cluster tieni
-    #    la voce della scansione piu' VECCHIA (orario originale).
     scheduled = []
     for (cs, dest), records in by_flight.items():
         records.sort(key=lambda r: _time_to_minutes(r['orario_schedulato']) or 0)
@@ -1033,7 +1025,6 @@ def load_scheduled_flights_h24(date_str, radar_df=None):
             best = min(cluster, key=lambda r: _scan_time_to_order_h24(r['scan_time']))
             scheduled.append(best)
 
-    # 5. Prepara il DataFrame finale
     result = []
     for row_dict in scheduled:
         row_dict = row_dict.copy()
@@ -1045,6 +1036,39 @@ def load_scheduled_flights_h24(date_str, radar_df=None):
         result.append(row_dict)
 
     return pd.DataFrame(result) if result else pd.DataFrame()
+
+def _normalize_avionio_callsign(cs):
+    """Normalizza callsign Avionio: FRA1234 -> FR1234, FRF1234 -> FR1234."""
+    if not cs: return cs
+    s = _normalize_callsign(cs)
+    if len(s) > 3 and s[:3] in ("FRA", "FRF") and s[3].isdigit():
+        return "FR" + s[3:]
+    return s
+
+
+def _dedup_avionio_internal(df, tolerance_min=30):
+    """Rimuove duplicati interni Avionio: stesso (callsign, direzione) con orari entro tolerance_min."""
+    if df.empty or 'orario_schedulato' not in df.columns:
+        return df
+    df = df.copy()
+    df['_cs'] = df['callsign_volo'].apply(_normalize_callsign)
+    df['_sched_min'] = df['orario_schedulato'].apply(_time_to_minutes)
+    df['_dir'] = df['direzione_sacbo'].fillna('').astype(str).str.strip().str.upper()
+    df['_orig_order'] = range(len(df))
+    df = df.sort_values(['_cs', '_dir', '_sched_min'])
+    keep = []
+    for (cs, dir_), group in df.groupby(['_cs', '_dir'], sort=False):
+        last_min = None
+        for idx, row in group.iterrows():
+            m = row['_sched_min']
+            if m is None:
+                keep.append(row['_orig_order']); continue
+            if last_min is None or abs(m - last_min) > tolerance_min:
+                keep.append(row['_orig_order']); last_min = m
+    return df[df['_orig_order'].isin(keep)].sort_values('_orig_order').drop(
+        columns=['_cs', '_sched_min', '_dir', '_orig_order']).reset_index(drop=True)
+
+
 def load_avionio_scheduled_h24(date_str):
     date_norm = normalize_date(date_str)
     ok, rows = bgy_db.execute_query("""
@@ -1058,7 +1082,7 @@ def load_avionio_scheduled_h24(date_str):
     if not ok: return pd.DataFrame()
     filtered = []
     for r in rows:
-        cs_norm = _normalize_callsign(r[0]); sched_norm = _normalize_hhmm(r[2])
+        cs_norm = _normalize_avionio_callsign(r[0]); sched_norm = _normalize_hhmm(r[2])
         if not cs_norm or not sched_norm: continue
         direzione = str(r[1] or '').strip().upper()[:1]
         if direzione not in ('A', 'D'): continue
@@ -1103,6 +1127,62 @@ def load_radar_data_h24(date_str):
     return fill_unknown_runways_geometric(propagate_runway_in_session(combined))
 
 
+def _drop_unmatched_when_matched_exists(df):
+    """Se per lo stesso (callsign, destinazione, direzione) esiste una riga
+    con radar e una senza, ma sono vicine nel tempo (<= 60 min),
+    rimuove quella senza radar. Se sono lontane, sono voli distinti."""
+    if df.empty or 'matched_score' not in df.columns:
+        return df, 0
+    df = df.copy()
+    sched_mask = (df['is_scheduled'] == True)
+    if not sched_mask.any():
+        return df, 0
+    df_sched = df[sched_mask].copy()
+    df_other = df[~sched_mask].copy()
+    df_sched['_cs_norm'] = df_sched['callsign'].apply(_normalize_callsign)
+    df_sched['_dest_norm'] = df_sched['destinazione_finale'].fillna('').astype(str).str.strip().str.upper()
+    df_sched['_dir_norm'] = df_sched['direzione_sacbo'].fillna('').astype(str).str.strip().str.upper()
+    df_sched['_has_radar'] = df_sched['matched_score'].apply(
+        lambda x: 1 if pd.notna(x) and float(x) > 0 else 0)
+    
+    drop_idx = []
+    for (cs, dest, dir_), group in df_sched.groupby(['_cs_norm', '_dest_norm', '_dir_norm']):
+        if not cs or len(group) < 2:
+            continue
+            
+        with_radar = group[group['_has_radar'] == 1]
+        without_radar = group[group['_has_radar'] == 0]
+        
+        if with_radar.empty or without_radar.empty:
+            continue
+            
+        for idx, row in without_radar.iterrows():
+            m1 = _time_to_minutes(row.get('orario_schedulato'))
+            if m1 is None:
+                continue
+                
+            drop = False
+            for _, r_row in with_radar.iterrows():
+                m2 = _time_to_minutes(r_row.get('orario_schedulato'))
+                if m2 is None:
+                    continue
+                delta = abs(m1 - m2)
+                if delta > 720:
+                    delta = 1440 - delta
+                if delta <= 60:  # Tolleranza 60 minuti
+                    drop = True
+                    break
+            if drop:
+                drop_idx.append(idx)
+                
+    df_sched = df_sched.drop(columns=['_cs_norm', '_dest_norm', '_dir_norm', '_has_radar'])
+    if drop_idx:
+        df_sched = df_sched.drop(index=drop_idx)
+    result = pd.concat([df_sched, df_other], ignore_index=True)
+    return result, len(drop_idx)
+
+
+
 def generate_h24_report(date_str=None):
     load_rules()
     date_norm = normalize_date(date_str) if date_str else datetime.now().strftime("%Y-%m-%d")
@@ -1110,6 +1190,7 @@ def generate_h24_report(date_str=None):
     radar_df = load_radar_data_h24(date_norm)
     sacbo_df = load_scheduled_flights_h24(date_norm, radar_df=radar_df)
     avionio_df = load_avionio_scheduled_h24(date_norm)
+    avionio_df = _dedup_avionio_internal(avionio_df, tolerance_min=30)
     scheduled_df = merge_scheduled_sources(sacbo_df, avionio_df)
     logger.info(f"ðŸ“‹ Scheduled totali: {len(scheduled_df)} (SACBO {len(sacbo_df)}, Avionio {len(avionio_df)})")
 
@@ -1117,6 +1198,7 @@ def generate_h24_report(date_str=None):
     result_df, n_esclusi = _filter_excluded_callsigns(result_df)
     if result_df.empty: return None, f"Nessun dato per {date_norm}"
 
+    result_df, n_drop_unmatched = _drop_unmatched_when_matched_exists(result_df)
     result_df, n_dedup_sched = _dedup_scheduled_same_icao24(result_df)
     result_df, n_dedup_icao24 = _dedup_radar_only_via_icao24(result_df, date_norm)
     result_df = _dedup_by_key(result_df)
