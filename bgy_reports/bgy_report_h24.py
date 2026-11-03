@@ -482,10 +482,24 @@ def _dedup_unknown_via_icao24(radar_df, date_str=None):
     return radar_df if not drop_idx else df.drop(index=list(drop_idx)).reset_index(drop=True)
 
 
+
+def _normalize_callsign_for_dedup(cs):
+    """Normalizza callsign per il confronto cross-source rimuovendo gli zeri iniziali.
+    Es. FR076 -> FR76, VF061 -> VF61"""
+    cs_norm = _normalize_callsign(cs)
+    if not cs_norm:
+        return cs_norm
+    # Cerca una o più lettere all'inizio, seguite da zeri, seguite da numeri
+    m = re.match(r'^([A-Z]+)0+(\d+)$', cs_norm)
+    if m:
+        return m.group(1) + m.group(2)
+    return cs_norm
+
+
 def _dedup_scheduled_soft_cross_source(df):
     if df.empty or 'fonte_scheduled' not in df.columns or 'direzione_sacbo' not in df.columns or 'callsign' not in df.columns: return df
     df = df.copy()
-    df['_cs_norm'] = df['callsign'].apply(_normalize_callsign)
+    df['_cs_norm'] = df['callsign'].apply(_normalize_callsign_for_dedup)
     df['_sched_min'] = df['orario_schedulato'].apply(_time_to_minutes)
     df['_dir_norm'] = df['direzione_sacbo'].fillna('').astype(str).str.strip().str.upper()
     df['_fonte_norm'] = df['fonte_scheduled'].fillna('').astype(str).str.strip().str.lower()
@@ -1102,7 +1116,7 @@ def merge_scheduled_sources(sacbo_df, avionio_df):
     if avionio_df.empty:
         sacbo = sacbo_df.copy(); sacbo['fonte_scheduled'] = 'sacbo'; return sacbo
     sacbo = sacbo_df.copy(); sacbo['fonte_scheduled'] = 'sacbo'
-    sacbo_keys = set((_normalize_callsign(r.get('callsign_volo', '')), _normalize_hhmm(r.get('orario_schedulato', ''))) for _, r in sacbo.iterrows() if _normalize_callsign(r.get('callsign_volo', '')) and _normalize_hhmm(r.get('orario_schedulato', '')))
+    sacbo_keys = set((_normalize_callsign_for_dedup(r.get('callsign_volo', '')), _normalize_hhmm(r.get('orario_schedulato', ''))) for _, r in sacbo.iterrows() if _normalize_callsign_for_dedup(r.get('callsign_volo', '')) and _normalize_hhmm(r.get('orario_schedulato', '')))
     avionio_extra_rows = [r.to_dict() for _, r in avionio_df.iterrows() if _normalize_callsign(r.get('callsign_volo', '')) and _normalize_hhmm(r.get('orario_schedulato', '')) and (_normalize_callsign(r.get('callsign_volo', '')), _normalize_hhmm(r.get('orario_schedulato', ''))) not in sacbo_keys]
     return pd.concat([sacbo, pd.DataFrame(avionio_extra_rows)], ignore_index=True) if avionio_extra_rows else sacbo
 
