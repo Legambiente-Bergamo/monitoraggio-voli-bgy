@@ -1,24 +1,8 @@
-﻿"""
-bgy_core/bgy_export_web.py - Esportazione dati aggregati per il web (F17).
-Versione 1.4.0
-
-Novita v1.4.0 (02/11/2026):
-- Inserito blocco 'block_home_summary' con calcolo dinamico e automatico 
-  dei totali (totals) e della scomposizione h24 per la Home Page.
-
-Novita v1.3.0 (08/10/2026):
-- Nuovo blocco ritardi h24 per la pagina "BGY - Ritardi H24".
-- Nuovo file separato bgy-delays.csv (Opzione B).
-- Nuove funzioni: build_block_delays_h24, build_delays_json,
-  save_delays_json, export_delays_and_publish, _get_delays_config.
-- CLI: flag --publish-delays.
-- Zero hardcoded: soglie, top N, disclaimer da config_data.json > web_export > delays.
-
-Uso:
-    py -3.12 -m bgy_core.bgy_export_web --days 90 --dry-run
-    py -3.12 -m bgy_core.bgy_export_web --days 90 --publish
-    py -3.12 -m bgy_core.bgy_export_web --days 90 --publish-delays
 """
+bgy_core/bgy_export_web.py - Esportazione dati aggregati per il web (F17).
+Versione 2.3.0 (Home Summary a doppia vista H24 + notturna; guard min_date)
+"""
+__version__ = "2.3.0"
 import os
 import sys
 import json
@@ -42,6 +26,7 @@ DELAYS_PREFIX = "# BGY Monitoring Suite - RITARDI H24 - dati JSON sotto questa r
 
 MIN_DATE_DEFAULT = "2026-09-30"
 TOP_N_PER_DATE_DEFAULT = 10
+TAXI_TIME_MIN_DEFAULT = 15
 
 DELAYS_DEFAULTS = {
     "enabled": True,
@@ -49,24 +34,19 @@ DELAYS_DEFAULTS = {
     "top_destination": 30,
     "soglia_puntuale_min": 15,
     "soglia_grave_min": 60,
-    "disclaimer_message": (
-        "DATI DI PROVA NON REALI\n"
-        "Ritardi calcolati come differenza tra orario effettivo e orario "
-        "schedulato (SACBO). Decolli e atterraggi analizzati separatamente. "
-        "Voli cancellati esclusi. Soglia puntualita': 15 minuti. "
-        "Soglia ritardo grave: 60 minuti. La raccolta dati e' iniziata il "
-        "30 settembre 2026."
-    ),
+    "taxi_time_min": 15
 }
 
-DISCLAIMER_MESSAGE = (
-    "DATI DI PROVA NON REALI\n"
-    "Siamo in fase di test del sistema di monitoraggio. I dati pubblicati "
-    "sono il risultato di elaborazioni automatiche in corso di validazione "
-    "e possono contenere errori. La raccolta dei dati per i grafici e' "
-    "iniziata il 30 settembre 2026. Non e' possibile visualizzare periodi "
-    "precedenti a questa data."
-)
+GATE_DEFAULTS = {
+    "enabled": True,
+    "min_days_with_nightly": 1,
+    "min_nightly_rows": 5,
+    "min_daily_rows": 30,
+    "min_radar_recent": 50,
+    "radar_lookback_days": 2,
+    "min_h24_recent": 20,
+    "h24_lookback_days": 2
+}
 
 RUNWAY_SIDE_MAP = {"RWY 28": "Bergamo", "RWY 10": "Seriate"}
 RUNWAYS_TO_MONITOR = ["RWY 28", "RWY 10", "RWY 16", "RWY 34"]
@@ -82,10 +62,6 @@ CATS_KEYS = ["passeggeri", "cargo", "charter", "non_classificato"]
 RADAR_ONLY_KPI_CATS = ("cargo", "charter", "non_classificato")
 NIGHT_HOURS = [23, 0, 1, 2, 3, 4, 5]
 
-
-# =============================================================================
-# UTILITY
-# =============================================================================
 
 def _query(sql, params=None):
     ok, rows = bgy_db.execute_query(sql, params)
@@ -104,7 +80,7 @@ def _get_web_config():
     return {
         "min_date": cfg.get("min_date", MIN_DATE_DEFAULT),
         "top_n_per_date": int(cfg.get("top_n_per_date", TOP_N_PER_DATE_DEFAULT)),
-        "days_default": int(cfg.get("days_default", 90)),
+        "days_default": int(cfg.get("days_default", 90))
     }
 
 
@@ -121,17 +97,93 @@ def _get_delays_config():
         "top_destination": int(d.get("top_destination", DELAYS_DEFAULTS["top_destination"])),
         "soglia_puntuale_min": int(d.get("soglia_puntuale_min", DELAYS_DEFAULTS["soglia_puntuale_min"])),
         "soglia_grave_min": int(d.get("soglia_grave_min", DELAYS_DEFAULTS["soglia_grave_min"])),
-        "disclaimer_message": d.get("disclaimer_message", DELAYS_DEFAULTS["disclaimer_message"]),
+        "taxi_time_min": int(d.get("taxi_time_min", TAXI_TIME_MIN_DEFAULT))
     }
 
 
-def _wind_cardinal(deg):
-    if deg is None:
-        return None
+def _get_gate_config():
+    from bgy_core.bgy_config_manager import config_manager
     try:
-        d = float(deg) % 360
-    except (ValueError, TypeError):
-        return None
+        cfg = config_manager.get_data_config().get("web_export", {}) or {}
+        g = cfg.get("gate", {}) or {}
+    except Exception:
+        g = {}
+    return {
+        "enabled": bool(g.get("enabled", GATE_DEFAULTS["enabled"])),
+        "min_days_with_nightly": int(g.get("min_days_with_nightly", GATE_DEFAULTS["min_days_with_nightly"])),
+        "min_nightly_rows": int(g.get("min_nightly_rows", GATE_DEFAULTS["min_nightly_rows"])),
+        "min_daily_rows": int(g.get("min_daily_rows", GATE_DEFAULTS["min_daily_rows"])),
+        "min_radar_recent": int(g.get("min_radar_recent", GATE_DEFAULTS["min_radar_recent"])),
+        "radar_lookback_days": int(g.get("radar_lookback_days", GATE_DEFAULTS["radar_lookback_days"])),
+        "min_h24_recent": int(g.get("min_h24_recent", GATE_DEFAULTS["min_h24_recent"])),
+        "h24_lookback_days": int(g.get("h24_lookback_days", GATE_DEFAULTS["h24_lookback_days"]))
+    }
+
+
+def _gate_check_pre_publish():
+    cfg = _get_gate_config()
+    if not cfg["enabled"]:
+        logger.info("⏭️  Gate pre-publish disabilitato in config")
+        return True, "Gate disabilitato"
+
+    errors = []
+
+    rows = _query("SELECT COUNT(DISTINCT data_riferimento) FROM nightly_reports")
+    n_days = int(rows[0][0]) if rows and rows[0] and rows[0][0] is not None else 0
+    if n_days < cfg["min_days_with_nightly"]:
+        errors.append(f"notti con dati in DB: {n_days} (soglia {cfg['min_days_with_nightly']})")
+
+    rows = _query(
+        "SELECT COUNT(*) FROM nightly_reports "
+        "WHERE data_riferimento = (SELECT MAX(data_riferimento) FROM nightly_reports)"
+    )
+    n_nightly = int(rows[0][0]) if rows and rows[0] and rows[0][0] is not None else 0
+    if n_nightly < cfg["min_nightly_rows"]:
+        errors.append(f"voli nell'ultima notte: {n_nightly} (soglia {cfg['min_nightly_rows']})")
+
+    rows = _query(
+        "SELECT COUNT(*) FROM v_daily_report "
+        "WHERE data_riferimento = (SELECT MAX(data_riferimento) FROM v_daily_report)"
+    )
+    n_daily = int(rows[0][0]) if rows and rows[0] and rows[0][0] is not None else 0
+    if n_daily < cfg["min_daily_rows"]:
+        errors.append(f"voli diurni nell'ultimo giorno: {n_daily} (soglia {cfg['min_daily_rows']})")
+
+    lookback = cfg["radar_lookback_days"]
+    rows = _query(
+        "SELECT COUNT(*) FROM radar_detections "
+        f"WHERE data_riferimento >= (CURRENT_DATE - INTERVAL '{lookback} days')"
+    )
+    n_radar = int(rows[0][0]) if rows and rows[0] and rows[0][0] is not None else 0
+    if n_radar < cfg["min_radar_recent"]:
+        errors.append(f"rilevamenti radar ultimi {lookback}g: {n_radar} (soglia {cfg['min_radar_recent']})")
+
+    h24_lookback = cfg["h24_lookback_days"]
+    rows = _query(
+        "SELECT data_calendario, COUNT(*) FROM h24_reports "
+        f"WHERE data_calendario >= (CURRENT_DATE - INTERVAL '{h24_lookback} days') "
+        "GROUP BY data_calendario ORDER BY data_calendario DESC LIMIT 1"
+    )
+    if not rows:
+        errors.append(f"h24_reports: nessuna riga negli ultimi {h24_lookback}g")
+    else:
+        max_d, n_h24 = rows[0]
+        max_d_str = _date_str(max_d)
+        expected_d = (datetime.now().date() - timedelta(days=1)).strftime("%Y-%m-%d")
+        if max_d_str < expected_d:
+            errors.append(f"h24_reports: manca il giorno {expected_d} (ultimo: {max_d_str})")
+        if int(n_h24) < cfg["min_h24_recent"]:
+            errors.append(f"h24_reports: ultimo giorno ({max_d_str}) ha solo {n_h24} righe (soglia {cfg['min_h24_recent']})")
+
+    if errors:
+        return False, " | ".join(errors)
+    return True, "OK"
+
+
+def _wind_cardinal(deg):
+    if deg is None: return None
+    try: d = float(deg) % 360
+    except: return None
     dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
     return dirs[int((d + 22.5) // 45) % 8]
 
@@ -182,66 +234,108 @@ def _get_airline_safe(callsign):
 
 
 def _side_from_runway(runway):
-    if not runway:
-        return "N/D"
+    if not runway: return "N/D"
     return RUNWAY_SIDE_MAP.get(str(runway).strip(), "N/D")
 
 
 def _side_key(side):
-    if side == "Bergamo":
-        return "bergamo"
-    if side == "Seriate":
-        return "seriate"
+    if side == "Bergamo": return "bergamo"
+    if side == "Seriate": return "seriate"
     return "nd"
 
 
 def _normalize_direction(dir_sacbo, fase_volo):
     d = (dir_sacbo or "").strip().upper()
-    if d in ("D", "A"):
-        return d
+    if d in ("D", "A"): return d
     f = (fase_volo or "").strip()
-    if f == "Decollo":
-        return "D"
-    if f in ("Atterraggio", "Avvicinamento"):
-        return "A"
+    if f == "Decollo": return "D"
+    if f in ("Atterraggio", "Avvicinamento"): return "A"
     return "?"
 
 
 def _category_from_tipo(tipo_movimento):
     t = str(tipo_movimento or "").strip()
-    if t == "Passeggeri":
-        return "passeggeri"
-    if t.startswith("Cargo"):
-        return "cargo"
-    if t.startswith("Charter"):
-        return "charter"
-    if t == "Non classificato":
-        return "non_classificato"
+    if t == "Passeggeri": return "passeggeri"
+    if t.startswith("Cargo"): return "cargo"
+    if t.startswith("Charter"): return "charter"
+    if t == "Non classificato": return "non_classificato"
     return None
 
 
 def _session_date_for_ts(ts, fallback_date):
-    if ts is None:
-        return fallback_date
-    try:
-        dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S") if isinstance(ts, str) else ts
-    except Exception:
-        return fallback_date
-    if dt.hour >= 12:
-        return dt.strftime("%Y-%m-%d")
+    if ts is None: return fallback_date
+    try: dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S") if isinstance(ts, str) else ts
+    except Exception: return fallback_date
+    if dt.hour >= 12: return dt.strftime("%Y-%m-%d")
     return (dt - timedelta(days=1)).strftime("%Y-%m-%d")
 
 
 def _date_str(v):
-    if v is None:
-        return None
-    if hasattr(v, "strftime"):
-        return v.strftime("%Y-%m-%d")
+    if v is None: return None
+    if hasattr(v, "strftime"): return v.strftime("%Y-%m-%d")
     return str(v)
 
 
 # =============================================================================
-# BLOCCHI PAGINA NOTTURNA
+# BLOCCO HOME SUMMARY (v2.3.0 - doppia vista H24 + notturna)
+# =============================================================================
+def build_home_summary(date_from, date_to):
+    """Restituisce il breakdown per categoria dei movimenti, in due viste:
+
+    - h24     : tutti i movimenti del periodo (coerente con block_fleet → 12.008)
+    - nightly : solo movimenti della fascia notturna (23:00-05:59)
+
+    Ogni vista contiene anche il dettaglio per direzione (D/A) per categoria,
+    così l'HTML può mostrarlo se necessario.
+    """
+    def _query_breakdown(table, date_col):
+        sql = f"""
+            SELECT
+                SUM(CASE WHEN tipo_movimento = 'Passeggeri'      THEN 1 ELSE 0 END) AS pax,
+                SUM(CASE WHEN tipo_movimento LIKE 'Cargo%%'      THEN 1 ELSE 0 END) AS cargo,
+                SUM(CASE WHEN tipo_movimento LIKE 'Charter%%'    THEN 1 ELSE 0 END) AS charter,
+                SUM(CASE WHEN tipo_movimento = 'Non classificato' THEN 1 ELSE 0 END) AS altro,
+                SUM(CASE WHEN tipo_movimento = 'Passeggeri'      AND direzione_sacbo = 'D' THEN 1 ELSE 0 END) AS pax_D,
+                SUM(CASE WHEN tipo_movimento = 'Passeggeri'      AND direzione_sacbo = 'A' THEN 1 ELSE 0 END) AS pax_A,
+                SUM(CASE WHEN tipo_movimento LIKE 'Cargo%%'      AND direzione_sacbo = 'D' THEN 1 ELSE 0 END) AS cargo_D,
+                SUM(CASE WHEN tipo_movimento LIKE 'Cargo%%'      AND direzione_sacbo = 'A' THEN 1 ELSE 0 END) AS cargo_A,
+                SUM(CASE WHEN tipo_movimento LIKE 'Charter%%'    AND direzione_sacbo = 'D' THEN 1 ELSE 0 END) AS charter_D,
+                SUM(CASE WHEN tipo_movimento LIKE 'Charter%%'    AND direzione_sacbo = 'A' THEN 1 ELSE 0 END) AS charter_A,
+                SUM(CASE WHEN tipo_movimento = 'Non classificato' AND direzione_sacbo = 'D' THEN 1 ELSE 0 END) AS altro_D,
+                SUM(CASE WHEN tipo_movimento = 'Non classificato' AND direzione_sacbo = 'A' THEN 1 ELSE 0 END) AS altro_A,
+                SUM(CASE WHEN direzione_sacbo = 'D' THEN 1 ELSE 0 END) AS tot_D,
+                SUM(CASE WHEN direzione_sacbo = 'A' THEN 1 ELSE 0 END) AS tot_A
+            FROM {table}
+            WHERE {date_col} BETWEEN %s AND %s
+              AND is_scheduled = TRUE
+        """
+        rows = _query(sql, (date_from, date_to))
+        result = {
+            "pax": 0, "cargo": 0, "charter": 0, "altro": 0,
+            "pax_D": 0, "pax_A": 0,
+            "cargo_D": 0, "cargo_A": 0,
+            "charter_D": 0, "charter_A": 0,
+            "altro_D": 0, "altro_A": 0,
+            "D": 0, "A": 0, "total": 0
+        }
+        if rows and rows[0]:
+            cols = ["pax", "cargo", "charter", "altro",
+                    "pax_D", "pax_A", "cargo_D", "cargo_A",
+                    "charter_D", "charter_A", "altro_D", "altro_A",
+                    "D", "A"]
+            for i, key in enumerate(cols):
+                result[key] = int(rows[0][i] or 0)
+            result["total"] = (result["pax"] + result["cargo"]
+                               + result["charter"] + result["altro"])
+        return result
+
+    h24 = _query_breakdown("h24_reports", "data_calendario")
+    nightly = _query_breakdown("nightly_reports", "data_riferimento")
+    return {"h24": h24, "nightly": nightly}
+
+
+# =============================================================================
+# BLOCCHI NOTTURNI
 # =============================================================================
 
 def _empty_by_date_item(date_str):
@@ -251,14 +345,12 @@ def _empty_by_date_item(date_str):
         "schedulato": 0, "schedulato_D": 0, "schedulato_A": 0,
         "sconfinamenti": 0, "sconfinamenti_D": 0, "sconfinamenti_A": 0,
         "sconfinamenti_gravi": 0, "sconfinamenti_gravi_D": 0, "sconfinamenti_gravi_A": 0,
-        "anomalie": 0,
-        "D": 0, "A": 0, "D_radar": 0, "A_radar": 0,
+        "anomalie": 0, "D": 0, "A": 0, "D_radar": 0, "A_radar": 0,
         "side_bergamo": 0, "side_bergamo_D": 0, "side_bergamo_A": 0,
         "side_seriate": 0, "side_seriate_D": 0, "side_seriate_A": 0,
         "side_nd": 0, "side_nd_D": 0, "side_nd_A": 0,
-        "totale_movimenti_rilevati": 0,
-        "D_totali_rilevati": 0, "A_totali_rilevati": 0,
-        "radar_only_total": 0, "radar_only_D": 0, "radar_only_A": 0,
+        "totale_movimenti_rilevati": 0, "D_totali_rilevati": 0, "A_totali_rilevati": 0,
+        "radar_only_total": 0, "radar_only_D": 0, "radar_only_A": 0
     }
     for cat in CATS_KEYS:
         item["D_" + cat] = 0
@@ -292,7 +384,12 @@ def _fill_radar_only_derived(container):
 
 
 def build_disclaimer(min_date):
-    return {"test_phase": True, "min_date": min_date, "message": DISCLAIMER_MESSAGE}
+    from bgy_core.bgy_config_manager import config_manager
+    disclaimers = config_manager.get_data_config().get("disclaimers", {})
+    global_d = disclaimers.get("global", {})
+    title = global_d.get("title", "DATI IN FASE DI VERIFICA")
+    body = global_d.get("body", "").replace("{min_date}", min_date)
+    return {"test_phase": True, "min_date": min_date, "title": title, "message": body}
 
 
 def build_summary(date_from, date_to):
@@ -317,7 +414,7 @@ def build_summary(date_from, date_to):
         "sconfinamenti": sconf,
         "sconfinamenti_gravi": gravi,
         "sconfinamenti_totali": sconf + gravi,
-        "rumore_max_db": rumore_max,
+        "rumore_max_db": rumore_max
     }
 
 
@@ -338,9 +435,8 @@ def build_block_night_movements(date_from, date_to):
         "sconfinamenti": 0, "sconfinamenti_D": 0, "sconfinamenti_A": 0,
         "sconfinamenti_gravi": 0, "sconfinamenti_gravi_D": 0, "sconfinamenti_gravi_A": 0,
         "anomalie": 0, "D": 0, "A": 0, "D_radar": 0, "A_radar": 0,
-        "totale_movimenti_rilevati": 0,
-        "D_totali_rilevati": 0, "A_totali_rilevati": 0,
-        "radar_only_total": 0, "radar_only_D": 0, "radar_only_A": 0,
+        "totale_movimenti_rilevati": 0, "D_totali_rilevati": 0, "A_totali_rilevati": 0,
+        "radar_only_total": 0, "radar_only_D": 0, "radar_only_A": 0
     }
     for cat in CATS_KEYS:
         totals["D_" + cat] = 0
@@ -352,7 +448,7 @@ def build_block_night_movements(date_from, date_to):
     by_side_acc = {
         "bergamo": {"totale": 0, "D": 0, "A": 0},
         "seriate": {"totale": 0, "D": 0, "A": 0},
-        "nd": {"totale": 0, "D": 0, "A": 0},
+        "nd": {"totale": 0, "D": 0, "A": 0}
     }
 
     for r in rows:
@@ -372,60 +468,38 @@ def build_block_night_movements(date_from, date_to):
         cat = _category_from_tipo(tipo_mov)
 
         if is_sched is True:
-            item["a_tabellone"] += n
-            totals["a_tabellone"] += n
-            if d == "D":
-                item["D"] += n; totals["D"] += n
-            elif d == "A":
-                item["A"] += n; totals["A"] += n
-
+            item["a_tabellone"] += n; totals["a_tabellone"] += n
+            if d == "D": item["D"] += n; totals["D"] += n
+            elif d == "A": item["A"] += n; totals["A"] += n
             item["side_" + sk] += n
-            if d == "D":
-                item["side_" + sk + "_D"] += n
-            elif d == "A":
-                item["side_" + sk + "_A"] += n
+            if d == "D": item["side_" + sk + "_D"] += n
+            elif d == "A": item["side_" + sk + "_A"] += n
             by_side_acc[sk]["totale"] += n
-            if d == "D":
-                by_side_acc[sk]["D"] += n
-            elif d == "A":
-                by_side_acc[sk]["A"] += n
-
+            if d == "D": by_side_acc[sk]["D"] += n
+            elif d == "A": by_side_acc[sk]["A"] += n
             if notte_cat == "regolare":
                 item["schedulato"] += n; totals["schedulato"] += n
-                if d == "D":
-                    item["schedulato_D"] += n; totals["schedulato_D"] += n
-                elif d == "A":
-                    item["schedulato_A"] += n; totals["schedulato_A"] += n
+                if d == "D": item["schedulato_D"] += n; totals["schedulato_D"] += n
+                elif d == "A": item["schedulato_A"] += n; totals["schedulato_A"] += n
             elif notte_cat == "sconfinamento":
                 item["sconfinamenti"] += n; totals["sconfinamenti"] += n
-                if d == "D":
-                    item["sconfinamenti_D"] += n; totals["sconfinamenti_D"] += n
-                elif d == "A":
-                    item["sconfinamenti_A"] += n; totals["sconfinamenti_A"] += n
+                if d == "D": item["sconfinamenti_D"] += n; totals["sconfinamenti_D"] += n
+                elif d == "A": item["sconfinamenti_A"] += n; totals["sconfinamenti_A"] += n
             elif notte_cat == "sconfinamento_grave":
                 item["sconfinamenti_gravi"] += n; totals["sconfinamenti_gravi"] += n
-                if d == "D":
-                    item["sconfinamenti_gravi_D"] += n; totals["sconfinamenti_gravi_D"] += n
-                elif d == "A":
-                    item["sconfinamenti_gravi_A"] += n; totals["sconfinamenti_gravi_A"] += n
+                if d == "D": item["sconfinamenti_gravi_D"] += n; totals["sconfinamenti_gravi_D"] += n
+                elif d == "A": item["sconfinamenti_gravi_A"] += n; totals["sconfinamenti_gravi_A"] += n
             elif notte_cat == "anomalia":
                 item["anomalie"] += n; totals["anomalie"] += n
-
             if cat and d in ("D", "A"):
-                item[d + "_" + cat] += n
-                totals[d + "_" + cat] += n
+                item[d + "_" + cat] += n; totals[d + "_" + cat] += n
         else:
             item["solo_radar"] += n; totals["solo_radar"] += n
-            if d == "D":
-                item["D_radar"] += n; totals["D_radar"] += n
-            elif d == "A":
-                item["A_radar"] += n; totals["A_radar"] += n
-
+            if d == "D": item["D_radar"] += n; totals["D_radar"] += n
+            elif d == "A": item["A_radar"] += n; totals["A_radar"] += n
             if cat in RADAR_ONLY_KPI_CATS and d in ("D", "A"):
-                item[d + "_" + cat] += n
-                totals[d + "_" + cat] += n
-                item[d + "_" + cat + "_ro"] += n
-                totals[d + "_" + cat + "_ro"] += n
+                item[d + "_" + cat] += n; totals[d + "_" + cat] += n
+                item[d + "_" + cat + "_ro"] += n; totals[d + "_" + cat + "_ro"] += n
 
     _fill_radar_only_derived(totals)
     _fill_tab_derived(totals)
@@ -434,31 +508,7 @@ def build_block_night_movements(date_from, date_to):
         _fill_tab_derived(by_date_acc[ds])
 
     by_date = [by_date_acc[ds] for ds in sorted(by_date_acc.keys())]
-
-    logger.info(
-        f"Radar-only nel periodo (per indagine interna): "
-        f"totale={totals['radar_only_total']} "
-        f"(D={totals['radar_only_D']}, A={totals['radar_only_A']})"
-    )
-    logger.info(
-        f"Vista pubblica (solo tabellone): "
-        f"totale={totals['a_tabellone']} "
-        f"(D={totals['D']}, A={totals['A']})"
-    )
-    logger.info(
-        f"Totals dettaglio _tab: "
-        f"D_pax={totals.get('D_passeggeri_tab', 0)} "
-        f"A_pax={totals.get('A_passeggeri_tab', 0)} "
-        f"D_cargo={totals.get('D_cargo_tab', 0)} "
-        f"A_cargo={totals.get('A_cargo_tab', 0)}"
-    )
-
-    return {
-        "by_date": by_date,
-        "totals": totals,
-        "by_side": by_side_acc,
-        "by_hour": _build_by_hour(date_from, date_to),
-    }
+    return {"by_date": by_date, "totals": totals, "by_side": by_side_acc, "by_hour": _build_by_hour(date_from, date_to)}
 
 
 def build_block_night_anomalies(date_from, date_to):
@@ -479,11 +529,8 @@ def build_block_night_anomalies(date_from, date_to):
         if sched is not None:
             sched_str = sched.strftime("%H:%M") if hasattr(sched, "strftime") else str(sched)[:5]
         items.append({
-            "date": ds,
-            "callsign": r[1] or "N/D",
-            "airline": r[2] or "N/D",
-            "direction": _normalize_direction(r[3], r[4]),
-            "scheduled": sched_str,
+            "date": ds, "callsign": r[1] or "N/D", "airline": r[2] or "N/D",
+            "direction": _normalize_direction(r[3], r[4]), "scheduled": sched_str
         })
     return {"totals": len(items), "items": items}
 
@@ -492,7 +539,7 @@ def _empty_hour_slot(hour):
     return {
         "hour": hour,
         "D": {"passeggeri": 0, "cargo": 0, "charter": 0, "non_classificato": 0, "total": 0},
-        "A": {"passeggeri": 0, "cargo": 0, "charter": 0, "non_classificato": 0, "total": 0},
+        "A": {"passeggeri": 0, "cargo": 0, "charter": 0, "non_classificato": 0, "total": 0}
     }
 
 
@@ -533,11 +580,9 @@ def _build_by_hour(date_from, date_to):
     for r in rows or []:
         ds = _date_str(r[0])
         h = int(r[1]) if r[1] is not None else None
-        if h is None or h not in NIGHT_HOURS:
-            continue
+        if h is None or h not in NIGHT_HOURS: continue
         d = r[2] or '?'
-        if d not in ('D', 'A'):
-            continue
+        if d not in ('D', 'A'): continue
         day = by_date_acc.get(ds)
         if day is None:
             day = {"date": ds, "hours": {hh: _empty_hour_slot(hh) for hh in NIGHT_HOURS}}
@@ -561,10 +606,7 @@ def _build_by_hour(date_from, date_to):
                 for cat in ("passeggeri", "cargo", "charter", "non_classificato", "total"):
                     dst[cat] += src[cat]
 
-    return {
-        "by_date": by_date,
-        "totals": [totals[h] for h in NIGHT_HOURS],
-    }
+    return {"by_date": by_date, "totals": [totals[h] for h in NIGHT_HOURS]}
 
 
 def build_block_night_destinations(date_from, date_to, top_n):
@@ -618,11 +660,10 @@ def build_block_destinations_pax(date_from, date_to, top_cities=15, top_countrie
     for r in rows:
         ds = _date_str(r[0])
         direction = r[3] if r[3] in ("D", "A") else None
-        if direction is None:
-            continue
+        if direction is None: continue
         day = by_date_acc.setdefault(ds, {
             "D": {"by_city": [], "by_country_acc": {}},
-            "A": {"by_city": [], "by_country_acc": {}},
+            "A": {"by_city": [], "by_country_acc": {}}
         })
         day[direction]["by_city"].append({
             "city": r[1], "country": r[2] or "N/D", "n": int(r[4] or 0)})
@@ -639,14 +680,14 @@ def build_block_destinations_pax(date_from, date_to, top_cities=15, top_countrie
             by_country.sort(key=lambda x: -x["n"])
             item[dir_key] = {
                 "by_city": by_city[:top_cities],
-                "by_country": by_country[:top_countries],
+                "by_country": by_country[:top_countries]
             }
         by_date.append(item)
     return {
         "by_date": by_date,
         "note": ("Il grafico mostra le destinazioni dei soli voli passeggeri "
                  "dichiarati dal tabellone SACBO nel periodo selezionato. "
-                 "Partenze e arrivi sono separati. Cargo e charter sono esclusi."),
+                 "Partenze e arrivi sono separati. Cargo e charter sono esclusi.")
     }
 
 
@@ -685,18 +726,16 @@ def build_block_geo_breakdown(date_from, date_to):
     for r in rows:
         ds = _date_str(r[0])
         d = r[1] if r[1] in ("D", "A") else None
-        if d is None:
-            continue
+        if d is None: continue
         cat = _category_from_tipo(r[2])
-        if cat is None:
-            continue
+        if cat is None: continue
         country = r[3] or "DA CLASSIFICARE"
         city = r[4] or "N/D"
         n = int(r[5] or 0)
 
         day = by_date_acc.setdefault(ds, {
             "D": {"by_country_acc": {}, "by_city_acc": {}},
-            "A": {"by_country_acc": {}, "by_city_acc": {}},
+            "A": {"by_country_acc": {}, "by_city_acc": {}}
         })
         d_side = day[d]
 
@@ -720,21 +759,15 @@ def build_block_geo_breakdown(date_from, date_to):
         item = {"date": ds}
         for dir_key in ("D", "A"):
             d_side = day[dir_key]
-
             by_country = []
             for country, acc in d_side["by_country_acc"].items():
                 entry = {"country": country}
                 entry.update(acc)
                 by_country.append(entry)
             by_country.sort(key=lambda x: (-x["total"], x["country"]))
-
             by_city = list(d_side["by_city_acc"].values())
             by_city.sort(key=lambda x: (-x["total"], x["city"]))
-
-            item[dir_key] = {
-                "by_country": by_country,
-                "by_city": by_city,
-            }
+            item[dir_key] = {"by_country": by_country, "by_city": by_city}
         by_date.append(item)
 
     return {"by_date": by_date}
@@ -879,7 +912,7 @@ def _load_weather(date_from, date_to):
             "rain_mm": float(r[3]) if r[3] is not None else None,
             "wind_kmh": float(r[4]) if r[4] is not None else None,
             "wind_dir_deg": int(r[5]) if r[5] is not None else None,
-            "conditions": r[6] or "",
+            "conditions": r[6] or ""
         }
     return w
 
@@ -915,7 +948,7 @@ def build_block_night_weather(date_from, date_to):
             "wind_dir_cardinal": _wind_cardinal(wd),
             "conditions": r[5] or "",
             "runway_used": runway,
-            "side_used": _side_from_runway(runway),
+            "side_used": _side_from_runway(runway)
         })
 
     rows = _query(
@@ -963,7 +996,7 @@ def build_block_night_weather(date_from, date_to):
             "temp_c": w["temp_c"], "wind_kmh": w["wind_kmh"],
             "wind_dir_deg": w["wind_dir_deg"],
             "wind_dir_cardinal": _wind_cardinal(w["wind_dir_deg"]),
-            "rain_mm": w["rain_mm"], "conditions": w["conditions"],
+            "rain_mm": w["rain_mm"], "conditions": w["conditions"]
         })
         acc = summary_acc.setdefault(ds, {"temp_sum": 0.0, "wind_sum": 0.0, "n": 0,
                                           "rain_ops": 0, "clear_ops": 0})
@@ -986,7 +1019,7 @@ def build_block_night_weather(date_from, date_to):
             "temp_avg": round(acc["temp_sum"] / n, 1),
             "wind_avg_kmh": round(acc["wind_sum"] / n, 1),
             "ops_in_rain": acc["rain_ops"],
-            "ops_in_clear": acc["clear_ops"],
+            "ops_in_clear": acc["clear_ops"]
         })
     return {"at_20": at_20, "per_flight": per_flight, "summary_by_date": summary_by_date}
 
@@ -1026,29 +1059,54 @@ def build_block_runway_diagnostics(date_from, date_to):
     return {"by_date": by_date, "totals": totals}
 
 
+def build_block_pista_fonte(date_from, date_to):
+    rows = _query(
+        """SELECT direzione_sacbo, COALESCE(pista_fonte, 'N/D') as fonte, COUNT(*)
+           FROM nightly_reports
+           WHERE data_riferimento BETWEEN %s AND %s
+             AND is_scheduled = TRUE
+           GROUP BY direzione_sacbo, fonte""",
+        (date_from, date_to))
+
+    result = {
+        "D": {"radar_diretto": 0, "propagato": 0, "geometrico": 0, "N/D": 0},
+        "A": {"radar_diretto": 0, "propagato": 0, "geometrico": 0, "N/D": 0}
+    }
+
+    for r in rows:
+        d = (r[0] or "").strip().upper()
+        if d not in ("D", "A"):
+            continue
+        fonte = (r[1] or "N/D").strip()
+        if fonte not in result[d]:
+            fonte = "N/D"
+        result[d][fonte] += int(r[2] or 0)
+
+    return result
+
+
 # =============================================================================
-# BLOCCO RITARDI H24 (v1.3.0)
+# BLOCCO RITARDI H24 (Totali puliti e Ritardi separati)
 # =============================================================================
 
 def _delta_sql_expr():
     return """
         CASE
-            WHEN v.orario_effettivo IS NULL
-              OR v.orario_schedulato IS NULL THEN NULL
-            WHEN v.orario_effettivo = v.orario_schedulato THEN 0
-            WHEN v.orario_effettivo > v.orario_schedulato THEN
-                EXTRACT(EPOCH FROM
-                    (v.orario_effettivo - v.orario_schedulato)) / 60.0
+            WHEN v.timestamp IS NULL OR v.orario_schedulato IS NULL THEN NULL
+            WHEN v.timestamp::time = v.orario_schedulato THEN 0
+            WHEN v.timestamp::time > v.orario_schedulato THEN
+                CASE
+                    WHEN EXTRACT(EPOCH FROM (v.timestamp::time - v.orario_schedulato)) <= 720 * 60 THEN
+                        EXTRACT(EPOCH FROM (v.timestamp::time - v.orario_schedulato)) / 60
+                    ELSE
+                        (EXTRACT(EPOCH FROM (v.timestamp::time - v.orario_schedulato)) / 60) - 1440
+                END
             ELSE
                 CASE
-                    WHEN EXTRACT(EPOCH FROM
-                        (v.orario_schedulato - v.orario_effettivo)) / 60.0 <= 720
-                    THEN
-                        -1 * EXTRACT(EPOCH FROM
-                            (v.orario_schedulato - v.orario_effettivo)) / 60.0
+                    WHEN EXTRACT(EPOCH FROM (v.orario_schedulato - v.timestamp::time)) <= 720 * 60 THEN
+                        -(EXTRACT(EPOCH FROM (v.orario_schedulato - v.timestamp::time)) / 60)
                     ELSE
-                        1440 - EXTRACT(EPOCH FROM
-                            (v.orario_schedulato - v.orario_effettivo)) / 60.0
+                        1440 - (EXTRACT(EPOCH FROM (v.orario_schedulato - v.timestamp::time)) / 60)
                 END
         END
     """
@@ -1059,25 +1117,72 @@ def _empty_delay_agg():
         "n_total": 0, "n_puntuali": 0, "n_ritardo": 0, "n_grave": 0,
         "n_anticipo": 0,
         "sum_delta": 0.0,
+        "sum_delta_ritardi": 0.0,
+        "deltas_ritardi": [],
+        "ritardi_min": None,
+        "ritardi_max": None
     }
 
 
 def _finalize_delay_agg(agg):
     n = agg["n_total"]
+    n_rit = agg["n_ritardo"]
+
     agg["ritardo_medio"] = round(agg["sum_delta"] / n, 1) if n > 0 else 0.0
+
+    if n_rit > 0:
+        agg["ritardo_medio_ritardati"] = round(
+            agg["sum_delta_ritardi"] / n_rit, 1)
+    else:
+        agg["ritardo_medio_ritardati"] = 0.0
+
+    deltas = agg.pop("deltas_ritardi", [])
+
+    if deltas:
+        deltas_sorted = sorted(deltas)
+        n_d = len(deltas_sorted)
+        if n_d % 2 == 1:
+            agg["mediana_ritardi"] = float(deltas_sorted[n_d // 2])
+        else:
+            agg["mediana_ritardi"] = round(
+                (deltas_sorted[n_d // 2 - 1] + deltas_sorted[n_d // 2]) / 2, 1)
+    else:
+        agg["mediana_ritardi"] = 0.0
+
+    fasce = {
+        "15-30": 0,
+        "30-45": 0,
+        "45-60": 0,
+        "60-120": 0,
+        ">120": 0
+    }
+    for d in deltas:
+        if d <= 30: fasce["15-30"] += 1
+        elif d <= 45: fasce["30-45"] += 1
+        elif d <= 60: fasce["45-60"] += 1
+        elif d <= 120: fasce["60-120"] += 1
+        else: fasce[">120"] += 1
+    agg["ritardi_fasce"] = fasce
+
     return agg
 
 
 def _add_delta_to_agg(agg, delta, soglia_punt, soglia_grave):
-    agg["n_total"] += 1
+    # agg["n_total"] NON viene toccato qui, viene preimpostato dai totali generali
     agg["sum_delta"] += delta
     if abs(delta) <= soglia_punt:
         agg["n_puntuali"] += 1
-    if delta > soglia_punt:
+    if delta >= soglia_punt:
         agg["n_ritardo"] += 1
+        agg["sum_delta_ritardi"] += delta
+        agg["deltas_ritardi"].append(delta)
+        if agg["ritardi_min"] is None or delta < agg["ritardi_min"]:
+            agg["ritardi_min"] = delta
+        if agg["ritardi_max"] is None or delta > agg["ritardi_max"]:
+            agg["ritardi_max"] = delta
     if delta > soglia_grave:
         agg["n_grave"] += 1
-    if delta < -soglia_punt:
+    if delta <= -soglia_punt:
         agg["n_anticipo"] += 1
 
 
@@ -1100,79 +1205,128 @@ def build_block_delays_h24(date_from, date_to):
 
     delta_expr = _delta_sql_expr()
 
-    sql = f"""
-        SELECT
-            v.data_riferimento,
-            v.callsign_volo,
-            v.tipo_movimento,
-            v.destinazione_origine,
-            v.orario_schedulato,
-            {delta_expr} AS delta_min
-        FROM v_daily_report v
-        WHERE v.data_riferimento BETWEEN %s AND %s
-          AND v.orario_schedulato IS NOT NULL
-          AND v.orario_effettivo IS NOT NULL
-          AND (v.stato_volo IS NULL
-               OR UPPER(v.stato_volo) NOT LIKE '%%CANCELL%%')
+    # 1. Totali generali direttamente da h24_reports (senza filtri radar)
+    sql_totali = """
+        SELECT data_calendario, direzione_sacbo, COUNT(*) 
+        FROM h24_reports
+        WHERE data_calendario BETWEEN %s AND %s
+          AND is_scheduled = TRUE
+        GROUP BY data_calendario, direzione_sacbo
     """
-    rows = _query(sql, (date_from, date_to))
+    rows_totali = _query(sql_totali, (date_from, date_to))
 
-    logger.info(f"   Ritardi: {len(rows)} voli analizzati")
+    totali_generali = {}
+    for r in rows_totali:
+        ds = _date_str(r[0])
+        d = (r[1] or "").strip().upper()
+        n = int(r[2] or 0)
+        if ds not in totali_generali:
+            totali_generali[ds] = {"D": 0, "A": 0}
+        if d in ("D", "A"):
+            totali_generali[ds][d] += n
+
+    # 2. Estrazione voli validi per i ritardi (con filtri radar)
+    sql_ritardi = f"""
+        SELECT
+            v.data,
+            v.callsign,
+            v.tipo_movimento,
+            v.destinazione_finale,
+            v.orario_schedulato,
+            v.ora_effettiva,
+            v.compagnia_aerea,
+            v.direzione_sacbo,
+            {delta_expr} AS delta_min
+        FROM v_h24_report v
+        WHERE v.data BETWEEN %s AND %s
+          AND v.is_scheduled = TRUE
+          AND v.orario_schedulato IS NOT NULL
+          AND v.timestamp IS NOT NULL
+          AND v.fase_volo NOT IN ('Non rilevato', 'N/D', '')
+          AND (v.tipo_movimento = 'Passeggeri'
+               OR v.tipo_movimento LIKE 'Cargo%%'
+               OR v.tipo_movimento LIKE 'Charter%%'
+               OR v.tipo_movimento = 'Non classificato')
+    """
+    rows_ritardi = _query(sql_ritardi, (date_from, date_to))
+
+    logger.info(f"   Ritardi (H24): {len(rows_ritardi)} voli validi per i ritardi.")
 
     by_date_acc = {}
+    raw_delays = []
 
-    for r in rows:
+    # Inizializza i totali generali
+    for ds, tot in totali_generali.items():
+        by_date_acc[ds] = {
+            "D": {"agg": _empty_delay_agg(), "hours": {}, "companies": {}, "dests": {}, "by_category": {}},
+            "A": {"agg": _empty_delay_agg(), "hours": {}, "companies": {}, "dests": {}, "by_category": {}}
+        }
+        by_date_acc[ds]["D"]["agg"]["n_total"] = tot["D"]
+        by_date_acc[ds]["A"]["agg"]["n_total"] = tot["A"]
+
+    for r in rows_ritardi:
         ds = _date_str(r[0])
         callsign = r[1]
-        tipo = (r[2] or "").strip().upper()
+        tipo = (r[2] or "").strip()
         dest = r[3] or ""
         sched = r[4]
-        delta = r[5]
+        hh = r[5]
+        comp_db = r[6]
+        d = (r[7] or "").strip().upper()
+        delta = r[8]
 
-        if delta is None:
-            continue
-        try:
-            delta = int(round(float(delta)))
-        except (ValueError, TypeError):
-            continue
+        if delta is None: continue
+        try: delta = int(round(float(delta)))
+        except (ValueError, TypeError): continue
+        if d not in ('D', 'A'): continue
 
-        if tipo not in ('D', 'A'):
-            continue
-        d = tipo
-
-        hh = None
-        if sched is not None:
-            try:
-                hh = sched.hour if hasattr(sched, "hour") else int(str(sched).split(":")[0])
-            except Exception:
-                hh = None
-
-        comp = _get_airline_safe(callsign)
+        comp = comp_db if comp_db and comp_db != 'N/D' else _get_airline_safe(callsign)
 
         day = by_date_acc.setdefault(ds, {
-            "D": {"agg": _empty_delay_agg(), "hours": {}, "companies": {}, "dests": {}},
-            "A": {"agg": _empty_delay_agg(), "hours": {}, "companies": {}, "dests": {}},
+            "D": {"agg": _empty_delay_agg(), "hours": {}, "companies": {}, "dests": {}, "by_category": {}},
+            "A": {"agg": _empty_delay_agg(), "hours": {}, "companies": {}, "dests": {}, "by_category": {}}
         })
 
         dir_block = day[d]
 
         _add_delta_to_agg(dir_block["agg"], delta, soglia_punt, soglia_grave)
 
+        cat = _category_from_tipo(tipo)
+        if cat:
+            if cat not in dir_block["by_category"]:
+                dir_block["by_category"][cat] = _empty_delay_agg()
+            cat_agg = dir_block["by_category"][cat]
+            cat_agg["n_total"] += 1
+            _add_delta_to_agg(cat_agg, delta, soglia_punt, soglia_grave)
+
         if hh is not None:
             if hh not in dir_block["hours"]:
                 dir_block["hours"][hh] = _empty_delay_agg()
-            _add_delta_to_agg(dir_block["hours"][hh], delta, soglia_punt, soglia_grave)
+            hr_agg = dir_block["hours"][hh]
+            hr_agg["n_total"] += 1
+            _add_delta_to_agg(hr_agg, delta, soglia_punt, soglia_grave)
 
         if comp and comp != 'N/D':
             if comp not in dir_block["companies"]:
                 dir_block["companies"][comp] = _empty_delay_agg()
-            _add_delta_to_agg(dir_block["companies"][comp], delta, soglia_punt, soglia_grave)
+            c_agg = dir_block["companies"][comp]
+            c_agg["n_total"] += 1
+            _add_delta_to_agg(c_agg, delta, soglia_punt, soglia_grave)
 
         if dest and dest.strip():
             dk = dest.strip()
             if dk not in dir_block["dests"]:
                 dir_block["dests"][dk] = _empty_delay_agg()
-            _add_delta_to_agg(dir_block["dests"][dk], delta, soglia_punt, soglia_grave)
+            d_agg = dir_block["dests"][dk]
+            d_agg["n_total"] += 1
+            _add_delta_to_agg(d_agg, delta, soglia_punt, soglia_grave)
+
+        if delta >= soglia_punt or delta <= -15:
+            sched_str = sched.strftime("%H:%M") if hasattr(sched, "strftime") else str(sched)[:5]
+            raw_delays.append({
+                "date": ds, "callsign": callsign, "company": comp, "dest": dest,
+                "sched": sched_str, "delta": delta, "dir": d
+            })
 
     by_date = []
     for ds in sorted(by_date_acc.keys()):
@@ -1206,21 +1360,218 @@ def build_block_delays_h24(date_from, date_to):
             dests_list.sort(key=lambda x: -x["n_total"])
             dout["by_destination"] = dests_list[:top_dest]
 
+            cat_aggs = {}
+            for cat_name, cat_agg in din["by_category"].items():
+                cat_aggs[cat_name] = _finalize_delay_agg(cat_agg)
+            dout["by_category"] = cat_aggs
+
             day_out[d] = dout
 
         by_date.append(day_out)
 
-    logger.info(f"   Ritardi: {len(by_date)} giorni aggregati")
+    logger.info(f"   Ritardi (H24): {len(by_date)} giorni aggregati.")
 
     return {
         "soglie": {"puntuale_min": soglia_punt, "grave_min": soglia_grave},
         "by_date": by_date,
+        "raw_delays": raw_delays
     }
 
 
+def build_block_delays_hourly_weather(date_from, date_to):
+    cfg = _get_delays_config()
+    if not cfg["enabled"]:
+        return None
+
+    soglia_punt = cfg["soglia_puntuale_min"]
+    delta_expr = _delta_sql_expr()
+
+    sql = f"""
+        SELECT
+            v.data,
+            v.ora_effettiva,
+            v.direzione_sacbo,
+            {delta_expr} AS delta_min
+        FROM v_h24_report v
+        WHERE v.data BETWEEN %s AND %s
+          AND v.is_scheduled = TRUE
+          AND v.orario_schedulato IS NOT NULL
+          AND v.timestamp IS NOT NULL
+          AND v.fase_volo NOT IN ('Non rilevato', 'N/D', '')
+          AND (v.tipo_movimento = 'Passeggeri'
+               OR v.tipo_movimento LIKE 'Cargo%%'
+               OR v.tipo_movimento LIKE 'Charter%%'
+               OR v.tipo_movimento = 'Non classificato')
+    """
+    rows = _query(sql, (date_from, date_to))
+
+    weather_data = _load_weather(date_from, date_to)
+
+    agg = {}
+
+    for r in rows:
+        ds = _date_str(r[0])
+        hh = r[1]
+        d = (r[2] or "").strip().upper()
+        delta = r[3]
+
+        if hh is None or d not in ('D', 'A') or delta is None:
+            continue
+
+        try:
+            delta = int(round(float(delta)))
+        except (ValueError, TypeError):
+            continue
+
+        key = (ds, hh)
+        if key not in agg:
+            agg[key] = {
+                "D": {"n_total": 0, "n_ritardo": 0},
+                "A": {"n_total": 0, "n_ritardo": 0}
+            }
+
+        agg[key][d]["n_total"] += 1
+        if delta >= soglia_punt or delta <= -15:
+            agg[key][d]["n_ritardo"] += 1
+
+    result = []
+    for (ds, hh) in sorted(agg.keys()):
+        w = weather_data.get((ds, hh))
+
+        entry = {
+            "date": ds,
+            "hour": hh,
+            "D": agg[(ds, hh)]["D"],
+            "A": agg[(ds, hh)]["A"],
+            "weather": {
+                "temp_c": w["temp_c"] if w else None,
+                "rain_mm": w["rain_mm"] if w else None,
+                "wind_kmh": w["wind_kmh"] if w else None,
+                "wind_dir_deg": w["wind_dir_deg"] if w else None,
+                "conditions": w["conditions"] if w else ""
+            }
+        }
+        result.append(entry)
+
+    return result
+
+
 # =============================================================================
-# BUILDERS PRINCIPALI
+# BUILDERS PRINCIPALI (FLOTTA)
 # =============================================================================
+
+def build_block_fleet(date_from, date_to):
+    """Costruisce i dati per la pagina La Flotta (WEB-37). Esclude i radar-only."""
+
+    # 1. KPI Totali Generali da h24_reports
+    sql_totali = """
+        SELECT data_calendario, direzione_sacbo, COUNT(*) 
+        FROM h24_reports
+        WHERE data_calendario BETWEEN %s AND %s
+          AND is_scheduled = TRUE
+        GROUP BY data_calendario, direzione_sacbo
+    """
+    rows_totali = _query(sql_totali, (date_from, date_to))
+
+    totali_generali = {}
+    for r in rows_totali:
+        ds = _date_str(r[0])
+        d = (r[1] or "").strip().upper()
+        n = int(r[2] or 0)
+        if ds not in totali_generali:
+            totali_generali[ds] = {"D": 0, "A": 0}
+        if d in ("D", "A"):
+            totali_generali[ds][d] += n
+
+    # 2. Dettaglio Modelli e Compagnie (filtrato per modello_aereo valido)
+    rows = _query(
+        """SELECT data_calendario, compagnia_aerea, modello_aereo, direzione_sacbo, COUNT(*)
+           FROM h24_reports
+           WHERE data_calendario BETWEEN %s AND %s
+             AND is_scheduled = TRUE
+             AND modello_aereo IS NOT NULL 
+             AND modello_aereo NOT IN ('N/D', '')
+           GROUP BY data_calendario, compagnia_aerea, modello_aereo, direzione_sacbo""",
+        (date_from, date_to))
+
+    by_date_acc = {}
+    for ds, tot in totali_generali.items():
+        by_date_acc[ds] = {
+            'total': tot['D'] + tot['A'], 'D': tot['D'], 'A': tot['A'],
+            'models': {}, 'airlines': {}, 'table': []
+        }
+
+    total_mov = 0
+    total_D = 0
+    total_A = 0
+
+    for ds, tot in totali_generali.items():
+        total_mov += tot['D'] + tot['A']
+        total_D += tot['D']
+        total_A += tot['A']
+
+    for r in rows:
+        ds = _date_str(r[0])
+        comp = r[1] or 'N/D'
+        model = r[2]
+        dir_s = (r[3] or '').strip().upper()
+        n = int(r[4] or 0)
+
+        day = by_date_acc.setdefault(ds, {
+            'total': 0, 'D': 0, 'A': 0,
+            'models': {}, 'airlines': {}, 'table': []
+        })
+
+        day['models'][model] = day['models'].get(model, 0) + n
+        day['airlines'][comp] = day['airlines'].get(comp, 0) + n
+        day['table'].append({'airline': comp, 'model': model, 'direction': dir_s, 'n': n})
+
+    by_date = []
+    all_models_acc = {}
+    all_airlines_acc = {}
+
+    for ds in sorted(by_date_acc.keys()):
+        day = by_date_acc[ds]
+
+        for m, n in day['models'].items():
+            all_models_acc[m] = all_models_acc.get(m, 0) + n
+        for a, n in day['airlines'].items():
+            all_airlines_acc[a] = all_airlines_acc.get(a, 0) + n
+
+        top_models = [{'model': k, 'n': v} for k, v in day['models'].items()]
+        top_models.sort(key=lambda x: -x['n'])
+
+        top_airlines = [{'airline': k, 'n': v} for k, v in day['airlines'].items()]
+        top_airlines.sort(key=lambda x: -x['n'])
+
+        day['table'].sort(key=lambda x: (x['airline'], x['model']))
+
+        by_date.append({
+            "date": ds,
+            "kpi": {
+                "total_movements": day['total'], "total_D": day['D'], "total_A": day['A'],
+                "total_models": len(day['models']), "total_airlines": len(day['airlines'])
+            },
+            "top_models": top_models,
+            "top_airlines": top_airlines,
+            "fleet_table": day['table']
+        })
+
+    top_models_all = [{'model': k, 'n': v} for k, v in all_models_acc.items()]
+    top_models_all.sort(key=lambda x: -x['n'])
+
+    top_airlines_all = [{'airline': k, 'n': v} for k, v in all_airlines_acc.items()]
+    top_airlines_all.sort(key=lambda x: -x['n'])
+
+    return {
+        "by_date": by_date,
+        "totals": {
+            "kpi": {"total_movements": total_mov, "total_D": total_D, "total_A": total_A, "total_models": len(all_models_acc), "total_airlines": len(all_airlines_acc)},
+            "top_models": top_models_all,
+            "top_airlines": top_airlines_all
+        }
+    }
+
 
 def build_web_json(days=90):
     today = datetime.now().date()
@@ -1230,6 +1581,15 @@ def build_web_json(days=90):
     min_date = web_cfg["min_date"]
     top_n = web_cfg["top_n_per_date"]
     date_from = max(date_from_calc, min_date)
+
+    # Guard: se min_date è nel futuro (o configurazione errata),
+    # BETWEEN restituirebbe 0 righe e tutte le card andrebbero a 0.
+    if date_from > date_to:
+        logger.warning(
+            f"Range non valido: date_from={date_from} > date_to={date_to} "
+            f"(min_date={min_date}, days={days}). Uso date_to come date_from."
+        )
+        date_from = date_to
 
     logger.info(f"Costruzione JSON web: {date_from} -> {date_to} "
                 f"(max {days} giorni, min_date={min_date}, top_n={top_n})")
@@ -1244,31 +1604,9 @@ def build_web_json(days=90):
     airlines = build_block_night_airlines(date_from, date_to, top_n)
     weather = build_block_night_weather(date_from, date_to)
     runway_diag = build_block_runway_diagnostics(date_from, date_to)
-
-    # --- AGGIUNTA NOVITÀ v1.4.0: Costruzione del blocco home summary unificato ---
-    t_data = movements.get("totals", {})
-    pax_tot = t_data.get("D_passeggeri", 0) + t_data.get("A_passeggeri", 0)
-    cargo_tot = t_data.get("D_cargo", 0) + t_data.get("A_cargo", 0)
-    charter_tot = t_data.get("D_charter", 0) + t_data.get("A_charter", 0)
-    non_class_tot = t_data.get("D_non_classificato", 0) + t_data.get("A_non_classificato", 0)
-
-    total_D = t_data.get("D", 0) + t_data.get("radar_only_D", 0)
-    total_A = t_data.get("A", 0) + t_data.get("radar_only_A", 0)
-    total_movements = total_D + total_A
-
-    block_home_summary = {
-        "totals": {
-            "total_movements": total_movements,
-            "total_D": total_D,
-            "total_A": total_A
-        },
-        "h24": {
-            "pax": pax_tot,
-            "cargo": cargo_tot,
-            "charter": charter_tot,
-            "non_classificato": non_class_tot
-        }
-    }
+    pista_fonte = build_block_pista_fonte(date_from, date_to)
+    fleet_data = build_block_fleet(date_from, date_to)
+    home_summary = build_home_summary(date_from, date_to)
 
     payload = {
         "generated_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
@@ -1276,7 +1614,6 @@ def build_web_json(days=90):
         "min_date_active": min_date,
         "disclaimer": disclaimer,
         "summary": summary,
-        "block_home_summary": block_home_summary,
         "block_night_movements": movements,
         "block_night_anomalies": anomalies,
         "block_night_destinations": destinations,
@@ -1285,6 +1622,9 @@ def build_web_json(days=90):
         "block_night_airlines": airlines,
         "block_night_weather": weather,
         "block_runway_diagnostics": runway_diag,
+        "block_pista_fonte": pista_fonte,
+        "block_fleet": fleet_data,
+        "block_home_summary": home_summary,
     }
 
     logger.info(
@@ -1293,6 +1633,9 @@ def build_web_json(days=90):
         f"{len(destinations_pax.get('by_date', []))} giorni pax, "
         f"{len(geo_breakdown.get('by_date', []))} giorni geo, "
         f"{len(airlines['totals'])} compagnie, "
+        f"{fleet_data['totals']['kpi']['total_models']} modelli, "
+        f"home_summary h24={home_summary['h24']['total']} "
+        f"night={home_summary['nightly']['total']}, "
         f"by_hour su {len(movements['by_hour'].get('by_date', []))} date"
     )
     return payload
@@ -1311,6 +1654,14 @@ def build_delays_json(days=90):
     min_date = web_cfg["min_date"]
     date_from = max(date_from_calc, min_date)
 
+    # Guard: stessa logica di build_web_json
+    if date_from > date_to:
+        logger.warning(
+            f"Range non valido: date_from={date_from} > date_to={date_to} "
+            f"(min_date={min_date}, days={days}). Uso date_to come date_from."
+        )
+        date_from = date_to
+
     logger.info(f"Costruzione JSON ritardi: {date_from} -> {date_to} "
                 f"(max {days} giorni, min_date={min_date})")
 
@@ -1318,17 +1669,22 @@ def build_delays_json(days=90):
     if delays is None:
         return None
 
+    hourly_weather = build_block_delays_hourly_weather(date_from, date_to)
+
     payload = {
         "generated_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
         "period": {"from": date_from, "to": date_to},
         "min_date_active": min_date,
-        "disclaimer": {"message": cfg["disclaimer_message"]},
         "soglie": delays["soglie"],
         "by_date": delays["by_date"],
+        "raw_delays": delays["raw_delays"],
+        "block_delays_hourly_weather": hourly_weather
     }
 
     logger.info(
         f"JSON ritardi: {len(delays['by_date'])} giorni, "
+        f"{len(delays['raw_delays'])} ritardi grezzi, "
+        f"{len(hourly_weather) if hourly_weather else 0} ore meteo/ritardi, "
         f"soglie puntuale={delays['soglie']['puntuale_min']}min "
         f"grave={delays['soglie']['grave_min']}min"
     )
@@ -1367,11 +1723,19 @@ def save_delays_json(payload):
         return None
 
 
-def export_and_publish(days=90):
+def export_and_publish(days=90, skip_gate=False):
     from bgy_core import bgy_wordpress
     payload = build_web_json(days=days)
     if not payload:
         return False, "JSON vuoto"
+
+    if not skip_gate:
+        gate_ok, gate_msg = _gate_check_pre_publish()
+        if not gate_ok:
+            logger.error(f"❌ Gate pre-publish (notturno): {gate_msg}")
+            return False, f"Gate pre-publish bloccato: {gate_msg}"
+        logger.info(f"✅ Gate pre-publish (notturno): OK")
+
     local_path = save_web_json(payload)
     if not local_path:
         return False, "Errore salvataggio JSON locale"
@@ -1381,11 +1745,19 @@ def export_and_publish(days=90):
     return (True, f"Pubblicato: {url}") if ok else (False, f"Errore: {msg}")
 
 
-def export_delays_and_publish(days=90):
+def export_delays_and_publish(days=90, skip_gate=False):
     from bgy_core import bgy_wordpress
     payload = build_delays_json(days=days)
     if not payload:
         return False, "JSON ritardi vuoto (config disabilitata?)"
+
+    if not skip_gate:
+        gate_ok, gate_msg = _gate_check_pre_publish()
+        if not gate_ok:
+            logger.error(f"❌ Gate pre-publish (ritardi): {gate_msg}")
+            return False, f"Gate pre-publish bloccato: {gate_msg}"
+        logger.info(f"✅ Gate pre-publish (ritardi): OK")
+
     local_path = save_delays_json(payload)
     if not local_path:
         return False, "Errore salvataggio JSON ritardi locale"
@@ -1407,6 +1779,8 @@ def main():
     parser.add_argument("--publish-delays", action="store_true",
                         help="Pubblica bgy-delays.csv su WordPress")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--skip-gate", action="store_true",
+                        help="QA-02: salta il gate pre-publish (per test)")
     args = parser.parse_args()
 
     if not bgy_db.is_enabled():
@@ -1414,7 +1788,8 @@ def main():
         sys.exit(1)
 
     if args.publish_delays:
-        ok, msg = export_delays_and_publish(days=args.days)
+        ok, msg = export_delays_and_publish(
+            days=args.days, skip_gate=args.skip_gate)
         print(f"{'OK' if ok else 'ERRORE'}: {msg}")
         sys.exit(0 if ok else 1)
 
@@ -1430,7 +1805,7 @@ def main():
                 print(f"JSON ritardi salvato: {delays_path}")
         sys.exit(0)
 
-    ok, msg = export_and_publish(days=args.days)
+    ok, msg = export_and_publish(days=args.days, skip_gate=args.skip_gate)
     print(f"{'OK' if ok else 'ERRORE'}: {msg}")
     sys.exit(0 if ok else 1)
 
