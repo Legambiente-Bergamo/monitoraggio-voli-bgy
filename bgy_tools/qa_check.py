@@ -464,3 +464,16 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+def _bump_version_if_all_pass(passes, fails):
+    if fails == 0 and passes > 0:
+        try:
+            from bgy_core import bgy_version
+            with open(bgy_version.__file__, "r", encoding="utf-8") as f:
+                v_txt = f.read()
+            # Bump della patch (es. 3.9.0 -> 3.9.1)
+            new_v = re.sub(r'__version__ = "(\d+)\.(\d+)\.(\d+)"', lambda m: f'__version__ = "{m.group(1)}.{m.group(2)}.{int(m.group(3))+1}"', v_txt)
+            with open(bgy_version.__file__, "w", encoding="utf-8") as f:
+                f.write(new_v)
+            print("🚀 QA-11: Versione suite incrementata (patch bump).")
+        except Exception as e:
+            print(f"⚠️ QA-11: Impossibile incrementare la versione: {e}")

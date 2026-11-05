@@ -81,47 +81,6 @@
     "adsb_lol_max_429_before_cooldown": 1,
     "opensky_cooldown_sec": 60
   },
-  "scanner_night": {
-    "bbox": {
-      "lamin": 45.545,
-      "lamax": 45.805,
-      "lomin": 9.52,
-      "lomax": 9.89
-    },
-    "bgy_lat": 45.6739,
-    "bgy_lon": 9.7042,
-    "max_distance_km": 15.0,
-    "adsb_lol_radius_nm": 10,
-    "adsb_fi_radius_nm": 10,
-    "night_start_hour": 23,
-    "night_end_hour": 6,
-    "http_timeout": 15,
-    "user_agent": "BGY-Monitoring-Suite/2.6 (info@legambientebergamo.it)",
-    "phase_thresholds": {
-      "landing_max_distance_km": 5,
-      "landing_max_altitude_ft": 3000,
-      "approach_max_distance_km": 10,
-      "approach_max_altitude_ft": 5000
-    },
-    "runway_bearings": {
-      "RWY 28": [
-        250,
-        300
-      ],
-      "RWY 10": [
-        70,
-        120
-      ],
-      "RWY 16": [
-        160,
-        190
-      ],
-      "RWY 34": [
-        340,
-        10
-      ]
-    }
-  },
   "scanner_day": {
     "urls": [
       [

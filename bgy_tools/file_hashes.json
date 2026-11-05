@@ -67,7 +67,7 @@
   "bgy_tools/diagnostica_nightly.py": "845e78e710a58bc53a6e0676468dc1596e26044025a9b5f58750ca4b6885582a",
   "bgy_tools/estrai_print_config.py": "a5320eeef58d5bfc3abe48fcd92767be5ed3034044bac5e7943d0a8d068ff81d",
   "bgy_tools/metar_fetcher.py": "4adbc1dd75d3c6064bac19b7a4d764299ae924acaf5f1d29cddd8d0263e020df",
-  "bgy_tools/qa_check.py": "03d896905c0edb9e55efbbfd6b1f0afbfdddd81bd3de41d6953165f54bceef92",
+  "bgy_tools/qa_check.py": "9bd2be8d0f3ae4b6d782c5b562f2b1809ecd2a7030cbb2a1ba0aa535ed20ff0d",
   "bgy_tools/qa_common.py": "9606d724d8dc2a4b25c4da53809e1916194e6616dd886d005c2885cb3c89ad4c",
   "bgy_tools/qa_freeze.py": "6e74826d5c73f903b5355c1f25dda45e9e7e7d335e5b1247fef25672f64c12af",
   "bgy_tools/qa_hashes.py": "542eff294d0b29186a98a596b3b22699135aa2e317f877fdd524dd243097012c",
