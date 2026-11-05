@@ -12,18 +12,18 @@
          Contenuto: codice + script + docs + config pubblica
          Esclude: bgy_config/*.json (credenziali), bgy_data/, bgy_tests/, .git/
 
-    Retention: elimina da Drive i file più vecchi di 7 giorni.
+    Retention: elimina da Drive i file piÃ¹ vecchi di 7 giorni.
 
     Eseguito dal task di sistema BGY_BackupEncrypted (LogonType=S4U).
 
 .VERSION
     v1.0.1 (SEC-04, 14/10/2026):
-        - FIX CRITICO: variabile $pwd → $secret.
-          $pwd è un alias automatico di PowerShell (Get-Location).
+        - FIX CRITICO: variabile $pwd â†’ $secret.
+          $pwd Ã¨ un alias automatico di PowerShell (Get-Location).
           In presenza di Push-Location/Pop-Location, PowerShell sovrascriveva
           silenziosamente $pwd con il path corrente, cifrando gli archivi con
-          una stringa pubblica anziché con la password utente.
-          Il file .bgy_backup_pwd non è mai stato usato per la cifratura.
+          una stringa pubblica anzichÃ© con la password utente.
+          Il file .bgy_backup_pwd non Ã¨ mai stato usato per la cifratura.
         - Con la v1.0.0 gli archivi risultavano cifrati con
           "C:\Users\ncremaschi\Desktop\Monitoraggio BGY 2.5" (path pubblico
           su GitHub). Tutti gli archivi generati vanno considerati compromessi
@@ -33,7 +33,7 @@
 .NOTES
     Password: letta da C:\Users\ncremaschi\.bgy_backup_pwd
     Log:      bgy_data/bgy_logs/backup_encrypted.log
-    Riferimenti: Relazione v3.8 §10.3, §13.5; Addendum 4 (ciclo v3.8).
+    Riferimenti: Relazione v3.8 Â§10.3, Â§13.5; Addendum 4 (ciclo v3.8).
 #>
 
 [CmdletBinding()]
@@ -44,8 +44,7 @@ $ErrorActionPreference = "Stop"
 # =============================================================================
 # CONFIGURAZIONE
 # =============================================================================
-
-$ProjectRoot      = "C:\Users\ncremaschi\Desktop\Monitoraggio BGY 2.5"
+$ProjectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $SevenZip         = "C:\Program Files\7-Zip\7z.exe"
 $Rclone           = "C:\Users\ncremaschi\AppData\Local\Microsoft\WinGet\Links\rclone.exe"
 $PwdFile          = "C:\Users\ncremaschi\.bgy_backup_pwd"
@@ -111,7 +110,7 @@ try {
     }
 
     # Leggi password (mai loggata)
-    # v1.0.1: usa $secret, non $pwd ($pwd è alias automatico di PowerShell).
+    # v1.0.1: usa $secret, non $pwd ($pwd Ã¨ alias automatico di PowerShell).
     $secret = (Get-Content $PwdFile -Raw).Trim()
     if ([string]::IsNullOrWhiteSpace($secret)) {
         throw "File password vuoto: $PwdFile"
@@ -123,7 +122,7 @@ try {
     New-Item -ItemType Directory -Path $TmpDir -Force | Out-Null
 
     # -------------------------------------------------------------------------
-    # 2) Archivio 1 — CIFRATO (credenziali + XML task)
+    # 2) Archivio 1 â€” CIFRATO (credenziali + XML task)
     # -------------------------------------------------------------------------
     $archiveConfig = Join-Path $TmpDir "bgy_config_$dateStr.7z"
     Write-Log "Creazione archivio cifrato: $archiveConfig"
@@ -150,7 +149,7 @@ try {
     Write-Log "Archivio config creato: $sizeConfig KB"
 
     # -------------------------------------------------------------------------
-    # 3) Archivio 2 — NON cifrato (codice + suite)
+    # 3) Archivio 2 â€” NON cifrato (codice + suite)
     # -------------------------------------------------------------------------
     $archiveSuite = Join-Path $TmpDir "bgy_suite_$dateStr.7z"
     Write-Log "Creazione archivio suite: $archiveSuite"

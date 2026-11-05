@@ -2,8 +2,7 @@
 # Esegue il dump di PostgreSQL, verifica l'integrita, applica la retention
 # locale e remota, carica su Google Drive tramite rclone.
 # In caso di errore, invia una notifica email immediata.
-
-$ProjectRoot  = "C:\Users\ncremaschi\Desktop\Monitoraggio BGY 2.5"
+$ProjectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $BackupDir    = Join-Path $ProjectRoot "bgy_data\bgy_db_backup"
 $LogFile      = Join-Path $ProjectRoot "bgy_data\bgy_logs\backup.log"
 $PgDump       = "C:\Program Files\PostgreSQL\17\bin\pg_dump.exe"
@@ -60,15 +59,15 @@ try {
     exit 1
 }
 
-# 2. Verifica integrità
+# 2. Verifica integritÃ 
 try {
     $verify = & $PgRestore -l $dumpFile 2>&1
     if ($LASTEXITCODE -ne 0) {
         throw "pg_restore -l ha restituito codice $LASTEXITCODE"
     }
-    Write-Log "Verifica integrità OK."
+    Write-Log "Verifica integritÃ  OK."
 } catch {
-    $reason = "Verifica integrità fallita: $_"
+    $reason = "Verifica integritÃ  fallita: $_"
     Write-Log "ERRORE: $reason"
     Send-FailureAlert $reason
     exit 1
@@ -105,7 +104,7 @@ try {
     Write-Log "Retention remota completata."
 } catch {
     Write-Log "ATTENZIONE: retention remota fallita: $_"
-    # Non blocca: il backup locale è OK, il file remoto è stato caricato.
+    # Non blocca: il backup locale Ã¨ OK, il file remoto Ã¨ stato caricato.
 }
 
 Write-Log "Backup completato con successo."

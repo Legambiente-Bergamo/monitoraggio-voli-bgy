@@ -6,9 +6,8 @@
 # Eseguito da Task Scheduler ogni giorno alle 08:00.
 # Log: bgy_data\bgy_logs\backup_local.log
 #
-# Versione 1.0.0 — 07/10/2026
-
-$ProjectRoot = "C:\Users\ncremaschi\Desktop\Monitoraggio BGY 2.5"
+# Versione 1.0.0 â€” 07/10/2026
+$ProjectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $BackupRoot  = "E:\BGY_Backup"
 $LogFile     = "$ProjectRoot\bgy_data\bgy_logs\backup_local.log"
 $StateFile   = "$ProjectRoot\bgy_data\bgy_logs\backup_local_state.json"

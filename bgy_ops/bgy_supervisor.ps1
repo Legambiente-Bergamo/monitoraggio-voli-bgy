@@ -1,5 +1,5 @@
 # bgy_supervisor.ps1
-$ProjectRoot = "C:\Users\ncremaschi\Desktop\Monitoraggio BGY 2.5"
+$ProjectRoot = Split-Path -Parent $PSScriptRoot
 $LockFile    = Join-Path $ProjectRoot "bgy_data\bgy_logs\scheduler.lock"
 $LogFile     = Join-Path $ProjectRoot "bgy_data\bgy_logs\supervisor.log"
 $StartScript = Join-Path $ProjectRoot "Avvia BGY.bat"
