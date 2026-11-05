@@ -349,3 +349,35 @@ __all__ = [
     'PISTA_FONTE_GEOMETRICO',
     'PISTA_FONTE_ND',
 ]
+def fill_unknown_runways_icao24(df):
+    """
+    DATA-26: Recupera la pista per i decolli N/D usando l'icao24.
+    Se lo stesso icao24 ha una pista valida (RWY 10 o RWY 28) in un altro record
+    della stessa sessione, la propaga al record mancante.
+    """
+    if df.empty or 'icao24' not in df.columns or 'pista' not in df.columns:
+        return df
+
+    # Mappa degli icao24 che hanno una pista nota
+    valid_runways = df[(df['pista'].isin(['RWY 10', 'RWY 28'])) & (df['icao24'].notna())]
+    if valid_runways.empty:
+        return df
+
+    # Prendiamo la moda (la pista più frequente per quell'icao24)
+    icao_runway_map = valid_runways.groupby('icao24')['pista'].agg(
+        lambda x: x.mode().iloc[0] if not x.mode().empty else x.iloc[0]
+    ).to_dict()
+
+    updated = 0
+    for idx, row in df.iterrows():
+        if row['pista'] == 'N/D' and row.get('direzione_sacbo') == 'D' and pd.notna(row['icao24']):
+            new_rwy = icao_runway_map.get(row['icao24'])
+            if new_rwy:
+                df.at[idx, 'pista'] = new_rwy
+                if 'pista_fonte' in df.columns:
+                    df.at[idx, 'pista_fonte'] = 'propagato_icao24'
+                updated += 1
+
+    if updated > 0:
+        print(f"✅ DATA-26: Recuperati {updated} decolli N/D tramite icao24.")
+    return df

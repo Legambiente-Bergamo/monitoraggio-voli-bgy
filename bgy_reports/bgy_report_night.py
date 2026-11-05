@@ -31,7 +31,7 @@ from bgy_core.bgy_config_manager import config_manager
 from bgy_core import bgy_db
 from bgy_utils.bgy_utils_meteo import save_night_weather
 
-from bgy_reports.bgy_report_common import propagate_runway_in_session
+from bgy_reports.bgy_report_common import fill_unknown_runways_icao24, propagate_runway_in_session
 
 logger = get_logger("ReportNight")
 
