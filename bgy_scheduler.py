@@ -1,4 +1,4 @@
-﻿"""
+"""
 bgy_scheduler.py - Pianificatore ed Orchestratore automatico.
 Versione 2.8.14
 
@@ -57,7 +57,7 @@ RECOVERY_MIN_GAP_MIN = 60
 RECOVERY_MAX_AGE_DAYS = 7
 BACKUP_MAX_AGE_HOURS = 36
 
-WARNING_ONLY_CHECKS = {'avionio_confronto', 'backup', 'h24_enrichment'}
+WARNING_ONLY_CHECKS = {'avionio_confronto', 'backup', 'h24_enrichment', 'sacbo_pista28_check', 'sacbo_pista28_compare'}
 
 
 def _heartbeat_loop():
@@ -561,6 +561,23 @@ def job_daily():
 
     overall_success = all(ok for k, (ok, _) in checks.items() if k not in WARNING_ONLY_CHECKS)
 
+
+    # RADAR-19: Check autorizzazioni SACBO Pista 28
+    try:
+        from bgy_tools.check_sacbo_pista28 import fetch_and_parse, save_to_db
+        flights_sacbo = fetch_and_parse()
+        save_to_db(flights_sacbo)
+        checks["sacbo_pista28_check"] = (True, f"Scaricati {len(flights_sacbo)} voli autorizzati SACBO")
+    except Exception as e:
+        checks["sacbo_pista28_check"] = (False, f"Errore check SACBO: {e}")
+
+    # RADAR-16: Confronto Radar vs SACBO Pista 28
+    try:
+        from bgy_tools.check_sacbo_pista28 import compare_radar_vs_sacbo
+        ok_conf, msg_conf = compare_radar_vs_sacbo(days=7)
+        checks["sacbo_pista28_compare"] = (ok_conf, msg_conf)
+    except Exception as e:
+        checks["sacbo_pista28_compare"] = (False, f"Errore confronto SACBO: {e}")
     send_daily_status(
         overall_success, "",
         checks=checks, stats=stats_data, screenshot_paths=screenshot_paths,

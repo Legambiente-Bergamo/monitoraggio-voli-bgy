@@ -1,8 +1,9 @@
 {
   "bgy_gui.py": "dcc846a86d00c1fbee22b48071d1f22b1b408a175984f5895767befe838a3461",
-  "bgy_scheduler.py": "e817fc1cc8ca1c947c69919ed32db449d1fd8ec470d31914839f77d384cd4ae4",
+  "bgy_scheduler.py": "4ac902599009bc397f3e693c48e40b77b960d4c4e787a683ecba5de4dada114b",
   "bgy_watchdog.py": "338ef694e173a1ffb67a6a93f3c2eb44cf40f88ed922bbbedb21a5f9ac14066e",
   "check_all.py": "1160151c66edfc86d4b065830a4b376319970eb1c9786cd768cfc53a2d2c3bb8",
+  "commit.py": "0bde7106fa069349d2499ed132995805076f80125ecb7e04e120d455313ee8e0",
   "migrate_2026-10-02.py": "883b4a72a1336d1c97d1cb97abc95e3c80204d98e1686637bb8e3a1ae844315f",
   "patch_h24_scheduled.py": "776edee7d18f23aef182a9ddea45a0bceb3f11d9d376a211237e910ff903ddba",
   "_icao2.py": "d131f6bbcf0f1d96843978b046142638bf203334a88f1b174fda9f42509f789f",
@@ -60,6 +61,7 @@
   "bgy_tools/check_dst.py": "cb8c3533716dcfe8884d67c9c74681cb1a318c5b942a8c38989c48ebc7c63585",
   "bgy_tools/check_pista_nd.py": "23483fa4d32839dff233f1acf3ade9d587fac4d35428f15934674feecbea2b83",
   "bgy_tools/check_pista_night.py": "fe510cc2f0eceb4eaef2a5b361d4b6c2f396c0936e559e8f5721de270458df63",
+  "bgy_tools/check_sacbo_pista28.py": "3a4257028a215696691e2db48611549a45e85891ac2e4f8f2dc0ee8caca90842",
   "bgy_tools/check_ssr13nb.py": "2b76135e412263591e6abc8f8a8baf4983e583612f061c4a568bbd5cf1e61e7b",
   "bgy_tools/confronto_sacbo_avionio.py": "862acb6f0442ea0fd811ce0be1c299af604474f9619d1c8c49547c4799b2bfe2",
   "bgy_tools/data06_fase_a.py": "d5964a3f21110469ca09cc5ed3e2c3b2f2ce94b93b49205627978377e1b2cd23",
