@@ -55,7 +55,7 @@
   "bgy_tools/analisi_cargo_ups.py": "9c3187c2e775be38a5cc4004c894a894f11eb700d9f853d38516326bc0bc80ad",
   "bgy_tools/analisi_cross_fonte.py": "ca60164796f7bf86ad53829adc57932167b8a2b8682971f226921cfc5212de48",
   "bgy_tools/analisi_icao24.py": "4e05344cc775a112e59643c7cf52f02aeb9e9089ff389405c836638fd51ce660",
-  "bgy_tools/analisi_meteo_notte.py": "d8a5f9a26811d55ee8b77badcd785310d382df9f1988922a8ebe84c0ec161641",
+  "bgy_tools/analisi_meteo_notte.py": "bf77f055e80d761f53dbc6ee009e0748c80e37bea383b10b75abd6a89158867b",
   "bgy_tools/analisi_pista_icao24.py": "f779dfab14e3e279298c2db0d7fd7af696571d2e556c7aba8958084b392f4bbd",
   "bgy_tools/analisi_pista_vento.py": "26980c00f173b740ff11f61e84844c7a498540909e80ddf54a4971fe3df94d94",
   "bgy_tools/analisi_puntualita.py": "29e2c74422f26ed0a4278f4be6a5dc0d715245ce3675b8ff9b186b66fe50b2c4",
