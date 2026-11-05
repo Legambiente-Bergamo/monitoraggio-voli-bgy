@@ -1573,6 +1573,25 @@ def build_block_fleet(date_from, date_to):
     }
 
 
+def _build_home_summary_h24(date_from, date_to):
+    rows = _query(
+        """SELECT 
+              COUNT(*) FILTER (WHERE tipo_movimento = 'Passeggeri' OR tipo_movimento LIKE 'Passeggeri (%') AS pax,
+              COUNT(*) FILTER (WHERE tipo_movimento LIKE 'Cargo%%') AS cargo,
+              COUNT(*) FILTER (WHERE tipo_movimento LIKE 'Charter%%') AS charter,
+              COUNT(*) FILTER (WHERE tipo_movimento = 'Non classificato') AS nc
+           FROM h24_reports
+           WHERE data_calendario BETWEEN %s AND %s""",
+        (date_from, date_to))
+    if rows:
+        return {
+            "pax": int(rows[0][0] or 0),
+            "cargo": int(rows[0][1] or 0),
+            "charter": int(rows[0][2] or 0),
+            "non_classificato": int(rows[0][3] or 0),
+        }
+    return {"pax": 0, "cargo": 0, "charter": 0, "non_classificato": 0}
+
 def build_web_json(days=90):
     today = datetime.now().date()
     date_to = (today - timedelta(days=1)).strftime("%Y-%m-%d")

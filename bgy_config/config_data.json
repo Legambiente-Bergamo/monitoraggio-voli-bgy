@@ -1,592 +1,593 @@
 {
-    "scan_schedules":  [
-                           "02:00",
-                           "06:00",
-                           "10:00",
-                           "14:00",
-                           "18:00",
-                           "22:00"
-                       ],
-    "night_scan_interval_seconds":  5,
-    "day_scan_interval_minutes":  2,
-    "daily_report_time":  "07:30",
-    "sacbo_night_scans":  [
-                              "23:00",
-                              "00:01",
-                              "02:00",
-                              "05:00"
-                          ],
-    "sacbo_night_scan_enabled":  true,
-    "notifications":  {
-                          "cooldown_minutes":  30,
-                          "enabled":  true,
-                          "alerts_enabled":  true,
-                          "daily_status_enabled":  true,
-                          "unresolved_airlines_days":  30
-                      },
-    "weather":  {
-                    "latitude":  45.6739,
-                    "longitude":  9.7042,
-                    "start_hour":  20,
-                    "end_hour":  6,
-                    "timezone":  "Europe/Rome",
-                    "http_timeout":  10
-                },
-    "scanner_radar":  {
-                          "bbox":  {
-                                       "lamin":  45.545,
-                                       "lamax":  45.805,
-                                       "lomin":  9.52,
-                                       "lomax":  9.89
-                                   },
-                          "pista_min_quota_ft":  100,
-                          "pista_max_distanza_km":  7.0,
-                          "bgy_lat":  45.6739,
-                          "bgy_lon":  9.7042,
-                          "max_distance_km":  15.0,
-                          "adsb_lol_radius_nm":  10,
-                          "adsb_fi_radius_nm":  10,
-                          "airplanes_live_radius_nm":  10,
-                          "airplanes_live_enabled":  false,
-                          "baro_rate_threshold_fpm":  500,
-                          "http_timeout":  15,
-                          "user_agent":  "BGY-Monitoring-Suite/2.6 (info@legambientebergamo.it)",
-                          "phase_thresholds":  {
-                                                   "landing_max_distance_km":  5,
-                                                   "landing_max_altitude_ft":  3000,
-                                                   "approach_max_distance_km":  10,
-                                                   "approach_max_altitude_ft":  5000
-                                               },
-                          "runway_bearings":  {
-                                                  "RWY 28":  [
-                                                                 250,
-                                                                 300
-                                                             ],
-                                                  "RWY 10":  [
-                                                                 70,
-                                                                 120
-                                                             ],
-                                                  "RWY 16":  [
-                                                                 160,
-                                                                 190
-                                                             ],
-                                                  "RWY 34":  [
-                                                                 340,
-                                                                 10
-                                                             ]
-                                              },
-                          "parallel_test_mode":  false,
-                          "parallel_test_days":  5,
-                          "adsb_lol_cooldown_min":  30,
-                          "adsb_lol_max_429_before_cooldown":  1
-                      },
-    "scanner_night":  {
-                          "bbox":  {
-                                       "lamin":  45.545,
-                                       "lamax":  45.805,
-                                       "lomin":  9.52,
-                                       "lomax":  9.89
-                                   },
-                          "bgy_lat":  45.6739,
-                          "bgy_lon":  9.7042,
-                          "max_distance_km":  15.0,
-                          "adsb_lol_radius_nm":  10,
-                          "adsb_fi_radius_nm":  10,
-                          "night_start_hour":  23,
-                          "night_end_hour":  6,
-                          "http_timeout":  15,
-                          "user_agent":  "BGY-Monitoring-Suite/2.6 (info@legambientebergamo.it)",
-                          "phase_thresholds":  {
-                                                   "landing_max_distance_km":  5,
-                                                   "landing_max_altitude_ft":  3000,
-                                                   "approach_max_distance_km":  10,
-                                                   "approach_max_altitude_ft":  5000
-                                               },
-                          "runway_bearings":  {
-                                                  "RWY 28":  [
-                                                                 250,
-                                                                 300
-                                                             ],
-                                                  "RWY 10":  [
-                                                                 70,
-                                                                 120
-                                                             ],
-                                                  "RWY 16":  [
-                                                                 160,
-                                                                 190
-                                                             ],
-                                                  "RWY 34":  [
-                                                                 340,
-                                                                 10
-                                                             ]
-                                              }
-                      },
-    "scanner_day":  {
-                        "urls":  [
-                                     [
-                                         "https://www.milanbergamoairport.it/it/voli-tempo-reale/#departure",
-                                         "Decollo"
-                                     ],
-                                     [
-                                         "https://www.milanbergamoairport.it/it/voli-tempo-reale/#arrivals",
-                                         "Atterraggio"
-                                     ]
-                                 ],
-                        "playwright_timeout_ms":  40000,
-                        "wait_after_load_ms":  3000,
-                        "wait_after_scroll_ms":  2000,
-                        "scroll_pixels":  1500,
-                        "user_agent":  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                        "headless":  true
-                    },
-    "report_day":  {
-                       "delay_threshold_min":  15,
-                       "early_threshold_min":  -15,
-                       "midnight_wrap_min":  720
-                   },
-    "report_night":  {
-                         "distance_by_phase_km":  {
-                                                      "Atterraggio":  2.0,
-                                                      "Decollo":  2.0,
-                                                      "Avvicinamento":  7.0,
-                                                      "Sorvolo":  12.0
-                                                  },
-                         "match_threshold_score":  50
-                     },
-    "logging":  {
-                    "archive_days":  7,
-                    "log_prefix":  "bgy_app",
-                    "level":  "INFO"
-                },
-    "watchdog":  {
-                     "check_interval_sec":  300,
-                     "radar_stale_min":  10,
-                     "radar_missing_grace_min":  15,
-                     "scheduler_log_stale_min":  15,
-                     "scheduler_log_window_sec":  300,
-                     "sacbo_max_age_hours":  7,
-                     "opensky_error_threshold":  5,
-                     "opensky_error_window_min":  15,
-                     "opensky_log_lines":  500,
-                     "adsb_lol_error_threshold":  10,
-                     "adsb_lol_error_window_min":  15
-                 },
-    "quality_check":  {
-                          "enabled":  true,
-                          "thresholds":  {
-                                             "max_flights_per_night":  100,
-                                             "min_flights_per_night":  3,
-                                             "max_cargo_per_night":  15,
-                                             "max_pax_zero_pct":  10,
-                                             "max_pax_per_flight":  500,
-                                             "max_quota_ft":  50000,
-                                             "max_gap_days":  3,
-                                             "daily_da_ratio_min":  0.6,
-                                             "nightly_da_ratio_min":  0.15
-                                         }
-                      },
-    "openflights":  {
-                        "enabled":  true,
-                        "url":  "https://raw.githubusercontent.com/jpatokal/openflights/master/data/airlines.dat",
-                        "cache_file":  "airlines.dat",
-                        "update_interval_days":  7,
-                        "http_timeout":  30
-                    },
-    "export":  {
-                   "theme":  {
-                                 "primary_color":  "1a2a6c",
-                                 "text_color":  "FFFFFF",
-                                 "border_color":  "grey",
-                                 "alternate_row_color":  "f0f4f8"
-                             },
-                   "columns":  {
-                                   "daily":  [
-                                                 "volo",
-                                                 "callsign",
-                                                 "tipo_movimento",
-                                                 "compagnia_aerea",
-                                                 "destinazione_origine",
-                                                 "orario_schedulato",
-                                                 "orario_effettivo",
-                                                 "minuti_ritardo",
-                                                 "stato_ritardo"
-                                             ],
-                                   "nightly":  [
-                                                   "callsign",
-                                                   "tipo_movimento",
-                                                   "is_scheduled",
-                                                   "compagnia_aerea",
-                                                   "modello_aereo",
-                                                   "destinazione_finale",
-                                                   "orario_schedulato",
-                                                   "timestamp",
-                                                   "pista",
-                                                   "fase_volo",
-                                                   "quota_ft",
-                                                   "distanza_km",
-                                                   "stima_passeggeri",
-                                                   "stima_rumore_db"
-                                               ],
-                                   "monthly":  [
-                                                   "volo",
-                                                   "callsign",
-                                                   "tipo_movimento",
-                                                   "compagnia_aerea",
-                                                   "destinazione_origine",
-                                                   "orario_schedulato",
-                                                   "minuti_ritardo"
-                                               ],
-                                   "yearly":  [
-                                                  "volo",
-                                                  "callsign",
-                                                  "tipo_movimento",
-                                                  "compagnia_aerea",
-                                                  "destinazione_origine",
-                                                  "destinazione_finale",
-                                                  "orario_schedulato",
-                                                  "minuti_ritardo",
-                                                  "stato_ritardo"
-                                              ]
-                               },
-                   "max_rows":  {
-                                    "xlsx":  0,
-                                    "pdf":  50,
-                                    "docx":  100,
-                                    "html":  100
-                                }
-               },
-    "avionio":  {
-                    "enabled":  true,
-                    "run_at_every_scan":  true,
-                    "import_to_db":  true,
-                    "retention_days":  0,
-                    "time_tolerance_min":  15,
-                    "http_timeout_sec":  20
-                },
-    "database_service":  {
-                             "enabled":  true,
-                             "service_name":  "postgresql-x64-17",
-                             "auto_restart_enabled":  true,
-                             "down_alert_threshold_min":  15,
-                             "restart_cooldown_min":  30,
-                             "max_restart_attempts":  3
-                         },
-    "web_export":  {
-                       "min_date":  "2026-09-30",
-                       "days_default":  90,
-                       "top_airlines_n":  10,
-                       "gate":  {
-                                    "enabled":  true,
-                                    "min_days_with_nightly":  1,
-                                    "min_nightly_rows":  5,
-                                    "min_daily_rows":  30,
-                                    "min_radar_recent":  50,
-                                    "radar_lookback_days":  2,
-                                    "min_h24_recent":  20,
-                                    "h24_lookback_days":  2
-                                }
-                   },
-    "backup_local":  {
-                         "enabled":  true,
-                         "path":  "E:\\BGY_Backup",
-                         "max_age_hours":  48,
-                         "include_credentials":  true
-                     },
-    "disclaimers":  {
-                        "enabled":  true,
-                        "global":  {
-                                       "show":  true,
-                                       "title":  "Ã¢Å¡Â Ã¯Â¸Â DATI IN FASE DI VERIFICA",
-                                       "body":  "Siamo in fase di test del sistema di monitoraggio. I dati pubblicati sono il risultato di elaborazioni automatiche in corso di validazione e possono contenere errori. La raccolta dei dati per i grafici ÃƒÂ¨ iniziata il {min_date}. Non ÃƒÂ¨ possibile visualizzare periodi precedenti a questa data."
-                                   }
-                    },
-    "print":  {
-                  "button_label":  "Ã°Å¸â€“Â¨Ã¯Â¸Â Stampa selezione",
-                  "button_position":  "fab",
-                  "html2canvas_cdn":  "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js",
-                  "footer":  {
-                                 "org":  "Circolo Legambiente Bergamo APS",
-                                 "text_template":  "Grafici elaborati da {org} tramite sistemi automatizzati a partire da dati presi da: {sources}. Dati in fase di verifica Ã¢â‚¬â€ non utilizzare come statistica ufficiale.",
-                                 "short_text_template":  "Fonte: {sources} Ã¢â‚¬â€ elaborazione automatica. Dati in fase di verifica.",
-                                 "source_url":  "https://www.legambientebergamasca.it/bgy",
-                                 "sources":  {
-                                                 "night":  "SACBO (milanbergamoairport.it), Avionio.com (aggregatore pubblico), rete ADS-B (adsb.lol, adsb.fi, OpenSky Network)",
-                                                 "delays":  "SACBO (tabellone ufficiale), Avionio.com, radar ADS-B, database H24 interno",
-                                                 "airports":  "Avionio.com (aggregatore pubblico di dati aeroportuali)",
-                                                 "anticipi":  "SACBO (tabellone ufficiale), Avionio.com, radar ADS-B"
-                                             }
-                             },
-                  "pairing":  [
-                                  {
-                                      "id":  "pair-hour-delays",
-                                      "left":  "bgy-delays-chart-hour-D",
-                                      "right":  "bgy-delays-chart-hour-A",
-                                      "title":  "Distribuzione oraria Ã¢â‚¬â€ Ritardi",
-                                      "content":  "Decolli e atterraggi per ora, suddivisi per fascia di ritardo.",
-                                      "methodology":  "Orario effettivo da radar/SACBO confrontato con schedulato. Soglia ritardo: Ã¢â€°Â¥15 min."
-                                  },
-                                  {
-                                      "id":  "pair-company-delays",
-                                      "left":  "bgy-delays-chart-company-D",
-                                      "right":  "bgy-delays-chart-company-A",
-                                      "title":  "Top compagnie Ã¢â‚¬â€ Ritardi",
-                                      "content":  "Compagnie con piÃƒÂ¹ movimenti nel periodo, per categoria.",
-                                      "methodology":  "Fonte: tabellone SACBO + Avionio. Categoria inferita dal callsign."
-                                  },
-                                  {
-                                      "id":  "pair-destination-delays",
-                                      "left":  "bgy-delays-chart-destination-D",
-                                      "right":  "bgy-delays-chart-destination-A",
-                                      "title":  "Top destinazioni / origini Ã¢â‚¬â€ Ritardi",
-                                      "content":  "Destinazioni (D) e origini (A) con piÃƒÂ¹ movimenti nel periodo.",
-                                      "methodology":  "Fonte: tabellone SACBO. Destinazione/origine normalizzata."
-                                  },
-                                  {
-                                      "id":  "pair-timeline-delays",
-                                      "left":  "bgy-delays-chart-timeline-D",
-                                      "right":  "bgy-delays-chart-timeline-A",
-                                      "title":  "Andamento giornaliero Ã¢â‚¬â€ Ritardi",
-                                      "content":  "Movimenti per giorno, per fascia di ritardo.",
-                                      "methodology":  "Aggregazione per data di calendario. Fonte: v_h24_report."
-                                  },
-                                  {
-                                      "id":  "pair-weekday-delays",
-                                      "left":  "bgy-delays-chart-weekday-D",
-                                      "right":  "bgy-delays-chart-weekday-A",
-                                      "title":  "% ritardi per giorno settimana",
-                                      "content":  "Percentuale di voli in ritardo per giorno, con proporzione Pax/Cargo/Charter/Altro.",
-                                      "methodology":  "Solo periodi Ã¢â€°Â¥7 giorni. Fonte: v_h24_report."
-                                  },
-                                  {
-                                      "id":  "pair-fasce-delays",
-                                      "left":  "bgy-delays-chart-fasce-D",
-                                      "right":  "bgy-delays-chart-fasce-A",
-                                      "title":  "Distribuzione per fasce di ritardo",
-                                      "content":  "Voli per fascia (15-30, 30-45, 45-60, 60-120, \u003e120 min).",
-                                      "methodology":  "Soglie in minuti. Fonte: database H24."
-                                  },
-                                  {
-                                      "id":  "pair-toprec-delays",
-                                      "left":  "bgy-delays-chart-top-rec-D",
-                                      "right":  "bgy-delays-chart-top-rec-A",
-                                      "title":  "Top 5 movimenti piÃƒÂ¹ ritardatari",
-                                      "content":  "Movimenti che ricorrono piÃƒÂ¹ spesso in ritardo (callsign + fascia oraria).",
-                                      "methodology":  "Arrotondamento orario a 15 min. Solo periodi \u003e1 giorno. Fonte: H24."
-                                  },
-                                  {
-                                      "id":  "pair-categories-night",
-                                      "left":  "bgy-chart-D",
-                                      "right":  "bgy-chart-A",
-                                      "title":  "Movimenti notturni per categoria",
-                                      "content":  "Ripartizione dei movimenti notturni per categoria (Pax/Cargo/Charter/Altro).",
-                                      "methodology":  "Sessione 23:01-05:59. Fonte: match 3 vie SACBO + Avionio + radar."
-                                  },
-                                  {
-                                      "id":  "pair-hour-night",
-                                      "left":  "bgy-chart-hour-D",
-                                      "right":  "bgy-chart-hour-A",
-                                      "title":  "Distribuzione oraria notturna",
-                                      "content":  "Movimenti per ora nella fascia 23:00-05:59, per categoria.",
-                                      "methodology":  "Fonte: match 3 vie. Ora effettiva (radar/SACBO)."
-                                  },
-                                  {
-                                      "id":  "pair-timeline-night",
-                                      "left":  "bgy-chart-timeline-D",
-                                      "right":  "bgy-chart-timeline-A",
-                                      "title":  "Andamento movimenti notturni",
-                                      "content":  "Movimenti per sessione notturna nel periodo selezionato.",
-                                      "methodology":  "Sessione 23:01-05:59. Solo periodi \u003e7 giorni."
-                                  },
-                                  {
-                                      "id":  "pair-weekday-night",
-                                      "left":  "bgy-chart-weekday-D",
-                                      "right":  "bgy-chart-weekday-A",
-                                      "title":  "Movimenti notturni per giorno settimana",
-                                      "content":  "Distribuzione dei movimenti notturni per giorno della settimana.",
-                                      "methodology":  "Sessione 23:01-05:59. Solo periodi \u003e7 giorni."
-                                  },
-                                  {
-                                      "id":  "pair-dest-night",
-                                      "left":  "bgy-dest-chart-D",
-                                      "right":  "bgy-dest-chart-A",
-                                      "title":  "Top 5 destinazioni / origini notturne",
-                                      "content":  "Destinazioni (D) e origini (A) con piÃƒÂ¹ movimenti notturni.",
-                                      "methodology":  "Sessione 23:01-05:59. Solo periodi \u003e1 giorno."
-                                  },
-                                  {
-                                      "id":  "pair-airlines-night",
-                                      "left":  "bgy-airlines-rank-D",
-                                      "right":  "bgy-airlines-rank-A",
-                                      "title":  "Ranking compagnie notturne",
-                                      "content":  "Compagnie con piÃƒÂ¹ movimenti nella fascia notturna.",
-                                      "methodology":  "Categoria inferita dal callsign. Fonte: match 3 vie."
-                                  },
-                                  {
-                                      "id":  "pair-hour-anticipi",
-                                      "left":  "bgy-anticipi-chart-hour-D",
-                                      "right":  "bgy-anticipi-chart-hour-A",
-                                      "title":  "Distribuzione oraria Ã¢â‚¬â€ Anticipi",
-                                      "content":  "Decolli e atterraggi in anticipo per ora del giorno.",
-                                      "methodology":  "Orario effettivo (radar/SACBO) precedente allo schedulato di almeno 15 min. Fonte: SACBO + radar."
-                                  },
-                                  {
-                                      "id":  "pair-company-anticipi",
-                                      "left":  "bgy-anticipi-chart-company-D",
-                                      "right":  "bgy-anticipi-chart-company-A",
-                                      "title":  "Top compagnie Ã¢â‚¬â€ Anticipi",
-                                      "content":  "Compagnie con piÃƒÂ¹ anticipi nel periodo.",
-                                      "methodology":  "Fonte: tabellone SACBO + Avionio. Categoria inferita dal callsign."
-                                  },
-                                  {
-                                      "id":  "pair-destination-anticipi",
-                                      "left":  "bgy-anticipi-chart-destination-D",
-                                      "right":  "bgy-anticipi-chart-destination-A",
-                                      "title":  "Top destinazioni / origini Ã¢â‚¬â€ Anticipi",
-                                      "content":  "Destinazioni (D) e origini (A) con piÃƒÂ¹ anticipi.",
-                                      "methodology":  "Fonte: tabellone SACBO. Destinazione/origine normalizzata."
-                                  },
-                                  {
-                                      "id":  "pair-fasce-anticipi",
-                                      "left":  "bgy-anticipi-chart-fasce-D",
-                                      "right":  "bgy-anticipi-chart-fasce-A",
-                                      "title":  "Distribuzione per fasce di anticipo",
-                                      "content":  "Voli per fascia di anticipo (15-30, 30-45, 45-60, 60-120, \u003e120 min).",
-                                      "methodology":  "Soglie in minuti. Fonte: database H24. Outlier oltre 180 min esclusi."
-                                  },
-                                  {
-                                      "id":  "pair-timeline-anticipi",
-                                      "left":  "bgy-anticipi-chart-timeline-D",
-                                      "right":  "bgy-anticipi-chart-timeline-A",
-                                      "title":  "Andamento giornaliero Ã¢â‚¬â€ Anticipi",
-                                      "content":  "Movimenti in anticipo per giorno, per fascia.",
-                                      "methodology":  "Aggregazione per data di calendario. Fonte: v_h24_report."
-                                  }
-                              ],
-                  "charts":  {
-                                 "bgy-geo-D":  {
-                                                   "title":  "Drill-down geografico Ã¢â‚¬â€ Decolli",
-                                                   "content":  "Paesi/cittÃƒÂ  di destinazione dei decolli (stato corrente del drill-down).",
-                                                   "methodology":  "Fonte: tabellone SACBO. Categoria inferita."
-                                               },
-                                 "bgy-geo-A":  {
-                                                   "title":  "Drill-down geografico Ã¢â‚¬â€ Atterraggi",
-                                                   "content":  "Paesi/cittÃƒÂ  di origine degli atterraggi (stato corrente del drill-down).",
-                                                   "methodology":  "Fonte: tabellone SACBO. Categoria inferita."
-                                               }
-                             },
-                  "print_sections":  [
-                                         {
-                                             "id":  "disclaimer-global",
-                                             "selector":  "#bgy-disclaimer-container",
-                                             "title":  "Avvertenza e disclaimer",
-                                             "content":  "Condizioni d\u0027uso dei dati e avvertenze metodologiche.",
-                                             "methodology":  "Testo gestito in config_data.json \u003e disclaimers."
-                                         },
-                                         {
-                                             "id":  "kpi-night",
-                                             "selector":  "#bgy-kpi-container",
-                                             "title":  "KPI movimenti notturni",
-                                             "content":  "Totali, schedulati, sconfinamenti, dettaglio per categoria.",
-                                             "methodology":  "Sessione 23:01-05:59. Fonte: match 3 vie."
-                                         },
-                                         {
-                                             "id":  "sides-night",
-                                             "selector":  "#bgy-sides-container",
-                                             "title":  "Pista utilizzata",
-                                             "content":  "Distribuzione dei movimenti per pista (Bergamo 28, Seriate 10, N/D).",
-                                             "methodology":  "Dedotta da radar ADS-B (vedi modal Ã‚Â«Come viene determinata la pistaÃ‚Â»)."
-                                         },
-                                         {
-                                             "id":  "weather-night-20",
-                                             "selector":  "#bgy-weather-20",
-                                             "title":  "Meteo alle 20:00",
-                                             "content":  "Condizioni meteo precedenti alla sessione notturna.",
-                                             "methodology":  "Fonte: Open-Meteo / provider meteo configurato."
-                                         },
-                                         {
-                                             "id":  "weather-detail-D",
-                                             "selector":  "#bgy-weather-detail-D",
-                                             "title":  "Dettaglio movimenti con meteo Ã¢â‚¬â€ Decolli",
-                                             "content":  "Elenco dei decolli con condizioni meteo al momento del movimento.",
-                                             "methodology":  "Incrocio nightly_reports Ã¢â€ â€ weather_hourly."
-                                         },
-                                         {
-                                             "id":  "weather-detail-A",
-                                             "selector":  "#bgy-weather-detail-A",
-                                             "title":  "Dettaglio movimenti con meteo Ã¢â‚¬â€ Atterraggi",
-                                             "content":  "Elenco degli atterraggi con condizioni meteo al momento del movimento.",
-                                             "methodology":  "Incrocio nightly_reports Ã¢â€ â€ weather_hourly."
-                                         },
-                                         {
-                                             "id":  "kpi-delays-D",
-                                             "selector":  "#bgy-delays-kpi-container-D",
-                                             "title":  "KPI ritardi Ã¢â‚¬â€ Decolli",
-                                             "content":  "Totali, puntuali, in ritardo, % e ritardi medi.",
-                                             "methodology":  "Soglie: puntuale Ã¢â€°Â¤15 min, ritardo \u003e15 min, grave \u003e60 min. Fonte: H24."
-                                         },
-                                         {
-                                             "id":  "kpi-delays-A",
-                                             "selector":  "#bgy-delays-kpi-container-A",
-                                             "title":  "KPI ritardi Ã¢â‚¬â€ Atterraggi",
-                                             "content":  "Totali, puntuali, in ritardo, % e ritardi medi.",
-                                             "methodology":  "Soglie: puntuale Ã¢â€°Â¤15 min, ritardo \u003e15 min, grave \u003e60 min. Fonte: H24."
-                                         },
-                                         {
-                                             "id":  "worst-delays-D",
-                                             "selector":  "#bgy-delays-worst-container-D",
-                                             "title":  "Peggior ritardo Ã¢â‚¬â€ Decolli",
-                                             "content":  "I singoli decolli con il ritardo piÃƒÂ¹ alto nel periodo.",
-                                             "methodology":  "Solo periodi \u003e1 giorno. Fonte: H24."
-                                         },
-                                         {
-                                             "id":  "worst-delays-A",
-                                             "selector":  "#bgy-delays-worst-container-A",
-                                             "title":  "Peggior ritardo Ã¢â‚¬â€ Atterraggi",
-                                             "content":  "I singoli atterraggi con il ritardo piÃƒÂ¹ alto nel periodo.",
-                                             "methodology":  "Solo periodi \u003e1 giorno. Fonte: H24."
-                                         },
-                                         {
-                                             "id":  "kpi-note-delays",
-                                             "selector":  "#bgy-delays-kpi-note",
-                                             "title":  "Nota metodologica KPI ritardi",
-                                             "content":  "Spiegazione delle metriche di ritardo (tutti i voli vs solo ritardati).",
-                                             "methodology":  "Testo descrittivo del periodo selezionato."
-                                         },
-                                         {
-                                             "id":  "kpi-anticipi",
-                                             "selector":  "#bgy-anticipi-kpi-container",
-                                             "title":  "KPI anticipi",
-                                             "content":  "Movimenti totali, puntuali/in ritardo, anticipi (Ã¢â€°Â¥15 min), % anticipi, anticipo medio e massimo.",
-                                             "methodology":  "Franchigia: anticipo significativo se Ã¢â€°Â¥15 min. Fonte: SACBO + radar."
-                                         },
-                                         {
-                                             "id":  "top-delta-anticipi-D",
-                                             "selector":  "#bgy-anticipi-top-delta-container-D",
-                                             "title":  "Top 5 anticipi Ã¢â‚¬â€ Decolli",
-                                             "content":  "I decolli con l\u0027anticipo piÃƒÂ¹ elevato nel periodo.",
-                                             "methodology":  "Anticipo massimo (valore assoluto). Fonte: H24."
-                                         },
-                                         {
-                                             "id":  "top-delta-anticipi-A",
-                                             "selector":  "#bgy-anticipi-top-delta-container-A",
-                                             "title":  "Top 5 anticipi Ã¢â‚¬â€ Atterraggi",
-                                             "content":  "Gli atterraggi con l\u0027anticipo piÃƒÂ¹ elevato nel periodo.",
-                                             "methodology":  "Anticipo massimo (valore assoluto). Fonte: H24."
-                                         },
-                                         {
-                                             "id":  "top-freq-anticipi-D",
-                                             "selector":  "#bgy-anticipi-top-freq-container-D",
-                                             "title":  "Top 5 frequenza anticipi Ã¢â‚¬â€ Decolli",
-                                             "content":  "I decolli che ricorrono piÃƒÂ¹ spesso in anticipo (callsign + fascia oraria).",
-                                             "methodology":  "Arrotondamento orario a 15 min. Fonte: H24."
-                                         },
-                                         {
-                                             "id":  "top-freq-anticipi-A",
-                                             "selector":  "#bgy-anticipi-top-freq-container-A",
-                                             "title":  "Top 5 frequenza anticipi Ã¢â‚¬â€ Atterraggi",
-                                             "content":  "Gli atterraggi che ricorrono piÃƒÂ¹ spesso in anticipo (callsign + fascia oraria).",
-                                             "methodology":  "Arrotondamento orario a 15 min. Fonte: H24."
-                                         }
-                                     ]
-              }
+  "scan_schedules": [
+    "02:00",
+    "06:00",
+    "10:00",
+    "14:00",
+    "18:00",
+    "22:00"
+  ],
+  "night_scan_interval_seconds": 5,
+  "day_scan_interval_minutes": 2,
+  "daily_report_time": "07:30",
+  "sacbo_night_scans": [
+    "23:00",
+    "00:01",
+    "02:00",
+    "05:00"
+  ],
+  "sacbo_night_scan_enabled": true,
+  "notifications": {
+    "cooldown_minutes": 30,
+    "enabled": true,
+    "alerts_enabled": true,
+    "daily_status_enabled": true,
+    "unresolved_airlines_days": 30
+  },
+  "weather": {
+    "latitude": 45.6739,
+    "longitude": 9.7042,
+    "start_hour": 20,
+    "end_hour": 6,
+    "timezone": "Europe/Rome",
+    "http_timeout": 10
+  },
+  "scanner_radar": {
+    "bbox": {
+      "lamin": 45.545,
+      "lamax": 45.805,
+      "lomin": 9.52,
+      "lomax": 9.89
+    },
+    "pista_min_quota_ft": 100,
+    "pista_max_distanza_km": 7.0,
+    "bgy_lat": 45.6739,
+    "bgy_lon": 9.7042,
+    "max_distance_km": 15.0,
+    "adsb_lol_radius_nm": 10,
+    "adsb_fi_radius_nm": 10,
+    "airplanes_live_radius_nm": 10,
+    "airplanes_live_enabled": false,
+    "baro_rate_threshold_fpm": 500,
+    "http_timeout": 15,
+    "user_agent": "BGY-Monitoring-Suite/2.6 (info@legambientebergamo.it)",
+    "phase_thresholds": {
+      "landing_max_distance_km": 5,
+      "landing_max_altitude_ft": 3000,
+      "approach_max_distance_km": 10,
+      "approach_max_altitude_ft": 5000
+    },
+    "runway_bearings": {
+      "RWY 28": [
+        250,
+        300
+      ],
+      "RWY 10": [
+        70,
+        120
+      ],
+      "RWY 16": [
+        160,
+        190
+      ],
+      "RWY 34": [
+        340,
+        10
+      ]
+    },
+    "parallel_test_mode": false,
+    "parallel_test_days": 5,
+    "adsb_lol_cooldown_min": 30,
+    "adsb_lol_max_429_before_cooldown": 1,
+    "opensky_cooldown_sec": 60
+  },
+  "scanner_night": {
+    "bbox": {
+      "lamin": 45.545,
+      "lamax": 45.805,
+      "lomin": 9.52,
+      "lomax": 9.89
+    },
+    "bgy_lat": 45.6739,
+    "bgy_lon": 9.7042,
+    "max_distance_km": 15.0,
+    "adsb_lol_radius_nm": 10,
+    "adsb_fi_radius_nm": 10,
+    "night_start_hour": 23,
+    "night_end_hour": 6,
+    "http_timeout": 15,
+    "user_agent": "BGY-Monitoring-Suite/2.6 (info@legambientebergamo.it)",
+    "phase_thresholds": {
+      "landing_max_distance_km": 5,
+      "landing_max_altitude_ft": 3000,
+      "approach_max_distance_km": 10,
+      "approach_max_altitude_ft": 5000
+    },
+    "runway_bearings": {
+      "RWY 28": [
+        250,
+        300
+      ],
+      "RWY 10": [
+        70,
+        120
+      ],
+      "RWY 16": [
+        160,
+        190
+      ],
+      "RWY 34": [
+        340,
+        10
+      ]
+    }
+  },
+  "scanner_day": {
+    "urls": [
+      [
+        "https://www.milanbergamoairport.it/it/voli-tempo-reale/#departure",
+        "Decollo"
+      ],
+      [
+        "https://www.milanbergamoairport.it/it/voli-tempo-reale/#arrivals",
+        "Atterraggio"
+      ]
+    ],
+    "playwright_timeout_ms": 40000,
+    "wait_after_load_ms": 3000,
+    "wait_after_scroll_ms": 2000,
+    "scroll_pixels": 1500,
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "headless": true
+  },
+  "report_day": {
+    "delay_threshold_min": 15,
+    "early_threshold_min": -15,
+    "midnight_wrap_min": 720
+  },
+  "report_night": {
+    "distance_by_phase_km": {
+      "Atterraggio": 2.0,
+      "Decollo": 2.0,
+      "Avvicinamento": 7.0,
+      "Sorvolo": 12.0
+    },
+    "match_threshold_score": 50
+  },
+  "logging": {
+    "archive_days": 7,
+    "log_prefix": "bgy_app",
+    "level": "INFO"
+  },
+  "watchdog": {
+    "check_interval_sec": 300,
+    "radar_stale_min": 10,
+    "radar_missing_grace_min": 15,
+    "scheduler_log_stale_min": 15,
+    "scheduler_log_window_sec": 300,
+    "sacbo_max_age_hours": 7,
+    "opensky_error_threshold": 5,
+    "opensky_error_window_min": 15,
+    "opensky_log_lines": 500,
+    "adsb_lol_error_threshold": 10,
+    "adsb_lol_error_window_min": 15
+  },
+  "quality_check": {
+    "enabled": true,
+    "thresholds": {
+      "max_flights_per_night": 100,
+      "min_flights_per_night": 3,
+      "max_cargo_per_night": 15,
+      "max_pax_zero_pct": 10,
+      "max_pax_per_flight": 500,
+      "max_quota_ft": 50000,
+      "max_gap_days": 3,
+      "daily_da_ratio_min": 0.6,
+      "nightly_da_ratio_min": 0.15
+    }
+  },
+  "openflights": {
+    "enabled": true,
+    "url": "https://raw.githubusercontent.com/jpatokal/openflights/master/data/airlines.dat",
+    "cache_file": "airlines.dat",
+    "update_interval_days": 7,
+    "http_timeout": 30
+  },
+  "export": {
+    "theme": {
+      "primary_color": "1a2a6c",
+      "text_color": "FFFFFF",
+      "border_color": "grey",
+      "alternate_row_color": "f0f4f8"
+    },
+    "columns": {
+      "daily": [
+        "volo",
+        "callsign",
+        "tipo_movimento",
+        "compagnia_aerea",
+        "destinazione_origine",
+        "orario_schedulato",
+        "orario_effettivo",
+        "minuti_ritardo",
+        "stato_ritardo"
+      ],
+      "nightly": [
+        "callsign",
+        "tipo_movimento",
+        "is_scheduled",
+        "compagnia_aerea",
+        "modello_aereo",
+        "destinazione_finale",
+        "orario_schedulato",
+        "timestamp",
+        "pista",
+        "fase_volo",
+        "quota_ft",
+        "distanza_km",
+        "stima_passeggeri",
+        "stima_rumore_db"
+      ],
+      "monthly": [
+        "volo",
+        "callsign",
+        "tipo_movimento",
+        "compagnia_aerea",
+        "destinazione_origine",
+        "orario_schedulato",
+        "minuti_ritardo"
+      ],
+      "yearly": [
+        "volo",
+        "callsign",
+        "tipo_movimento",
+        "compagnia_aerea",
+        "destinazione_origine",
+        "destinazione_finale",
+        "orario_schedulato",
+        "minuti_ritardo",
+        "stato_ritardo"
+      ]
+    },
+    "max_rows": {
+      "xlsx": 0,
+      "pdf": 50,
+      "docx": 100,
+      "html": 100
+    }
+  },
+  "avionio": {
+    "enabled": true,
+    "run_at_every_scan": true,
+    "import_to_db": true,
+    "retention_days": 0,
+    "time_tolerance_min": 15,
+    "http_timeout_sec": 20
+  },
+  "database_service": {
+    "enabled": true,
+    "service_name": "postgresql-x64-17",
+    "auto_restart_enabled": true,
+    "down_alert_threshold_min": 15,
+    "restart_cooldown_min": 30,
+    "max_restart_attempts": 3
+  },
+  "web_export": {
+    "min_date": "2026-09-30",
+    "days_default": 90,
+    "top_airlines_n": 10,
+    "gate": {
+      "enabled": true,
+      "min_days_with_nightly": 1,
+      "min_nightly_rows": 5,
+      "min_daily_rows": 30,
+      "min_radar_recent": 50,
+      "radar_lookback_days": 2,
+      "min_h24_recent": 20,
+      "h24_lookback_days": 2
+    }
+  },
+  "backup_local": {
+    "enabled": true,
+    "path": "E:\\BGY_Backup",
+    "max_age_hours": 48,
+    "include_credentials": true
+  },
+  "disclaimers": {
+    "enabled": true,
+    "global": {
+      "show": true,
+      "title": "Ã¢Å¡Â Ã¯Â¸Â DATI IN FASE DI VERIFICA",
+      "body": "Siamo in fase di test del sistema di monitoraggio. I dati pubblicati sono il risultato di elaborazioni automatiche in corso di validazione e possono contenere errori. La raccolta dei dati per i grafici ÃƒÂ¨ iniziata il {min_date}. Non ÃƒÂ¨ possibile visualizzare periodi precedenti a questa data."
+    }
+  },
+  "print": {
+    "button_label": "Ã°Å¸â€“Â¨Ã¯Â¸Â Stampa selezione",
+    "button_position": "fab",
+    "html2canvas_cdn": "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js",
+    "footer": {
+      "org": "Circolo Legambiente Bergamo APS",
+      "text_template": "Grafici elaborati da {org} tramite sistemi automatizzati a partire da dati presi da: {sources}. Dati in fase di verifica Ã¢â‚¬â€ non utilizzare come statistica ufficiale.",
+      "short_text_template": "Fonte: {sources} Ã¢â‚¬â€ elaborazione automatica. Dati in fase di verifica.",
+      "source_url": "https://www.legambientebergamasca.it/bgy",
+      "sources": {
+        "night": "SACBO (milanbergamoairport.it), Avionio.com (aggregatore pubblico), rete ADS-B (adsb.lol, adsb.fi, OpenSky Network)",
+        "delays": "SACBO (tabellone ufficiale), Avionio.com, radar ADS-B, database H24 interno",
+        "airports": "Avionio.com (aggregatore pubblico di dati aeroportuali)",
+        "anticipi": "SACBO (tabellone ufficiale), Avionio.com, radar ADS-B"
+      }
+    },
+    "pairing": [
+      {
+        "id": "pair-hour-delays",
+        "left": "bgy-delays-chart-hour-D",
+        "right": "bgy-delays-chart-hour-A",
+        "title": "Distribuzione oraria Ã¢â‚¬â€ Ritardi",
+        "content": "Decolli e atterraggi per ora, suddivisi per fascia di ritardo.",
+        "methodology": "Orario effettivo da radar/SACBO confrontato con schedulato. Soglia ritardo: Ã¢â€°Â¥15 min."
+      },
+      {
+        "id": "pair-company-delays",
+        "left": "bgy-delays-chart-company-D",
+        "right": "bgy-delays-chart-company-A",
+        "title": "Top compagnie Ã¢â‚¬â€ Ritardi",
+        "content": "Compagnie con piÃƒÂ¹ movimenti nel periodo, per categoria.",
+        "methodology": "Fonte: tabellone SACBO + Avionio. Categoria inferita dal callsign."
+      },
+      {
+        "id": "pair-destination-delays",
+        "left": "bgy-delays-chart-destination-D",
+        "right": "bgy-delays-chart-destination-A",
+        "title": "Top destinazioni / origini Ã¢â‚¬â€ Ritardi",
+        "content": "Destinazioni (D) e origini (A) con piÃƒÂ¹ movimenti nel periodo.",
+        "methodology": "Fonte: tabellone SACBO. Destinazione/origine normalizzata."
+      },
+      {
+        "id": "pair-timeline-delays",
+        "left": "bgy-delays-chart-timeline-D",
+        "right": "bgy-delays-chart-timeline-A",
+        "title": "Andamento giornaliero Ã¢â‚¬â€ Ritardi",
+        "content": "Movimenti per giorno, per fascia di ritardo.",
+        "methodology": "Aggregazione per data di calendario. Fonte: v_h24_report."
+      },
+      {
+        "id": "pair-weekday-delays",
+        "left": "bgy-delays-chart-weekday-D",
+        "right": "bgy-delays-chart-weekday-A",
+        "title": "% ritardi per giorno settimana",
+        "content": "Percentuale di voli in ritardo per giorno, con proporzione Pax/Cargo/Charter/Altro.",
+        "methodology": "Solo periodi Ã¢â€°Â¥7 giorni. Fonte: v_h24_report."
+      },
+      {
+        "id": "pair-fasce-delays",
+        "left": "bgy-delays-chart-fasce-D",
+        "right": "bgy-delays-chart-fasce-A",
+        "title": "Distribuzione per fasce di ritardo",
+        "content": "Voli per fascia (15-30, 30-45, 45-60, 60-120, >120 min).",
+        "methodology": "Soglie in minuti. Fonte: database H24."
+      },
+      {
+        "id": "pair-toprec-delays",
+        "left": "bgy-delays-chart-top-rec-D",
+        "right": "bgy-delays-chart-top-rec-A",
+        "title": "Top 5 movimenti piÃƒÂ¹ ritardatari",
+        "content": "Movimenti che ricorrono piÃƒÂ¹ spesso in ritardo (callsign + fascia oraria).",
+        "methodology": "Arrotondamento orario a 15 min. Solo periodi >1 giorno. Fonte: H24."
+      },
+      {
+        "id": "pair-categories-night",
+        "left": "bgy-chart-D",
+        "right": "bgy-chart-A",
+        "title": "Movimenti notturni per categoria",
+        "content": "Ripartizione dei movimenti notturni per categoria (Pax/Cargo/Charter/Altro).",
+        "methodology": "Sessione 23:01-05:59. Fonte: match 3 vie SACBO + Avionio + radar."
+      },
+      {
+        "id": "pair-hour-night",
+        "left": "bgy-chart-hour-D",
+        "right": "bgy-chart-hour-A",
+        "title": "Distribuzione oraria notturna",
+        "content": "Movimenti per ora nella fascia 23:00-05:59, per categoria.",
+        "methodology": "Fonte: match 3 vie. Ora effettiva (radar/SACBO)."
+      },
+      {
+        "id": "pair-timeline-night",
+        "left": "bgy-chart-timeline-D",
+        "right": "bgy-chart-timeline-A",
+        "title": "Andamento movimenti notturni",
+        "content": "Movimenti per sessione notturna nel periodo selezionato.",
+        "methodology": "Sessione 23:01-05:59. Solo periodi >7 giorni."
+      },
+      {
+        "id": "pair-weekday-night",
+        "left": "bgy-chart-weekday-D",
+        "right": "bgy-chart-weekday-A",
+        "title": "Movimenti notturni per giorno settimana",
+        "content": "Distribuzione dei movimenti notturni per giorno della settimana.",
+        "methodology": "Sessione 23:01-05:59. Solo periodi >7 giorni."
+      },
+      {
+        "id": "pair-dest-night",
+        "left": "bgy-dest-chart-D",
+        "right": "bgy-dest-chart-A",
+        "title": "Top 5 destinazioni / origini notturne",
+        "content": "Destinazioni (D) e origini (A) con piÃƒÂ¹ movimenti notturni.",
+        "methodology": "Sessione 23:01-05:59. Solo periodi >1 giorno."
+      },
+      {
+        "id": "pair-airlines-night",
+        "left": "bgy-airlines-rank-D",
+        "right": "bgy-airlines-rank-A",
+        "title": "Ranking compagnie notturne",
+        "content": "Compagnie con piÃƒÂ¹ movimenti nella fascia notturna.",
+        "methodology": "Categoria inferita dal callsign. Fonte: match 3 vie."
+      },
+      {
+        "id": "pair-hour-anticipi",
+        "left": "bgy-anticipi-chart-hour-D",
+        "right": "bgy-anticipi-chart-hour-A",
+        "title": "Distribuzione oraria Ã¢â‚¬â€ Anticipi",
+        "content": "Decolli e atterraggi in anticipo per ora del giorno.",
+        "methodology": "Orario effettivo (radar/SACBO) precedente allo schedulato di almeno 15 min. Fonte: SACBO + radar."
+      },
+      {
+        "id": "pair-company-anticipi",
+        "left": "bgy-anticipi-chart-company-D",
+        "right": "bgy-anticipi-chart-company-A",
+        "title": "Top compagnie Ã¢â‚¬â€ Anticipi",
+        "content": "Compagnie con piÃƒÂ¹ anticipi nel periodo.",
+        "methodology": "Fonte: tabellone SACBO + Avionio. Categoria inferita dal callsign."
+      },
+      {
+        "id": "pair-destination-anticipi",
+        "left": "bgy-anticipi-chart-destination-D",
+        "right": "bgy-anticipi-chart-destination-A",
+        "title": "Top destinazioni / origini Ã¢â‚¬â€ Anticipi",
+        "content": "Destinazioni (D) e origini (A) con piÃƒÂ¹ anticipi.",
+        "methodology": "Fonte: tabellone SACBO. Destinazione/origine normalizzata."
+      },
+      {
+        "id": "pair-fasce-anticipi",
+        "left": "bgy-anticipi-chart-fasce-D",
+        "right": "bgy-anticipi-chart-fasce-A",
+        "title": "Distribuzione per fasce di anticipo",
+        "content": "Voli per fascia di anticipo (15-30, 30-45, 45-60, 60-120, >120 min).",
+        "methodology": "Soglie in minuti. Fonte: database H24. Outlier oltre 180 min esclusi."
+      },
+      {
+        "id": "pair-timeline-anticipi",
+        "left": "bgy-anticipi-chart-timeline-D",
+        "right": "bgy-anticipi-chart-timeline-A",
+        "title": "Andamento giornaliero Ã¢â‚¬â€ Anticipi",
+        "content": "Movimenti in anticipo per giorno, per fascia.",
+        "methodology": "Aggregazione per data di calendario. Fonte: v_h24_report."
+      }
+    ],
+    "charts": {
+      "bgy-geo-D": {
+        "title": "Drill-down geografico Ã¢â‚¬â€ Decolli",
+        "content": "Paesi/cittÃƒÂ  di destinazione dei decolli (stato corrente del drill-down).",
+        "methodology": "Fonte: tabellone SACBO. Categoria inferita."
+      },
+      "bgy-geo-A": {
+        "title": "Drill-down geografico Ã¢â‚¬â€ Atterraggi",
+        "content": "Paesi/cittÃƒÂ  di origine degli atterraggi (stato corrente del drill-down).",
+        "methodology": "Fonte: tabellone SACBO. Categoria inferita."
+      }
+    },
+    "print_sections": [
+      {
+        "id": "disclaimer-global",
+        "selector": "#bgy-disclaimer-container",
+        "title": "Avvertenza e disclaimer",
+        "content": "Condizioni d'uso dei dati e avvertenze metodologiche.",
+        "methodology": "Testo gestito in config_data.json > disclaimers."
+      },
+      {
+        "id": "kpi-night",
+        "selector": "#bgy-kpi-container",
+        "title": "KPI movimenti notturni",
+        "content": "Totali, schedulati, sconfinamenti, dettaglio per categoria.",
+        "methodology": "Sessione 23:01-05:59. Fonte: match 3 vie."
+      },
+      {
+        "id": "sides-night",
+        "selector": "#bgy-sides-container",
+        "title": "Pista utilizzata",
+        "content": "Distribuzione dei movimenti per pista (Bergamo 28, Seriate 10, N/D).",
+        "methodology": "Dedotta da radar ADS-B (vedi modal Ã‚Â«Come viene determinata la pistaÃ‚Â»)."
+      },
+      {
+        "id": "weather-night-20",
+        "selector": "#bgy-weather-20",
+        "title": "Meteo alle 20:00",
+        "content": "Condizioni meteo precedenti alla sessione notturna.",
+        "methodology": "Fonte: Open-Meteo / provider meteo configurato."
+      },
+      {
+        "id": "weather-detail-D",
+        "selector": "#bgy-weather-detail-D",
+        "title": "Dettaglio movimenti con meteo Ã¢â‚¬â€ Decolli",
+        "content": "Elenco dei decolli con condizioni meteo al momento del movimento.",
+        "methodology": "Incrocio nightly_reports Ã¢â€ â€ weather_hourly."
+      },
+      {
+        "id": "weather-detail-A",
+        "selector": "#bgy-weather-detail-A",
+        "title": "Dettaglio movimenti con meteo Ã¢â‚¬â€ Atterraggi",
+        "content": "Elenco degli atterraggi con condizioni meteo al momento del movimento.",
+        "methodology": "Incrocio nightly_reports Ã¢â€ â€ weather_hourly."
+      },
+      {
+        "id": "kpi-delays-D",
+        "selector": "#bgy-delays-kpi-container-D",
+        "title": "KPI ritardi Ã¢â‚¬â€ Decolli",
+        "content": "Totali, puntuali, in ritardo, % e ritardi medi.",
+        "methodology": "Soglie: puntuale Ã¢â€°Â¤15 min, ritardo >15 min, grave >60 min. Fonte: H24."
+      },
+      {
+        "id": "kpi-delays-A",
+        "selector": "#bgy-delays-kpi-container-A",
+        "title": "KPI ritardi Ã¢â‚¬â€ Atterraggi",
+        "content": "Totali, puntuali, in ritardo, % e ritardi medi.",
+        "methodology": "Soglie: puntuale Ã¢â€°Â¤15 min, ritardo >15 min, grave >60 min. Fonte: H24."
+      },
+      {
+        "id": "worst-delays-D",
+        "selector": "#bgy-delays-worst-container-D",
+        "title": "Peggior ritardo Ã¢â‚¬â€ Decolli",
+        "content": "I singoli decolli con il ritardo piÃƒÂ¹ alto nel periodo.",
+        "methodology": "Solo periodi >1 giorno. Fonte: H24."
+      },
+      {
+        "id": "worst-delays-A",
+        "selector": "#bgy-delays-worst-container-A",
+        "title": "Peggior ritardo Ã¢â‚¬â€ Atterraggi",
+        "content": "I singoli atterraggi con il ritardo piÃƒÂ¹ alto nel periodo.",
+        "methodology": "Solo periodi >1 giorno. Fonte: H24."
+      },
+      {
+        "id": "kpi-note-delays",
+        "selector": "#bgy-delays-kpi-note",
+        "title": "Nota metodologica KPI ritardi",
+        "content": "Spiegazione delle metriche di ritardo (tutti i voli vs solo ritardati).",
+        "methodology": "Testo descrittivo del periodo selezionato."
+      },
+      {
+        "id": "kpi-anticipi",
+        "selector": "#bgy-anticipi-kpi-container",
+        "title": "KPI anticipi",
+        "content": "Movimenti totali, puntuali/in ritardo, anticipi (Ã¢â€°Â¥15 min), % anticipi, anticipo medio e massimo.",
+        "methodology": "Franchigia: anticipo significativo se Ã¢â€°Â¥15 min. Fonte: SACBO + radar."
+      },
+      {
+        "id": "top-delta-anticipi-D",
+        "selector": "#bgy-anticipi-top-delta-container-D",
+        "title": "Top 5 anticipi Ã¢â‚¬â€ Decolli",
+        "content": "I decolli con l'anticipo piÃƒÂ¹ elevato nel periodo.",
+        "methodology": "Anticipo massimo (valore assoluto). Fonte: H24."
+      },
+      {
+        "id": "top-delta-anticipi-A",
+        "selector": "#bgy-anticipi-top-delta-container-A",
+        "title": "Top 5 anticipi Ã¢â‚¬â€ Atterraggi",
+        "content": "Gli atterraggi con l'anticipo piÃƒÂ¹ elevato nel periodo.",
+        "methodology": "Anticipo massimo (valore assoluto). Fonte: H24."
+      },
+      {
+        "id": "top-freq-anticipi-D",
+        "selector": "#bgy-anticipi-top-freq-container-D",
+        "title": "Top 5 frequenza anticipi Ã¢â‚¬â€ Decolli",
+        "content": "I decolli che ricorrono piÃƒÂ¹ spesso in anticipo (callsign + fascia oraria).",
+        "methodology": "Arrotondamento orario a 15 min. Fonte: H24."
+      },
+      {
+        "id": "top-freq-anticipi-A",
+        "selector": "#bgy-anticipi-top-freq-container-A",
+        "title": "Top 5 frequenza anticipi Ã¢â‚¬â€ Atterraggi",
+        "content": "Gli atterraggi che ricorrono piÃƒÂ¹ spesso in anticipo (callsign + fascia oraria).",
+        "methodology": "Arrotondamento orario a 15 min. Fonte: H24."
+      }
+    ]
+  }
 }

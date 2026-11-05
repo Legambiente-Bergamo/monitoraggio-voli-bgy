@@ -2,16 +2,17 @@
 bgy_core/bgy_wordpress.py - Pubblicazione dati su WordPress via REST API.
 Versione 1.1.0
 
-Novità v1.1.0 (INFRA-08, 20/10/2026):
+NovitÃ  v1.1.0 (INFRA-08, 20/10/2026):
 - Opzione B: naming timestampato. Il file viene caricato con un nome
   univoco (es. bgy-data_20261020_174500.csv). Il vecchio file non
   viene cancellato prima del caricamento, eliminando la finestra 404.
 - Cleanup automatico: dopo l'upload, vengono eliminati i file vecchi
-  mantenendo solo i 3 più recenti per lo stesso prefisso.
+  mantenendo solo i 3 piÃ¹ recenti per lo stesso prefisso.
 
-Novità v1.0.3:
-- FIX CRITICO: il filename remoto è derivato dal path locale.
+NovitÃ  v1.0.3:
+- FIX CRITICO: il filename remoto Ã¨ derivato dal path locale.
 """
+__version__ = "1.1.0"
 import os
 import sys
 import json
@@ -153,7 +154,7 @@ def _find_all_media_by_prefix(base_name, ext):
             if filename.startswith(f"{base_name}_") and filename.endswith(ext):
                 valid_items.append(item)
         
-        # Ordina per ID discendente (il più recente prima)
+        # Ordina per ID discendente (il piÃ¹ recente prima)
         valid_items.sort(key=lambda x: x.get("id", 0), reverse=True)
         return valid_items
     except Exception as e:
@@ -180,7 +181,7 @@ def _delete_media(media_id):
             verify=verify,
         )
         if r.status_code in (200, 201):
-            logger.info(f"🗑️ Media ID {media_id} cancellato")
+            logger.info(f"ðŸ—‘ï¸ Media ID {media_id} cancellato")
             return True
         logger.warning(f"Errore cancellazione media {media_id}: HTTP {r.status_code}")
         return False
@@ -226,9 +227,9 @@ def _upload_media(local_path, remote_filename):
             data = r.json()
             media_id = data.get("id")
             source_url = data.get("source_url")
-            logger.info(f"✅ Media caricato: id={media_id}, url={source_url}")
+            logger.info(f"âœ… Media caricato: id={media_id}, url={source_url}")
             return True, media_id, source_url
-        logger.error(f"❌ Upload fallito: HTTP {r.status_code}: {r.text[:300]}")
+        logger.error(f"âŒ Upload fallito: HTTP {r.status_code}: {r.text[:300]}")
         return False, None, f"HTTP {r.status_code}: {r.text[:200]}"
     except requests.Timeout:
         return False, None, "Timeout durante l'upload"
@@ -237,7 +238,7 @@ def _upload_media(local_path, remote_filename):
 
 
 def _cleanup_old_media(base_name, ext, keep=3):
-    """Mantiene solo i 'keep' file più recenti per un dato prefisso."""
+    """Mantiene solo i 'keep' file piÃ¹ recenti per un dato prefisso."""
     all_media = _find_all_media_by_prefix(base_name, ext)
     if len(all_media) <= keep:
         return
@@ -296,14 +297,14 @@ def main():
 
     if args.test:
         ok, msg = test_connection()
-        print(f"{'✅' if ok else '❌'} {msg}")
+        print(f"{'âœ…' if ok else 'âŒ'} {msg}")
         sys.exit(0 if ok else 1)
 
     if args.publish:
         ok, msg, url = publish_json(args.publish)
-        print(f"{'✅' if ok else '❌'} {msg}")
+        print(f"{'âœ…' if ok else 'âŒ'} {msg}")
         if url:
-            print(f"🔗 URL pubblico: {url}")
+            print(f"ðŸ”— URL pubblico: {url}")
         sys.exit(0 if ok else 1)
 
     parser.print_help()

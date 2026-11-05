@@ -57,7 +57,7 @@ RECOVERY_MIN_GAP_MIN = 60
 RECOVERY_MAX_AGE_DAYS = 7
 BACKUP_MAX_AGE_HOURS = 36
 
-WARNING_ONLY_CHECKS = {'avionio_confronto', 'backup'}
+WARNING_ONLY_CHECKS = {'avionio_confronto', 'backup', 'h24_enrichment'}
 
 
 def _heartbeat_loop():
