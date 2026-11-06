@@ -381,3 +381,71 @@ def fill_unknown_runways_icao24(df):
     if updated > 0:
         print(f"✅ DATA-26: Recuperati {updated} decolli N/D tramite icao24.")
     return df
+
+def match_extreme_anomalies(df_sched, df_radar, session_date):
+    """
+    DATA-33: Cerca i voli scheduled senza match nella finestra estesa (+24h).
+    """
+    import pandas as pd
+    
+    if df_sched.empty or df_radar.empty:
+        return df_sched
+        
+    unmatched = df_sched[(df_sched['is_scheduled'] == True) & (df_sched['matched_score'] == 0)].copy()
+    if unmatched.empty:
+        return df_sched
+
+    df_radar['cs_clean'] = df_radar['callsign'].astype(str).str.strip().str.upper()
+    df_radar['ts_dt'] = pd.to_datetime(df_radar['timestamp'], errors='coerce')
+    
+    updated_count = 0
+    for idx, row in unmatched.iterrows():
+        cs_clean = str(row.get('callsign', '')).strip().upper()
+        if not cs_clean:
+            continue
+            
+        sched_time = row.get('timestamp')
+        if pd.isna(sched_time) or str(sched_time).strip() == "" or str(sched_time) == "NaT":
+            sched_date = row.get('data_riferimento')
+            if pd.isna(sched_date) or sched_date is None or str(sched_date).strip() == "":
+                sched_date = session_date
+            sched_hour = str(row.get('orario_schedulato'))
+            if not sched_date or not sched_hour:
+                continue
+            sched_time = str(sched_date) + " " + sched_hour
+            
+        try:
+            sched_dt = pd.to_datetime(sched_time)
+        except:
+            continue
+
+        window_start = sched_dt + pd.Timedelta(minutes=180)
+        window_end = sched_dt + pd.Timedelta(hours=24)
+        
+        r_matches = df_radar[
+            (df_radar['cs_clean'] == cs_clean) & 
+            (df_radar['ts_dt'] >= window_start) & 
+            (df_radar['ts_dt'] <= window_end)
+        ]
+        
+        if not r_matches.empty:
+            best = r_matches.sort_values('ts_dt').iloc[0]
+            
+            df_sched.at[idx, 'matched_score'] = 100
+            df_sched.at[idx, 'anomalia_estrema'] = True
+            df_sched.at[idx, 'pista'] = best['pista']
+            df_sched.at[idx, 'timestamp'] = best['timestamp']
+            df_sched.at[idx, 'fase_volo'] = best['fase_volo']
+            if 'pista_fonte' in df_sched.columns:
+                df_sched.at[idx, 'pista_fonte'] = 'radar_diretto'
+            
+            updated_count += 1
+
+    if updated_count > 0:
+        print(f"⚠️ DATA-33: Recuperati {updated_count} voli con ritardo estremo (>3 ore).")
+    
+    if 'ts_dt' in df_radar.columns: df_radar.drop(columns=['ts_dt'], inplace=True)
+    if 'cs_clean' in df_radar.columns: df_radar.drop(columns=['cs_clean'], inplace=True)
+        
+    return df_sched
+

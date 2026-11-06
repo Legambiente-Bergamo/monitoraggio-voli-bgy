@@ -23,7 +23,7 @@ from bgy_core.bgy_config_manager import config_manager
 
 logger = get_logger("DB")
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 
 SCHEMA_SQL = """
 -- Tabella di versioning dello schema

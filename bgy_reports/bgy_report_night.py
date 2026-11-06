@@ -31,7 +31,7 @@ from bgy_core.bgy_config_manager import config_manager
 from bgy_core import bgy_db
 from bgy_utils.bgy_utils_meteo import save_night_weather
 
-from bgy_reports.bgy_report_common import fill_unknown_runways_icao24, propagate_runway_in_session
+from bgy_reports.bgy_report_common import match_extreme_anomalies, fill_unknown_runways_icao24, propagate_runway_in_session
 
 logger = get_logger("ReportNight")
 
@@ -1288,6 +1288,7 @@ def generate_nightly_report(date_str=None):
     scheduled_df = merge_scheduled_sources(sacbo_df, avionio_df)
     logger.info(f"📋 Scheduled totali: {len(scheduled_df)} (SACBO {len(sacbo_df)}, Avionio {len(avionio_df)})")
     result_df = match_flights(scheduled_df, radar_df, date_norm)
+    result_df = match_extreme_anomalies(result_df, radar_df, date_norm)
     result_df, n_esclusi = _filter_excluded_callsigns(result_df)
     if result_df.empty: return None, f"Nessun dato per {date_norm}"
     

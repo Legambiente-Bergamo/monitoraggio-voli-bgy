@@ -32,6 +32,7 @@ from bgy_core.bgy_config_manager import config_manager
 from bgy_core import bgy_db
 
 from bgy_reports.bgy_report_common import (
+    match_extreme_anomalies,
     fill_unknown_runways_icao24,
     propagate_runway_in_session,
     fill_unknown_runways_geometric,
