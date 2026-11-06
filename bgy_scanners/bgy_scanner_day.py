@@ -323,7 +323,7 @@ def _capture_screenshot(page, movement_type):
         os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
         is_arrivals = 'atterra' in movement_type.lower()
         prefix = "board_arr" if is_arrivals else "board_dep"
-        ts = datetime.now().strftime("%Y-%m-%d_%H-%M")
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M") + "Z"
         filename = f"{prefix}_{ts}.png"
         filepath = os.path.join(SCREENSHOTS_DIR, filename)
 

@@ -230,7 +230,7 @@ def belongs_to_night_session(hhmm_str, session_date_str):
 def scan_filename(dt=None):
     """
     Nome file per una scansione SACBO.
-    Formato: 'scan_YYYY-MM-DD_HH-MM.csv'
+    Formato: 'scan_YYYY-MM-DD_HH-MMZ?.csv'
     """
     if dt is None:
         dt = datetime.now()
@@ -240,7 +240,7 @@ def scan_filename(dt=None):
 def radar_filename(session_date_str):
     """
     Nome file per il file radar cumulativo di una sessione notturna.
-    Formato: 'radar_YYYY-MM-DD.csv'
+    Formato: 'radar_YYYY-MM-DDZ?.csv'
     La data è quella di INIZIO sessione.
     """
     n = normalize_date(session_date_str)
@@ -250,7 +250,7 @@ def radar_filename(session_date_str):
 
 
 def report_daily_filename(date_str):
-    """'report_daily_YYYY-MM-DD.csv'"""
+    """'report_daily_YYYY-MM-DDZ?.csv'"""
     n = normalize_date(date_str)
     if not n:
         return None
@@ -258,7 +258,7 @@ def report_daily_filename(date_str):
 
 
 def report_nightly_filename(session_date_str):
-    """'report_nightly_YYYY-MM-DD.csv' (data di inizio sessione)."""
+    """'report_nightly_YYYY-MM-DDZ?.csv' (data di inizio sessione)."""
     n = normalize_date(session_date_str)
     if not n:
         return None
@@ -267,8 +267,8 @@ def report_nightly_filename(session_date_str):
 
 def report_monthly_filename(year_month, kind="daily"):
     """
-    'report_monthly_daily_YYYY-MM.csv' o
-    'report_monthly_nightly_YYYY-MM.csv'
+    'report_monthly_daily_YYYY-MMZ?.csv' o
+    'report_monthly_nightly_YYYY-MMZ?.csv'
     year_month: 'YYYY-MM' o (year, month).
     """
     if isinstance(year_month, tuple) and len(year_month) == 2:
@@ -287,7 +287,7 @@ def report_monthly_filename(year_month, kind="daily"):
 
 
 def report_yearly_filename(year, kind="daily"):
-    """'report_yearly_daily_YYYY.csv' o 'report_yearly_nightly_YYYY.csv'."""
+    """'report_yearly_daily_YYYYZ?.csv' o 'report_yearly_nightly_YYYYZ?.csv'."""
     y = str(year).strip()
     if not re.fullmatch(r"\d{4}", y):
         return None
@@ -301,13 +301,13 @@ def report_yearly_filename(year, kind="daily"):
 
 def parse_scan_filename(filename):
     """
-    Estrae datetime da 'scan_YYYY-MM-DD_HH-MM.csv'.
-    Accetta anche il vecchio formato 'scan_YYYYMMDD_HHMM.csv'.
+    Estrae datetime da 'scan_YYYY-MM-DD_HH-MMZ?.csv'.
+    Accetta anche il vecchio formato 'scan_YYYYMMDD_HHMMZ?.csv'.
     Ritorna datetime o None.
     """
     if not filename:
         return None
-    base = filename.replace(".csv", "")
+    base = filename.replace("Z.csv", "").replace(".csv", "")
     # nuovo formato
     m = re.fullmatch(r"scan_(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2})", base)
     if m:
@@ -327,13 +327,13 @@ def parse_scan_filename(filename):
 
 def parse_radar_filename(filename):
     """
-    Estrae la data di sessione da 'radar_YYYY-MM-DD.csv' o dal vecchio
-    'bgy_night_flights_YYYY-MM-DD.csv'.
+    Estrae la data di sessione da 'radar_YYYY-MM-DDZ?.csv' o dal vecchio
+    'bgy_night_flights_YYYY-MM-DDZ?.csv'.
     Ritorna 'YYYY-MM-DD' o None.
     """
     if not filename:
         return None
-    base = filename.replace(".csv", "")
+    base = filename.replace("Z.csv", "").replace(".csv", "")
     m = re.fullmatch(r"radar_(\d{4}-\d{2}-\d{2})", base)
     if m:
         return m.group(1)
@@ -344,10 +344,10 @@ def parse_radar_filename(filename):
 
 
 def parse_report_daily_filename(filename):
-    """'report_daily_YYYY-MM-DD.csv' o vecchio 'report_daily_YYYYMMDD.csv'."""
+    """'report_daily_YYYY-MM-DDZ?.csv' o vecchio 'report_daily_YYYYMMDDZ?.csv'."""
     if not filename:
         return None
-    base = filename.replace(".csv", "")
+    base = filename.replace("Z.csv", "").replace(".csv", "")
     m = re.fullmatch(r"report_daily_(\d{4}-\d{2}-\d{2})", base)
     if m:
         return m.group(1)
@@ -358,10 +358,10 @@ def parse_report_daily_filename(filename):
 
 
 def parse_report_nightly_filename(filename):
-    """'report_nightly_YYYY-MM-DD.csv' o vecchio 'report_nightly_YYYYMMDD.csv'."""
+    """'report_nightly_YYYY-MM-DDZ?.csv' o vecchio 'report_nightly_YYYYMMDDZ?.csv'."""
     if not filename:
         return None
-    base = filename.replace(".csv", "")
+    base = filename.replace("Z.csv", "").replace(".csv", "")
     m = re.fullmatch(r"report_nightly_(\d{4}-\d{2}-\d{2})", base)
     if m:
         return m.group(1)
@@ -424,9 +424,9 @@ if __name__ == "__main__":
     print(f"format_gui_month: {format_gui_month(date(2026, 9, 15))}")
     print(f"format_gui_year:  {format_gui_year(date(2026, 9, 15))}")
     print()
-    print(f"parse_scan_filename('scan_2026-09-15_06-00.csv'): "
-          f"{parse_scan_filename('scan_2026-09-15_06-00.csv')}")
-    print(f"parse_scan_filename('scan_20260915_0600.csv'): "
-          f"{parse_scan_filename('scan_20260915_0600.csv')}")
-    print(f"parse_radar_filename('bgy_night_flights_2026-09-15.csv'): "
-          f"{parse_radar_filename('bgy_night_flights_2026-09-15.csv')}")
+    print(f"parse_scan_filename('scan_2026-09-15_06-00Z?.csv'): "
+          f"{parse_scan_filename('scan_2026-09-15_06-00Z?.csv')}")
+    print(f"parse_scan_filename('scan_20260915_0600Z?.csv'): "
+          f"{parse_scan_filename('scan_20260915_0600Z?.csv')}")
+    print(f"parse_radar_filename('bgy_night_flights_2026-09-15Z?.csv'): "
+          f"{parse_radar_filename('bgy_night_flights_2026-09-15Z?.csv')}")

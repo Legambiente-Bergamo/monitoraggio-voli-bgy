@@ -141,7 +141,7 @@ def _dedup_radar_only_params(params):
 
 
 def parse_date_from_scan_filename(filename):
-    base = filename.replace(".csv", "")
+    base = filename.replace("Z.csv", "").replace(".csv", "")
     m = re.match(r'^scan_(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2})$', base)
     if m:
         date_str = m.group(1); hh_mm = m.group(2).replace("-", ":")
@@ -156,17 +156,17 @@ def parse_date_from_scan_filename(filename):
 
 
 def parse_meteo_filename(filename):
-    m = re.match(r'^meteo_(\d{4}-\d{2}-\d{2})$', filename.replace(".csv", ""))
+    m = re.match(r'^meteo_(\d{4}-\d{2}-\d{2})$', filename.replace("Z.csv", "").replace(".csv", ""))
     return m.group(1) if m else None
 
 
 def parse_nightly_filename(filename):
-    m = re.match(r'^report_nightly_(\d{4}-\d{2}-\d{2})$', filename.replace(".csv", ""))
+    m = re.match(r'^report_nightly_(\d{4}-\d{2}-\d{2})$', filename.replace("Z.csv", "").replace(".csv", ""))
     return m.group(1) if m else None
 
 
 def parse_h24_filename(filename):
-    m = re.match(r'^report_h24_(\d{4}-\d{2}-\d{2})$', filename.replace(".csv", ""))
+    m = re.match(r'^report_h24_(\d{4}-\d{2}-\d{2})$', filename.replace("Z.csv", "").replace(".csv", ""))
     return m.group(1) if m else None
 
 

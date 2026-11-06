@@ -60,7 +60,7 @@ import re
 import sys
 import csv
 import argparse
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 
 import requests
 from bs4 import BeautifulSoup
@@ -371,7 +371,7 @@ def save_to_csv(flights, movement_type):
 
     try:
         os.makedirs(AVIONIO_DIR, exist_ok=True)
-        ts = datetime.now().strftime("%Y-%m-%d_%H-%M")
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M") + "Z"
         filename = f"avionio_{movement_type}_{ts}.csv"
         filepath = os.path.join(AVIONIO_DIR, filename)
 
