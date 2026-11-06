@@ -256,8 +256,8 @@
     "enabled": true,
     "global": {
       "show": true,
-      "title": "Ã¢Å¡Â Ã¯Â¸Â DATI IN FASE DI VERIFICA",
-      "body": "Siamo in fase di test del sistema di monitoraggio. I dati pubblicati sono il risultato di elaborazioni automatiche in corso di validazione e possono contenere errori. La raccolta dei dati per i grafici ÃƒÂ¨ iniziata il {min_date}. Non ÃƒÂ¨ possibile visualizzare periodi precedenti a questa data."
+      "title": "DATI IN FASE DI VERIFICA",
+      "body": "Siamo in fase di test del sistema di monitoraggio. I dati pubblicati sono il risultato di elaborazioni automatiche in corso di validazione e possono contenere errori. La raccolta dei dati per i grafici è iniziata il {min_date}. Non è possibile visualizzare periodi precedenti a questa data."
     }
   },
   "print": {
