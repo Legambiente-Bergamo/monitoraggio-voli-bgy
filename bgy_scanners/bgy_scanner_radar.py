@@ -361,6 +361,36 @@ def _fetch_adsbfi():
     return _parse_adsb_generic(aircraft, "adsb.fi")
 
 
+
+def _fetch_flyitalyadsb():
+    """Recupera i dati da FlyItalyADSB (formato readsb)."""
+    cfg = _cfg()
+    api_key = cfg.get("flyitalyadsb_api_key")
+    if not api_key:
+        logger.debug("⏭️ FlyItalyADSB: API key non configurata, salto.")
+        return None
+
+    radius_km = int(cfg.get("flyitalyadsb_radius_km", 20))
+    url = (f"https://api.flyitalyadsb.com/v2/lat/"
+           f"{cfg['bgy_lat']}/lon/{cfg['bgy_lon']}/dist/{radius_km}")
+
+    headers = {"X-Api-Key": api_key, "User-Agent": cfg["user_agent"]}
+    try:
+        resp = requests.get(url, headers=headers, timeout=cfg["http_timeout"])
+        if resp.status_code != 200:
+            logger.warning(f"⚠️ FlyItalyADSB HTTP {resp.status_code}")
+            return None
+        data = resp.json()
+        aircraft = data.get("ac") or []
+        if not aircraft:
+            logger.warning("⚠️ FlyItalyADSB: nessun aereo nell'area")
+            return []
+        logger.info(f"📡 FlyItalyADSB: ricevuti {len(aircraft)} stati (fallback 2)")
+        return _parse_adsb_generic(aircraft, "flyitalyadsb")
+    except Exception as e:
+        logger.error(f"❌ FlyItalyADSB: errore - {e}")
+        return None
+
 def _fetch_airplaneslive():
     cfg = _cfg()
     if not cfg.get("airplanes_live_enabled", False):
@@ -553,6 +583,7 @@ def _run_parallel_test():
     sources = [
         ("adsb.lol", _fetch_adsblol),
         ("adsb.fi", _fetch_adsbfi),
+        ("flyitalyadsb", _fetch_flyitalyadsb),
         ("airplanes.live", _fetch_airplaneslive),
         ("opensky", _fetch_opensky),
     ]

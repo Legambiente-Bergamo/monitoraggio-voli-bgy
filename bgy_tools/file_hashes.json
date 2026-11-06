@@ -50,7 +50,7 @@
   "bgy_reports/__init__.py": "20942bf3b430591f29324e6d901ffef1dc742fc2ac36683eb4c08396592368ce",
   "bgy_scanners/bgy_scanner_alt.py": "2cf1a659b6128c5b9212eaef3f27e1c018b870435a47497fe9d79ec6a87a46fa",
   "bgy_scanners/bgy_scanner_day.py": "ef573c2bc3c751d3b94118922832f1548c99c63ab9a1b6fcf8ec869e235fe58d",
-  "bgy_scanners/bgy_scanner_radar.py": "6d78f0137291c6c1159b9580971cdb2e26c5e1a533caffe5d431a9ed46ac898c",
+  "bgy_scanners/bgy_scanner_radar.py": "947cf9eb2e9e202aada5c5f6046bb019eda398b0cde1036968b8459193f5fecc",
   "bgy_scanners/__init__.py": "51883bbe61a5c33a2b9ca737a05796cf77f4575ca72e96d682bed75d756ec7b9",
   "bgy_tools/analisi_cargo_ups.py": "9c3187c2e775be38a5cc4004c894a894f11eb700d9f853d38516326bc0bc80ad",
   "bgy_tools/analisi_cross_fonte.py": "ca60164796f7bf86ad53829adc57932167b8a2b8682971f226921cfc5212de48",
