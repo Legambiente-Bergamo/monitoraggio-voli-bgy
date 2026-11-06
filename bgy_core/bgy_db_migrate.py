@@ -330,7 +330,7 @@ def import_radar_file(filepath):
     total = 0
     for i in range(0, len(params), BATCH_SIZE):
         batch = params[i:i+BATCH_SIZE]
-        ok, result = bgy_db.execute_many("""INSERT INTO radar_detections (timestamp, callsign, icao24, pista, fase_volo, direzione, quota_ft, rotta_deg, distanza_km, paese, sessione_notturna, data_riferimento, fonte, timestamp_utc) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""", batch)
+        ok, result = bgy_db.execute_many("""INSERT INTO radar_detections (timestamp, callsign, icao24, pista, fase_volo, direzione, quota_ft, rotta_deg, distanza_km, paese, sessione_notturna, data_riferimento, fonte, timestamp_utc) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING""", batch)
         if ok: total += len(batch)
         else: stats["errors"] += 1
     stats["radar_imported"] += total

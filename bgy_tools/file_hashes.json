@@ -11,7 +11,7 @@
   "bgy_core/bgy_config_manager.py": "2bb581ae749e37e62bc69f799b6560f5feff85e85fc23aade82765a47b577cbf",
   "bgy_core/bgy_dates.py": "05cb757f18b711f52f518fe195faf221383e1af715e832feee5f9f9ecf266ef3",
   "bgy_core/bgy_db.py": "038b335969146f14fb18e87d1a16c8d877efc2e677f360a1a6e5c2bd281d76aa",
-  "bgy_core/bgy_db_migrate.py": "50206132c1c0e20b09424b0bd43abc10d9b9d5e86234748959f5d95f78b21e54",
+  "bgy_core/bgy_db_migrate.py": "60abe7b217bda0a305570c9795101309df5c8ff42e63605b5827ad02700d89dc",
   "bgy_core/bgy_db_service.py": "14d55bd9256f3291fca9514e8c702fe8af0e461a93d97739f4b297358a8c029a",
   "bgy_core/bgy_disclaimer.py": "00e53939e15a4821c4ed0bc405a13028460f4e0f93025fc6354ae8d0211015a1",
   "bgy_core/bgy_export_common.py": "191f3359f3b663fd1c539037497345030ca6f9616319e0938be2f370de3fdfc3",
