@@ -1,8 +1,8 @@
 """
 bgy_core/bgy_export_web.py - Esportazione dati aggregati per il web (F17).
-Versione 2.3.0 (Home Summary a doppia vista H24 + notturna; guard min_date)
+Versione 2.3.2 (WEB-40: data_quality_warnings - completezza acquisizione)
 """
-__version__ = "2.3.0"
+__version__ = "2.3.6"
 import os
 import sys
 import json
@@ -274,6 +274,266 @@ def _date_str(v):
     if v is None: return None
     if hasattr(v, "strftime"): return v.strftime("%Y-%m-%d")
     return str(v)
+
+
+def _time_to_minutes(h, m):
+    return h * 60 + m
+
+
+def _parse_slot(s):
+    h, m = map(int, s.split(":"))
+    return h, m, h * 60 + m
+
+
+# =============================================================================
+# WEB-40: QUALITY WARNINGS (completezza acquisizione)
+# =============================================================================
+# Slot diurni: letti da scan_schedules (config_data.json), fallback hardcoded.
+DEFAULT_DAY_SLOTS = ["02:00", "06:00", "10:00", "14:00", "18:00", "22:00"]
+# Slot notturni obbligatori (23:00 copre la fascia iniziale, 05:00 la finale).
+REQUIRED_NIGHT_SLOTS = ["23:00", "05:00"]
+# Slot notturni opzionali: coperti da 23:00, non vengono segnalati se mancano.
+OPTIONAL_NIGHT_SLOTS = ["00:01", "02:00"]
+# Tolleranza in minuti: uno scan a ±15 min dallo slot atteso lo copre.
+SLOT_TOLERANCE_MIN = 15
+# Soglia per il gap radar (in minuti): oltre, è un buco.
+RADAR_GAP_THRESHOLD_MIN = 90
+
+
+def _get_expected_slots():
+    """
+    Ritorna (obbligatori, opzionali) in minuti dalla mezzanotte.
+
+    - Obbligatori: scan_schedules (config) + 23:00 + 05:00.
+    - Opzionali: 00:01, 02:00 (se non già tra gli obbligatori).
+    """
+    from bgy_core.bgy_config_manager import config_manager
+    try:
+        cfg = config_manager.get_data_config() or {}
+    except Exception:
+        cfg = {}
+    day_raw = cfg.get("scan_schedules") or DEFAULT_DAY_SLOTS
+
+    def _parse_many(items):
+        out = []
+        for s in items:
+            try:
+                h, m, minutes = _parse_slot(s)
+                out.append(minutes)
+            except Exception:
+                logger.warning(f"Slot orario non valido: {s}")
+        return out
+
+    required = set(_parse_many(day_raw))
+    required |= set(_parse_many(REQUIRED_NIGHT_SLOTS))
+    optional = set(_parse_many(OPTIONAL_NIGHT_SLOTS)) - required
+    return sorted(required), sorted(optional)
+
+
+def build_data_quality_warnings(date_from, date_to):
+    """
+    Identifica i giorni con acquisizione incompleta:
+    - Scansioni SACBO mancanti (obbligatorie; 00:01/02:00 sono opzionali)
+    - Buco radar > 90 min (esclusi i bordi del periodo)
+    - Report notturno mancante
+    - Report H24 mancante
+    - Nessuna scansione Avionio (solo dal giorno della prima data con dati)
+
+    Struttura di ogni warning:
+    {
+        "date": "YYYY-MM-DD",
+        "severity": "high",
+        "issues": [ {"type": ..., "msg": ...}, ... ],
+        "message": "msg1; msg2; ..."
+    }
+    """
+    required_slots, optional_slots = _get_expected_slots()
+    logger.info(
+        f"Slot SACBO obbligatori: "
+        f"{[f'{m//60:02d}:{m%60:02d}' for m in required_slots]}"
+    )
+    if optional_slots:
+        logger.info(
+            f"Slot SACBO opzionali: "
+            f"{[f'{m//60:02d}:{m%60:02d}' for m in optional_slots]}"
+        )
+
+    # 1. Scansioni SACBO
+    rows = _query(
+        """SELECT scan_timestamp::date AS d,
+                  EXTRACT(HOUR FROM scan_timestamp)::int AS h,
+                  EXTRACT(MINUTE FROM scan_timestamp)::int AS m
+           FROM scans
+           WHERE scan_timestamp::date BETWEEN %s AND %s""",
+        (date_from, date_to))
+    scans_by_day = {}
+    for r in rows:
+        ds = _date_str(r[0])
+        scans_by_day.setdefault(ds, []).append(int(r[1]) * 60 + int(r[2]))
+
+    # 2. Radar
+    rows = _query(
+        """SELECT timestamp::date AS d, timestamp
+           FROM radar_detections
+           WHERE timestamp::date BETWEEN %s AND %s
+           ORDER BY timestamp""",
+        (date_from, date_to))
+    radar_by_day = {}
+    for r in rows:
+        ds = _date_str(r[0])
+        radar_by_day.setdefault(ds, []).append(r[1])
+
+    # 3. Report notturno
+    rows = _query(
+        """SELECT data_riferimento, COUNT(*)
+           FROM nightly_reports
+           WHERE data_riferimento BETWEEN %s AND %s
+           GROUP BY data_riferimento""",
+        (date_from, date_to))
+    nightly_by_day = {_date_str(r[0]): int(r[1]) for r in rows}
+
+    # 4. Report H24
+    rows = _query(
+        """SELECT data_calendario, COUNT(*)
+           FROM h24_reports
+           WHERE data_calendario BETWEEN %s AND %s
+           GROUP BY data_calendario""",
+        (date_from, date_to))
+    h24_by_day = {_date_str(r[0]): int(r[1]) for r in rows}
+
+    # 5. Avionio (COALESCE: scan_timestamp può essere NULL, imported_at c'è sempre)
+    rows = _query(
+        """SELECT COALESCE(scan_timestamp, imported_at)::date AS d, COUNT(*)
+           FROM flights_avionio
+           WHERE COALESCE(scan_timestamp, imported_at)::date BETWEEN %s AND %s
+           GROUP BY d""",
+        (date_from, date_to))
+    avionio_by_day = {_date_str(r[0]): int(r[1]) for r in rows}
+    avionio_min_date = min(avionio_by_day.keys()) if avionio_by_day else None
+    if avionio_min_date:
+        logger.info(f"Avionio: prima data con dati = {avionio_min_date}")
+    else:
+        logger.info("Avionio: nessun dato nel periodo (check saltato)")
+
+    warnings = []
+    current = datetime.strptime(date_from, "%Y-%m-%d").date()
+    end = datetime.strptime(date_to, "%Y-%m-%d").date()
+    first_day = current
+    last_day = end
+
+    while current <= end:
+        ds = current.strftime("%Y-%m-%d")
+        issues = []
+
+        # 5a. SACBO — solo slot obbligatori.
+        # Gli slot precedenti alla prima scansione del giorno sono ignorati:
+        # il sistema non era ancora attivo (es. 30/09, prima scansione alle 23:00).
+        day_scans = scans_by_day.get(ds, [])
+        if not day_scans:
+            issues.append({
+                "type": "sacbo_missing",
+                "msg": "Non è stato possibile leggere il tabellone ufficiale dei voli in questa giornata: i dati potrebbero essere incompleti."
+            })
+        else:
+            first_scan_min = min(day_scans)
+            if first_scan_min > SLOT_TOLERANCE_MIN:
+                first_h, first_m = first_scan_min // 60, first_scan_min % 60
+                logger.info(
+                    f"[{ds}] prima scansione SACBO alle {first_h:02d}:{first_m:02d} — "
+                    f"slot precedenti ignorati"
+                )
+            for slot_min in required_slots:
+                if slot_min < first_scan_min - SLOT_TOLERANCE_MIN:
+                    continue
+                if not any(abs(sm - slot_min) <= SLOT_TOLERANCE_MIN for sm in day_scans):
+                    h, m = slot_min // 60, slot_min % 60
+                    issues.append({
+                        "type": "sacbo_missing_slot",
+                        "slot": f"{h:02d}:{m:02d}",
+                        "msg": f"Non è stato possibile leggere il tabellone ufficiale alle {h:02d}:{m:02d}: i dati di quel momento potrebbero mancare."
+                    })
+
+        # 5b. Radar — gap massimo, esclusi i bordi del periodo
+        day_radar = radar_by_day.get(ds, [])
+        if not day_radar:
+            issues.append({"type": "radar_missing", "msg": "Nessun rilevamento radar"})
+        else:
+            timestamps = []
+            for ts in day_radar:
+                if isinstance(ts, str):
+                    ts = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+                timestamps.append(ts)
+            day_start = datetime.strptime(ds + " 00:00:00", "%Y-%m-%d %H:%M:%S")
+            day_end = datetime.strptime(ds + " 23:59:59", "%Y-%m-%d %H:%M:%S")
+            max_gap = 0
+            gap_start = gap_end = None
+
+            # Gap iniziale: solo se non è il primo giorno del periodo
+            if current != first_day:
+                g0 = (timestamps[0] - day_start).total_seconds() / 60
+                if g0 > max_gap:
+                    max_gap = g0
+                    gap_start, gap_end = day_start, timestamps[0]
+
+            # Gap interni: sempre
+            for i in range(1, len(timestamps)):
+                g = (timestamps[i] - timestamps[i - 1]).total_seconds() / 60
+                if g > max_gap:
+                    max_gap = g
+                    gap_start, gap_end = timestamps[i - 1], timestamps[i]
+
+            # Gap finale: solo se non è l'ultimo giorno del periodo
+            if current != last_day:
+                g_end = (day_end - timestamps[-1]).total_seconds() / 60
+                if g_end > max_gap:
+                    max_gap = g_end
+                    gap_start, gap_end = timestamps[-1], day_end
+
+            if max_gap > RADAR_GAP_THRESHOLD_MIN:
+                issues.append({
+                    "type": "radar_gap",
+                    "gap_min": round(max_gap),
+                    "msg": (
+                        f"Non abbiamo rilevamenti radar tra le {gap_start.strftime('%H:%M')} "
+                        f"e le {gap_end.strftime('%H:%M')} ({round(max_gap)} minuti): "
+                        f"non è stato possibile verificare i movimenti in quella fascia."
+                    ),
+                })
+
+        # 5c. Report notturno
+        if ds not in nightly_by_day or nightly_by_day[ds] == 0:
+            issues.append({
+                "type": "nightly_missing",
+                "msg": "Non è stato elaborato il riepilogo della notte: i dati di quella notte potrebbero essere incompleti."
+            })
+
+        # 5d. Report H24
+        if ds not in h24_by_day or h24_by_day[ds] == 0:
+            issues.append({
+                "type": "h24_missing",
+                "msg": "Non è stato elaborato il riepilogo giornaliero: i dati di quel giorno potrebbero essere incompleti."
+            })
+
+        # 5e. Avionio: segnala solo se dopo la prima data con dati
+        if avionio_min_date and ds >= avionio_min_date:
+            if ds not in avionio_by_day or avionio_by_day[ds] == 0:
+                issues.append({
+                    "type": "avionio_missing",
+                    "msg": "Non sono stati raccolti i dati di integrazione (fonte Avionio): potrebbero mancare voli non presenti nel tabellone ufficiale."
+                })
+
+        if issues:
+            warnings.append({
+                "date": ds,
+                "severity": "high",
+                "issues": issues,
+                "message": "; ".join(i["msg"] for i in issues),
+            })
+
+        current += timedelta(days=1)
+
+    logger.info(f"Data quality warnings: {len(warnings)} giorni con problemi")
+    return warnings
 
 
 # =============================================================================
@@ -1168,7 +1428,6 @@ def _finalize_delay_agg(agg):
 
 
 def _add_delta_to_agg(agg, delta, soglia_punt, soglia_grave):
-    # agg["n_total"] NON viene toccato qui, viene preimpostato dai totali generali
     agg["sum_delta"] += delta
     if abs(delta) <= soglia_punt:
         agg["n_puntuali"] += 1
@@ -1205,7 +1464,6 @@ def build_block_delays_h24(date_from, date_to):
 
     delta_expr = _delta_sql_expr()
 
-    # 1. Totali generali direttamente da h24_reports (senza filtri radar)
     sql_totali = """
         SELECT data_calendario, direzione_sacbo, COUNT(*) 
         FROM h24_reports
@@ -1225,7 +1483,6 @@ def build_block_delays_h24(date_from, date_to):
         if d in ("D", "A"):
             totali_generali[ds][d] += n
 
-    # 2. Estrazione voli validi per i ritardi (con filtri radar)
     sql_ritardi = f"""
         SELECT
             v.data,
@@ -1255,7 +1512,6 @@ def build_block_delays_h24(date_from, date_to):
     by_date_acc = {}
     raw_delays = []
 
-    # Inizializza i totali generali
     for ds, tot in totali_generali.items():
         by_date_acc[ds] = {
             "D": {"agg": _empty_delay_agg(), "hours": {}, "companies": {}, "dests": {}, "by_category": {}},
@@ -1463,7 +1719,6 @@ def build_block_delays_hourly_weather(date_from, date_to):
 def build_block_fleet(date_from, date_to):
     """Costruisce i dati per la pagina La Flotta (WEB-37). Esclude i radar-only."""
 
-    # 1. KPI Totali Generali da h24_reports
     sql_totali = """
         SELECT data_calendario, direzione_sacbo, COUNT(*) 
         FROM h24_reports
@@ -1483,7 +1738,6 @@ def build_block_fleet(date_from, date_to):
         if d in ("D", "A"):
             totali_generali[ds][d] += n
 
-    # 2. Dettaglio Modelli e Compagnie (filtrato per modello_aereo valido)
     rows = _query(
         """SELECT data_calendario, compagnia_aerea, modello_aereo, direzione_sacbo, COUNT(*)
            FROM h24_reports
@@ -1601,8 +1855,6 @@ def build_web_json(days=90):
     top_n = web_cfg["top_n_per_date"]
     date_from = max(date_from_calc, min_date)
 
-    # Guard: se min_date è nel futuro (o configurazione errata),
-    # BETWEEN restituirebbe 0 righe e tutte le card andrebbero a 0.
     if date_from > date_to:
         logger.warning(
             f"Range non valido: date_from={date_from} > date_to={date_to} "
@@ -1612,6 +1864,8 @@ def build_web_json(days=90):
 
     logger.info(f"Costruzione JSON web: {date_from} -> {date_to} "
                 f"(max {days} giorni, min_date={min_date}, top_n={top_n})")
+
+    warnings = build_data_quality_warnings(date_from, date_to)
 
     disclaimer = build_disclaimer(min_date)
     summary = build_summary(date_from, date_to)
@@ -1629,6 +1883,7 @@ def build_web_json(days=90):
 
     payload = {
         "generated_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+        "data_quality_warnings": warnings,
         "period": {"from": date_from, "to": date_to},
         "min_date_active": min_date,
         "disclaimer": disclaimer,
@@ -1655,7 +1910,8 @@ def build_web_json(days=90):
         f"{fleet_data['totals']['kpi']['total_models']} modelli, "
         f"home_summary h24={home_summary['h24']['total']} "
         f"night={home_summary['nightly']['total']}, "
-        f"by_hour su {len(movements['by_hour'].get('by_date', []))} date"
+        f"by_hour su {len(movements['by_hour'].get('by_date', []))} date, "
+        f"warnings={len(warnings)}"
     )
     return payload
 
@@ -1673,7 +1929,6 @@ def build_delays_json(days=90):
     min_date = web_cfg["min_date"]
     date_from = max(date_from_calc, min_date)
 
-    # Guard: stessa logica di build_web_json
     if date_from > date_to:
         logger.warning(
             f"Range non valido: date_from={date_from} > date_to={date_to} "
@@ -1684,6 +1939,8 @@ def build_delays_json(days=90):
     logger.info(f"Costruzione JSON ritardi: {date_from} -> {date_to} "
                 f"(max {days} giorni, min_date={min_date})")
 
+    warnings = build_data_quality_warnings(date_from, date_to)
+
     delays = build_block_delays_h24(date_from, date_to)
     if delays is None:
         return None
@@ -1692,6 +1949,7 @@ def build_delays_json(days=90):
 
     payload = {
         "generated_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+        "data_quality_warnings": warnings,
         "period": {"from": date_from, "to": date_to},
         "min_date_active": min_date,
         "soglie": delays["soglie"],
@@ -1705,7 +1963,8 @@ def build_delays_json(days=90):
         f"{len(delays['raw_delays'])} ritardi grezzi, "
         f"{len(hourly_weather) if hourly_weather else 0} ore meteo/ritardi, "
         f"soglie puntuale={delays['soglie']['puntuale_min']}min "
-        f"grave={delays['soglie']['grave_min']}min"
+        f"grave={delays['soglie']['grave_min']}min, "
+        f"warnings={len(warnings)}"
     )
     return payload
 

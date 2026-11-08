@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-16"?>
+﻿<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.3" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo>
     <Description>Backup DB BGY + upload Google Drive</Description>
@@ -34,10 +34,11 @@
     </CalendarTrigger>
   </Triggers>
   <Actions Context="Author">
-    <Exec>
-      <Command>powershell.exe</Command>
-      <Arguments>-NoProfile -ExecutionPolicy Bypass -File "C:\Users\ncremaschi\Desktop\Monitoraggio BGY 2.5\bgy_ops\backup\bgy_backup_db.ps1"</Arguments>
-      <WorkingDirectory>C:\Users\ncremaschi\Desktop\Monitoraggio BGY 2.5</WorkingDirectory>
-    </Exec>
-  </Actions>
+  <Exec>
+    <Command>powershell.exe</Command>
+    <Arguments>-ExecutionPolicy Bypass -File "C:\Users\ncremaschi\Desktop\Monitoraggio BGY 2.5\bgy_ops\Backup\bgy_backup_db.ps1"</Arguments>
+    <WorkingDirectory>C:\Users\ncremaschi\Desktop\Monitoraggio BGY 2.5</WorkingDirectory>
+  </Exec>
+</Actions>
 </Task>
+
