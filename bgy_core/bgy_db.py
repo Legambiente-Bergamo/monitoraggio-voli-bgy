@@ -23,9 +23,20 @@ from bgy_core.bgy_config_manager import config_manager
 
 logger = get_logger("DB")
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 
 SCHEMA_SQL = """
+    CREATE TABLE IF NOT EXISTS aircraft_icao24_db (
+        icao24 VARCHAR(6) PRIMARY KEY,
+        registration TEXT,
+        model TEXT,
+        typecode TEXT,
+        operator TEXT,
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_aircraft_icao24 ON aircraft_icao24_db(icao24);
+    
+
 -- Tabella di versioning dello schema
 CREATE TABLE IF NOT EXISTS schema_version (
     version INTEGER PRIMARY KEY,

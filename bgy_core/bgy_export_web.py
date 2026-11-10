@@ -1,8 +1,8 @@
 """
 bgy_core/bgy_export_web.py - Esportazione dati aggregati per il web (F17).
-Versione 2.3.2 (WEB-40: data_quality_warnings - completezza acquisizione)
+Versione 2.4.9
 """
-__version__ = "2.3.6"
+__version__ = "2.5.0"
 import os
 import sys
 import json
@@ -286,27 +286,16 @@ def _parse_slot(s):
 
 
 # =============================================================================
-# WEB-40: QUALITY WARNINGS (completezza acquisizione)
+# WEB-40: QUALITY WARNINGS
 # =============================================================================
-# Slot diurni: letti da scan_schedules (config_data.json), fallback hardcoded.
 DEFAULT_DAY_SLOTS = ["02:00", "06:00", "10:00", "14:00", "18:00", "22:00"]
-# Slot notturni obbligatori (23:00 copre la fascia iniziale, 05:00 la finale).
 REQUIRED_NIGHT_SLOTS = ["23:00", "05:00"]
-# Slot notturni opzionali: coperti da 23:00, non vengono segnalati se mancano.
 OPTIONAL_NIGHT_SLOTS = ["00:01", "02:00"]
-# Tolleranza in minuti: uno scan a ±15 min dallo slot atteso lo copre.
 SLOT_TOLERANCE_MIN = 15
-# Soglia per il gap radar (in minuti): oltre, è un buco.
 RADAR_GAP_THRESHOLD_MIN = 90
 
 
 def _get_expected_slots():
-    """
-    Ritorna (obbligatori, opzionali) in minuti dalla mezzanotte.
-
-    - Obbligatori: scan_schedules (config) + 23:00 + 05:00.
-    - Opzionali: 00:01, 02:00 (se non già tra gli obbligatori).
-    """
     from bgy_core.bgy_config_manager import config_manager
     try:
         cfg = config_manager.get_data_config() or {}
@@ -331,22 +320,6 @@ def _get_expected_slots():
 
 
 def build_data_quality_warnings(date_from, date_to):
-    """
-    Identifica i giorni con acquisizione incompleta:
-    - Scansioni SACBO mancanti (obbligatorie; 00:01/02:00 sono opzionali)
-    - Buco radar > 90 min (esclusi i bordi del periodo)
-    - Report notturno mancante
-    - Report H24 mancante
-    - Nessuna scansione Avionio (solo dal giorno della prima data con dati)
-
-    Struttura di ogni warning:
-    {
-        "date": "YYYY-MM-DD",
-        "severity": "high",
-        "issues": [ {"type": ..., "msg": ...}, ... ],
-        "message": "msg1; msg2; ..."
-    }
-    """
     required_slots, optional_slots = _get_expected_slots()
     logger.info(
         f"Slot SACBO obbligatori: "
@@ -401,7 +374,7 @@ def build_data_quality_warnings(date_from, date_to):
         (date_from, date_to))
     h24_by_day = {_date_str(r[0]): int(r[1]) for r in rows}
 
-    # 5. Avionio (COALESCE: scan_timestamp può essere NULL, imported_at c'è sempre)
+    # 5. Avionio
     rows = _query(
         """SELECT COALESCE(scan_timestamp, imported_at)::date AS d, COUNT(*)
            FROM flights_avionio
@@ -425,9 +398,7 @@ def build_data_quality_warnings(date_from, date_to):
         ds = current.strftime("%Y-%m-%d")
         issues = []
 
-        # 5a. SACBO — solo slot obbligatori.
-        # Gli slot precedenti alla prima scansione del giorno sono ignorati:
-        # il sistema non era ancora attivo (es. 30/09, prima scansione alle 23:00).
+        # 5a. SACBO
         day_scans = scans_by_day.get(ds, [])
         if not day_scans:
             issues.append({
@@ -453,7 +424,7 @@ def build_data_quality_warnings(date_from, date_to):
                         "msg": f"Non è stato possibile leggere il tabellone ufficiale alle {h:02d}:{m:02d}: i dati di quel momento potrebbero mancare."
                     })
 
-        # 5b. Radar — gap massimo, esclusi i bordi del periodo
+        # 5b. Radar
         day_radar = radar_by_day.get(ds, [])
         if not day_radar:
             issues.append({"type": "radar_missing", "msg": "Nessun rilevamento radar"})
@@ -468,21 +439,18 @@ def build_data_quality_warnings(date_from, date_to):
             max_gap = 0
             gap_start = gap_end = None
 
-            # Gap iniziale: solo se non è il primo giorno del periodo
             if current != first_day:
                 g0 = (timestamps[0] - day_start).total_seconds() / 60
                 if g0 > max_gap:
                     max_gap = g0
                     gap_start, gap_end = day_start, timestamps[0]
 
-            # Gap interni: sempre
             for i in range(1, len(timestamps)):
                 g = (timestamps[i] - timestamps[i - 1]).total_seconds() / 60
                 if g > max_gap:
                     max_gap = g
                     gap_start, gap_end = timestamps[i - 1], timestamps[i]
 
-            # Gap finale: solo se non è l'ultimo giorno del periodo
             if current != last_day:
                 g_end = (day_end - timestamps[-1]).total_seconds() / 60
                 if g_end > max_gap:
@@ -514,7 +482,7 @@ def build_data_quality_warnings(date_from, date_to):
                 "msg": "Non è stato elaborato il riepilogo giornaliero: i dati di quel giorno potrebbero essere incompleti."
             })
 
-        # 5e. Avionio: segnala solo se dopo la prima data con dati
+        # 5e. Avionio
         if avionio_min_date and ds >= avionio_min_date:
             if ds not in avionio_by_day or avionio_by_day[ds] == 0:
                 issues.append({
@@ -537,17 +505,9 @@ def build_data_quality_warnings(date_from, date_to):
 
 
 # =============================================================================
-# BLOCCO HOME SUMMARY (v2.3.0 - doppia vista H24 + notturna)
+# BLOCCO HOME SUMMARY
 # =============================================================================
 def build_home_summary(date_from, date_to):
-    """Restituisce il breakdown per categoria dei movimenti, in due viste:
-
-    - h24     : tutti i movimenti del periodo (coerente con block_fleet → 12.008)
-    - nightly : solo movimenti della fascia notturna (23:00-05:59)
-
-    Ogni vista contiene anche il dettaglio per direzione (D/A) per categoria,
-    così l'HTML può mostrarlo se necessario.
-    """
     def _query_breakdown(table, date_col):
         sql = f"""
             SELECT
@@ -1346,7 +1306,7 @@ def build_block_pista_fonte(date_from, date_to):
 
 
 # =============================================================================
-# BLOCCO RITARDI H24 (Totali puliti e Ritardi separati)
+# BLOCCO RITARDI H24
 # =============================================================================
 
 def _delta_sql_expr():
@@ -1717,114 +1677,118 @@ def build_block_delays_hourly_weather(date_from, date_to):
 # =============================================================================
 
 def build_block_fleet(date_from, date_to):
-    """Costruisce i dati per la pagina La Flotta (WEB-37). Esclude i radar-only."""
+    """
+    Costruisce i dati per la pagina La Flotta (WEB-37).
+    Restituisce: { passeggeri: { voli: [...] }, cargo: { voli: [...] }, charter: { voli: [...] } }
+    La categoria 'charter' include anche i voli privati e militari (altri movimenti).
+    Ogni volo ha: compagnia, parent_company (se disponibile), modello, motore, max_passeggeri, data.
+    La classificazione usa le colonne is_cargo, is_charter, is_private, is_military da airlines.
+    """
+    from bgy_core.bgy_update_rules import get_parent_company
+    from bgy_core import bgy_db
 
-    sql_totali = """
-        SELECT data_calendario, direzione_sacbo, COUNT(*) 
+    # Carica i motori e i posti massimi da aircraft_models
+    motori = {}
+    max_pax = {}
+    try:
+        ok, rows = bgy_db.execute_query("SELECT model, motore, max_passeggeri FROM aircraft_models WHERE motore IS NOT NULL OR max_passeggeri IS NOT NULL")
+        if ok and rows:
+            for r in rows:
+                motori[r[0]] = r[1]
+                max_pax[r[0]] = r[2]
+    except Exception as e:
+        logger.warning(f"Impossibile caricare i motori: {e}")
+
+    # Carica la classificazione delle compagnie da airlines
+    airlines_class = {}
+    try:
+        ok, rows = bgy_db.execute_query("SELECT code, is_cargo, is_charter, is_private, is_military FROM airlines")
+        if ok and rows:
+            for r in rows:
+                airlines_class[r[0]] = {
+                    "is_cargo": bool(r[1]),
+                    "is_charter": bool(r[2]),
+                    "is_private": bool(r[3]),
+                    "is_military": bool(r[4]),
+                }
+    except Exception as e:
+        logger.warning(f"Impossibile caricare la classificazione delle compagnie: {e}")
+
+    sql = """
+        SELECT data_calendario, tipo_movimento, compagnia_aerea, modello_aereo, callsign, COUNT(*) as n
         FROM h24_reports
         WHERE data_calendario BETWEEN %s AND %s
           AND is_scheduled = TRUE
-        GROUP BY data_calendario, direzione_sacbo
+          AND modello_aereo IS NOT NULL
+          AND modello_aereo NOT IN ('N/D', '')
+        GROUP BY data_calendario, tipo_movimento, compagnia_aerea, modello_aereo, callsign
     """
-    rows_totali = _query(sql_totali, (date_from, date_to))
+    rows = _query(sql, (date_from, date_to))
 
-    totali_generali = {}
-    for r in rows_totali:
-        ds = _date_str(r[0])
-        d = (r[1] or "").strip().upper()
-        n = int(r[2] or 0)
-        if ds not in totali_generali:
-            totali_generali[ds] = {"D": 0, "A": 0}
-        if d in ("D", "A"):
-            totali_generali[ds][d] += n
+    result = {
+        "passeggeri": {"voli": []},
+        "cargo": {"voli": []},
+        "charter": {"voli": []}
+    }
 
-    rows = _query(
-        """SELECT data_calendario, compagnia_aerea, modello_aereo, direzione_sacbo, COUNT(*)
-           FROM h24_reports
-           WHERE data_calendario BETWEEN %s AND %s
-             AND is_scheduled = TRUE
-             AND modello_aereo IS NOT NULL 
-             AND modello_aereo NOT IN ('N/D', '')
-           GROUP BY data_calendario, compagnia_aerea, modello_aereo, direzione_sacbo""",
-        (date_from, date_to))
+    def _cat_from_tipo(tipo):
+        t = str(tipo or "").strip().lower()
+        if t.startswith("passeggeri"): return "passeggeri"
+        if t.startswith("cargo"): return "cargo"
+        if t.startswith("charter") or t.startswith("privato") or t.startswith("militare"):
+            return "charter"
+        return None
 
-    by_date_acc = {}
-    for ds, tot in totali_generali.items():
-        by_date_acc[ds] = {
-            'total': tot['D'] + tot['A'], 'D': tot['D'], 'A': tot['A'],
-            'models': {}, 'airlines': {}, 'table': []
-        }
-
-    total_mov = 0
-    total_D = 0
-    total_A = 0
-
-    for ds, tot in totali_generali.items():
-        total_mov += tot['D'] + tot['A']
-        total_D += tot['D']
-        total_A += tot['A']
+    def _cat_from_airline(comp, callsign):
+        # Cerca il prefisso del callsign nella mappa airlines_class
+        if callsign:
+            cs = callsign.strip().upper().replace(" ", "")
+            for prefix_len in (3, 2):
+                if len(cs) > prefix_len:
+                    prefix = cs[:prefix_len]
+                    if prefix in airlines_class:
+                        cls = airlines_class[prefix]
+                        if cls["is_military"]:
+                            return "charter"  # militari -> altri movimenti
+                        if cls["is_private"]:
+                            return "charter"  # privati -> altri movimenti
+                        if cls["is_cargo"]:
+                            return "cargo"
+                        if cls["is_charter"]:
+                            return "charter"
+        # Fallback: usa il tipo_movimento
+        return None
 
     for r in rows:
-        ds = _date_str(r[0])
-        comp = r[1] or 'N/D'
-        model = r[2]
-        dir_s = (r[3] or '').strip().upper()
-        n = int(r[4] or 0)
+        data_cal = _date_str(r[0])
+        tipo = r[1]
+        comp = r[2] or "N/D"
+        model = r[3]
+        callsign = r[4] or ""
+        n = int(r[5])
+        # Prova prima con la classificazione da airlines, poi con tipo_movimento
+        cat = _cat_from_airline(comp, callsign)
+        if cat is None:
+            cat = _cat_from_tipo(tipo)
+        if cat is None or cat not in result:
+            continue
+        parent = get_parent_company(callsign) if callsign else None
+        motore = motori.get(model, "N/D")
+        max_pax_val = max_pax.get(model, 0)
+        for _ in range(n):
+            result[cat]["voli"].append({
+                "compagnia": comp,
+                "parent_company": parent,
+                "modello": model,
+                "motore": motore,
+                "max_passeggeri": max_pax_val,
+                "data": data_cal
+            })
 
-        day = by_date_acc.setdefault(ds, {
-            'total': 0, 'D': 0, 'A': 0,
-            'models': {}, 'airlines': {}, 'table': []
-        })
-
-        day['models'][model] = day['models'].get(model, 0) + n
-        day['airlines'][comp] = day['airlines'].get(comp, 0) + n
-        day['table'].append({'airline': comp, 'model': model, 'direction': dir_s, 'n': n})
-
-    by_date = []
-    all_models_acc = {}
-    all_airlines_acc = {}
-
-    for ds in sorted(by_date_acc.keys()):
-        day = by_date_acc[ds]
-
-        for m, n in day['models'].items():
-            all_models_acc[m] = all_models_acc.get(m, 0) + n
-        for a, n in day['airlines'].items():
-            all_airlines_acc[a] = all_airlines_acc.get(a, 0) + n
-
-        top_models = [{'model': k, 'n': v} for k, v in day['models'].items()]
-        top_models.sort(key=lambda x: -x['n'])
-
-        top_airlines = [{'airline': k, 'n': v} for k, v in day['airlines'].items()]
-        top_airlines.sort(key=lambda x: -x['n'])
-
-        day['table'].sort(key=lambda x: (x['airline'], x['model']))
-
-        by_date.append({
-            "date": ds,
-            "kpi": {
-                "total_movements": day['total'], "total_D": day['D'], "total_A": day['A'],
-                "total_models": len(day['models']), "total_airlines": len(day['airlines'])
-            },
-            "top_models": top_models,
-            "top_airlines": top_airlines,
-            "fleet_table": day['table']
-        })
-
-    top_models_all = [{'model': k, 'n': v} for k, v in all_models_acc.items()]
-    top_models_all.sort(key=lambda x: -x['n'])
-
-    top_airlines_all = [{'airline': k, 'n': v} for k, v in all_airlines_acc.items()]
-    top_airlines_all.sort(key=lambda x: -x['n'])
-
-    return {
-        "by_date": by_date,
-        "totals": {
-            "kpi": {"total_movements": total_mov, "total_D": total_D, "total_A": total_A, "total_models": len(all_models_acc), "total_airlines": len(all_airlines_acc)},
-            "top_models": top_models_all,
-            "top_airlines": top_airlines_all
-        }
-    }
+    logger.info(f"Fleet: passeggeri={len(result['passeggeri']['voli'])}, "
+                f"cargo={len(result['cargo']['voli'])}, "
+                f"charter+altri={len(result['charter']['voli'])}")
+    return result
 
 
 def _build_home_summary_h24(date_from, date_to):
@@ -1845,6 +1809,7 @@ def _build_home_summary_h24(date_from, date_to):
             "non_classificato": int(rows[0][3] or 0),
         }
     return {"pax": 0, "cargo": 0, "charter": 0, "non_classificato": 0}
+
 
 def build_web_json(days=90):
     today = datetime.now().date()
@@ -1901,13 +1866,16 @@ def build_web_json(days=90):
         "block_home_summary": home_summary,
     }
 
+    n_pax = len(fleet_data.get('passeggeri', {}).get('voli', []))
+    n_cargo = len(fleet_data.get('cargo', {}).get('voli', []))
+    n_charter = len(fleet_data.get('charter', {}).get('voli', []))
     logger.info(
         f"JSON web: {len(movements['by_date'])} giorni, "
         f"{anomalies['totals']} anomalie, "
         f"{len(destinations_pax.get('by_date', []))} giorni pax, "
         f"{len(geo_breakdown.get('by_date', []))} giorni geo, "
         f"{len(airlines['totals'])} compagnie, "
-        f"{fleet_data['totals']['kpi']['total_models']} modelli, "
+        f"fleet: pax={n_pax}, cargo={n_cargo}, charter={n_charter}, "
         f"home_summary h24={home_summary['h24']['total']} "
         f"night={home_summary['nightly']['total']}, "
         f"by_hour su {len(movements['by_hour'].get('by_date', []))} date, "

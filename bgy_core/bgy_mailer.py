@@ -817,6 +817,20 @@ def _format_sync_backup_section(check_result):
     return "\n".join(lines)
 
 
+def _format_data_quality_section(warnings):
+    """Formatta la sezione dei warning di qualità dati (WEB-40)."""
+    if not warnings:
+        return ""
+    lines = []
+    lines.append("⚠️  QUALITÀ DATI: GIORNI CON COPERTURA RIDOTTA")
+    lines.append("")
+    lines.append("   Il sistema ha rilevato problemi di acquisizione nei seguenti giorni:")
+    for w in warnings:
+        lines.append(f"   • {w['date']}: {w['message']}")
+    lines.append("")
+    return "\n".join(lines)
+
+
 def _format_stats_section(stats, yesterday_str, night_import_failed=False,
                           non_classified_flights=None,
                           borderline_flights=None,
@@ -949,7 +963,8 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
                       night_import_failed=False,
                       non_classified_flights=None,
                       borderline_flights=None,
-                      sync_backup_check=None):
+                      sync_backup_check=None,
+                      data_quality_warnings=None):
     """
     Invia l'email di stato giornaliero.
     """
@@ -987,6 +1002,10 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
             sync_backup_check = None
 
     parts = []
+
+    quality_text = _format_data_quality_section(data_quality_warnings)
+    if quality_text:
+        parts.append(quality_text)
 
     problems_text = _render_problems(checks)
     if problems_text:

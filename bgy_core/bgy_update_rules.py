@@ -1,29 +1,14 @@
 """
 bgy_core/bgy_update_rules.py - Arricchimento dati da regole JSON.
-Versione 2.7.2
+Versione 2.7.5
 
-Novità v2.7.2 (fix strutturale stile callsign):
-- Nuova helper _callsign_prefix_order(): determina l'ordine di ricerca
-  dei prefissi in base allo stile del callsign.
-  - IATA-style (3° char è una cifra, es. H7483, FR2864, 3O457):
-    ordine (prefix2, prefix3). Primary = prefix2.
-  - ICAO-style (3° char è una lettera, es. RYR2864, SRR6401, BCS943):
-    ordine (prefix3, prefix2). Primary = prefix3.
-- get_airline(): 
-  * Cerca prima i nomi "veri" (non "Compagnia X") in _AIRLINES/_CARGO/_CHARTER,
-    nell'ordine stile-dipendente.
-  * Crea il placeholder SOLO sul prefisso "primary" (IATA per IATA-style,
-    ICAO per ICAO-style). Non più su prefix3 a priori.
-  * Per IATA-style, se il primary non è in anagrafica, prova a risolvere
-    via OpenFlights usando l'ICAO corrispondente (da _IATA_TO_ICAO).
-- is_cargo_flight() e is_charter_flight(): stessa logica stile-dipendente.
-- Risolve il bug per cui un callsign IATA-style (H7483) creava un
-  placeholder su prefix3 (H74 → "Compagnia H74") che poi oscurava
-  per sempre il prefisso IATA corretto a 2 char (H7 → HiSky).
+Novità v2.7.5 (10/11/2026):
+- Aggiunte le variabili globali _PRIVATE_AIRLINES, _MILITARY_AIRLINES, _PARENT_COMPANY.
+- load_rules() carica queste mappe da bgy_db.
+- get_airline() restituisce "Privato (...)" o "Militare (...)" se il prefisso è mappato.
+- Nuova funzione get_parent_company().
 
-Novità v2.7.1: iata_to_icao_prefix() + get_iata_to_icao_map().
-Novità v2.7.0: classify_callsign().
-Novità v2.6.1: supporto OpenFlights, mapping IATA→ICAO.
+Novità v2.7.2: fix strutturale stile callsign.
 """
 import os
 import requests
@@ -47,6 +32,9 @@ _NOISE_STATIONS = {}
 _NOISE_CURVES = {}
 _DEFAULT_NOISE_CURVES = {}
 _CALLSIGN_OVERRIDES = {}
+_PRIVATE_AIRLINES = {}
+_MILITARY_AIRLINES = {}
+_PARENT_COMPANY = {}
 
 _OPENFLIGHTS_DATA = {}
 _OPENFLIGHTS_LOADED = False
@@ -79,6 +67,32 @@ def _load_callsign_overrides_from_db():
         return {}
 
 
+def _load_airline_extras_from_db():
+    """Carica parent_company, private e military da airlines."""
+    global _PARENT_COMPANY, _PRIVATE_AIRLINES, _MILITARY_AIRLINES
+    try:
+        from bgy_core import bgy_db
+        if not bgy_db.is_enabled():
+            return
+        # Parent company
+        ok, rows = bgy_db.execute_query("SELECT code, parent_company FROM airlines WHERE parent_company IS NOT NULL")
+        if ok and rows:
+            for code, parent in rows:
+                _PARENT_COMPANY[code] = parent
+        # Private
+        ok, rows = bgy_db.execute_query("SELECT code, name FROM airlines WHERE is_private = TRUE")
+        if ok and rows:
+            for code, name in rows:
+                _PRIVATE_AIRLINES[code] = name
+        # Military
+        ok, rows = bgy_db.execute_query("SELECT code, name FROM airlines WHERE is_military = TRUE")
+        if ok and rows:
+            for code, name in rows:
+                _MILITARY_AIRLINES[code] = name
+    except Exception as e:
+        logger.warning(f"Impossibile caricare airline extras: {e}")
+
+
 def load_rules():
     """Ricarica le regole da config_manager e ripopola le cache locali."""
     global _AIRLINES, _COUNTRIES, _AIRCRAFT_MODELS, _CARGO_AIRLINES, _CHARTER_AIRLINES, _IATA_TO_ICAO
@@ -109,6 +123,7 @@ def load_rules():
     _NOISE_CURVES = curves_data
 
     _CALLSIGN_OVERRIDES = _load_callsign_overrides_from_db()
+    _load_airline_extras_from_db()
 
     logger.info(
         f"📚 Regole caricate: {len(_AIRLINES)} compagnie, "
@@ -121,7 +136,10 @@ def load_rules():
         f"{len(_LOAD_FACTORS)} load factors, "
         f"{len(_NOISE_STATIONS)} centraline, "
         f"{len(_NOISE_CURVES)} curve NPD, "
-        f"{len(_CALLSIGN_OVERRIDES)} override callsign"
+        f"{len(_CALLSIGN_OVERRIDES)} override callsign, "
+        f"{len(_PRIVATE_AIRLINES)} privati, "
+        f"{len(_MILITARY_AIRLINES)} militari, "
+        f"{len(_PARENT_COMPANY)} gruppi"
     )
 
 
@@ -162,15 +180,6 @@ def _is_placeholder(name):
 def _callsign_prefix_order(cs):
     """
     Determina l'ordine di ricerca dei prefissi in base allo stile del callsign.
-
-    Regola:
-    - Se il 3° carattere è una cifra → IATA-style (es. H7483, FR2864, 3O457, C39374).
-      I prefissi plausibili sono (prefix2, prefix3), primary = prefix2.
-    - Altrimenti (3° char è lettera, o callsign corto) → ICAO-style
-      (es. RYR2864, SRR6401, BCS943).
-      I prefissi plausibili sono (prefix3, prefix2), primary = prefix3.
-
-    Ritorna (search_order_tuple, primary_prefix).
     """
     if not cs:
         return (), ""
@@ -193,10 +202,6 @@ def _callsign_prefix_order(cs):
 def classify_callsign(callsign):
     """
     Classifica un callsign in modo deterministico e indipendente dalla fonte.
-
-    Ritorna (categoria, nome_compagnia) dove categoria ∈ {
-        'Passeggeri', 'Cargo', 'Charter', 'Non classificato'
-    }
     """
     if not callsign or not isinstance(callsign, str):
         return 'Non classificato', None
@@ -228,17 +233,6 @@ def classify_callsign(callsign):
 # -----------------------------------------------------------------------------
 
 def iata_to_icao_prefix(iata_code):
-    """
-    Converte un prefisso IATA (2-3 char) nel prefisso ICAO corrispondente.
-
-    Esempi:
-        'FR' -> 'RYR' (Ryanair)
-        'W4' -> 'WMT' (Wizz Air Malta)
-        'W6' -> 'WZZ' (Wizz Air)
-        'RK' -> 'RUK' (Ryanair UK)
-
-    Ritorna None se la conversione non è disponibile.
-    """
     if not iata_code or not isinstance(iata_code, str):
         return None
     code = iata_code.strip().upper()
@@ -248,7 +242,6 @@ def iata_to_icao_prefix(iata_code):
 
 
 def get_iata_to_icao_map():
-    """Ritorna una copia della mappa IATA→ICAO caricata."""
     return dict(_IATA_TO_ICAO)
 
 
@@ -379,27 +372,42 @@ def extract_callsign_prefix(callsign, length=2):
 
 
 # -----------------------------------------------------------------------------
-# AIRLINE (v2.7.2 — stile-dipendente)
+# AIRLINE (v2.7.5 — con privati/militari e parent_company)
 # -----------------------------------------------------------------------------
+
+def get_parent_company(callsign):
+    """Restituisce il gruppo di appartenenza per un callsign."""
+    if not callsign or not isinstance(callsign, str):
+        return None
+    cs = callsign.strip().upper().replace(" ", "")
+    if not cs:
+        return None
+    for prefix_len in (3, 2):
+        if len(cs) > prefix_len:
+            prefix = cs[:prefix_len]
+            if prefix in _PARENT_COMPANY:
+                return _PARENT_COMPANY[prefix]
+    return None
+
 
 def get_airline(callsign):
     """
     Ritorna il nome della compagnia per un callsign.
-
-    v2.7.2: la ricerca e la creazione del placeholder sono stile-dipendenti:
-    - IATA-style (H7483): cerca prefix2 (H7), poi prefix3 (H74).
-      Placeholder creato su prefix2 (H7).
-    - ICAO-style (RYR2864): cerca prefix3 (RYR), poi prefix2 (RY).
-      Placeholder creato su prefix3 (RYR).
-
-    In entrambi i casi, i nomi "veri" (non "Compagnia X") hanno priorità
-    sui placeholder esistenti.
     """
     if not callsign or not isinstance(callsign, str):
         return "N/D"
     cs = callsign.strip().upper().replace(" ", "")
     if not cs:
         return "N/D"
+
+    # Controlla se è un volo privato o militare
+    for prefix_len in (3, 2):
+        if len(cs) > prefix_len:
+            prefix = cs[:prefix_len]
+            if prefix in _MILITARY_AIRLINES:
+                return f"Militare ({_MILITARY_AIRLINES[prefix]})"
+            if prefix in _PRIVATE_AIRLINES:
+                return f"Privato ({_PRIVATE_AIRLINES[prefix]})"
 
     search_order, primary_prefix = _callsign_prefix_order(cs)
 
@@ -421,8 +429,7 @@ def get_airline(callsign):
         if name:
             return name
 
-    # 4. Fallback: placeholder già esistente sul primary (sarà scartato da
-    #    _is_valid_airline_name in classify_callsign, ma va restituito).
+    # 4. Fallback: placeholder già esistente sul primary
     name = _AIRLINES.get(primary_prefix)
     if name:
         return name

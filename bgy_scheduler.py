@@ -29,6 +29,7 @@ from bgy_core import get_logger, config_manager
 from bgy_core.bgy_paths import LOGS_DIR, RAW_DIR
 from bgy_core.bgy_github_sync import sync_to_github
 from bgy_core.bgy_mailer import send_daily_status, send_h24_alert
+from bgy_core.bgy_export_web import build_data_quality_warnings
 from bgy_core.bgy_dates import is_night_time, night_session_date
 from bgy_reports import (generate_daily_report, generate_nightly_report,
                          send_monthly_report, generate_h24_report)
@@ -57,7 +58,7 @@ RECOVERY_MIN_GAP_MIN = 60
 RECOVERY_MAX_AGE_DAYS = 7
 BACKUP_MAX_AGE_HOURS = 36
 
-WARNING_ONLY_CHECKS = {'avionio_confronto', 'backup', 'h24_enrichment', 'sacbo_pista28_check', 'sacbo_pista28_compare'}
+WARNING_ONLY_CHECKS = {'avionio_confronto', 'backup', 'h24_enrichment', 'sacbo_pista28_check', 'sacbo_pista28_compare', 'unresolved_airlines'}
 
 
 def _heartbeat_loop():
@@ -578,12 +579,19 @@ def job_daily():
         checks["sacbo_pista28_compare"] = (ok_conf, msg_conf)
     except Exception as e:
         checks["sacbo_pista28_compare"] = (False, f"Errore confronto SACBO: {e}")
+    try:
+        dq_warnings = build_data_quality_warnings(yesterday, yesterday)
+    except Exception as e:
+        logger.warning(f"Errore recupero data_quality_warnings: {e}")
+        dq_warnings = []
+
     send_daily_status(
         overall_success, "",
         checks=checks, stats=stats_data, screenshot_paths=screenshot_paths,
         night_import_failed=night_import_failed,
         non_classified_flights=non_classified_flights,
         sync_backup_check=sync_backup_check,
+        data_quality_warnings=dq_warnings,
     )
 
     job_web_export()

@@ -1,6 +1,6 @@
 """
 bgy_scanners/bgy_scanner_radar.py - Scanner radar h24 multi-fonte.
-Versione 1.4.0
+Versione 1.4.1
 
 Novità v1.4.0 (OPEN-01, RADAR-21, 08/11/2026):
 - Circuit breaker per OpenSky: dopo N errori HTTP 429
@@ -72,6 +72,10 @@ INCERT_DEAD_ZONE_DEG = 5
 _adsb_lol_cooldown_until = None
 _adsb_lol_429_count = 0
 
+# v1.4.1: stato circuit breaker adsb.fi
+_adsb_fi_cooldown_until = None
+_adsb_fi_429_count = 0
+
 # v1.4.0 (OPEN-01): stato circuit breaker OpenSky
 _opensky_cooldown_until = None
 _opensky_429_count = 0
@@ -112,6 +116,30 @@ def _set_adsb_lol_cooldown(minutes):
     """v1.3.1 (INFRA-18): attiva il cooldown per adsb.lol."""
     global _adsb_lol_cooldown_until
     _adsb_lol_cooldown_until = datetime.now() + timedelta(minutes=minutes)
+
+
+def _get_adsb_fi_cooldown_min():
+    """v1.4.1: minuti di cooldown dopo 429 su adsb.fi."""
+    try:
+        cfg = _cfg()
+        return int(cfg.get("adsb_fi_cooldown_min", 30))
+    except Exception:
+        return 30
+
+
+def _get_adsb_fi_max_429():
+    """v1.4.1: numero di 429 prima di attivare il cooldown."""
+    try:
+        cfg = _cfg()
+        return int(cfg.get("adsb_fi_max_429_before_cooldown", 1))
+    except Exception:
+        return 1
+
+
+def _set_adsb_fi_cooldown(minutes):
+    """v1.4.1: attiva il cooldown per adsb.fi."""
+    global _adsb_fi_cooldown_until
+    _adsb_fi_cooldown_until = datetime.now() + timedelta(minutes=minutes)
 
 
 def _get_opensky_cooldown_min():
@@ -374,6 +402,14 @@ def _fetch_adsblol():
 
 
 def _fetch_adsbfi():
+    global _adsb_fi_429_count
+    # v1.4.1: rispetta il cooldown
+    if _adsb_fi_cooldown_until and datetime.now() < _adsb_fi_cooldown_until:
+        logger.info(
+            f"⏭️ adsb.fi in cooldown fino a "
+            f"{_adsb_fi_cooldown_until.strftime('%H:%M:%S')}, salto"
+        )
+        return None
     cfg = _cfg()
     url = (f"https://opendata.adsb.fi/api/v3/lat/"
            f"{cfg['bgy_lat']}/lon/{cfg['bgy_lon']}/dist/{cfg['adsb_fi_radius_nm']}")
@@ -383,6 +419,21 @@ def _fetch_adsbfi():
         return None
     if resp.status_code == 403:
         logger.warning("⚠️ adsb.fi: HTTP 403 (forbidden)")
+        return None
+    if resp.status_code == 429:
+        _adsb_fi_429_count += 1
+        max_429 = _get_adsb_fi_max_429()
+        if _adsb_fi_429_count >= max_429:
+            cooldown_min = _get_adsb_fi_cooldown_min()
+            _set_adsb_fi_cooldown(cooldown_min)
+            _adsb_fi_429_count = 0
+            logger.warning(
+                f"⚠️ adsb.fi: rate limit 429, cooldown {cooldown_min} min"
+            )
+        else:
+            logger.warning(
+                f"⚠️ adsb.fi: rate limit 429 ({_adsb_fi_429_count}/{max_429})"
+            )
         return None
     if resp.status_code != 200:
         logger.error(f"❌ adsb.fi HTTP {resp.status_code}")
@@ -395,7 +446,9 @@ def _fetch_adsbfi():
     aircraft = data.get("ac") or data.get("aircraft") or []
     if not aircraft:
         logger.warning("⚠️ adsb.fi: nessun aereo nell'area")
-        return None
+        return []
+    # successo: reset contatore 429
+    _adsb_fi_429_count = 0
     logger.info(f"📡 adsb.fi: ricevuti {len(aircraft)} stati (fallback 1)")
     return _parse_adsb_generic(aircraft, "adsb.fi")
 
@@ -711,22 +764,22 @@ def run_radar_scan(parallel_test=False):
         flights = _fetch_adsblol()
         source = "adsb.lol"
 
-    if not flights:
+    if flights is None:
         if source is None:
             logger.warning("⚠️ adsb.lol in cooldown, tento adsb.fi...")
         else:
             logger.warning("⚠️ adsb.lol non disponibile, tento adsb.fi...")
         flights = _fetch_adsbfi()
         source = "adsb.fi"
-    if not flights:
+    if flights is None:
         logger.warning("⚠️ adsb.fi non disponibile, tento FlyItalyADSB...")
         flights = _fetch_flyitalyadsb()
         source = "flyitalyadsb"
-    if not flights:
+    if flights is None:
         logger.warning("⚠️ FlyItalyADSB non disponibile, tento airplanes.live...")
         flights = _fetch_airplaneslive()
         source = "airplanes.live"
-    if not flights:
+    if flights is None:
         if _opensky_cooldown_until and datetime.now() < _opensky_cooldown_until:
             logger.warning(
                 f"⚠️ airplanes.live non disponibile. OpenSky in cooldown fino a "
@@ -738,8 +791,13 @@ def run_radar_scan(parallel_test=False):
             logger.warning("⚠️ airplanes.live non disponibile, tento OpenSky...")
             flights = _fetch_opensky()
             source = "opensky"
-    if not flights:
+    if flights is None:
         logger.error("❌ Nessuna fonte dati disponibile")
+        return None
+
+    # Se la fonte ha risposto con 0 aerei, è un dato valido: non passiamo oltre.
+    if len(flights) == 0:
+        logger.info(f"ℹ️ {source}: 0 aerei nell'area (dato valido, non passo ad altre fonti)")
         return None
 
     logger.info(f"✅ Fonte dati: {source} ({len(flights)} voli nell'area)")

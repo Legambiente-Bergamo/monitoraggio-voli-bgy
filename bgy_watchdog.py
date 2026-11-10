@@ -231,6 +231,22 @@ def check_radar():
 # CHECK 3 - OPENSKY (solo OpenSky)
 # =============================================================================
 def check_opensky():
+    # INFRA-30: se il cooldown OpenSky è attivo, non generare alert
+    try:
+        from bgy_scanners.bgy_scanner_radar import _opensky_cooldown_until
+        if _opensky_cooldown_until and datetime.now() < _opensky_cooldown_until:
+            return True, "OpenSky in cooldown, alert soppresso (falso allarme evitato)"
+    except Exception:
+        pass
+
+    # INFRA-30: se il cooldown è attivo, non generare alert
+    try:
+        from bgy_scanners.bgy_scanner_radar import _opensky_cooldown_until
+        if _opensky_cooldown_until and datetime.now() < _opensky_cooldown_until:
+            return True, "OpenSky in cooldown, alert soppresso"
+    except Exception:
+        pass
+
     cfg = _cfg(); threshold = cfg.get("opensky_error_threshold", 5)
     log_lines = cfg.get("opensky_log_lines", 500); window_min = cfg.get("opensky_error_window_min", 15)
     try:

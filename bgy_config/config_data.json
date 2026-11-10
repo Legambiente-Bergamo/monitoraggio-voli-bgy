@@ -260,18 +260,18 @@
     "enabled": true,
     "global": {
       "show": true,
-      "title": "\u26a0\ufe0f DATI IN FASE DI VERIFICA",
-      "body": "Siamo in fase di test del sistema di monitoraggio. I dati pubblicati sono il risultato di elaborazioni automatiche in corso di validazione e possono contenere errori. La raccolta dei dati per i grafici \u00e8 iniziata il {min_date}. Non \u00e8 possibile visualizzare periodi precedenti a questa data."
+      "title": "⚠️ DATI IN FASE DI VERIFICA",
+      "body": "Siamo in fase di test del sistema di monitoraggio. I dati pubblicati sono il risultato di elaborazioni automatiche in corso di validazione e possono contenere errori. La raccolta dei dati per i grafici è iniziata il {min_date}. Non è possibile visualizzare periodi precedenti a questa data."
     }
   },
   "print": {
-    "button_label": "\u00c3\u0192\u00c2\u00b0\u00c3\u2026\u00c2\u00b8\u00c3\u00a2\u00e2\u201a\u00ac\u00e2\u20ac\u0153\u00c3\u201a\u00c2\u00a8\u00c3\u0192\u00c2\u00af\u00c3\u201a\u00c2\u00b8\u00c3\u201a\u00c2\u008f Stampa selezione",
+    "button_label": "ÃƒÂ°Ã…Â¸Ã¢â‚¬â€œÃ‚Â¨ÃƒÂ¯Ã‚Â¸Ã‚Â Stampa selezione",
     "button_position": "fab",
     "html2canvas_cdn": "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js",
     "footer": {
       "org": "Circolo Legambiente Bergamo APS",
-      "text_template": "Grafici elaborati da {org} tramite sistemi automatizzati a partire da dati presi da: {sources}. Dati in fase di verifica \u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u20ac\u0161\u00c2\u00ac\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u009d non utilizzare come statistica ufficiale.",
-      "short_text_template": "Fonte: {sources} \u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u20ac\u0161\u00c2\u00ac\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u009d elaborazione automatica. Dati in fase di verifica.",
+      "text_template": "Grafici elaborati da {org} tramite sistemi automatizzati a partire da dati presi da: {sources}. Dati in fase di verifica ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â non utilizzare come statistica ufficiale.",
+      "short_text_template": "Fonte: {sources} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â elaborazione automatica. Dati in fase di verifica.",
       "source_url": "https://www.legambientebergamasca.it/bgy",
       "sources": {
         "night": "SACBO (milanbergamoairport.it), Avionio.com (aggregatore pubblico), rete ADS-B (adsb.lol, adsb.fi, OpenSky Network)",
@@ -285,31 +285,31 @@
         "id": "pair-hour-delays",
         "left": "bgy-delays-chart-hour-D",
         "right": "bgy-delays-chart-hour-A",
-        "title": "Distribuzione oraria \u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u20ac\u0161\u00c2\u00ac\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u009d Ritardi",
+        "title": "Distribuzione oraria ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Ritardi",
         "content": "Decolli e atterraggi per ora, suddivisi per fascia di ritardo.",
-        "methodology": "Orario effettivo da radar/SACBO confrontato con schedulato. Soglia ritardo: \u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u00b0\u00c3\u201a\u00c2\u00a515 min."
+        "methodology": "Orario effettivo da radar/SACBO confrontato con schedulato. Soglia ritardo: ÃƒÂ¢Ã¢â‚¬Â°Ã‚Â¥15 min."
       },
       {
         "id": "pair-company-delays",
         "left": "bgy-delays-chart-company-D",
         "right": "bgy-delays-chart-company-A",
-        "title": "Top compagnie \u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u20ac\u0161\u00c2\u00ac\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u009d Ritardi",
-        "content": "Compagnie con pi\u00c3\u0192\u00c6\u2019\u00c3\u201a\u00c2\u00b9 movimenti nel periodo, per categoria.",
+        "title": "Top compagnie ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Ritardi",
+        "content": "Compagnie con piÃƒÆ’Ã‚Â¹ movimenti nel periodo, per categoria.",
         "methodology": "Fonte: tabellone SACBO + Avionio. Categoria inferita dal callsign."
       },
       {
         "id": "pair-destination-delays",
         "left": "bgy-delays-chart-destination-D",
         "right": "bgy-delays-chart-destination-A",
-        "title": "Top destinazioni / origini \u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u20ac\u0161\u00c2\u00ac\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u009d Ritardi",
-        "content": "Destinazioni (D) e origini (A) con pi\u00c3\u0192\u00c6\u2019\u00c3\u201a\u00c2\u00b9 movimenti nel periodo.",
+        "title": "Top destinazioni / origini ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Ritardi",
+        "content": "Destinazioni (D) e origini (A) con piÃƒÆ’Ã‚Â¹ movimenti nel periodo.",
         "methodology": "Fonte: tabellone SACBO. Destinazione/origine normalizzata."
       },
       {
         "id": "pair-timeline-delays",
         "left": "bgy-delays-chart-timeline-D",
         "right": "bgy-delays-chart-timeline-A",
-        "title": "Andamento giornaliero \u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u20ac\u0161\u00c2\u00ac\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u009d Ritardi",
+        "title": "Andamento giornaliero ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Ritardi",
         "content": "Movimenti per giorno, per fascia di ritardo.",
         "methodology": "Aggregazione per data di calendario. Fonte: v_h24_report."
       },
@@ -319,7 +319,7 @@
         "right": "bgy-delays-chart-weekday-A",
         "title": "% ritardi per giorno settimana",
         "content": "Percentuale di voli in ritardo per giorno, con proporzione Pax/Cargo/Charter/Altro.",
-        "methodology": "Solo periodi \u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u00b0\u00c3\u201a\u00c2\u00a57 giorni. Fonte: v_h24_report."
+        "methodology": "Solo periodi ÃƒÂ¢Ã¢â‚¬Â°Ã‚Â¥7 giorni. Fonte: v_h24_report."
       },
       {
         "id": "pair-fasce-delays",
@@ -333,8 +333,8 @@
         "id": "pair-toprec-delays",
         "left": "bgy-delays-chart-top-rec-D",
         "right": "bgy-delays-chart-top-rec-A",
-        "title": "Top 5 movimenti pi\u00c3\u0192\u00c6\u2019\u00c3\u201a\u00c2\u00b9 ritardatari",
-        "content": "Movimenti che ricorrono pi\u00c3\u0192\u00c6\u2019\u00c3\u201a\u00c2\u00b9 spesso in ritardo (callsign + fascia oraria).",
+        "title": "Top 5 movimenti piÃƒÆ’Ã‚Â¹ ritardatari",
+        "content": "Movimenti che ricorrono piÃƒÆ’Ã‚Â¹ spesso in ritardo (callsign + fascia oraria).",
         "methodology": "Arrotondamento orario a 15 min. Solo periodi >1 giorno. Fonte: H24."
       },
       {
@@ -374,7 +374,7 @@
         "left": "bgy-dest-chart-D",
         "right": "bgy-dest-chart-A",
         "title": "Top 5 destinazioni / origini notturne",
-        "content": "Destinazioni (D) e origini (A) con pi\u00c3\u0192\u00c6\u2019\u00c3\u201a\u00c2\u00b9 movimenti notturni.",
+        "content": "Destinazioni (D) e origini (A) con piÃƒÆ’Ã‚Â¹ movimenti notturni.",
         "methodology": "Sessione 23:01-05:59. Solo periodi >1 giorno."
       },
       {
@@ -382,14 +382,14 @@
         "left": "bgy-airlines-rank-D",
         "right": "bgy-airlines-rank-A",
         "title": "Ranking compagnie notturne",
-        "content": "Compagnie con pi\u00c3\u0192\u00c6\u2019\u00c3\u201a\u00c2\u00b9 movimenti nella fascia notturna.",
+        "content": "Compagnie con piÃƒÆ’Ã‚Â¹ movimenti nella fascia notturna.",
         "methodology": "Categoria inferita dal callsign. Fonte: match 3 vie."
       },
       {
         "id": "pair-hour-anticipi",
         "left": "bgy-anticipi-chart-hour-D",
         "right": "bgy-anticipi-chart-hour-A",
-        "title": "Distribuzione oraria \u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u20ac\u0161\u00c2\u00ac\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u009d Anticipi",
+        "title": "Distribuzione oraria ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Anticipi",
         "content": "Decolli e atterraggi in anticipo per ora del giorno.",
         "methodology": "Orario effettivo (radar/SACBO) precedente allo schedulato di almeno 15 min. Fonte: SACBO + radar."
       },
@@ -397,16 +397,16 @@
         "id": "pair-company-anticipi",
         "left": "bgy-anticipi-chart-company-D",
         "right": "bgy-anticipi-chart-company-A",
-        "title": "Top compagnie \u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u20ac\u0161\u00c2\u00ac\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u009d Anticipi",
-        "content": "Compagnie con pi\u00c3\u0192\u00c6\u2019\u00c3\u201a\u00c2\u00b9 anticipi nel periodo.",
+        "title": "Top compagnie ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Anticipi",
+        "content": "Compagnie con piÃƒÆ’Ã‚Â¹ anticipi nel periodo.",
         "methodology": "Fonte: tabellone SACBO + Avionio. Categoria inferita dal callsign."
       },
       {
         "id": "pair-destination-anticipi",
         "left": "bgy-anticipi-chart-destination-D",
         "right": "bgy-anticipi-chart-destination-A",
-        "title": "Top destinazioni / origini \u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u20ac\u0161\u00c2\u00ac\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u009d Anticipi",
-        "content": "Destinazioni (D) e origini (A) con pi\u00c3\u0192\u00c6\u2019\u00c3\u201a\u00c2\u00b9 anticipi.",
+        "title": "Top destinazioni / origini ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Anticipi",
+        "content": "Destinazioni (D) e origini (A) con piÃƒÆ’Ã‚Â¹ anticipi.",
         "methodology": "Fonte: tabellone SACBO. Destinazione/origine normalizzata."
       },
       {
@@ -421,20 +421,20 @@
         "id": "pair-timeline-anticipi",
         "left": "bgy-anticipi-chart-timeline-D",
         "right": "bgy-anticipi-chart-timeline-A",
-        "title": "Andamento giornaliero \u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u20ac\u0161\u00c2\u00ac\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u009d Anticipi",
+        "title": "Andamento giornaliero ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Anticipi",
         "content": "Movimenti in anticipo per giorno, per fascia.",
         "methodology": "Aggregazione per data di calendario. Fonte: v_h24_report."
       }
     ],
     "charts": {
       "bgy-geo-D": {
-        "title": "Drill-down geografico \u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u20ac\u0161\u00c2\u00ac\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u009d Decolli",
-        "content": "Paesi/citt\u00c3\u0192\u00c6\u2019\u00c3\u201a\u00c2\u00a0 di destinazione dei decolli (stato corrente del drill-down).",
+        "title": "Drill-down geografico ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Decolli",
+        "content": "Paesi/cittÃƒÆ’Ã‚Â  di destinazione dei decolli (stato corrente del drill-down).",
         "methodology": "Fonte: tabellone SACBO. Categoria inferita."
       },
       "bgy-geo-A": {
-        "title": "Drill-down geografico \u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u20ac\u0161\u00c2\u00ac\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u009d Atterraggi",
-        "content": "Paesi/citt\u00c3\u0192\u00c6\u2019\u00c3\u201a\u00c2\u00a0 di origine degli atterraggi (stato corrente del drill-down).",
+        "title": "Drill-down geografico ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Atterraggi",
+        "content": "Paesi/cittÃƒÆ’Ã‚Â  di origine degli atterraggi (stato corrente del drill-down).",
         "methodology": "Fonte: tabellone SACBO. Categoria inferita."
       }
     },
@@ -458,7 +458,7 @@
         "selector": "#bgy-sides-container",
         "title": "Pista utilizzata",
         "content": "Distribuzione dei movimenti per pista (Bergamo 28, Seriate 10, N/D).",
-        "methodology": "Dedotta da radar ADS-B (vedi modal \u00c3\u0192\u00e2\u20ac\u0161\u00c3\u201a\u00c2\u00abCome viene determinata la pista\u00c3\u0192\u00e2\u20ac\u0161\u00c3\u201a\u00c2\u00bb)."
+        "methodology": "Dedotta da radar ADS-B (vedi modal Ãƒâ€šÃ‚Â«Come viene determinata la pistaÃƒâ€šÃ‚Â»)."
       },
       {
         "id": "weather-night-20",
@@ -470,43 +470,43 @@
       {
         "id": "weather-detail-D",
         "selector": "#bgy-weather-detail-D",
-        "title": "Dettaglio movimenti con meteo \u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u20ac\u0161\u00c2\u00ac\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u009d Decolli",
+        "title": "Dettaglio movimenti con meteo ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Decolli",
         "content": "Elenco dei decolli con condizioni meteo al momento del movimento.",
-        "methodology": "Incrocio nightly_reports \u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u00a0\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u009d weather_hourly."
+        "methodology": "Incrocio nightly_reports ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬Â weather_hourly."
       },
       {
         "id": "weather-detail-A",
         "selector": "#bgy-weather-detail-A",
-        "title": "Dettaglio movimenti con meteo \u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u20ac\u0161\u00c2\u00ac\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u009d Atterraggi",
+        "title": "Dettaglio movimenti con meteo ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Atterraggi",
         "content": "Elenco degli atterraggi con condizioni meteo al momento del movimento.",
-        "methodology": "Incrocio nightly_reports \u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u00a0\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u009d weather_hourly."
+        "methodology": "Incrocio nightly_reports ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬Â weather_hourly."
       },
       {
         "id": "kpi-delays-D",
         "selector": "#bgy-delays-kpi-container-D",
-        "title": "KPI ritardi \u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u20ac\u0161\u00c2\u00ac\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u009d Decolli",
+        "title": "KPI ritardi ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Decolli",
         "content": "Totali, puntuali, in ritardo, % e ritardi medi.",
-        "methodology": "Soglie: puntuale \u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u00b0\u00c3\u201a\u00c2\u00a415 min, ritardo >15 min, grave >60 min. Fonte: H24."
+        "methodology": "Soglie: puntuale ÃƒÂ¢Ã¢â‚¬Â°Ã‚Â¤15 min, ritardo >15 min, grave >60 min. Fonte: H24."
       },
       {
         "id": "kpi-delays-A",
         "selector": "#bgy-delays-kpi-container-A",
-        "title": "KPI ritardi \u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u20ac\u0161\u00c2\u00ac\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u009d Atterraggi",
+        "title": "KPI ritardi ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Atterraggi",
         "content": "Totali, puntuali, in ritardo, % e ritardi medi.",
-        "methodology": "Soglie: puntuale \u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u00b0\u00c3\u201a\u00c2\u00a415 min, ritardo >15 min, grave >60 min. Fonte: H24."
+        "methodology": "Soglie: puntuale ÃƒÂ¢Ã¢â‚¬Â°Ã‚Â¤15 min, ritardo >15 min, grave >60 min. Fonte: H24."
       },
       {
         "id": "worst-delays-D",
         "selector": "#bgy-delays-worst-container-D",
-        "title": "Peggior ritardo \u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u20ac\u0161\u00c2\u00ac\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u009d Decolli",
-        "content": "I singoli decolli con il ritardo pi\u00c3\u0192\u00c6\u2019\u00c3\u201a\u00c2\u00b9 alto nel periodo.",
+        "title": "Peggior ritardo ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Decolli",
+        "content": "I singoli decolli con il ritardo piÃƒÆ’Ã‚Â¹ alto nel periodo.",
         "methodology": "Solo periodi >1 giorno. Fonte: H24."
       },
       {
         "id": "worst-delays-A",
         "selector": "#bgy-delays-worst-container-A",
-        "title": "Peggior ritardo \u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u20ac\u0161\u00c2\u00ac\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u009d Atterraggi",
-        "content": "I singoli atterraggi con il ritardo pi\u00c3\u0192\u00c6\u2019\u00c3\u201a\u00c2\u00b9 alto nel periodo.",
+        "title": "Peggior ritardo ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Atterraggi",
+        "content": "I singoli atterraggi con il ritardo piÃƒÆ’Ã‚Â¹ alto nel periodo.",
         "methodology": "Solo periodi >1 giorno. Fonte: H24."
       },
       {
@@ -520,37 +520,47 @@
         "id": "kpi-anticipi",
         "selector": "#bgy-anticipi-kpi-container",
         "title": "KPI anticipi",
-        "content": "Movimenti totali, puntuali/in ritardo, anticipi (\u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u00b0\u00c3\u201a\u00c2\u00a515 min), % anticipi, anticipo medio e massimo.",
-        "methodology": "Franchigia: anticipo significativo se \u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u00b0\u00c3\u201a\u00c2\u00a515 min. Fonte: SACBO + radar."
+        "content": "Movimenti totali, puntuali/in ritardo, anticipi (ÃƒÂ¢Ã¢â‚¬Â°Ã‚Â¥15 min), % anticipi, anticipo medio e massimo.",
+        "methodology": "Franchigia: anticipo significativo se ÃƒÂ¢Ã¢â‚¬Â°Ã‚Â¥15 min. Fonte: SACBO + radar."
       },
       {
         "id": "top-delta-anticipi-D",
         "selector": "#bgy-anticipi-top-delta-container-D",
-        "title": "Top 5 anticipi \u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u20ac\u0161\u00c2\u00ac\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u009d Decolli",
-        "content": "I decolli con l'anticipo pi\u00c3\u0192\u00c6\u2019\u00c3\u201a\u00c2\u00b9 elevato nel periodo.",
+        "title": "Top 5 anticipi ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Decolli",
+        "content": "I decolli con l'anticipo piÃƒÆ’Ã‚Â¹ elevato nel periodo.",
         "methodology": "Anticipo massimo (valore assoluto). Fonte: H24."
       },
       {
         "id": "top-delta-anticipi-A",
         "selector": "#bgy-anticipi-top-delta-container-A",
-        "title": "Top 5 anticipi \u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u20ac\u0161\u00c2\u00ac\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u009d Atterraggi",
-        "content": "Gli atterraggi con l'anticipo pi\u00c3\u0192\u00c6\u2019\u00c3\u201a\u00c2\u00b9 elevato nel periodo.",
+        "title": "Top 5 anticipi ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Atterraggi",
+        "content": "Gli atterraggi con l'anticipo piÃƒÆ’Ã‚Â¹ elevato nel periodo.",
         "methodology": "Anticipo massimo (valore assoluto). Fonte: H24."
       },
       {
         "id": "top-freq-anticipi-D",
         "selector": "#bgy-anticipi-top-freq-container-D",
-        "title": "Top 5 frequenza anticipi \u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u20ac\u0161\u00c2\u00ac\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u009d Decolli",
-        "content": "I decolli che ricorrono pi\u00c3\u0192\u00c6\u2019\u00c3\u201a\u00c2\u00b9 spesso in anticipo (callsign + fascia oraria).",
+        "title": "Top 5 frequenza anticipi ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Decolli",
+        "content": "I decolli che ricorrono piÃƒÆ’Ã‚Â¹ spesso in anticipo (callsign + fascia oraria).",
         "methodology": "Arrotondamento orario a 15 min. Fonte: H24."
       },
       {
         "id": "top-freq-anticipi-A",
         "selector": "#bgy-anticipi-top-freq-container-A",
-        "title": "Top 5 frequenza anticipi \u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u20ac\u0161\u00c2\u00ac\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u009d Atterraggi",
-        "content": "Gli atterraggi che ricorrono pi\u00c3\u0192\u00c6\u2019\u00c3\u201a\u00c2\u00b9 spesso in anticipo (callsign + fascia oraria).",
+        "title": "Top 5 frequenza anticipi ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Atterraggi",
+        "content": "Gli atterraggi che ricorrono piÃƒÆ’Ã‚Â¹ spesso in anticipo (callsign + fascia oraria).",
         "methodology": "Arrotondamento orario a 15 min. Fonte: H24."
       }
     ]
+  },
+  "alert_messages": {
+    "opensky_429": {
+      "subject": "⚠️ OPENSKY: rate limit 429 (gestito)",
+      "body": "OpenSky Network ha un limite al numero di richieste al giorno. Quando\nlo superiamo, il servizio risponde con il codice di errore HTTP 429\n(\"Too Many Requests\"). Il sistema gestisce automaticamente questo errore\npassando alle fonti di fallback (adsb.fi, FlyItalyADSB, airplanes.live).\n\nNell'ultimo periodo:\n• Errori 429 rilevati (vedi log per i dettagli)\n• Soglia di allarme configurata: {soglia}\n\nCosa significa questo per la suite:\n• Qualche errore 429 è normale e gestito automaticamente.\n• Se gli errori sono molti e ripetuti, la copertura radar notturna\n  potrebbe risultare ridotta.\n\nCosa fare:\n1. Verifica che il radar giri ogni 5 secondi di notte (23:01-05:59)\n   e ogni 2 minuti di giorno. Nella configurazione attuale è così.\n2. Se gli errori continuano, valuta di allungare l'intervallo tra\n   le scansioni radar. Attualmente è {intervallo} secondi.\n   Modifica: bgy_config/config_data.json → night_scan_interval_seconds\n3. Verifica che le credenziali OpenSky siano configurate in\n   bgy_config/config_opensky.json (gli account registrati hanno\n   10 volte più crediti di quelli anonimi)."
+    },
+    "adsb_lol_429": {
+      "subject": "⚠️ ADSB.LOL: rate limit 429 (gestito)",
+      "body": "Anche la fonte adsb.lol ha restituito errori 429. Il sistema sta usando le fonti di fallback (adsb.fi, FlyItalyADSB)."
+    }
   }
 }
