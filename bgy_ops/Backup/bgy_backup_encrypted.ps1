@@ -11,29 +11,32 @@
       2) bgy_suite_YYYY-MM-DD.7z   (NON cifrato)
          Contenuto: codice + script + docs + config pubblica
          Esclude: bgy_config/*.json (credenziali), bgy_data/, bgy_tests/, .git/
+         Esclude: file di backup (*.bak, *.bak_*, *.CORROTTO_*, *.patched,
+                  *.avionio_ok, *.criterio_b_v2_ok, *.cross_source_ok, *.bak_tmp)
 
-    Retention: elimina da Drive i file piÃƒÂ¹ vecchi di 7 giorni.
+    Retention: elimina da Drive i file piu' vecchi di 7 giorni.
 
     Eseguito dal task di sistema BGY_BackupEncrypted (LogonType=S4U).
 
 .VERSION
+    v1.0.2 (SEC-04-bis, 11/11/2026):
+        - FIX: rimosso "bgy_supervisor.ps1" dalla lista root. Il file e' stato
+          spostato in bgy_ops/bgy_supervisor.ps1 (Addendum 15) ed e' gia'
+          incluso nella cartella bgy_ops. 7z dava WARNING (exit code 1)
+          perche' non lo trovava, e lo script falliva inutilmente.
+        - FIX: exit code 1 (warning) non e' piu' trattato come errore fatale.
+          7z restituisce 1 quando salta un file ma crea comunque l'archivio.
+          Ora lo script logga il warning e continua. Fallisce solo su exit code 2+.
+        - Aggiunta esclusione file di backup (*.bak, *.bak_*, *.CORROTTO_*,
+          *.patched, *.avionio_ok, *.criterio_b_v2_ok, *.cross_source_ok, *.bak_tmp).
+
     v1.0.1 (SEC-04, 14/10/2026):
-        - FIX CRITICO: variabile $pwd Ã¢â€ â€™ $secret.
-          $pwd ÃƒÂ¨ un alias automatico di PowerShell (Get-Location).
-          In presenza di Push-Location/Pop-Location, PowerShell sovrascriveva
-          silenziosamente $pwd con il path corrente, cifrando gli archivi con
-          una stringa pubblica anzichÃƒÂ© con la password utente.
-          Il file .bgy_backup_pwd non ÃƒÂ¨ mai stato usato per la cifratura.
-        - Con la v1.0.0 gli archivi risultavano cifrati con
-          "C:\Users\ncremaschi\Desktop\Monitoraggio BGY 2.5" (path pubblico
-          su GitHub). Tutti gli archivi generati vanno considerati compromessi
-          e rigenerati.
+        - FIX CRITICO: variabile $pwd -> $secret.
     v1.0.0 (SEC-04, 13/10/2026) - prima versione (con bug $pwd).
 
 .NOTES
     Password: letta da C:\Users\ncremaschi\.bgy_backup_pwd
     Log:      bgy_data/bgy_logs/backup_encrypted.log
-    Riferimenti: Relazione v3.8 Ã‚Â§10.3, Ã‚Â§13.5; Addendum 4 (ciclo v3.8).
 #>
 
 [CmdletBinding()]
@@ -85,7 +88,7 @@ function Send-BackupAlert {
 # START
 # =============================================================================
 
-Write-Log "===== AVVIO BACKUP CIFRATO ====="
+Write-Log "===== AVVIO BACKUP CIFRATO (v1.0.2) ====="
 $exitCode = 0
 $dateStr = Get-Date -Format "yyyy-MM-dd"
 
@@ -110,7 +113,6 @@ try {
     }
 
     # Leggi password (mai loggata)
-    # v1.0.1: usa $secret, non $pwd ($pwd ÃƒÂ¨ alias automatico di PowerShell).
     $secret = (Get-Content $PwdFile -Raw).Trim()
     if ([string]::IsNullOrWhiteSpace($secret)) {
         throw "File password vuoto: $PwdFile"
@@ -122,7 +124,7 @@ try {
     New-Item -ItemType Directory -Path $TmpDir -Force | Out-Null
 
     # -------------------------------------------------------------------------
-    # 2) Archivio 1 Ã¢â‚¬â€ CIFRATO (credenziali + XML task)
+    # 2) Archivio 1 - CIFRATO (credenziali + XML task)
     # -------------------------------------------------------------------------
     $archiveConfig = Join-Path $TmpDir "bgy_config_$dateStr.7z"
     Write-Log "Creazione archivio cifrato: $archiveConfig"
@@ -135,8 +137,11 @@ try {
             "bgy_config\*.json" `
             "bgy_docs\tasks_windows\*.xml" `
             | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            throw "7z (config) exit code: $LASTEXITCODE"
+        $exit1 = $LASTEXITCODE
+        if ($exit1 -ge 2) {
+            throw "7z (config) exit code: $exit1"
+        } elseif ($exit1 -eq 1) {
+            Write-Log "7z (config) ha restituito warning (exit 1). Archivio comunque creato." "WARN"
         }
     } finally {
         Pop-Location
@@ -149,7 +154,7 @@ try {
     Write-Log "Archivio config creato: $sizeConfig KB"
 
     # -------------------------------------------------------------------------
-    # 3) Archivio 2 Ã¢â‚¬â€ NON cifrato (codice + suite)
+    # 3) Archivio 2 - NON cifrato (codice + suite)
     # -------------------------------------------------------------------------
     $archiveSuite = Join-Path $TmpDir "bgy_suite_$dateStr.7z"
     Write-Log "Creazione archivio suite: $archiveSuite"
@@ -164,12 +169,17 @@ try {
             "bgy_config\config_data.json" `
             "bgy_scheduler.py" "bgy_watchdog.py" "bgy_gui.py" `
             "bgy_avvia_headless.bat" "Avvia BGY.bat" `
-            "bgy_supervisor.ps1" `
             "requirements.txt" `
             -xr!"__pycache__" -xr!"*.pyc" -xr!".pytest_cache" -xr!".mypy_cache" `
+            -xr!"*.bak" -xr!"*.bak_*" -xr!"*.CORROTTO_*" `
+            -xr!"*.patched" -xr!"*.avionio_ok" -xr!"*.criterio_b_v2_ok" `
+            -xr!"*.cross_source_ok" -xr!"*.bak_tmp" `
             | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            throw "7z (suite) exit code: $LASTEXITCODE"
+        $exit2 = $LASTEXITCODE
+        if ($exit2 -ge 2) {
+            throw "7z (suite) exit code: $exit2"
+        } elseif ($exit2 -eq 1) {
+            Write-Log "7z (suite) ha restituito warning (exit 1). Archivio comunque creato." "WARN"
         }
     } finally {
         Pop-Location

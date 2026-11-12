@@ -1,4 +1,4 @@
-"""
+﻿"""
 bgy_core/bgy_mailer.py - Modulo unificato di invio email.
 Versione 2.8.3
 
@@ -58,7 +58,7 @@ DEFAULT_COOLDOWN_MIN = 30
 # v2.8.2 (MAIL-05): h24_enrichment spostato in WARNING_ONLY_CHECKS.
 # Se H24 fallisce, l'email 06:30 diventa WARN (⚠️), non KO.
 # L'alert dedicato (send_h24_alert) è il segnale forte.
-WARNING_ONLY_CHECKS = {'avionio_confronto', 'backup', 'h24_enrichment'}
+WARNING_ONLY_CHECKS = {'avionio_confronto', 'backup', 'h24_enrichment', 'unresolved_airlines'}
 
 HIDDEN_FROM_PROBLEMS = {'avionio_confronto'}
 
@@ -485,6 +485,68 @@ def _format_cat_line(cat_label, cat_data):
     if d == 0 and a == 0:
         return None
     return f"   {cat_label}: D={d:>3}  A={a:>3}  (tot {d + a})"
+
+
+
+
+def _format_monthly_technical_section(stats):
+    """(DATA-36) Formatta il blocco tecnico per l'email mensile."""
+    if not stats:
+        return ""
+
+    # Usa ASCII per evitare problemi di encoding
+    lines = ["-" * 37, "", "REPORT TECNICO MENSILE", ""]
+
+    # 1. N/D e Modelli
+    nd_count = stats.get('nd_models_count', 'N/D')
+    distinct_models = stats.get('distinct_models_count', 'N/D')
+    lines.append(f"   Modelli Aerei Non Identificati (N/D): {nd_count}")
+    lines.append(f"   Modelli distinti rilevati: {distinct_models}")
+
+    # 2. Compagnie non risolte
+    unresolved_msg = stats.get('unresolved_airlines_msg', 'Dati non disponibili.')
+    lines.append(f"   Compagnie non risolte: {unresolved_msg.splitlines()[0]}")
+
+    # 3. Copertura ridotta (formato compatto)
+    warnings = stats.get('data_quality_warnings', [])
+    if warnings:
+        lines.append(f"   Giorni con copertura ridotta: {len(warnings)}")
+        for w in warnings[:5]:  # Primi 5
+            # Accorcia il messaggio se troppo lungo
+            msg = w['message'][:100] + "..." if len(w['message']) > 100 else w['message']
+            lines.append(f"     - {w['date']}: {msg}")
+    else:
+        lines.append("   Giorni con copertura ridotta: 0")
+
+    # 4. Errori di acquisizione
+    errors_count = stats.get('acquisition_errors_count', 0)
+    if errors_count > 0:
+        lines.append(f"   Errori di acquisizione (log): {errors_count}")
+        # Mostra solo i primi 3 per compattezza
+        for err in stats.get('acquisition_errors', [])[:3]:
+            # Accorcia la riga di log
+            log_line = err[:120] + "..." if len(err) > 120 else err
+            lines.append(f"     - {log_line}")
+    else:
+        lines.append("   Errori di acquisizione (log): 0")
+
+    # 5. Stato Motori
+    with_engine = stats.get('models_with_engine', 'N/D')
+    total_models = stats.get('models_total', 'N/D')
+    lines.append(f"   Copertura Motori: {with_engine}/{total_models} modelli hanno un motore mappato.")
+
+    # 6. Stato Database
+    db_size = stats.get('db_size', 'N/D')
+    last_import = stats.get('last_h24_import', 'N/D')
+    row_counts = stats.get('db_row_counts', {})
+    lines.append(f"   Database: Dimensione {db_size}, Ultimo import H24: {last_import}")
+    if row_counts:
+        # Mostra solo i primi 3 conteggi
+        counts_str = ", ".join([f"{k}={v}" for k, v in list(row_counts.items())[:3]])
+        lines.append(f"     Record principali: {counts_str}...")
+
+    return "\n".join(lines)
+
 
 
 def _format_nightly_section(nightly, yesterday_str, night_import_failed):
@@ -1077,12 +1139,15 @@ def send_daily_status(success=True, details="", checks=None, stats=None,
 
 
 def send_email_with_attachments(attachment_paths, subject=None,
+                                extra_body=None,
                                 recipient_type="monthly",
                                 is_success=True, body=None, force=False):
     if not subject:
         subject = f"📊 Report BGY - {datetime.now().strftime('%d/%m/%Y')}"
     if body is None:
         body = "In allegato i report richiesti."
+    if extra_body:
+        body += f"\n\n{extra_body}"
 
     # T10: aggiunge il disclaimer alla mail mensile
     if recipient_type == "monthly":

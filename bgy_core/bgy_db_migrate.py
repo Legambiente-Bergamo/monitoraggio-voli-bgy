@@ -694,12 +694,124 @@ def run_quality_check(days=7, dry_run=False):
     }
 
 
-def check_unresolved_airlines(days_threshold=30):
-    ok, rows = bgy_db.execute_query("SELECT callsign, COUNT(*) FROM nightly_reports WHERE compagnia_aerea LIKE 'Compagnia %%' GROUP BY callsign")
-    if not ok or not rows: return True, "Nessuna compagnia non risolta."
-    if len(rows) > 0: return False, f"Trovate {len(rows)} compagnie non risolte."
-    return True, "Tutte le compagnie sono risolte."
 
+def get_monthly_technical_stats(month_start_date, month_end_date):
+    """
+    (DATA-36) Raccoglie statistiche tecniche per il report mensile.
+    Restituisce un dizionario con i dati grezzi da formattare.
+    """
+    from bgy_core import bgy_db
+    from datetime import datetime, timedelta
+    from bgy_core.bgy_export_web import build_data_quality_warnings
+    from bgy_core.bgy_paths import LOGS_DIR
+
+    stats = {}
+    month_start = month_start_date.strftime('%Y-%m-%d')
+    month_end = month_end_date.strftime('%Y-%m-%d')
+
+    # 1. N/D residui e Stato Motori
+    try:
+        sql_models = f"""
+            SELECT
+                COUNT(*) FILTER (WHERE modello_aereo = 'N/D' OR modello_aereo IS NULL) as nd_count,
+                COUNT(DISTINCT modello_aereo) FILTER (WHERE modello_aereo != 'N/D' AND modello_aereo IS NOT NULL) as distinct_models
+            FROM h24_reports
+            WHERE data_calendario >= '{month_start}' AND data_calendario <= '{month_end}';
+        """
+        ok, rows = bgy_db.execute_query(sql_models)
+        if ok and rows:
+            stats['nd_models_count'] = rows[0][0] or 0
+            stats['distinct_models_count'] = rows[0][1] or 0
+
+        sql_motori = "SELECT COUNT(*) FILTER (WHERE motore IS NOT NULL AND motore != 'N/D') as con_motore, COUNT(*) as totale FROM aircraft_models;"
+        ok, rows = bgy_db.execute_query(sql_motori)
+        if ok and rows:
+            stats['models_with_engine'] = rows[0][0]
+            stats['models_total'] = rows[0][1]
+    except Exception as e:
+        stats['error_models'] = str(e)
+        stats['nd_models_count'] = 0
+        stats['distinct_models_count'] = 0
+        stats['models_with_engine'] = 0
+        stats['models_total'] = 0
+
+    # 2. Compagnie non risolte
+    try:
+        unresolved_ok, unresolved_msg = check_unresolved_airlines(days_threshold=31)
+        stats['unresolved_airlines_msg'] = unresolved_msg
+    except Exception as e:
+        stats['unresolved_airlines_msg'] = f"Errore: {e}"
+
+    # 3. Giorni con copertura ridotta
+    try:
+        stats['data_quality_warnings'] = build_data_quality_warnings(month_start, month_end)
+    except Exception as e:
+        stats['data_quality_warnings'] = [{'date': 'ERRORE', 'message': str(e)}]
+
+    # 4. Errori di acquisizione (da log)
+    try:
+        errors = []
+        # Pattern semplice e corretto: cerca "ERROR" o "WARNING" o "fallback" o "MANCANTI" o "salto"
+        log_pattern = re.compile(r"ERROR|WARNING|fallback|MANCANTI|salto", re.IGNORECASE)
+        for day in range((month_end_date - month_start_date).days + 1):
+            current_date = (month_start_date + timedelta(days=day)).strftime('%Y-%m-%d')
+            log_file = os.path.join(LOGS_DIR, f"bgy_app_{current_date}.log")
+            if os.path.exists(log_file):
+                with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
+                    for line in f:
+                        # Salta i log di routine
+                        if "[ScannerRadar] INFO" in line or "[Mailer] INFO" in line:
+                            continue
+                        if log_pattern.search(line):
+                            errors.append(line.strip())
+        stats['acquisition_errors_count'] = len(errors)
+        stats['acquisition_errors'] = errors[:10]  # Mostra solo i primi 10
+    except Exception as e:
+        stats['acquisition_errors'] = [f"Errore lettura log: {e}"]
+        stats['acquisition_errors_count'] = 0
+
+    # 5. Stato Database
+    try:
+        db_size_val = bgy_db.get_db_size()
+        if isinstance(db_size_val, tuple) and len(db_size_val) == 2:
+            db_size = db_size_val[1]
+        else:
+            db_size = db_size_val
+        stats['db_size'] = f"{db_size:.1f} MB" if isinstance(db_size, (int, float)) else "N/D"
+
+        row_counts = bgy_db.get_table_counts()
+        stats['db_row_counts'] = row_counts if isinstance(row_counts, dict) else {}
+
+        sql_last_import = "SELECT MAX(imported_at) FROM h24_reports;"
+        ok, rows = bgy_db.execute_query(sql_last_import)
+        stats['last_h24_import'] = rows[0][0].strftime('%Y-%m-%d %H:%M') if ok and rows and rows[0][0] else "N/D"
+    except Exception as e:
+        stats['error_db'] = str(e)
+        stats['db_size'] = "N/D"
+        stats['db_row_counts'] = {}
+        stats['last_h24_import'] = "N/D"
+
+    return stats
+
+
+def check_unresolved_airlines(days_threshold=30):
+    """
+    Verifica se ci sono compagnie non risolte (placeholder "Compagnia X").
+    Considera solo gli ultimi N giorni (default 30), per evitare di
+    segnalare dati storici gi? superati.
+    """
+    ok, rows = bgy_db.execute_query(
+        "SELECT callsign, COUNT(*) FROM nightly_reports "
+        "WHERE compagnia_aerea LIKE 'Compagnia %%' "
+        "AND data_riferimento >= CURRENT_DATE - INTERVAL '%s days' "
+        "GROUP BY callsign",
+        (int(days_threshold),)
+    )
+    if not ok or not rows:
+        return True, "Nessuna compagnia non risolta."
+    if len(rows) > 0:
+        return False, f"Trovate {len(rows)} compagnie non risolte."
+    return True, "Tutte le compagnie sono risolte."
 
 def _categorize_tipo_movimento(tipo):
     if not tipo:

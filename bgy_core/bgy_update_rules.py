@@ -1,4 +1,4 @@
-"""
+﻿"""
 bgy_core/bgy_update_rules.py - Arricchimento dati da regole JSON.
 Versione 2.7.5
 
@@ -11,6 +11,7 @@ Novità v2.7.5 (10/11/2026):
 Novità v2.7.2: fix strutturale stile callsign.
 """
 import os
+import re
 import requests
 from datetime import datetime
 from bgy_core.bgy_logger import get_logger
@@ -221,7 +222,16 @@ def classify_callsign(callsign):
     if is_ch:
         return 'Charter', chart_name
 
+    # v2.7.6: marche di immatricolazione (velivoli privati, business aviation)
+    if _is_registration(cs):
+        return 'Privato', 'Privato'
+
     airline_name = get_airline(cs)
+    # v2.7.7: riconosci i nomi che iniziano con "Privato (" o "Militare ("
+    if airline_name.startswith("Privato"):
+        return 'Privato', airline_name
+    if airline_name.startswith("Militare"):
+        return 'Militare', airline_name
     if _is_valid_airline_name(airline_name):
         return 'Passeggeri', airline_name
 
@@ -388,6 +398,34 @@ def get_parent_company(callsign):
             if prefix in _PARENT_COMPANY:
                 return _PARENT_COMPANY[prefix]
     return None
+
+
+
+# -----------------------------------------------------------------------------
+# MARCHE DI IMMATRICOLAZIONE (v2.7.6)
+# -----------------------------------------------------------------------------
+# Pattern per riconoscere le marche di immatricolazione (velivoli privati,
+# business aviation) che non sono compagnie aeree.
+# Esempi: N298W (US), HB-SHE (CH), OE-GTR (AT), CS-5780 (PT), T7-BSG (SM), ZK-IGM (NZ).
+# Nota: T7 e ZK sono gestiti anche come prefissi in _PRIVATE_AIRLINES (DB).
+
+_REGISTRATION_PATTERNS = [
+    r'^N\d',           # US: N + cifra (es. N298W, N109ZT)
+    r'^HB[A-Z0-9]',    # Svizzera: HB + 4 caratteri (es. HBSHE)
+    r'^OE[A-Z0-9]',    # Austria: OE + 4 caratteri (es. OEGTR)
+    r'^CS[A-Z0-9]',    # Portogallo: CS + 4 caratteri (es. CS5780)
+    r'^T7[A-Z0-9]',    # San Marino: T7 + 3 caratteri (es. T7BSG)
+    r'^ZK[A-Z0-9]',    # Nuova Zelanda: ZK + 3 caratteri (es. ZKIGM)
+]
+
+
+def _is_registration(callsign):
+    """True se il callsign ? una marca di immatricolazione, non una compagnia."""
+    cs = str(callsign).strip().upper()
+    for pattern in _REGISTRATION_PATTERNS:
+        if re.match(pattern, cs):
+            return True
+    return False
 
 
 def get_airline(callsign):

@@ -1,4 +1,4 @@
-"""
+﻿"""
 bgy_core/bgy_disclaimer.py - Gestione disclaimer web unificato.
 Versione 1.0.0
 
@@ -109,7 +109,7 @@ def save_disclaimer_json(payload):
     try:
         with open(DISCLAIMER_OUTPUT_FILE, "w", encoding="utf-8") as f:
             f.write(DISCLAIMER_PREFIX)
-            json.dump(payload, f, ensure_ascii=False, indent=2)
+            json.dump(payload, f, ensure_ascii=True, indent=2)
         size_kb = round(os.path.getsize(DISCLAIMER_OUTPUT_FILE) / 1024, 1)
         logger.info(f"Disclaimer salvato: {DISCLAIMER_OUTPUT_FILE} ({size_kb} KB)")
         return DISCLAIMER_OUTPUT_FILE

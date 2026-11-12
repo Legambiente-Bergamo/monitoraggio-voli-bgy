@@ -1,4 +1,4 @@
-"""
+﻿"""
 bgy_reports/bgy_report_month.py - Report mensile con grafici.
 Versione 2.5.1
 - doppia lettura: report_{daily,nightly}_YYYY-MM-DD.csv e YYYYMMDD.csv
@@ -100,10 +100,10 @@ def create_daily_flights_chart(df, year_month, report_type='daily'):
         chart_path = os.path.join(CHARTS_DIR, f"daily_flights_{report_type}_{year_month}.png")
         plt.savefig(chart_path, dpi=150, bbox_inches='tight', facecolor='white')
         plt.close()
-        logger.info(f"📈 Grafico voli salvato: {chart_path}")
+        logger.info(f"?? Grafico voli salvato: {chart_path}")
         return chart_path
     except Exception as e:
-        logger.error(f"❌ Errore grafico voli: {e}")
+        logger.error(f"? Errore grafico voli: {e}")
         return None
 
 
@@ -160,10 +160,10 @@ def create_daily_delays_chart(df, year_month, report_type='daily'):
         chart_path = os.path.join(CHARTS_DIR, f"daily_delays_{report_type}_{year_month}.png")
         plt.savefig(chart_path, dpi=150, bbox_inches='tight', facecolor='white')
         plt.close()
-        logger.info(f"📈 Grafico ritardi/fasi salvato: {chart_path}")
+        logger.info(f"?? Grafico ritardi/fasi salvato: {chart_path}")
         return chart_path
     except Exception as e:
-        logger.error(f"❌ Errore grafico ritardi/fasi: {e}")
+        logger.error(f"? Errore grafico ritardi/fasi: {e}")
         return None
 
 
@@ -189,10 +189,10 @@ def create_airlines_chart(df, year_month, report_type='daily'):
         chart_path = os.path.join(CHARTS_DIR, f"airlines_{report_type}_{year_month}.png")
         plt.savefig(chart_path, dpi=150, bbox_inches='tight', facecolor='white')
         plt.close()
-        logger.info(f"📈 Grafico compagnie salvato: {chart_path}")
+        logger.info(f"?? Grafico compagnie salvato: {chart_path}")
         return chart_path
     except Exception as e:
-        logger.error(f"❌ Errore grafico compagnie: {e}")
+        logger.error(f"? Errore grafico compagnie: {e}")
         return None
 
 
@@ -227,10 +227,10 @@ def create_destinations_chart(df, year_month, report_type='daily'):
         chart_path = os.path.join(CHARTS_DIR, f"destinations_{report_type}_{year_month}.png")
         plt.savefig(chart_path, dpi=150, bbox_inches='tight', facecolor='white')
         plt.close()
-        logger.info(f"📈 Grafico destinazioni salvato: {chart_path}")
+        logger.info(f"?? Grafico destinazioni salvato: {chart_path}")
         return chart_path
     except Exception as e:
-        logger.error(f"❌ Errore grafico destinazioni: {e}")
+        logger.error(f"? Errore grafico destinazioni: {e}")
         return None
 
 
@@ -272,10 +272,10 @@ def create_html_report(df, year_month, chart_paths, report_type='daily',
         if is_partial:
             partial_banner = f"""
     <div class="partial-banner">
-        <strong>⚠️ MESE IN CORSO</strong><br>
-        Il report copre dal 1° {_month_label(year_month)} all'ultimo giorno con dati disponibili
+        <strong>?? MESE IN CORSO</strong><br>
+        Il report copre dal 1? {_month_label(year_month)} all'ultimo giorno con dati disponibili
         ({days_with_data} giorni su {datetime.now().day}).
-        Il report è da considerarsi <strong>parziale</strong> e verrà completato alla fine del mese.
+        Il report ? da considerarsi <strong>parziale</strong> e verr? completato alla fine del mese.
     </div>
 """
 
@@ -309,7 +309,7 @@ body {{ font-family: Arial, Helvetica, sans-serif; line-height: 1.6; color: #333
 </head>
 <body>
 <div class="header">
-<h1>✈️ Report Mensile {tipo_label} BGY</h1>
+<h1>?? Report Mensile {tipo_label} BGY</h1>
 <div class="subtitle">Aeroporto di Bergamo - Orio al Serio (BGY)</div>
 <div class="subtitle">Periodo: {_month_label(year_month)}</div>
 </div>
@@ -350,10 +350,10 @@ body {{ font-family: Arial, Helvetica, sans-serif; line-height: 1.6; color: #333
             OUTPUT_CSV_DIR, f"report_monthly_{report_type}_{year_month}.html")
         with open(html_path, 'w', encoding='utf-8') as f:
             f.write(html_content)
-        logger.info(f"📄 Report HTML salvato: {html_path}")
+        logger.info(f"?? Report HTML salvato: {html_path}")
         return html_path
     except Exception as e:
-        logger.error(f"❌ Errore creazione HTML: {e}")
+        logger.error(f"? Errore creazione HTML: {e}")
         return None
 
 
@@ -373,16 +373,16 @@ def generate_month_report(year_month=None, report_type='daily'):
     is_partial = _is_current_month(year_month)
     tipo_label = "Giornaliero" if report_type == 'daily' else "Notturno"
 
-    logger.info(f"📊 Avvio generazione report mensile {tipo_label} per {year_month}"
+    logger.info(f"?? Avvio generazione report mensile {tipo_label} per {year_month}"
                 + (" [MESE IN CORSO - parziale]" if is_partial else ""))
 
     found = _find_monthly_files(year_month, report_type)
     if not found:
-        logger.warning(f"⚠️ Nessun report {tipo_label} trovato per il mese {year_month}")
+        logger.warning(f"?? Nessun report {tipo_label} trovato per il mese {year_month}")
         return None, None, None
 
     days_with_data = len(found)
-    logger.info(f"📄 Trovati {len(found)} report (giorni disponibili: {days_with_data})")
+    logger.info(f"?? Trovati {len(found)} report (giorni disponibili: {days_with_data})")
 
     dfs = []
     for date_str, filepath in found:
@@ -392,14 +392,14 @@ def generate_month_report(year_month=None, report_type='daily'):
                 df['data_report'] = pd.to_datetime(date_str, format='%Y-%m-%d')
                 dfs.append(df)
         except Exception as e:
-            logger.warning(f"⚠️ Errore lettura {filepath}: {e}")
+            logger.warning(f"?? Errore lettura {filepath}: {e}")
 
     if not dfs:
-        logger.error("❌ Nessun dato valido trovato")
+        logger.error("? Nessun dato valido trovato")
         return None, None, None
 
     monthly_df = pd.concat(dfs, ignore_index=True)
-    logger.info(f"📊 Totale voli mensili ({tipo_label}): {len(monthly_df)}")
+    logger.info(f"?? Totale voli mensili ({tipo_label}): {len(monthly_df)}")
 
     charts = []
     for create_fn in (create_daily_flights_chart, create_daily_delays_chart,
@@ -411,7 +411,7 @@ def generate_month_report(year_month=None, report_type='daily'):
     out_csv = os.path.join(
         OUTPUT_CSV_DIR, f"report_monthly_{report_type}_{year_month}.csv")
     monthly_df.to_csv(out_csv, index=False, encoding="utf-8-sig")
-    logger.info(f"💾 CSV mensile salvato: {out_csv}")
+    logger.info(f"?? CSV mensile salvato: {out_csv}")
 
     html_path = create_html_report(monthly_df, year_month, charts, report_type,
                                     is_partial=is_partial, days_with_data=days_with_data)
@@ -422,11 +422,11 @@ def send_monthly_report(year_month=None, report_type='daily'):
     if not year_month:
         year_month = datetime.now().strftime("%Y-%m")
     tipo_label = "Giornaliero" if report_type == 'daily' else "Notturno"
-    logger.info(f"📧 Invio report mensile {tipo_label} per {year_month}")
+    logger.info(f"?? Invio report mensile {tipo_label} per {year_month}")
 
     csv_path, html_path, charts = generate_month_report(year_month, report_type)
     if not csv_path:
-        logger.warning(f"⚠️ Nessun dato per il report mensile {tipo_label} di {year_month}")
+        logger.warning(f"?? Nessun dato per il report mensile {tipo_label} di {year_month}")
         return False
 
     attachments = [csv_path]
@@ -436,12 +436,24 @@ def send_monthly_report(year_month=None, report_type='daily'):
         if chart and os.path.exists(chart):
             attachments.append(chart)
 
-    subject = f"📊 Report Mensile {tipo_label} BGY - {_month_label(year_month)}"
-    success = send_email_with_attachments(attachments, subject=subject)
+    subject = f"?? Report Mensile {tipo_label} BGY - {_month_label(year_month)}"
+
+    from bgy_core.bgy_db_migrate import get_monthly_technical_stats
+    from bgy_core.bgy_mailer import _format_monthly_technical_section
+    tech_section = ""
+    try:
+        tech_stats = get_monthly_technical_stats(date(2026, 10, 1), date(2026, 10, 31))
+        tech_section = _format_monthly_technical_section(tech_stats)
+    except Exception as e:
+        logger.warning(f"Impossibile generare la sezione tecnica del report mensile: {e}")
+        tech_section = "[ERRORE: Impossibile generare la sezione tecnica del report mensile]"
+
+
+    success = send_email_with_attachments(attachments, subject=subject, extra_body=tech_section)
     if success:
-        logger.info(f"✅ Report mensile {tipo_label} inviato ({len(attachments)} allegati)")
+        logger.info(f"? Report mensile {tipo_label} inviato ({len(attachments)} allegati)")
     else:
-        logger.error("❌ Errore invio report mensile")
+        logger.error("? Errore invio report mensile")
     return success
 
 

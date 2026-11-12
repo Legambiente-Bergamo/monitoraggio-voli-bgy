@@ -1,4 +1,4 @@
-"""
+﻿"""
 bgy_scanners/bgy_scanner_radar.py - Scanner radar h24 multi-fonte.
 Versione 1.4.1
 
@@ -738,69 +738,9 @@ def _run_parallel_test():
     return results
 
 
-@retry_on_failure(max_retries=2, delay=2)
-def run_radar_scan(parallel_test=False):
-    cfg = _cfg()
-    now = datetime.now()
-
-    if parallel_test:
-        _run_parallel_test()
-        return None
-
-    logger.info("📡 Avvio scansione radar h24...")
-    os.makedirs(RAW_DIR, exist_ok=True)
-    session_date = _get_session_date(now)
-
-    flights = None
-    source = None
-
-    # v1.3.1 (INFRA-18): rispetta il cooldown di adsb.lol
-    if _adsb_lol_cooldown_until and datetime.now() < _adsb_lol_cooldown_until:
-        logger.info(
-            f"⏭️ adsb.lol in cooldown fino a "
-            f"{_adsb_lol_cooldown_until.strftime('%H:%M:%S')}, salto"
-        )
-    else:
-        flights = _fetch_adsblol()
-        source = "adsb.lol"
-
-    if flights is None:
-        if source is None:
-            logger.warning("⚠️ adsb.lol in cooldown, tento adsb.fi...")
-        else:
-            logger.warning("⚠️ adsb.lol non disponibile, tento adsb.fi...")
-        flights = _fetch_adsbfi()
-        source = "adsb.fi"
-    if flights is None:
-        logger.warning("⚠️ adsb.fi non disponibile, tento FlyItalyADSB...")
-        flights = _fetch_flyitalyadsb()
-        source = "flyitalyadsb"
-    if flights is None:
-        logger.warning("⚠️ FlyItalyADSB non disponibile, tento airplanes.live...")
-        flights = _fetch_airplaneslive()
-        source = "airplanes.live"
-    if flights is None:
-        if _opensky_cooldown_until and datetime.now() < _opensky_cooldown_until:
-            logger.warning(
-                f"⚠️ airplanes.live non disponibile. OpenSky in cooldown fino a "
-                f"{_opensky_cooldown_until.strftime('%H:%M:%S')}. Nessuna fonte disponibile."
-            )
-            logger.error("❌ Nessuna fonte dati disponibile")
-            return None
-        else:
-            logger.warning("⚠️ airplanes.live non disponibile, tento OpenSky...")
-            flights = _fetch_opensky()
-            source = "opensky"
-    if flights is None:
-        logger.error("❌ Nessuna fonte dati disponibile")
-        return None
-
-    # Se la fonte ha risposto con 0 aerei, è un dato valido: non passiamo oltre.
-    if len(flights) == 0:
-        logger.info(f"ℹ️ {source}: 0 aerei nell'area (dato valido, non passo ad altre fonti)")
-        return None
-
-    logger.info(f"✅ Fonte dati: {source} ({len(flights)} voli nell'area)")
+def _save_radar_data(flights, session_date, source):
+    """Estrae la logica di salvataggio da run_radar_scan (v1.4.2)."""
+    import pandas as pd
 
     df_new = pd.DataFrame(flights)
     df_new["sessione_notturna"] = session_date
@@ -830,12 +770,113 @@ def run_radar_scan(parallel_test=False):
         df = df.drop(columns=["_dedup_key"])
         removed = before - len(df)
         if removed > 0:
-            logger.info(f"🔀 Deduplicati {removed} rilevamenti ridondanti ({len(df)} unici)")
+            logger.info(f"?? Deduplicati {removed} rilevamenti ridondanti ({len(df)} unici)")
 
     df = df.sort_values("timestamp", ascending=True).reset_index(drop=True)
     df.to_csv(out_file, index=False, encoding="utf-8-sig")
-    logger.info(f"💾 File salvato: {out_file} - {len(df)} aerei (fonte: {source})")
+    logger.info(f"?? File salvato: {out_file} - {len(df)} aerei (fonte: {source})")
     return out_file
+
+
+@retry_on_failure(max_retries=2, delay=2)
+def run_radar_scan(parallel_test=False):
+    cfg = _cfg()
+    now = datetime.now()
+
+    if parallel_test:
+        _run_parallel_test()
+        return None
+
+    logger.info("?? Avvio scansione radar h24...")
+    os.makedirs(RAW_DIR, exist_ok=True)
+    session_date = _get_session_date(now)
+
+    # --- v1.4.4 (OPEN-01 fix): cascata completa ---
+    # Regola: prova tutte le fonti gratuite. Usa la prima che restituisce dati (>0).
+    # Se una fonte restituisce [] (0 aerei), NON fermarti: potrebbe essere una fonte
+    # con copertura scarsa. Accumula e passa alla successiva.
+    # Solo se TUTTE le fonti gratuite restituiscono [] (e nessuna None), allora
+    # ? "0 aerei confermato" e la cascata si ferma.
+    # Se almeno una fonte ha restituito None (errore) e nessuna ha dati, chiama OpenSky.
+
+    is_night = 23 <= now.hour or now.hour < 6
+    empty_sources = []   # fonti che hanno restituito [] (0 aerei)
+    error_sources = []   # fonti che hanno restituito None (errore)
+
+    # 1. adsb.lol (primaria)
+    if _adsb_lol_cooldown_until and now < _adsb_lol_cooldown_until:
+        logger.info(f"?? adsb.lol in cooldown fino a {_adsb_lol_cooldown_until.strftime('%H:%M:%S')}, salto")
+        error_sources.append("adsb.lol (cooldown)")
+    else:
+        flights = _fetch_adsblol()
+        if flights is not None:
+            if len(flights) > 0:
+                return _save_radar_data(flights, session_date, "adsb.lol")
+            empty_sources.append("adsb.lol")
+        else:
+            error_sources.append("adsb.lol")
+
+    # 2. adsb.fi (fallback 1)
+    if _adsb_fi_cooldown_until and now < _adsb_fi_cooldown_until:
+        logger.info(f"?? adsb.fi in cooldown fino a {_adsb_fi_cooldown_until.strftime('%H:%M:%S')}, salto")
+        error_sources.append("adsb.fi (cooldown)")
+    else:
+        flights = _fetch_adsbfi()
+        if flights is not None:
+            if len(flights) > 0:
+                return _save_radar_data(flights, session_date, "adsb.fi")
+            empty_sources.append("adsb.fi")
+        else:
+            error_sources.append("adsb.fi")
+
+    # 3. FlyItalyADSB (fallback 2)
+    flights = _fetch_flyitalyadsb()
+    if flights is not None:
+        if len(flights) > 0:
+            return _save_radar_data(flights, session_date, "flyitalyadsb")
+        empty_sources.append("FlyItalyADSB")
+    else:
+        error_sources.append("FlyItalyADSB")
+
+    # 4. airplanes.live (fallback 3, se abilitato)
+    if cfg.get("airplanes_live_enabled", False):
+        flights = _fetch_airplaneslive()
+        if flights is not None:
+            if len(flights) > 0:
+                return _save_radar_data(flights, session_date, "airplanes.live")
+            empty_sources.append("airplanes.live")
+        else:
+            error_sources.append("airplanes.live")
+
+    # 5. Decisione finale
+    logger.info(f"?? Cascata completata: empty={empty_sources}, error={error_sources}")
+
+    # Se tutte le fonti gratuite hanno restituito [] (e nessuna None), ? "0 aerei confermato"
+    if empty_sources and not error_sources:
+        logger.info(f"?? Tutte le fonti gratuite hanno restituito 0 aerei: {empty_sources}. Dato valido, cascata si ferma.")
+        return None
+
+    # Se almeno una fonte ha restituito None (errore), chiama OpenSky (se non di notte e non in cooldown)
+    if error_sources:
+        if is_night:
+            logger.warning(f"?? Fonti gratuite in errore: {error_sources}. OpenSky NON chiamato di notte (OPEN-01).")
+            logger.error("? Nessuna fonte dati disponibile (notte)")
+            return None
+
+        if _opensky_cooldown_until and now < _opensky_cooldown_until:
+            logger.warning(f"?? Fonti gratuite in errore: {error_sources}. OpenSky in cooldown fino a {_opensky_cooldown_until.strftime('%H:%M:%S')}.")
+            return None
+
+        logger.warning(f"?? Fonti gratuite in errore: {error_sources}. Tento OpenSky...")
+        flights = _fetch_opensky()
+        if flights is not None:
+            if len(flights) > 0:
+                return _save_radar_data(flights, session_date, "opensky")
+            logger.info("?? OpenSky: 0 aerei nell'area (dato valido)")
+            return None
+
+    logger.error("? Nessuna fonte dati disponibile")
+    return None
 
 
 if __name__ == "__main__":
