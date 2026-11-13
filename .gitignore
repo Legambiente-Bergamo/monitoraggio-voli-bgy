@@ -84,3 +84,8 @@ bgy_config/config_secrets.json
 bgy_data/bgy_assets/*.csv
 bgy_data/bgy_assets/aircraftDatabase.csv
 bgy_data/bgy_assets/icao24_missing_built.csv
+
+
+
+# Lock file LibreOffice
+.~lock.*#
