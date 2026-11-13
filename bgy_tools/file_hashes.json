@@ -4,11 +4,11 @@
   "bgy_watchdog.py": "488ee563b7472c136bf7657e4b391709c3b9313a17164e0f252eccc9723afa01",
   "check_all.py": "1160151c66edfc86d4b065830a4b376319970eb1c9786cd768cfc53a2d2c3bb8",
   "commit.py": "090ec7823a5eaec0d5762135d6a8c6459a2bc27999489a63417ba402c1171f34",
-  "migrate_2026-10-02.py": "883b4a72a1336d1c97d1cb97abc95e3c80204d98e1686637bb8e3a1ae844315f",
-  "patch_h24_scheduled.py": "776edee7d18f23aef182a9ddea45a0bceb3f11d9d376a211237e910ff903ddba",
+  "migrate_2026-10-02.py": "8851c63208df02d0927c60044e4daadcc815aed3fd17eb945a4bb92221f2d6d3",
   "_icao2.py": "d131f6bbcf0f1d96843978b046142638bf203334a88f1b174fda9f42509f789f",
+  "_quarantine_script.py": "ea32ec5356bb3f94e8ddd7b172bed3be1b8d181f4a1d1e8eafc50a34da16c815",
   "bgy_core/bgy_charts.py": "0986db1f52c86d132a8625995583c8d2c71a1c96386eed8454a85596c5718c7f",
-  "bgy_core/bgy_config_manager.py": "2bb581ae749e37e62bc69f799b6560f5feff85e85fc23aade82765a47b577cbf",
+  "bgy_core/bgy_config_manager.py": "4271a3f0cbabd2bf321bf2d011339cf778eac84a3c4f1d9ff110f82a3635ee87",
   "bgy_core/bgy_dates.py": "05cb757f18b711f52f518fe195faf221383e1af715e832feee5f9f9ecf266ef3",
   "bgy_core/bgy_db.py": "13c3f84a6d4805b099f60737268139c89c0eb940e69cab7f0425ffeaf528e1f4",
   "bgy_core/bgy_db_migrate.py": "1c36f1a71278ae26cfa71704325a111d738bd4d3de6b6526bfa491f5418867dc",
@@ -87,5 +87,8 @@
   "bgy_utils/bgy_utils_assaeroporti.py": "4911f2f4414c906151dfb1a6f2de54d120e2856fc57a17cf380ad7bc81b8dfa1",
   "bgy_utils/bgy_utils_meteo.py": "21206157d63ccdb7b8dbc65799d06fc2b6bbe31401a0e4063394c1ca44c3910a",
   "bgy_utils/bgy_utils_noise.py": "62ad06e6e69e206a410256c4ed78628ca79dd3ed84127f008b694b00a1956781",
-  "bgy_utils/__init__.py": "947eebaff00ceca72cb36b7309105fe5f96ebf9560ca05f5254386e3d0b4b71b"
+  "bgy_utils/__init__.py": "947eebaff00ceca72cb36b7309105fe5f96ebf9560ca05f5254386e3d0b4b71b",
+  "_quarantena/2026-11-12/migrate_2026-10-02.py": "883b4a72a1336d1c97d1cb97abc95e3c80204d98e1686637bb8e3a1ae844315f",
+  "_quarantena/2026-11-12/patch_h24_scheduled.py": "776edee7d18f23aef182a9ddea45a0bceb3f11d9d376a211237e910ff903ddba",
+  "_quarantena/2026-11-12/bgy_reports/bgy_report_common.CORROTTO_20261022.py": "ac013d9c644c98f2d067ba8851367d83481209418be584dfa5e065965dab5a30"
 }

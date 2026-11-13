@@ -76,3 +76,11 @@ desktop.ini
 bgy_data/bgy_raw/*
 bgy_data/bgy_raw/*.csv
 bgy_data/bgy_raw/*.json
+# ============================================================
+# SEC-01: segreti (mai committare)
+bgy_config/config_secrets.json
+# ============================================================
+# Cache dati esterni (grandi, rigenerabili)
+bgy_data/bgy_assets/*.csv
+bgy_data/bgy_assets/aircraftDatabase.csv
+bgy_data/bgy_assets/icao24_missing_built.csv
