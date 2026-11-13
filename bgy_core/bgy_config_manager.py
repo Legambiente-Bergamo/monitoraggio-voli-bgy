@@ -1,6 +1,15 @@
-﻿"""
+"""
 bgy_core/bgy_config_manager.py - Gestione centralizzata delle configurazioni.
-Versione 3.1.2
+Versione 3.1.3
+
+Novita v3.1.3 (Addendum 48, 12/11/2026):
+- get_scanner_radar_config() legge flyitalyadsb_api_key da
+  bgy_config/config_secrets.json (gitignored) con priorità su
+  config_data.json. config_secrets.json contiene solo i segreti
+  che non devono essere committati (chiavi API).
+  Fallback: se config_secrets.json non esiste o non contiene la
+  chiave, si usa il valore in config_data.json (retrocompatibile).
+- Aggiunto __version__ module-level per il tracciamento.
 
 Novita v3.1.2 (INFRA-13 / INFRA-07, 13/10/2026):
 - _load_json() usa encoding='utf-8-sig' invece di 'utf-8'.
@@ -16,7 +25,7 @@ Novita v3.1.1 (INFRA-11, 12/10/2026):
   get_load_errors() e resettata da clear_load_errors() / load_all().
 - Comportamento operativo invariato: la suite continua a usare i default
   interni in caso di errore. La differenza e' che ora l'errore e' visibile
-  a valle (bgy_scheduler.job_daily lo include nell'email delle 06:30).
+  a valle (bgy_scheduler.job_daily lo include nell'email delle 07:30).
 
 Cambio architetturale (F12a):
 - I JSON anagrafici (airlines, countries, aircraft_models, noise_impact,
@@ -43,6 +52,8 @@ from bgy_core.bgy_paths import (
     CONFIG_DATA, CONFIG_MAIL, CONFIG_OPENSKY, CONFIG_GITHUB,
     CONFIG_DATABASE,
 )
+
+__version__ = "3.1.3"
 
 logger = get_logger("ConfigManager")
 
@@ -577,9 +588,21 @@ class ConfigManager:
     def get_weather_config(self):
         return self._section("weather")
 
+    def _load_secrets(self):
+        """v3.1.3 (Addendum 48): carica config_secrets.json (gitignored)."""
+        secrets_path = os.path.join(os.path.dirname(CONFIG_DATA), 'config_secrets.json')
+        if os.path.exists(secrets_path):
+            return self._load_json(secrets_path, {})
+        return {}
+
     def get_scanner_radar_config(self):
         """Config dello scanner radar h24 (multi-fonte)."""
-        return self._section("scanner_radar")
+        cfg = self._section("scanner_radar")
+        # v3.1.3 (Addendum 48): priorità secrets > config_data.json
+        secrets = self._load_secrets()
+        if secrets.get('flyitalyadsb_api_key'):
+            cfg['flyitalyadsb_api_key'] = secrets['flyitalyadsb_api_key']
+        return cfg
 
     def get_scanner_night_config(self):
         """Retrocompatibilità con il vecchio scanner notturno."""

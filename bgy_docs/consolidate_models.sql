@@ -1,0 +1,18 @@
+BEGIN;
+UPDATE h24_reports SET modello_aereo = 'Airbus A319-100' WHERE modello_aereo = 'Airbus A319';
+UPDATE nightly_reports SET modello_aereo = 'Airbus A319-100' WHERE modello_aereo = 'Airbus A319';
+UPDATE aircraft_by_code SET model = 'Airbus A319-100' WHERE model = 'Airbus A319';
+DELETE FROM aircraft_models WHERE model = 'Airbus A319';
+UPDATE h24_reports SET modello_aereo = 'Airbus A320-200' WHERE modello_aereo = 'Airbus A320';
+UPDATE nightly_reports SET modello_aereo = 'Airbus A320-200' WHERE modello_aereo = 'Airbus A320';
+UPDATE aircraft_by_code SET model = 'Airbus A320-200' WHERE model = 'Airbus A320';
+DELETE FROM aircraft_models WHERE model = 'Airbus A320';
+UPDATE h24_reports SET modello_aereo = 'De Havilland Canada Dash 8-400' WHERE modello_aereo IN ('Dash 8-400', 'De Havilland Canada Dash 8 Q400');
+UPDATE nightly_reports SET modello_aereo = 'De Havilland Canada Dash 8-400' WHERE modello_aereo IN ('Dash 8-400', 'De Havilland Canada Dash 8 Q400');
+UPDATE aircraft_by_code SET model = 'De Havilland Canada Dash 8-400' WHERE model IN ('Dash 8-400', 'De Havilland Canada Dash 8 Q400');
+DELETE FROM aircraft_models WHERE model IN ('Dash 8-400', 'De Havilland Canada Dash 8 Q400');
+UPDATE h24_reports SET modello_aereo = 'Embraer ERJ-190' WHERE modello_aereo = 'Embraer E190';
+UPDATE nightly_reports SET modello_aereo = 'Embraer ERJ-190' WHERE modello_aereo = 'Embraer E190';
+UPDATE aircraft_by_code SET model = 'Embraer ERJ-190' WHERE model = 'Embraer E190';
+DELETE FROM aircraft_models WHERE model = 'Embraer E190';
+COMMIT;
