@@ -1,6 +1,10 @@
 """
 bgy_tools/qa_igiene.py - Controllo di igiene sui file Python.
-Versione 1.0.3
+Versione 1.0.4
+
+Novita v1.0.4 (INFRA-46, 14/11/2026):
+- Fix UnicodeEncodeError su Windows: forzato sys.stdout e sys.stderr in UTF-8
+  per evitare crash durante l'esecuzione da pre-commit hook o console cp1252.
 
 Novita v1.0.3 (QA-05, 20/10/2026):
 - Fix falso positivo sul conteggio __main__: le stringhe di ricerca
@@ -17,6 +21,12 @@ import os
 import ast
 import sys
 from collections import Counter
+
+# Fix per Windows: forza UTF-8 per stdout e stderr (evita crash con cp1252 su emoji)
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 IGNORE_DIRS = {'__pycache__', '.git', '.venv', 'venv', 'env', 'bgy_tests', 'bgy_data'}

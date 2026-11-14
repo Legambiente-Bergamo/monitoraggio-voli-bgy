@@ -1,6 +1,6 @@
 """
 bgy_core/bgy_github_sync.py - Sincronizzazione automatica verso GitHub.
-v2.5.0 - config via config_manager
+v2.5.1 - Fix encoding Windows (INFRA-44) e gestione pull (INFRA-45)
 """
 import os
 import subprocess as sp
@@ -39,10 +39,15 @@ def _run_git(args, cwd=None, timeout=60, check_credential_prompt=False):
             cwd=cwd or PROJECT_ROOT,
             capture_output=True,
             text=True,
+            encoding="utf-8",       # INFRA-44: forza UTF-8 per evitare cp1252
+            errors="replace",       # INFRA-44: evita crash su caratteri non decodificabili
             timeout=timeout,
             env=env
         )
-        return result.returncode, result.stdout.strip(), result.stderr.strip()
+        # Sicurezza per stdout/stderr None
+        stdout = result.stdout.strip() if result.stdout else ""
+        stderr = result.stderr.strip() if result.stderr else ""
+        return result.returncode, stdout, stderr
     except sp.TimeoutExpired:
         return -1, "", f"Timeout dopo {timeout}s"
     except FileNotFoundError:
@@ -142,11 +147,16 @@ def sync_to_github(force=False):
     pull_timeout = cfg.get("pull_timeout_seconds", 60)
     code, _, err = _run_git(["pull", "--rebase", "origin", branch],
                              timeout=pull_timeout, check_credential_prompt=True)
-    if code != 0 and "couldn't find remote ref" not in err.lower() \
-            and "already up to date" not in err.lower() \
-            and "already up-to-date" not in err.lower():
-        logger.warning(f"⚠️ git pull: {err}")
-        _run_git(["rebase", "--abort"])
+    
+    if code != 0:
+        if "uncommitted changes" in err.lower():
+            # INFRA-45: pre-commit hook o file non committati bloccano il pull
+            logger.warning("⚠️ git pull: salto (sono presenti modifiche locali non committate)")
+        elif "couldn't find remote ref" not in err.lower() \
+                and "already up to date" not in err.lower() \
+                and "already up-to-date" not in err.lower():
+            logger.warning(f"⚠️ git pull: {err}")
+            _run_git(["rebase", "--abort"])
 
     push_timeout = cfg.get("push_timeout_seconds", 300)
     code, _, err = _run_git(["push", "origin", branch],
