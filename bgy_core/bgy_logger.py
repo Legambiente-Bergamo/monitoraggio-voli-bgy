@@ -59,9 +59,12 @@ def _archive_old_logs():
 
             if file_date < threshold:
                 dest = os.path.join(ARCHIVE_DIR, f)
-                if os.path.exists(dest):
-                    os.remove(dest)
-                shutil.move(filepath, dest)
+                try:
+                    if os.path.exists(dest):
+                        os.remove(dest)
+                    shutil.move(filepath, dest)
+                except PermissionError:
+                    continue
     except Exception as e:
         print(f"[Logger] Errore archiviazione: {e}")
 
