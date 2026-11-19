@@ -400,6 +400,10 @@ def build_data_quality_warnings(date_from, date_to):
 
         # 5a. SACBO
         day_scans = scans_by_day.get(ds, [])
+        # Ignora i nuovi slot intermedi (12:00, 16:00, 20:00) per le date prima del 19/11/2026
+        is_legacy_day = (ds < "2026-11-19")
+        effective_req_slots = [s for s in required_slots if not (is_legacy_day and (s//60) in (12, 16, 20))]
+
         if not day_scans:
             issues.append({
                 "type": "sacbo_missing",
@@ -413,7 +417,7 @@ def build_data_quality_warnings(date_from, date_to):
                     f"[{ds}] prima scansione SACBO alle {first_h:02d}:{first_m:02d} — "
                     f"slot precedenti ignorati"
                 )
-            for slot_min in required_slots:
+            for slot_min in effective_req_slots:
                 if slot_min < first_scan_min - SLOT_TOLERANCE_MIN:
                     continue
                 if not any(abs(sm - slot_min) <= SLOT_TOLERANCE_MIN for sm in day_scans):

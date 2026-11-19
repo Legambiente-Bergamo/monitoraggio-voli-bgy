@@ -902,6 +902,37 @@ def _dedup_radar_by_callsign(radar_df, date_str=None):
     return _dedup_unknown_via_icao24(df, date_str)
 
 
+
+def promote_radar_turnaround(df):
+    if df.empty or 'icao24' not in df.columns: return df, 0
+    df = df.copy()
+    mask_ro = ((df['is_scheduled'] == False) & (df['icao24'] != '') & (df['icao24'] != 'N/D') & df['icao24'].notna() &
+               ((df['tipo_movimento'] == 'Passeggeri (radar)') | df['tipo_movimento'].str.startswith('Cargo (') |
+                df['callsign'].str.match(r'^(RYR|WZZ|EZY|NOS|VOE|VLG|PGT|THY|UAE|DLH|ITY|AEE|ROT|BTI|SVA|MSR|RAM|RJA|JZR|GFA|WMT|WUK|RUK|MAY|ENT|TVS|EXS|TOM)[0-9]', na=False)))
+    mask_sched = ((df['is_scheduled'] == True) & df['timestamp'].notna() & (df['icao24'] != '') & df['icao24'].notna())
+    df_ro = df[mask_ro].copy()
+    df_sched = df[mask_sched].copy()
+    if df_ro.empty or df_sched.empty: return df, 0
+    promossi = 0
+    for idx, row in df_ro.iterrows():
+        cand = df_sched[(df_sched['icao24'] == row['icao24']) & (df_sched['direzione_sacbo'] != row['direzione_sacbo'])]
+        if cand.empty: continue
+        cand['delta_sec'] = (pd.to_datetime(cand['timestamp']) - pd.to_datetime(row['timestamp'])).dt.total_seconds().abs()
+        cand = cand[(cand['delta_sec'] >= 1500) & (cand['delta_sec'] <= 14400)]
+        if not cand.empty:
+            # Controllo anti-duplicato
+            dup = df_sched[(df_sched['icao24'] == row['icao24']) & (df_sched['direzione_sacbo'] == row['direzione_sacbo'])]
+            dup['delta_dup'] = (pd.to_datetime(dup['timestamp']) - pd.to_datetime(row['timestamp'])).dt.total_seconds().abs()
+            if dup[dup['delta_dup'] <= 7200].empty:
+                df.at[idx, 'is_scheduled'] = True
+                df.at[idx, 'fonte_scheduled'] = 'radar_turnaround'
+                df.at[idx, 'stato_destinazione'] = 'Italia' if str(row.get('destinazione_finale', '')).strip().upper() in ('BGY', 'BERGAMO') else ''
+                df.at[idx, 'tipo_movimento'] = cand.iloc[0]['tipo_movimento']
+                df.at[idx, 'compagnia_aerea'] = cand.iloc[0]['compagnia_aerea']
+                df.at[idx, 'modello_aereo'] = cand.iloc[0]['modello_aereo']
+                promossi += 1
+    return df, promossi
+
 def _dedup_radar_only_via_icao24(result_df, date_str=None):
     if result_df.empty or 'icao24' not in result_df.columns: return result_df, 0
     df = result_df.copy()
@@ -1435,6 +1466,8 @@ def generate_h24_report(date_str=None):
     result_df, n_drop_unmatched = _drop_unmatched_when_matched_exists(result_df)
     result_df, n_dedup_sched = _dedup_scheduled_same_icao24(result_df)
     result_df, n_dedup_icao24 = _dedup_radar_only_via_icao24(result_df, date_norm)
+    result_df, n_promossi = promote_radar_turnaround(result_df)
+    if n_promossi > 0: logger.info(f'?? Turnaround radar: promossi {n_promossi} voli radar_only a schedulati.')
     result_df = _dedup_by_key(result_df)
     result_df = fill_unknown_icao24_turnaround(result_df)
     result_df = fill_unknown_runways_icao24(result_df)
