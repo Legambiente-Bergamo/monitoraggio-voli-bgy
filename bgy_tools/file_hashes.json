@@ -4,9 +4,6 @@
   "bgy_watchdog.py": "488ee563b7472c136bf7657e4b391709c3b9313a17164e0f252eccc9723afa01",
   "check_all.py": "1160151c66edfc86d4b065830a4b376319970eb1c9786cd768cfc53a2d2c3bb8",
   "commit.py": "090ec7823a5eaec0d5762135d6a8c6459a2bc27999489a63417ba402c1171f34",
-  "migrate_2026-10-02.py": "8851c63208df02d0927c60044e4daadcc815aed3fd17eb945a4bb92221f2d6d3",
-  "_icao2.py": "d131f6bbcf0f1d96843978b046142638bf203334a88f1b174fda9f42509f789f",
-  "_quarantine_script.py": "ea32ec5356bb3f94e8ddd7b172bed3be1b8d181f4a1d1e8eafc50a34da16c815",
   "bgy_core/bgy_charts.py": "0986db1f52c86d132a8625995583c8d2c71a1c96386eed8454a85596c5718c7f",
   "bgy_core/bgy_config_manager.py": "4271a3f0cbabd2bf321bf2d011339cf778eac84a3c4f1d9ff110f82a3635ee87",
   "bgy_core/bgy_dates.py": "05cb757f18b711f52f518fe195faf221383e1af715e832feee5f9f9ecf266ef3",
@@ -111,9 +108,12 @@
   "_quarantena/2026-11-19/debug_airlabs_fleet.py": "b38f9d7f1928e6d1853fdc7b0f4b84c82f4248675b3f024c2cb19913bb4a6c2d",
   "_quarantena/2026-11-19/debug_brightdata.py": "38c0850b82438957546ec826f857e4799b60fce50c994c5a28fd7d21c1a2bc36",
   "_quarantena/2026-11-19/download_static.py": "64a97dbcaac12046f049099b16dcb4c6e8d0df4b52851ef887ab7b9ba211e8b9",
+  "_quarantena/2026-11-19/migrate_2026-10-02_2026-11-19.py": "8851c63208df02d0927c60044e4daadcc815aed3fd17eb945a4bb92221f2d6d3",
   "_quarantena/2026-11-19/patch_h24_codeshare.py": "29206bb1375ca5417b2b2a9175b811c284ac9ac89b90283c43ca670ebe71bfef",
   "_quarantena/2026-11-19/patch_h24_icao_dup.py": "288c0e21b5a10d4ed3789b5bdc45ad43f4e6f628c21bf70d59b17ba62ea14ae2",
   "_quarantena/2026-11-19/patch_h24_key_fix.py": "6ac9a4967e099b68035f55f95219c570f67ed869521659ff0abf4b8a8110bf16",
   "_quarantena/2026-11-19/patch_h24_midnight_fix.py": "d0d215663ebc32d70ef02bac3f804ee2a4531dc2aba480549eb93637edded959",
-  "_quarantena/2026-11-19/patch_h24_midnight_fix2.py": "7dc6d1b35b0a1616add843dd450b1c7f46635f791e56ee12d163a6254b9f8ee6"
+  "_quarantena/2026-11-19/patch_h24_midnight_fix2.py": "7dc6d1b35b0a1616add843dd450b1c7f46635f791e56ee12d163a6254b9f8ee6",
+  "_quarantena/2026-11-19/_icao2_2026-11-19.py": "d131f6bbcf0f1d96843978b046142638bf203334a88f1b174fda9f42509f789f",
+  "_quarantena/2026-11-19/_quarantine_script_2026-11-19.py": "ea32ec5356bb3f94e8ddd7b172bed3be1b8d181f4a1d1e8eafc50a34da16c815"
 }
