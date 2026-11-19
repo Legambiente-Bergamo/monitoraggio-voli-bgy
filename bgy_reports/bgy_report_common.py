@@ -1,3 +1,4 @@
+import re
 """
 bgy_reports/bgy_report_common.py - Logica condivisa per i report notturni e H24.
 Versione 1.3.1
@@ -348,7 +349,126 @@ __all__ = [
     'PISTA_FONTE_PROPAGATO',
     'PISTA_FONTE_GEOMETRICO',
     'PISTA_FONTE_ND',
+    'fill_unknown_icao24_turnaround',
 ]
+
+def _extract_airline_prefix_common(cs):
+    if not cs or pd.isna(cs):
+        return ""
+    s = str(cs).strip().upper()
+    m_iata = re.match(r'^([A-Z]{2}|\d[A-Z]|[A-Z]\d)\d+', s)
+    if m_iata:
+        return m_iata.group(1)
+    m_icao = re.match(r'^([A-Z]{3})\d+', s)
+    if m_icao:
+        return m_icao.group(1)
+    return s[:2]
+
+
+def _clean_icao24_common(val):
+    if val is None or pd.isna(val):
+        return ""
+    s = str(val).strip().lower()
+    return "" if s in ("", "nan", "none", "n/d", "null") else s
+
+
+def fill_unknown_icao24_turnaround(df):
+    """
+    Recupera l'icao24 per i decolli scheduled N/D tramite turnaround stretto (20-55 min),
+    richiedendo stesso prefisso compagnia, stessa controparte aeroportuale, unicit?
+    del candidato e assenza di collisioni (+/- 120 min) su altri decolli.
+    """
+    if df.empty:
+        return df
+    df = df.copy()
+
+    if 'icao24' not in df.columns:
+        df['icao24'] = ''
+
+    if 'icao24_fonte' not in df.columns:
+        df['icao24_fonte'] = df['icao24'].apply(lambda x: 'radar_diretto' if _clean_icao24_common(x) else 'N/D')
+    else:
+        df['icao24_fonte'] = df.apply(
+            lambda r: r['icao24_fonte'] if str(r.get('icao24_fonte') or '').strip() not in ('', 'N/D', 'nan', 'None')
+            else ('radar_diretto' if _clean_icao24_common(r.get('icao24')) else 'N/D'),
+            axis=1
+        )
+
+    if 'icao24_confidence' not in df.columns:
+        df['icao24_confidence'] = df['icao24'].apply(lambda x: 'exact' if _clean_icao24_common(x) else '')
+    else:
+        df['icao24_confidence'] = df.apply(
+            lambda r: r['icao24_confidence'] if str(r.get('icao24_confidence') or '').strip() not in ('', 'nan', 'None')
+            else ('exact' if _clean_icao24_common(r.get('icao24')) else ''),
+            axis=1
+        )
+
+    if 'direzione_sacbo' not in df.columns or 'timestamp' not in df.columns:
+        return df
+
+    ts_series = pd.to_datetime(df['timestamp'], format='mixed', errors='coerce')
+    existing_dep_icao24 = []
+    candidate_arrivals = []
+    departures_missing = []
+
+    for idx, row in df.iterrows():
+        direz = str(row.get('direzione_sacbo') or '').strip().upper()
+        if direz not in ('D', 'A'):
+            continue
+        ts_val = ts_series.loc[idx]
+        icao_val = _clean_icao24_common(row.get('icao24'))
+        is_sched = bool(row.get('is_scheduled', False))
+        cs = str(row.get('callsign') or '').strip().upper()
+        prefix = _extract_airline_prefix_common(cs)
+        dest_raw = row.get('destinazione_finale') or row.get('destinazione_origine') or ''
+        dest_norm = str(dest_raw).split('/')[0].strip().upper()
+
+        if direz == 'D' and icao_val and pd.notna(ts_val):
+            existing_dep_icao24.append((icao_val, ts_val))
+        elif direz == 'A' and is_sched and icao_val and pd.notna(ts_val):
+            candidate_arrivals.append({
+                'idx': idx, 'icao24': icao_val, 'prefix': prefix,
+                'dest': dest_norm, 'ts': ts_val
+            })
+        elif direz == 'D' and is_sched and not icao_val and pd.notna(ts_val):
+            departures_missing.append({
+                'idx': idx, 'prefix': prefix, 'dest': dest_norm, 'ts': ts_val
+            })
+
+    used_arr_indices = set()
+    updated = 0
+    for dep in departures_missing:
+        if not dep['prefix'] or not dep['dest']:
+            continue
+        valid_matches = []
+        for arr in candidate_arrivals:
+            if arr['idx'] in used_arr_indices:
+                continue
+            if arr['prefix'] != dep['prefix'] or arr['dest'] != dep['dest']:
+                continue
+            delta_min = (dep['ts'] - arr['ts']).total_seconds() / 60.0
+            if 20.0 <= delta_min <= 55.0:
+                conflict = any(
+                    ex_icao == arr['icao24'] and abs((dep['ts'] - ex_ts).total_seconds() / 60.0) <= 120.0
+                    for ex_icao, ex_ts in existing_dep_icao24
+                )
+                if not conflict:
+                    valid_matches.append(arr)
+
+        if len(valid_matches) == 1:
+            match = valid_matches[0]
+            df.at[dep['idx'], 'icao24'] = match['icao24']
+            df.at[dep['idx'], 'icao24_fonte'] = 'turnaround_dedotto'
+            df.at[dep['idx'], 'icao24_confidence'] = 'high'
+            used_arr_indices.add(match['idx'])
+            existing_dep_icao24.append((match['icao24'], dep['ts']))
+            updated += 1
+
+    if updated > 0:
+        print(f"? Turnaround ICAO24: recuperati {updated} decolli con vincoli stretti.")
+    return df
+
+
 def fill_unknown_runways_icao24(df):
     """
     DATA-26: Recupera la pista per i decolli N/D usando l'icao24.

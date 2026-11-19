@@ -1,42 +1,23 @@
 ﻿"""
 bgy_scanners/bgy_scanner_day.py - Scanner diurno per il tabellone SACBO.
-Versione 2.7.0
+Versione 2.7.1
+
+Novità v2.7.1 (INFRA-38, 14/11/2026):
+- Fix import mancante di 'timezone' che causava il fallimento silenzioso
+  di _capture_screenshot() e restituiva 'null' nello status JSON.
+
+Novità v2.7.0 (Logica cumulativa):
+- Aggiunte funzioni per la gestione del file cumulativo giornaliero
+  (scan_YYYY-MM-DD_daily.csv).
 
 Novità v2.6.1 (11/10/2026, INFRA-06):
 - Parametro headless letto da config_data.json > scanner_day.headless
   (default False per retrocompatibilità).
-- Nessun'altra modifica funzionale rispetto a v2.6.0.
 
 Novità v2.6.0 (failover SACBO → Avionio):
 - Se Cloudflare blocca lo scanner dopo il retry di fetch_board_data(),
   il sistema chiama fetch_as_scan_rows() di bgy_scanner_alt e produce
   un scan_*.csv equivalente, con fonte_scan='avionio'.
-- Aggiunta colonna fonte_scan in scan_*.csv (valori: 'sacbo' | 'avionio').
-- scanner_day_status.json include ora il campo fonte_scan.
-- Il messaggio finale del check 9 distingue le due fonti.
-- Il fallback copre solo le prossime 4-6 ore di voli (limite Avionio),
-  quindi l'email di stato avverte se la copertura è parziale.
-
-Novità v2.5.9 (recupero scansioni mancate):
-- run_scan() accetta parametri is_recovery e recovered_slot.
-
-Novità v2.5.8 (screenshot full-board):
-- _capture_screenshot() cattura l'INTERO tabellone, non solo il viewport.
-
-Novità v2.5.7 (screenshot puliti):
-- _hide_extra_elements() nasconde via JS gli elementi estranei al tabellone.
-
-Novità v2.5.4 (diagnostica Cloudflare):
-- Lo scanner scrive bgy_data/bgy_logs/scanner_day_status.json.
-
-Fix v2.5.3:
-- Stealth mode con playwright-stealth v2.0.0+ (classe Stealth).
-
-Fix v2.5.2:
-- Safety net in run_scan() contro duplicazione D/A.
-
-Fix v2.5.1:
-- Click esplicito sul tab "Arrivi".
 """
 import os
 import re
@@ -44,7 +25,7 @@ import sys
 import json
 import hashlib
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timezone  # Fix INFRA-38: aggiunto timezone
 from playwright.sync_api import sync_playwright
 
 try:
@@ -323,6 +304,7 @@ def _capture_screenshot(page, movement_type):
         os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
         is_arrivals = 'atterra' in movement_type.lower()
         prefix = "board_arr" if is_arrivals else "board_dep"
+        # Fix INFRA-38: timezone ora è importato correttamente
         ts = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M") + "Z"
         filename = f"{prefix}_{ts}.png"
         filepath = os.path.join(SCREENSHOTS_DIR, filename)

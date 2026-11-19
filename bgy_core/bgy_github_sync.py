@@ -1,6 +1,6 @@
 """
 bgy_core/bgy_github_sync.py - Sincronizzazione automatica verso GitHub.
-v2.5.1 - Fix encoding Windows (INFRA-44) e gestione pull (INFRA-45)
+v2.5.2 - Fix encoding Windows (INFRA-44), gestione pull (INFRA-45) e push di commit manuali.
 """
 import os
 import subprocess as sp
@@ -44,7 +44,6 @@ def _run_git(args, cwd=None, timeout=60, check_credential_prompt=False):
             timeout=timeout,
             env=env
         )
-        # Sicurezza per stdout/stderr None
         stdout = result.stdout.strip() if result.stdout else ""
         stderr = result.stderr.strip() if result.stderr else ""
         return result.returncode, stdout, stderr
@@ -143,6 +142,8 @@ def sync_to_github(force=False):
         code, _, err = _run_git(["commit", "-m", commit_msg])
         if code != 0:
             logger.warning(f"⚠️ git commit: {err}")
+    else:
+        logger.info("ℹ️ Nessun file locale da committare. Verifico se ci sono commit da pushare...")
 
     pull_timeout = cfg.get("pull_timeout_seconds", 60)
     code, _, err = _run_git(["pull", "--rebase", "origin", branch],
@@ -150,7 +151,6 @@ def sync_to_github(force=False):
     
     if code != 0:
         if "uncommitted changes" in err.lower():
-            # INFRA-45: pre-commit hook o file non committati bloccano il pull
             logger.warning("⚠️ git pull: salto (sono presenti modifiche locali non committate)")
         elif "couldn't find remote ref" not in err.lower() \
                 and "already up to date" not in err.lower() \
@@ -163,6 +163,11 @@ def sync_to_github(force=False):
                              timeout=push_timeout, check_credential_prompt=True)
 
     if code != 0:
+        # Se push fallisce ma era "Everything up-to-date", non è un vero errore
+        if "everything up-to-date" in err.lower() or "everything up-to-date" in str(err).lower():
+            logger.info("ℹ️ Remote già aggiornato (Everything up-to-date)")
+            return True, "Nessuna modifica da pushare"
+            
         send_alert(
             "github_push_failed",
             "⚠️ BGY - Push GitHub fallito",
@@ -176,8 +181,8 @@ def sync_to_github(force=False):
         return False, f"Errore git push: {err}"
 
     if modified_count == 0:
-        logger.info("ℹ️ Nessuna modifica da sincronizzare")
-        return True, "Nessuna modifica"
+        logger.info("✅ Sync GitHub completato (commit locali pushati, nessun nuovo file)")
+        return True, "Sync OK (commit pushati)"
 
     logger.info(f"✅ Sync GitHub completato ({modified_count} file)")
     return True, f"Sync OK ({modified_count} file)"

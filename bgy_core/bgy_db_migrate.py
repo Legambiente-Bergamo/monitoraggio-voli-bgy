@@ -1,4 +1,4 @@
-﻿"""
+"""
 bgy_core/bgy_db_migrate.py - Import e sincronizzazione CSV -> PostgreSQL.
 Versione 2.11.0
 
@@ -408,6 +408,8 @@ def import_h24_file(filepath):
     ok, rows = bgy_db.execute_query("SELECT COUNT(1) FROM h24_reports WHERE data_calendario = %s", (date_str,))
     n_db = rows[0][0] if ok and rows else 0
     if not _FORCE_REIMPORT and n_db == n_csv and n_csv > 0: stats["scans_skipped"] += 1; return False, None
+    bgy_db.execute_query("ALTER TABLE h24_reports ADD COLUMN IF NOT EXISTS icao24_fonte VARCHAR(30);", fetch=False)
+    bgy_db.execute_query("ALTER TABLE h24_reports ADD COLUMN IF NOT EXISTS icao24_confidence VARCHAR(15);", fetch=False)
     if n_db > 0: bgy_db.execute_query("DELETE FROM h24_reports WHERE data_calendario = %s", (date_str,), fetch=False)
     params = []
     for r in csv_rows:
@@ -415,11 +417,15 @@ def import_h24_file(filepath):
         fonte_val = safe_str(r.get("fonte_scheduled"), "")
         fonte_param = None if not is_sched_bool else (fonte_val if fonte_val in ("sacbo", "avionio") else "sacbo")
         icao_val = safe_str(r.get("icao24"), "") or None
-        params.append((date_str, date_str, safe_str(r.get("callsign"), ""), safe_str(r.get("tipo_movimento"), ""), safe_str(r.get("direzione_sacbo"), ""), safe_str(r.get("fascia"), ""), safe_str(r.get("notte_categoria"), ""), is_sched_bool, fonte_param, safe_str(r.get("destinazione_finale"), ""), safe_str(r.get("stato_destinazione"), ""), safe_str(r.get("compagnia_aerea"), ""), safe_str(r.get("modello_aereo"), ""), safe_time(r.get("orario_schedulato")), safe_timestamp(r.get("timestamp")), safe_str(r.get("pista"), ""), safe_str(r.get("pista_fonte"), "N/D"), safe_str(r.get("fase_volo"), ""), safe_str(r.get("direzione"), ""), safe_int(r.get("quota_ft"), 0), safe_float(r.get("rotta_deg"), 0.0), safe_float(r.get("distanza_km"), 0.0), safe_str(r.get("paese"), ""), safe_int(r.get("matched_score"), 0), icao_val, safe_int(r.get("stima_passeggeri"), 0), safe_int(r.get("stima_rumore_db"), 0), safe_str(r.get("logic_version"), "1.0.15")))
+        icao_fonte_raw = safe_str(r.get("icao24_fonte"), "")
+        icao_fonte_val = icao_fonte_raw if icao_fonte_raw not in ("", "N/D") else ("radar_diretto" if icao_val else None)
+        icao_conf_raw = safe_str(r.get("icao24_confidence"), "")
+        icao_conf_val = icao_conf_raw if icao_conf_raw != "" else ("exact" if icao_val else None)
+        params.append((date_str, date_str, safe_str(r.get("callsign"), ""), safe_str(r.get("tipo_movimento"), ""), safe_str(r.get("direzione_sacbo"), ""), safe_str(r.get("fascia"), ""), safe_str(r.get("notte_categoria"), ""), is_sched_bool, fonte_param, safe_str(r.get("destinazione_finale"), ""), safe_str(r.get("stato_destinazione"), ""), safe_str(r.get("compagnia_aerea"), ""), safe_str(r.get("modello_aereo"), ""), safe_time(r.get("orario_schedulato")), safe_timestamp(r.get("timestamp")), safe_str(r.get("pista"), ""), safe_str(r.get("pista_fonte"), "N/D"), safe_str(r.get("fase_volo"), ""), safe_str(r.get("direzione"), ""), safe_int(r.get("quota_ft"), 0), safe_float(r.get("rotta_deg"), 0.0), safe_float(r.get("distanza_km"), 0.0), safe_str(r.get("paese"), ""), safe_int(r.get("matched_score"), 0), icao_val, icao_fonte_val, icao_conf_val, safe_int(r.get("stima_passeggeri"), 0), safe_int(r.get("stima_rumore_db"), 0), safe_str(r.get("logic_version"), "1.0.16")))
     total_inserted = 0
     for i in range(0, len(params), BATCH_SIZE):
         batch = params[i:i+BATCH_SIZE]
-        ok, result = bgy_db.execute_many("""INSERT INTO h24_reports (data_riferimento, data_calendario, callsign, tipo_movimento, direzione_sacbo, fascia, categoria, is_scheduled, fonte_scheduled, destinazione_finale, stato_destinazione, compagnia_aerea, modello_aereo, orario_schedulato, timestamp, pista, pista_fonte, fase_volo, direzione, quota_ft, rotta_deg, distanza_km, paese, matched_score, icao24, stima_passeggeri, stima_rumore_db, logic_version) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""", batch)
+        ok, result = bgy_db.execute_many("""INSERT INTO h24_reports (data_riferimento, data_calendario, callsign, tipo_movimento, direzione_sacbo, fascia, categoria, is_scheduled, fonte_scheduled, destinazione_finale, stato_destinazione, compagnia_aerea, modello_aereo, orario_schedulato, timestamp, pista, pista_fonte, fase_volo, direzione, quota_ft, rotta_deg, distanza_km, paese, matched_score, icao24, icao24_fonte, icao24_confidence, stima_passeggeri, stima_rumore_db, logic_version) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""", batch)
         if ok: total_inserted += len(batch)
         else: stats["errors"] += 1
     stats["h24_imported"] += total_inserted

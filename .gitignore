@@ -89,3 +89,5 @@ bgy_data/bgy_assets/icao24_missing_built.csv
 
 # Lock file LibreOffice
 .~lock.*#
+
+bgy_data/bgy_assets/MASTER.txt
