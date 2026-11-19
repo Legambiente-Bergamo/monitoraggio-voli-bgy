@@ -903,57 +903,6 @@ def _dedup_radar_by_callsign(radar_df, date_str=None):
 
 
 
-def promote_radar_turnaround(df):
-    if df.empty: return df, 0
-    df = df.copy()
-    cargo_carriers = ('Maersk Air Cargo', 'DHL', 'UPS', 'ASL Airlines Belgium', 'Georgian Airlines', 'CAMEX Airlines')
-    is_comm_cs = df['callsign'].fillna('').str.match(
-        r'^(RYR|WZZ|EZY|NOS|VOE|VLG|PGT|THY|UAE|DLH|ITY|AEE|ROT|BTI|SVA|MSR|RAM|RJA|JZR|GFA|WMT|WUK|RUK|MAY|ENT|TVS|EXS|TOM)[0-9]',
-        na=False
-    )
-    is_cargo_real = df['tipo_movimento'].fillna('').str.startswith('Cargo (') & df['compagnia_aerea'].fillna('').isin(cargo_carriers)
-    mask_ro = (
-        (df['is_scheduled'] == False)
-        & df['direzione_sacbo'].isin(['A', 'D'])
-        & df['fase_volo'].isin(['Atterraggio', 'Decollo'])
-        & df['timestamp'].notna()
-        & (is_comm_cs | is_cargo_real)
-    )
-    df_ro = df[mask_ro].copy()
-    if df_ro.empty: return df, 0
-
-    df_sched_all = df[(df['is_scheduled'] == True) & df['direzione_sacbo'].isin(['A', 'D'])].copy()
-    if not df_sched_all.empty:
-        def _sched_dt(r):
-            if pd.notna(r.get('timestamp')) and str(r.get('timestamp')).strip():
-                return pd.to_datetime(r['timestamp'], errors='coerce')
-            d_val = str(r.get('data_calendario') or '').strip()
-            t_val = str(r.get('orario_schedulato') or '').strip()
-            if d_val and t_val:
-                return pd.to_datetime(f"{d_val} {t_val}", errors='coerce')
-            return pd.NaT
-        df_sched_all['_eff_dt'] = df_sched_all.apply(_sched_dt, axis=1)
-
-    promossi = 0
-    for idx, row in df_ro.iterrows():
-        ts_ro = pd.to_datetime(row['timestamp'], errors='coerce')
-        if pd.isna(ts_ro): continue
-        dir_ro = row['direzione_sacbo']
-        # Controllo anti-duplicato su TUTTI gli schedulati nella stessa direzione (+/- 90 min), anche senza icao24
-        if not df_sched_all.empty:
-            same_dir = df_sched_all[(df_sched_all['direzione_sacbo'] == dir_ro) & df_sched_all['_eff_dt'].notna()]
-            if not same_dir.empty:
-                min_delta = (same_dir['_eff_dt'] - ts_ro).abs().dt.total_seconds().min()
-                if pd.notna(min_delta) and min_delta <= 5400:
-                    continue
-        df.at[idx, 'is_scheduled'] = True
-        df.at[idx, 'fonte_scheduled'] = 'radar_recovered'
-        if str(row.get('tipo_movimento', '')) == 'Passeggeri (radar)':
-            df.at[idx, 'tipo_movimento'] = 'Passeggeri'
-        promossi += 1
-    return df, promossi
-
-
 def _dedup_radar_only_via_icao24(result_df, date_str=None):
     if result_df.empty or 'icao24' not in result_df.columns: return result_df, 0
     df = result_df.copy()
@@ -1487,8 +1436,6 @@ def generate_h24_report(date_str=None):
     result_df, n_drop_unmatched = _drop_unmatched_when_matched_exists(result_df)
     result_df, n_dedup_sched = _dedup_scheduled_same_icao24(result_df)
     result_df, n_dedup_icao24 = _dedup_radar_only_via_icao24(result_df, date_norm)
-    result_df, n_promossi = promote_radar_turnaround(result_df)
-    if n_promossi > 0: logger.info(f'?? Turnaround radar: promossi {n_promossi} voli radar_only a schedulati.')
     result_df = _dedup_by_key(result_df)
     result_df = fill_unknown_icao24_turnaround(result_df)
     result_df = fill_unknown_runways_icao24(result_df)
