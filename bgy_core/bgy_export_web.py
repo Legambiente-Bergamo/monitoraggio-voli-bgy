@@ -1766,15 +1766,22 @@ def build_block_fleet(date_from, date_to):
         model = r[3]
         callsign = r[4] or ""
         n = int(r[5])
-        # Prova prima con la classificazione da airlines, poi con tipo_movimento
-        cat = _cat_from_airline(comp, callsign)
-        if cat is None:
-            cat = _cat_from_tipo(tipo)
-        if cat is None or cat not in result:
-            continue
         parent = get_parent_company(callsign) if callsign else None
         motore = motori.get(model, "N/D")
         max_pax_val = max_pax.get(model, 0)
+        comp_l = str(comp or "").strip().lower()
+        # Prova prima con prefisso compagnia / airlines, poi con tipo_movimento
+        if comp_l.startswith("privato") or comp_l.startswith("militare"):
+            cat = "charter"
+        else:
+            cat = _cat_from_airline(comp, callsign)
+        if cat is None:
+            cat = _cat_from_tipo(tipo)
+        # Business jet / aerotaxi (<= 19 posti) non vanno mai nei voli passeggeri di linea
+        if cat == "passeggeri" and 0 < max_pax_val <= 19:
+            cat = "charter"
+        if cat is None or cat not in result:
+            continue
         for _ in range(n):
             result[cat]["voli"].append({
                 "compagnia": comp,

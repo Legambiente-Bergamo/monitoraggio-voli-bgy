@@ -434,14 +434,14 @@ def import_h24_file(filepath):
 
 def _find_latest_avionio_file(movement_type):
     if not os.path.isdir(AVIONIO_DIR): return None
-    pattern = re.compile(rf"^avionio_{movement_type}_(\d{{4}}-\d{{2}}-\d{{2}})_(\d{{2}}-\d{{2}})\.csv$")
+    pattern = re.compile(rf"^avionio_{movement_type}_(\d{{4}}-\d{{2}}-\d{{2}})_(\d{{2}}-\d{{2}})Z?\.csv$")
     candidates = [(os.path.getmtime(os.path.join(AVIONIO_DIR, f)), os.path.join(AVIONIO_DIR, f)) for f in os.listdir(AVIONIO_DIR) if pattern.match(f)]
     return max(candidates, key=lambda x: x[0])[1] if candidates else None
 
 
 def import_avionio_file(filepath, scan_id=None):
     filename = os.path.basename(filepath)
-    m = re.match(r'^avionio_(arrivals|departures)_(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})\.csv$', filename)
+    m = re.match(r'^avionio_(arrivals|departures)_(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})Z?\.csv$', filename)
     if not m: return False, 0, 0
     date_str = m.group(2); scan_ts = f"{date_str} {m.group(3)}:{m.group(4)}:00"
     csv_rows = read_csv_rows(filepath)
