@@ -1768,7 +1768,7 @@ def build_block_fleet(date_from, date_to):
         n = int(r[5])
         parent = get_parent_company(callsign) if callsign else None
         motore = motori.get(model, "N/D")
-        max_pax_val = max_pax.get(model, 0)
+        max_pax_val = max_pax.get(model) or 0
         comp_l = str(comp or "").strip().lower()
         # Prova prima con prefisso compagnia / airlines, poi con tipo_movimento
         if comp_l.startswith("privato") or comp_l.startswith("militare"):

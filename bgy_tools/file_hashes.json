@@ -15,7 +15,7 @@
   "bgy_core/bgy_db_service.py": "14d55bd9256f3291fca9514e8c702fe8af0e461a93d97739f4b297358a8c029a",
   "bgy_core/bgy_disclaimer.py": "f23eac484a2e35b914ed87db8d05b7c72455738669e0b0219b60388ef610c482",
   "bgy_core/bgy_export_common.py": "191f3359f3b663fd1c539037497345030ca6f9616319e0938be2f370de3fdfc3",
-  "bgy_core/bgy_export_web.py": "49e97b255582c1b0d367c229c96821b14f5fd568c9ffe83448e9cde0d989997c",
+  "bgy_core/bgy_export_web.py": "68a7ffbdc3a4ce4d6378eb73e3814ad12e70bcc6bffff11247a32e5190efe688",
   "bgy_core/bgy_github_sync.py": "ce759a925a601439d250c4117c78d8d423ed9879aaadac7995a0568e31762533",
   "bgy_core/bgy_logger.py": "2b74361917b11850c3ddc7f18049228aac4c55a54addecc51f80a38d96b8530f",
   "bgy_core/bgy_mailer.py": "6d0faddaa2c559b770071e79c22aa9d98b529e2b2d6f603191b28c50d7e2fea8",
