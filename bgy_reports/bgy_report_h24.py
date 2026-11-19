@@ -1256,9 +1256,9 @@ def load_avionio_scheduled_h24(date_str):
         SELECT callsign_volo, tipo_movimento, orario_schedulato, orario_effettivo,
                stato_volo, destinazione_origine, codice_iata, compagnia_aerea
         FROM flights_avionio
-        WHERE (data_riferimento = %s AND orario_schedulato >= '06:00')
-           OR (data_riferimento = %s::date - 1 AND orario_schedulato < '06:00')
-           OR (data_riferimento = %s AND orario_schedulato IS NULL)
+        WHERE (COALESCE(data_calendario, data_riferimento) = %s AND orario_schedulato >= '06:00')
+           OR (COALESCE(data_calendario, data_riferimento) = %s::date + 1 AND orario_schedulato < '06:00')
+           OR (COALESCE(data_calendario, data_riferimento) = %s AND orario_schedulato IS NULL)
     """, (date_norm, date_norm, date_norm))
     if not ok: return pd.DataFrame()
     filtered = []

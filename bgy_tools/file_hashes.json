@@ -39,7 +39,7 @@
   "bgy_gui/__init__.py": "972f49cc93409691eb40eb020bbaed6a5e72df4a22e12b201d46e229b114218d",
   "bgy_reports/bgy_report_common.py": "70fd6853d510563216bdab85d37510192add535e3c2aa40b7920fb214af5a3a0",
   "bgy_reports/bgy_report_day.py": "eb88a0201e5bac88d2cce7450b2d7e2004ca6efd062dc94f21f376537006d0df",
-  "bgy_reports/bgy_report_h24.py": "592921c961555bfed8456041501ca38448e1b10f24ce629d07f4900a21fe366c",
+  "bgy_reports/bgy_report_h24.py": "a2985cac4e1f599a50590dd81c78e9bd40830b05305acf30dcc82423ee7dac39",
   "bgy_reports/bgy_report_month.py": "0d50a0fb13261596cf1c55cd2a28551fcb02c948335348570c56bd33e249686e",
   "bgy_reports/bgy_report_night.py": "e04b03b0dc6d3a3d729a1caf343c46d2d2951dfbe17308ec9bde3d0c0bdd2881",
   "bgy_reports/bgy_report_year.py": "188e8e9e3359bf81ab25583dbf63c48dc257167d3fa730a28bac6e378c75da66",
