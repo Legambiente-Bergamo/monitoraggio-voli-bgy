@@ -1,4 +1,4 @@
-﻿"""
+"""
 bgy_core/bgy_update_rules.py - Arricchimento dati da regole JSON.
 Versione 2.7.5
 
@@ -94,12 +94,34 @@ def _load_airline_extras_from_db():
         logger.warning(f"Impossibile caricare airline extras: {e}")
 
 
+_CALLSIGN_AIRLINE_PATTERNS = {}
+
+def _load_callsign_airline_patterns_from_db():
+    try:
+        from bgy_core import bgy_db
+        if not bgy_db.is_enabled():
+            return {}
+        ok, rows = bgy_db.execute_query("SELECT pattern, airline_iata FROM callsign_airline_patterns")
+        if not ok:
+            return {}
+        return {str(p).strip().upper(): str(i).strip().upper() for p, i in (rows or []) if p and i}
+    except Exception as e:
+        logger.warning(f"Impossibile caricare callsign_airline_patterns: {e}")
+        return {}
+
+def _resolve_airline_pattern(cs):
+    if not cs or not _CALLSIGN_AIRLINE_PATTERNS:
+        return None
+    for pat, iata in sorted(_CALLSIGN_AIRLINE_PATTERNS.items(), key=lambda x: -len(x[0])):
+        if cs.startswith(pat) and len(cs) > len(pat):
+            return iata
+    return None
 def load_rules():
     """Ricarica le regole da config_manager e ripopola le cache locali."""
     global _AIRLINES, _COUNTRIES, _AIRCRAFT_MODELS, _CARGO_AIRLINES, _CHARTER_AIRLINES, _IATA_TO_ICAO
     global _SEATS, _LOAD_FACTORS, _DEFAULT_LOAD_FACTOR
     global _NOISE_STATIONS, _NOISE_CURVES, _DEFAULT_NOISE_CURVES
-    global _CALLSIGN_OVERRIDES
+    global _CALLSIGN_OVERRIDES, _CALLSIGN_AIRLINE_PATTERNS
 
     raw_airlines = dict(config_manager.get_airlines())
 
@@ -124,6 +146,7 @@ def load_rules():
     _NOISE_CURVES = curves_data
 
     _CALLSIGN_OVERRIDES = _load_callsign_overrides_from_db()
+    _CALLSIGN_AIRLINE_PATTERNS = _load_callsign_airline_patterns_from_db()
     _load_airline_extras_from_db()
 
     logger.info(
@@ -225,6 +248,13 @@ def classify_callsign(callsign):
     # v2.7.6: marche di immatricolazione (velivoli privati, business aviation)
     if _is_registration(cs):
         return 'Privato', 'Privato'
+
+    mapped_iata_cc = _resolve_airline_pattern(cs)
+    if mapped_iata_cc:
+        if mapped_iata_cc in _CARGO_AIRLINES:
+            return 'Cargo', _CARGO_AIRLINES[mapped_iata_cc]
+        if mapped_iata_cc in _CHARTER_AIRLINES:
+            return 'Charter', _CHARTER_AIRLINES[mapped_iata_cc]
 
     airline_name = get_airline(cs)
     # v2.7.7: riconosci i nomi che iniziano con "Privato (" o "Militare ("
@@ -439,13 +469,23 @@ def get_airline(callsign):
         return "N/D"
 
     # Controlla se è un volo privato o militare
+    if _is_registration(cs):
+        return "Privato"
+
     for prefix_len in (3, 2):
         if len(cs) > prefix_len:
             prefix = cs[:prefix_len]
             if prefix in _MILITARY_AIRLINES:
                 return f"Militare ({_MILITARY_AIRLINES[prefix]})"
             if prefix in _PRIVATE_AIRLINES:
-                return f"Privato ({_PRIVATE_AIRLINES[prefix]})"
+                p_name = str(_PRIVATE_AIRLINES[prefix] or "").strip()
+                return "Privato" if (not p_name or p_name.lower() == "privato") else f"Privato ({p_name})"
+
+    mapped_iata = _resolve_airline_pattern(cs)
+    if mapped_iata:
+        mapped_name = _AIRLINES.get(mapped_iata) or _CARGO_AIRLINES.get(mapped_iata) or _CHARTER_AIRLINES.get(mapped_iata)
+        if mapped_name and not _is_placeholder(mapped_name):
+            return mapped_name
 
     search_order, primary_prefix = _callsign_prefix_order(cs)
 

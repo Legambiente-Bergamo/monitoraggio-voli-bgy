@@ -1,4 +1,5 @@
-﻿"""
+import tempfile
+"""
 bgy_scanners/bgy_scanner_radar.py - Scanner radar h24 multi-fonte.
 Versione 1.4.1
 
@@ -68,17 +69,54 @@ except Exception:
 BARO_RATE_THRESHOLD_FPM_DEFAULT = 500
 INCERT_DEAD_ZONE_DEG = 5
 
-# v1.3.1 (INFRA-18): stato circuit breaker adsb.lol
+# v1.3.1 (INFRA-18) + INFRA-20: stato circuit breaker persistente su disco
 _adsb_lol_cooldown_until = None
 _adsb_lol_429_count = 0
-
-# v1.4.1: stato circuit breaker adsb.fi
 _adsb_fi_cooldown_until = None
 _adsb_fi_429_count = 0
-
-# v1.4.0 (OPEN-01): stato circuit breaker OpenSky
 _opensky_cooldown_until = None
 _opensky_429_count = 0
+
+_COOLDOWN_STATE_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "bgy_data", "bgy_logs", "radar_cooldown_state.json"
+)
+
+def _save_cooldown_state():
+    try:
+        os.makedirs(os.path.dirname(_COOLDOWN_STATE_FILE), exist_ok=True)
+        payload = {
+            "adsb_lol_until": _adsb_lol_cooldown_until.isoformat() if _adsb_lol_cooldown_until else None,
+            "adsb_fi_until": _adsb_fi_cooldown_until.isoformat() if _adsb_fi_cooldown_until else None,
+            "opensky_until": _opensky_cooldown_until.isoformat() if _opensky_cooldown_until else None,
+            "updated_at": datetime.now().isoformat(timespec="seconds")
+        }
+        fd, tmp_p = tempfile.mkstemp(dir=os.path.dirname(_COOLDOWN_STATE_FILE), suffix=".tmp")
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=True, indent=2)
+        os.replace(tmp_p, _COOLDOWN_STATE_FILE)
+    except Exception as e:
+        logger.warning(f"Impossibile salvare stato cooldown radar: {e}")
+
+def _load_cooldown_state():
+    global _adsb_lol_cooldown_until, _adsb_fi_cooldown_until, _opensky_cooldown_until
+    if not os.path.exists(_COOLDOWN_STATE_FILE):
+        return
+    try:
+        with open(_COOLDOWN_STATE_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f) or {}
+        now = datetime.now()
+        for key, attr in (("adsb_lol_until", "_adsb_lol_cooldown_until"), ("adsb_fi_until", "_adsb_fi_cooldown_until"), ("opensky_until", "_opensky_cooldown_until")):
+            raw = data.get(key)
+            if raw:
+                dt = datetime.fromisoformat(raw)
+                if dt > now:
+                    globals()[attr] = dt
+                    logger.info(f"Cooldown ripristinato da disco ({key}) fino a {dt.strftime('%H:%M:%S')}")
+    except Exception as e:
+        logger.warning(f"Impossibile leggere stato cooldown radar: {e}")
+
+_load_cooldown_state()
 
 
 def _cfg():
@@ -116,6 +154,7 @@ def _set_adsb_lol_cooldown(minutes):
     """v1.3.1 (INFRA-18): attiva il cooldown per adsb.lol."""
     global _adsb_lol_cooldown_until
     _adsb_lol_cooldown_until = datetime.now() + timedelta(minutes=minutes)
+    _save_cooldown_state()
 
 
 def _get_adsb_fi_cooldown_min():
@@ -140,6 +179,7 @@ def _set_adsb_fi_cooldown(minutes):
     """v1.4.1: attiva il cooldown per adsb.fi."""
     global _adsb_fi_cooldown_until
     _adsb_fi_cooldown_until = datetime.now() + timedelta(minutes=minutes)
+    _save_cooldown_state()
 
 
 def _get_opensky_cooldown_min():
@@ -164,6 +204,7 @@ def _set_opensky_cooldown(minutes):
     """v1.4.0 (OPEN-01): attiva il cooldown per OpenSky."""
     global _opensky_cooldown_until
     _opensky_cooldown_until = datetime.now() + timedelta(minutes=minutes)
+    _save_cooldown_state()
 
 
 def _utc_now_iso():

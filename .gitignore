@@ -91,3 +91,6 @@ bgy_data/bgy_assets/icao24_missing_built.csv
 .~lock.*#
 
 bgy_data/bgy_assets/MASTER.txt
+
+# Quarantena locale (non tracciare su GitHub)
+_quarantena/
