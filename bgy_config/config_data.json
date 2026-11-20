@@ -262,8 +262,8 @@
     "enabled": true,
     "global": {
       "show": true,
-      "title": "?? NOTA METODOLOGICA E FASI DI COPERTURA",
-      "body": "Il sistema recupera in automatico i voli commerciali tramite interrogazioni pubbliche incrociate. I contatori riflettono tre diverse fasi di copertura temporale. <b>Fase 1 (30/09 - 13/10/2026):</b> Acquisizione basata sulla sola fonte primaria (tabellone aeroportuale, max 60 voli per fascia), con possibile sottostima fisiologica degli atterraggi nelle ore di punta. <b>Fase 2 (14/10 - 18/11/2026):</b> Integrazione della fonte secondaria (Avionio) con frequenza a 4 ore. <b>Fase 3 (dal 19/11/2026 in poi):</b> Frequenza di scansione infittita a 2 ore e recupero incrociato via radar, per garantire la tracciabilit? integrale di tutti i movimenti di linea. Un eventuale scarto fisiologico inferiore all'1% tra decolli e atterraggi ? normale e deriva da soste notturne a cavallo delle date selezionate."
+      "title": "\u26a0\ufe0f NOTA METODOLOGICA E FASI DI COPERTURA",
+      "body": "Il sistema recupera in automatico i voli commerciali tramite interrogazioni pubbliche incrociate. I contatori riflettono tre diverse fasi di copertura temporale. <strong>Fase 1 (30/09 - 13/10/2026):</strong> Acquisizione basata sulla sola fonte primaria (tabellone aeroportuale, max 60 voli per fascia), con possibile sottostima fisiologica degli atterraggi nelle ore di punta. <strong>Fase 2 (14/10 - 18/11/2026):</strong> Integrazione della fonte secondaria (Avionio) con frequenza a 4 ore. <strong>Fase 3 (dal 19/11/2026 in poi):</strong> Frequenza di scansione infittita a 2 ore e recupero incrociato via radar, per garantire la tracciabilit\u00e0 integrale di tutti i movimenti di linea. Un eventuale scarto fisiologico inferiore all'1% tra decolli e atterraggi \u00e8 normale e deriva da soste notturne a cavallo delle date selezionate."
     }
   },
   "print": {
