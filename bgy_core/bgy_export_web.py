@@ -1,8 +1,8 @@
 """
 bgy_core/bgy_export_web.py - Esportazione dati aggregati per il web (F17).
-Versione 2.4.9
+Versione 2.6.0
 """
-__version__ = "2.5.0"
+__version__ = "2.6.0"
 import os
 import sys
 import json
@@ -59,6 +59,11 @@ CATEGORY_FILTERS = [
 ]
 
 CATS_KEYS = ["passeggeri", "cargo", "charter", "non_classificato"]
+CATEGORY_LABELS = {
+    "passeggeri": "Voli di linea", "pax": "Voli di linea", "cargo": "Cargo",
+    "charter": "Altri movimenti", "altro": "Altri movimenti",
+    "altri_movimenti": "Altri movimenti", "non_classificato": "Altri movimenti"
+}
 RADAR_ONLY_KPI_CATS = ("cargo", "charter", "non_classificato")
 NIGHT_HOURS = [23, 0, 1, 2, 3, 4, 5]
 
@@ -513,49 +518,50 @@ def build_data_quality_warnings(date_from, date_to):
 # =============================================================================
 def build_home_summary(date_from, date_to):
     def _query_breakdown(table, date_col):
+        other_cond = "(tipo_movimento IS NULL OR (tipo_movimento != 'Passeggeri' AND tipo_movimento NOT LIKE 'Cargo%%' AND tipo_movimento NOT LIKE 'Charter%%'))"
         sql = f"""
             SELECT
-                SUM(CASE WHEN tipo_movimento = 'Passeggeri'      THEN 1 ELSE 0 END) AS pax,
-                SUM(CASE WHEN tipo_movimento LIKE 'Cargo%%'      THEN 1 ELSE 0 END) AS cargo,
-                SUM(CASE WHEN tipo_movimento LIKE 'Charter%%'    THEN 1 ELSE 0 END) AS charter,
-                SUM(CASE WHEN tipo_movimento = 'Non classificato' THEN 1 ELSE 0 END) AS altro,
-                SUM(CASE WHEN tipo_movimento = 'Passeggeri'      AND direzione_sacbo = 'D' THEN 1 ELSE 0 END) AS pax_D,
-                SUM(CASE WHEN tipo_movimento = 'Passeggeri'      AND direzione_sacbo = 'A' THEN 1 ELSE 0 END) AS pax_A,
-                SUM(CASE WHEN tipo_movimento LIKE 'Cargo%%'      AND direzione_sacbo = 'D' THEN 1 ELSE 0 END) AS cargo_D,
-                SUM(CASE WHEN tipo_movimento LIKE 'Cargo%%'      AND direzione_sacbo = 'A' THEN 1 ELSE 0 END) AS cargo_A,
-                SUM(CASE WHEN tipo_movimento LIKE 'Charter%%'    AND direzione_sacbo = 'D' THEN 1 ELSE 0 END) AS charter_D,
-                SUM(CASE WHEN tipo_movimento LIKE 'Charter%%'    AND direzione_sacbo = 'A' THEN 1 ELSE 0 END) AS charter_A,
-                SUM(CASE WHEN tipo_movimento = 'Non classificato' AND direzione_sacbo = 'D' THEN 1 ELSE 0 END) AS altro_D,
-                SUM(CASE WHEN tipo_movimento = 'Non classificato' AND direzione_sacbo = 'A' THEN 1 ELSE 0 END) AS altro_A,
-                SUM(CASE WHEN direzione_sacbo = 'D' THEN 1 ELSE 0 END) AS tot_D,
-                SUM(CASE WHEN direzione_sacbo = 'A' THEN 1 ELSE 0 END) AS tot_A
+                SUM(CASE WHEN tipo_movimento = 'Passeggeri'   THEN 1 ELSE 0 END),
+                SUM(CASE WHEN tipo_movimento LIKE 'Cargo%%'   THEN 1 ELSE 0 END),
+                SUM(CASE WHEN tipo_movimento LIKE 'Charter%%' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN {other_cond}                    THEN 1 ELSE 0 END),
+                SUM(CASE WHEN tipo_movimento = 'Passeggeri'   AND direzione_sacbo = 'D' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN tipo_movimento = 'Passeggeri'   AND direzione_sacbo = 'A' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN tipo_movimento LIKE 'Cargo%%'   AND direzione_sacbo = 'D' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN tipo_movimento LIKE 'Cargo%%'   AND direzione_sacbo = 'A' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN tipo_movimento LIKE 'Charter%%' AND direzione_sacbo = 'D' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN tipo_movimento LIKE 'Charter%%' AND direzione_sacbo = 'A' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN {other_cond}                    AND direzione_sacbo = 'D' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN {other_cond}                    AND direzione_sacbo = 'A' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN direzione_sacbo = 'D' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN direzione_sacbo = 'A' THEN 1 ELSE 0 END)
             FROM {table}
-            WHERE {date_col} BETWEEN %s AND %s
-              AND is_scheduled = TRUE
+            WHERE {date_col} BETWEEN %s AND %s AND is_scheduled = TRUE
         """
         rows = _query(sql, (date_from, date_to))
-        result = {
-            "pax": 0, "cargo": 0, "charter": 0, "altro": 0,
-            "pax_D": 0, "pax_A": 0,
-            "cargo_D": 0, "cargo_A": 0,
-            "charter_D": 0, "charter_A": 0,
-            "altro_D": 0, "altro_A": 0,
-            "D": 0, "A": 0, "total": 0
-        }
+        res = {k: 0 for k in ("pax","cargo","charter","altro","altri_movimenti","altri_movimenti_D","altri_movimenti_A","pax_D","pax_A","cargo_D","cargo_A","charter_D","charter_A","altro_D","altro_A","D","A","total")}
         if rows and rows[0]:
-            cols = ["pax", "cargo", "charter", "altro",
-                    "pax_D", "pax_A", "cargo_D", "cargo_A",
-                    "charter_D", "charter_A", "altro_D", "altro_A",
-                    "D", "A"]
-            for i, key in enumerate(cols):
-                result[key] = int(rows[0][i] or 0)
-            result["total"] = (result["pax"] + result["cargo"]
-                               + result["charter"] + result["altro"])
-        return result
-
-    h24 = _query_breakdown("h24_reports", "data_calendario")
-    nightly = _query_breakdown("nightly_reports", "data_riferimento")
-    return {"h24": h24, "nightly": nightly}
+            cols = ["pax","cargo","charter","altro","pax_D","pax_A","cargo_D","cargo_A","charter_D","charter_A","altro_D","altro_A","D","A"]
+            for i, k in enumerate(cols):
+                res[k] = int(rows[0][i] or 0)
+            res["altri_movimenti"] = res["charter"] + res["altro"]
+            res["altri_movimenti_D"] = res["charter_D"] + res["altro_D"]
+            res["altri_movimenti_A"] = res["charter_A"] + res["altro_A"]
+            res["total"] = res["pax"] + res["cargo"] + res["altri_movimenti"]
+        return res
+    other_c = "(tipo_movimento IS NULL OR (tipo_movimento != 'Passeggeri' AND tipo_movimento NOT LIKE 'Cargo%%' AND tipo_movimento NOT LIKE 'Charter%%'))"
+    daily_rows = _query(f"""
+        SELECT data_calendario,
+               SUM(CASE WHEN tipo_movimento = 'Passeggeri' THEN 1 ELSE 0 END),
+               SUM(CASE WHEN tipo_movimento LIKE 'Cargo%%' THEN 1 ELSE 0 END),
+               SUM(CASE WHEN tipo_movimento LIKE 'Charter%%' OR {other_c} THEN 1 ELSE 0 END),
+               SUM(CASE WHEN direzione_sacbo = 'D' THEN 1 ELSE 0 END),
+               SUM(CASE WHEN direzione_sacbo = 'A' THEN 1 ELSE 0 END)
+        FROM h24_reports WHERE data_calendario BETWEEN %s AND %s AND is_scheduled = TRUE
+        GROUP BY data_calendario ORDER BY data_calendario
+    """, (date_from, date_to))
+    by_date_h24 = [{"date": _date_str(r[0]), "pax": int(r[1] or 0), "cargo": int(r[2] or 0), "altri_movimenti": int(r[3] or 0), "D": int(r[4] or 0), "A": int(r[5] or 0), "total": int((r[1] or 0) + (r[2] or 0) + (r[3] or 0))} for r in (daily_rows or [])]
+    return {"h24": _query_breakdown("h24_reports", "data_calendario"), "nightly": _query_breakdown("nightly_reports", "data_riferimento"), "by_date": by_date_h24, "last_updated": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"), "last_data_date": date_to, "labels": CATEGORY_LABELS}
 
 
 # =============================================================================
@@ -909,9 +915,9 @@ def build_block_destinations_pax(date_from, date_to, top_cities=15, top_countrie
         by_date.append(item)
     return {
         "by_date": by_date,
-        "note": ("Il grafico mostra le destinazioni dei soli voli passeggeri "
+        "note": ("Il grafico mostra le destinazioni dei soli voli di linea "
                  "dichiarati dal tabellone SACBO nel periodo selezionato. "
-                 "Partenze e arrivi sono separati. Cargo e charter sono esclusi.")
+                 "Partenze e arrivi sono separati. Cargo e altri movimenti sono esclusi.")
     }
 
 
@@ -1143,109 +1149,50 @@ def _load_weather(date_from, date_to):
 
 def build_block_night_weather(date_from, date_to):
     weather = _load_weather(date_from, date_to)
-
-    rows = _query(
-        """SELECT data_riferimento, temperatura_c, precipitazioni_mm,
-                  vento_kmh, vento_direzione_deg, condizioni
-           FROM weather_hourly
-           WHERE data_riferimento BETWEEN %s AND %s
-             AND EXTRACT(HOUR FROM orario) = 20
-           ORDER BY data_riferimento""",
-        (date_from, date_to))
+    rows = _query("SELECT data_riferimento, temperatura_c, precipitazioni_mm, vento_kmh, vento_direzione_deg, condizioni FROM weather_hourly WHERE data_riferimento BETWEEN %s AND %s AND EXTRACT(HOUR FROM orario) = 20 ORDER BY data_riferimento", (date_from, date_to))
     at_20 = []
     for r in rows:
         ds = _date_str(r[0])
         wd = int(r[4]) if r[4] is not None else None
-        runway_rows = _query(
-            """SELECT pista, COUNT(*) FROM radar_detections
-               WHERE data_riferimento = %s AND sessione_notturna IS NOT NULL
-                 AND pista IN ('RWY 28', 'RWY 10')
-               GROUP BY pista ORDER BY COUNT(*) DESC LIMIT 1""",
-            (ds,))
-        runway = runway_rows[0][0] if runway_rows else None
-        at_20.append({
-            "date": ds,
-            "temp_c": float(r[1]) if r[1] is not None else None,
-            "rain_mm": float(r[2]) if r[2] is not None else None,
-            "wind_kmh": float(r[3]) if r[3] is not None else None,
-            "wind_dir_deg": wd,
-            "wind_dir_cardinal": _wind_cardinal(wd),
-            "conditions": r[5] or "",
-            "runway_used": runway,
-            "side_used": _side_from_runway(runway)
-        })
+        rwy_rows = _query("SELECT pista, COUNT(*) FROM radar_detections WHERE data_riferimento = %s AND sessione_notturna IS NOT NULL AND pista IN ('RWY 28', 'RWY 10') GROUP BY pista ORDER BY COUNT(*) DESC LIMIT 1", (ds,))
+        runway = rwy_rows[0][0] if rwy_rows else None
+        at_20.append({"date": ds, "temp_c": float(r[1]) if r[1] is not None else None, "rain_mm": float(r[2]) if r[2] is not None else None, "wind_kmh": float(r[3]) if r[3] is not None else None, "wind_dir_deg": wd, "wind_dir_cardinal": _wind_cardinal(wd), "conditions": r[5] or "", "runway_used": runway, "side_used": _side_from_runway(runway)})
 
-    rows = _query(
-        """SELECT data_riferimento, callsign, compagnia_aerea,
-                  direzione_sacbo, orario_schedulato, timestamp, fase_volo, pista
-           FROM nightly_reports
-           WHERE data_riferimento BETWEEN %s AND %s
-             AND is_scheduled = TRUE
-             AND (tipo_movimento = 'Passeggeri' OR tipo_movimento LIKE 'Cargo%%' OR tipo_movimento LIKE 'Charter%%')
-           ORDER BY data_riferimento, orario_schedulato""",
-        (date_from, date_to))
-
-    per_flight = []
-    summary_acc = {}
+    rows = _query("""SELECT data_riferimento, callsign, compagnia_aerea, direzione_sacbo, orario_schedulato, timestamp, fase_volo, pista, notte_categoria, destinazione_finale, modello_aereo, stima_rumore_db
+                     FROM nightly_reports WHERE data_riferimento BETWEEN %s AND %s AND is_scheduled = TRUE
+                     AND (tipo_movimento = 'Passeggeri' OR tipo_movimento LIKE 'Cargo%%' OR tipo_movimento LIKE 'Charter%%' OR tipo_movimento IN ('Privato', 'Militare', 'Non classificato'))
+                     ORDER BY data_riferimento, orario_schedulato""", (date_from, date_to))
+    per_flight, sforamenti_meteo, summary_acc = [], [], {}
     for r in rows:
         ds = _date_str(r[0])
         sched, ts, fase, pista = r[4], r[5], r[6], r[7]
-        hour = None
-        session_date = ds
+        notte_cat = (r[8] or "regolare").strip()
+        hour, session_date, op_str = None, ds, None
         if ts is not None:
             session_date = _session_date_for_ts(ts, ds)
             try:
                 hour = int(ts.split()[1].split(":")[0]) if isinstance(ts, str) else ts.hour
+                op_str = ts.split()[1][:5] if isinstance(ts, str) else ts.strftime("%H:%M")
             except Exception:
                 hour = None
         if hour is None and sched is not None:
-            try:
-                hour = sched.hour if hasattr(sched, "hour") else int(str(sched).split(":")[0])
-            except Exception:
-                hour = None
-        if hour is None:
-            continue
+            try: hour = sched.hour if hasattr(sched, "hour") else int(str(sched).split(":")[0])
+            except Exception: hour = None
+        if hour is None: continue
         w = weather.get((session_date, hour))
-        if not w:
-            continue
-        sched_str = None
-        if sched is not None:
-            sched_str = sched.strftime("%H:%M") if hasattr(sched, "strftime") else str(sched)[:5]
-        per_flight.append({
-            "date": ds, "callsign": r[1], "airline": r[2],
-            "direction": _normalize_direction(r[3], fase),
-            "scheduled": sched_str,
-            "runway": pista or None,
-            "side": _side_from_runway(pista),
-            "temp_c": w["temp_c"], "wind_kmh": w["wind_kmh"],
-            "wind_dir_deg": w["wind_dir_deg"],
-            "wind_dir_cardinal": _wind_cardinal(w["wind_dir_deg"]),
-            "rain_mm": w["rain_mm"], "conditions": w["conditions"]
-        })
-        acc = summary_acc.setdefault(ds, {"temp_sum": 0.0, "wind_sum": 0.0, "n": 0,
-                                          "rain_ops": 0, "clear_ops": 0})
-        if w["temp_c"] is not None:
-            acc["temp_sum"] += w["temp_c"]
-        if w["wind_kmh"] is not None:
-            acc["wind_sum"] += w["wind_kmh"]
+        if not w: continue
+        sched_str = sched.strftime("%H:%M") if hasattr(sched, "strftime") else (str(sched)[:5] if sched else None)
+        entry = {"date": ds, "callsign": r[1], "airline": r[2], "direction": _normalize_direction(r[3], fase), "notte_categoria": notte_cat, "destination": r[9] or "N/D", "model": r[10] or "N/D", "noise_db": int(r[11]) if r[11] is not None else None, "scheduled": sched_str, "operated": op_str, "runway": pista or None, "side": _side_from_runway(pista), "temp_c": w["temp_c"], "wind_kmh": w["wind_kmh"], "wind_dir_deg": w["wind_dir_deg"], "wind_dir_cardinal": _wind_cardinal(w["wind_dir_deg"]), "rain_mm": w["rain_mm"], "conditions": w["conditions"]}
+        per_flight.append(entry)
+        if notte_cat in ("sconfinamento", "sconfinamento_grave"):
+            sforamenti_meteo.append(entry)
+        acc = summary_acc.setdefault(ds, {"temp_sum": 0.0, "wind_sum": 0.0, "n": 0, "rain_ops": 0, "clear_ops": 0})
+        if w["temp_c"] is not None: acc["temp_sum"] += w["temp_c"]
+        if w["wind_kmh"] is not None: acc["wind_sum"] += w["wind_kmh"]
         acc["n"] += 1
-        if w["rain_mm"] is not None and w["rain_mm"] > 0:
-            acc["rain_ops"] += 1
-        else:
-            acc["clear_ops"] += 1
-
-    summary_by_date = []
-    for ds in sorted(summary_acc.keys()):
-        acc = summary_acc[ds]
-        n = acc["n"] or 1
-        summary_by_date.append({
-            "date": ds,
-            "temp_avg": round(acc["temp_sum"] / n, 1),
-            "wind_avg_kmh": round(acc["wind_sum"] / n, 1),
-            "ops_in_rain": acc["rain_ops"],
-            "ops_in_clear": acc["clear_ops"]
-        })
-    return {"at_20": at_20, "per_flight": per_flight, "summary_by_date": summary_by_date}
+        acc["rain_ops" if (w["rain_mm"] is not None and w["rain_mm"] > 0) else "clear_ops"] += 1
+    summary_by_date = [{"date": ds, "temp_avg": round(acc["temp_sum"] / (acc["n"] or 1), 1), "wind_avg_kmh": round(acc["wind_sum"] / (acc["n"] or 1), 1), "ops_in_rain": acc["rain_ops"], "ops_in_clear": acc["clear_ops"]} for ds, acc in sorted(summary_acc.items())]
+    return {"at_20": at_20, "per_flight": per_flight, "sforamenti_meteo": sforamenti_meteo, "summary_by_date": summary_by_date}
 
 
 def build_block_runway_diagnostics(date_from, date_to):
@@ -1349,45 +1296,22 @@ def _empty_delay_agg():
 
 
 def _finalize_delay_agg(agg):
-    n = agg["n_total"]
-    n_rit = agg["n_ritardo"]
-
+    n, n_rit, n_grave = agg["n_total"], agg["n_ritardo"], agg.get("n_grave", 0)
+    agg["n_ritardo_lieve"] = max(0, n_rit - n_grave)
+    agg["pct_ritardo"] = round((100.0 * n_rit) / n, 1) if n > 0 else 0.0
+    agg["pct_puntuali"] = round((100.0 * agg.get("n_puntuali", 0)) / n, 1) if n > 0 else 0.0
     agg["ritardo_medio"] = round(agg["sum_delta"] / n, 1) if n > 0 else 0.0
-
-    if n_rit > 0:
-        agg["ritardo_medio_ritardati"] = round(
-            agg["sum_delta_ritardi"] / n_rit, 1)
-    else:
-        agg["ritardo_medio_ritardati"] = 0.0
-
+    agg["ritardo_medio_ritardati"] = round(agg["sum_delta_ritardi"] / n_rit, 1) if n_rit > 0 else 0.0
     deltas = agg.pop("deltas_ritardi", [])
-
     if deltas:
-        deltas_sorted = sorted(deltas)
-        n_d = len(deltas_sorted)
-        if n_d % 2 == 1:
-            agg["mediana_ritardi"] = float(deltas_sorted[n_d // 2])
-        else:
-            agg["mediana_ritardi"] = round(
-                (deltas_sorted[n_d // 2 - 1] + deltas_sorted[n_d // 2]) / 2, 1)
+        ds_s = sorted(deltas); nd = len(ds_s)
+        agg["mediana_ritardi"] = float(ds_s[nd // 2]) if nd % 2 == 1 else round((ds_s[nd // 2 - 1] + ds_s[nd // 2]) / 2, 1)
     else:
         agg["mediana_ritardi"] = 0.0
-
-    fasce = {
-        "15-30": 0,
-        "30-45": 0,
-        "45-60": 0,
-        "60-120": 0,
-        ">120": 0
-    }
+    fasce = {"15-30": 0, "30-45": 0, "45-60": 0, "60-120": 0, ">120": 0}
     for d in deltas:
-        if d <= 30: fasce["15-30"] += 1
-        elif d <= 45: fasce["30-45"] += 1
-        elif d <= 60: fasce["45-60"] += 1
-        elif d <= 120: fasce["60-120"] += 1
-        else: fasce[">120"] += 1
+        fasce["15-30" if d <= 30 else "30-45" if d <= 45 else "45-60" if d <= 60 else "60-120" if d <= 120 else ">120"] += 1
     agg["ritardi_fasce"] = fasce
-
     return agg
 
 
@@ -1570,7 +1494,7 @@ def build_block_delays_h24(date_from, date_to):
                 cout["compagnia"] = name
                 companies_list.append(cout)
             companies_list.sort(key=lambda x: -x["n_total"])
-            dout["by_company"] = companies_list[:top_company]
+            dout["by_company"] = companies_list
 
             dests_list = []
             for name, agg in din["dests"].items():
@@ -1578,7 +1502,7 @@ def build_block_delays_h24(date_from, date_to):
                 dout_dest["dest"] = name
                 dests_list.append(dout_dest)
             dests_list.sort(key=lambda x: -x["n_total"])
-            dout["by_destination"] = dests_list[:top_dest]
+            dout["by_destination"] = dests_list
 
             cat_aggs = {}
             for cat_name, cat_agg in din["by_category"].items():
@@ -1591,11 +1515,22 @@ def build_block_delays_h24(date_from, date_to):
 
     logger.info(f"   Ritardi (H24): {len(by_date)} giorni aggregati.")
 
-    return {
-        "soglie": {"puntuale_min": soglia_punt, "grave_min": soglia_grave},
-        "by_date": by_date,
-        "raw_delays": raw_delays
-    }
+    top_rankings = {}
+    for d in ("D", "A"):
+        c_tot, d_tot = {}, {}
+        for day_it in by_date:
+            blk = day_it.get(d, {})
+            for c in blk.get("by_company", []):
+                a = c_tot.setdefault(c["compagnia"], {"name": c["compagnia"], "n_total": 0, "n_ritardo": 0, "sum_delta_ritardi": 0.0})
+                a["n_total"] += c["n_total"]; a["n_ritardo"] += c["n_ritardo"]; a["sum_delta_ritardi"] += c["sum_delta_ritardi"]
+            for dst in blk.get("by_destination", []):
+                a = d_tot.setdefault(dst["dest"], {"name": dst["dest"], "n_total": 0, "n_ritardo": 0, "sum_delta_ritardi": 0.0})
+                a["n_total"] += dst["n_total"]; a["n_ritardo"] += dst["n_ritardo"]; a["sum_delta_ritardi"] += dst["sum_delta_ritardi"]
+        def _top5(mp):
+            el = [{"name": v["name"], "n_total": v["n_total"], "n_ritardo": v["n_ritardo"], "pct_ritardo": round(100.0 * v["n_ritardo"] / v["n_total"], 1), "ritardo_medio_ritardati": round(v["sum_delta_ritardi"] / v["n_ritardo"], 1)} for v in mp.values() if v["n_total"] >= 5 and v["n_ritardo"] > 0]
+            return {"by_delta": sorted(el, key=lambda x: (-x["ritardo_medio_ritardati"], -x["n_ritardo"]))[:5], "by_frequency": sorted(el, key=lambda x: (-x["pct_ritardo"], -x["n_ritardo"]))[:5]}
+        top_rankings[d] = {"company": _top5(c_tot), "destination": _top5(d_tot)}
+    return {"soglie": {"puntuale_min": soglia_punt, "grave_min": soglia_grave}, "labels": CATEGORY_LABELS, "by_date": by_date, "raw_delays": raw_delays, "top_rankings": top_rankings}
 
 
 def build_block_delays_hourly_weather(date_from, date_to):
@@ -1680,125 +1615,68 @@ def build_block_delays_hourly_weather(date_from, date_to):
 # BUILDERS PRINCIPALI (FLOTTA)
 # =============================================================================
 
+def _age_bucket(built_year, ref_year):
+    if not built_year: return "N/D"
+    try: age = max(0, int(ref_year) - int(built_year))
+    except (ValueError, TypeError): return "N/D"
+    return "0-5" if age <= 5 else "6-10" if age <= 10 else "11-15" if age <= 15 else "16-20" if age <= 20 else ">20"
+
 def build_block_fleet(date_from, date_to):
-    """
-    Costruisce i dati per la pagina La Flotta (WEB-37).
-    Restituisce: { passeggeri: { voli: [...] }, cargo: { voli: [...] }, charter: { voli: [...] } }
-    La categoria 'charter' include anche i voli privati e militari (altri movimenti).
-    Ogni volo ha: compagnia, parent_company (se disponibile), modello, motore, max_passeggeri, data.
-    La classificazione usa le colonne is_cargo, is_charter, is_private, is_military da airlines.
-    """
     from bgy_core.bgy_update_rules import get_parent_company
-    from bgy_core import bgy_db
+    motori, max_pax, max_cargo, built_by_icao, airlines_class = {}, {}, {}, {}, {}
+    for r in _query("SELECT model, motore, max_passeggeri, max_carico_kg FROM aircraft_models"):
+        motori[r[0]] = r[1]; max_pax[r[0]] = r[2]; max_cargo[r[0]] = r[3]
+    for r in _query("SELECT LOWER(TRIM(icao24)), built FROM aircraft_icao24_db WHERE built IS NOT NULL"):
+        if r[0] and r[1]: built_by_icao[r[0]] = int(r[1])
+    for r in _query("SELECT code, is_cargo, is_charter, is_private, is_military FROM airlines"):
+        airlines_class[r[0]] = {"is_cargo": bool(r[1]), "is_charter": bool(r[2]), "is_private": bool(r[3]), "is_military": bool(r[4])}
 
-    # Carica i motori e i posti massimi da aircraft_models
-    motori = {}
-    max_pax = {}
-    try:
-        ok, rows = bgy_db.execute_query("SELECT model, motore, max_passeggeri FROM aircraft_models WHERE motore IS NOT NULL OR max_passeggeri IS NOT NULL")
-        if ok and rows:
-            for r in rows:
-                motori[r[0]] = r[1]
-                max_pax[r[0]] = r[2]
-    except Exception as e:
-        logger.warning(f"Impossibile caricare i motori: {e}")
+    rows = _query("""SELECT data_calendario, tipo_movimento, compagnia_aerea, modello_aereo, callsign, icao24, COUNT(*)
+                     FROM h24_reports WHERE data_calendario BETWEEN %s AND %s AND is_scheduled = TRUE
+                     AND modello_aereo IS NOT NULL AND modello_aereo NOT IN ('N/D', '')
+                     GROUP BY data_calendario, tipo_movimento, compagnia_aerea, modello_aereo, callsign, icao24""", (date_from, date_to))
 
-    # Carica la classificazione delle compagnie da airlines
-    airlines_class = {}
-    try:
-        ok, rows = bgy_db.execute_query("SELECT code, is_cargo, is_charter, is_private, is_military FROM airlines")
-        if ok and rows:
-            for r in rows:
-                airlines_class[r[0]] = {
-                    "is_cargo": bool(r[1]),
-                    "is_charter": bool(r[2]),
-                    "is_private": bool(r[3]),
-                    "is_military": bool(r[4]),
-                }
-    except Exception as e:
-        logger.warning(f"Impossibile caricare la classificazione delle compagnie: {e}")
-
-    sql = """
-        SELECT data_calendario, tipo_movimento, compagnia_aerea, modello_aereo, callsign, COUNT(*) as n
-        FROM h24_reports
-        WHERE data_calendario BETWEEN %s AND %s
-          AND is_scheduled = TRUE
-          AND modello_aereo IS NOT NULL
-          AND modello_aereo NOT IN ('N/D', '')
-        GROUP BY data_calendario, tipo_movimento, compagnia_aerea, modello_aereo, callsign
-    """
-    rows = _query(sql, (date_from, date_to))
-
-    result = {
-        "passeggeri": {"voli": []},
-        "cargo": {"voli": []},
-        "charter": {"voli": []}
-    }
-
-    def _cat_from_tipo(tipo):
-        t = str(tipo or "").strip().lower()
-        if t.startswith("passeggeri"): return "passeggeri"
-        if t.startswith("cargo"): return "cargo"
-        if t.startswith("charter") or t.startswith("privato") or t.startswith("militare"):
-            return "charter"
-        return None
-
-    def _cat_from_airline(comp, callsign):
-        # Cerca il prefisso del callsign nella mappa airlines_class
-        if callsign:
-            cs = callsign.strip().upper().replace(" ", "")
-            for prefix_len in (3, 2):
-                if len(cs) > prefix_len:
-                    prefix = cs[:prefix_len]
-                    if prefix in airlines_class:
-                        cls = airlines_class[prefix]
-                        if cls["is_military"]:
-                            return "charter"  # militari -> altri movimenti
-                        if cls["is_private"]:
-                            return "charter"  # privati -> altri movimenti
-                        if cls["is_cargo"]:
-                            return "cargo"
-                        if cls["is_charter"]:
-                            return "charter"
-        # Fallback: usa il tipo_movimento
-        return None
+    age_classes = ["0-5", "6-10", "11-15", "16-20", ">20", "N/D"]
+    age_by_month = {}
+    age_totals = {c: {k: 0 for k in age_classes} for c in ("all", "passeggeri", "cargo", "charter")}
+    known_f = total_f = 0
+    result = {"passeggeri": {"voli": []}, "cargo": {"voli": []}, "charter": {"voli": []}, "labels": {"passeggeri": "Voli di linea", "cargo": "Cargo", "charter": "Altri movimenti"}}
 
     for r in rows:
-        data_cal = _date_str(r[0])
-        tipo = r[1]
-        comp = r[2] or "N/D"
-        model = r[3]
-        callsign = r[4] or ""
-        n = int(r[5])
+        data_cal, tipo, comp, model, callsign, icao24, n = _date_str(r[0]), r[1], (r[2] or "N/D"), r[3], (r[4] or ""), str(r[5] or "").strip().lower(), int(r[6])
         parent = get_parent_company(callsign) if callsign else None
-        motore = motori.get(model, "N/D")
-        max_pax_val = max_pax.get(model) or 0
-        comp_l = str(comp or "").strip().lower()
-        # Prova prima con prefisso compagnia / airlines, poi con tipo_movimento
-        if comp_l.startswith("privato") or comp_l.startswith("militare"):
-            cat = "charter"
-        else:
-            cat = _cat_from_airline(comp, callsign)
+        motore, max_pax_val, max_cargo_val = motori.get(model, "N/D"), (max_pax.get(model) or 0), (max_cargo.get(model) or 0)
+        comp_l = str(comp).strip().lower()
+        cat = "charter" if (comp_l.startswith("privato") or comp_l.startswith("militare")) else None
+        if cat is None and callsign:
+            cs = callsign.strip().upper().replace(" ", "")
+            for plen in (3, 2):
+                if len(cs) > plen and cs[:plen] in airlines_class:
+                    cls = airlines_class[cs[:plen]]
+                    cat = "charter" if (cls["is_military"] or cls["is_private"] or cls["is_charter"]) else ("cargo" if cls["is_cargo"] else None)
+                    break
         if cat is None:
-            cat = _cat_from_tipo(tipo)
-        # Business jet / aerotaxi (<= 19 posti) non vanno mai nei voli passeggeri di linea
+            tl = str(tipo or "").strip().lower()
+            cat = "passeggeri" if tl.startswith("passeggeri") else ("cargo" if tl.startswith("cargo") else ("charter" if (tl.startswith("charter") or tl.startswith("privato") or tl.startswith("militare")) else None))
         if cat == "passeggeri" and 0 < max_pax_val <= 19:
             cat = "charter"
-        if cat is None or cat not in result:
+        if cat not in ("passeggeri", "cargo", "charter"):
             continue
-        for _ in range(n):
-            result[cat]["voli"].append({
-                "compagnia": comp,
-                "parent_company": parent,
-                "modello": model,
-                "motore": motore,
-                "max_passeggeri": max_pax_val,
-                "data": data_cal
-            })
 
-    logger.info(f"Fleet: passeggeri={len(result['passeggeri']['voli'])}, "
-                f"cargo={len(result['cargo']['voli'])}, "
-                f"charter+altri={len(result['charter']['voli'])}")
+        built_y = built_by_icao.get(icao24)
+        bucket = _age_bucket(built_y, int(data_cal[:4]) if data_cal else 2026)
+        total_f += n
+        if built_y: known_f += n
+        ym = data_cal[:7] if data_cal else "N/D"
+        m_acc = age_by_month.setdefault(ym, {k: {c: 0 for c in age_classes} for k in ("all", "passeggeri", "cargo", "charter")})
+        m_acc["all"][bucket] += n; m_acc[cat][bucket] += n
+        age_totals["all"][bucket] += n; age_totals[cat][bucket] += n
+        for _ in range(n):
+            result[cat]["voli"].append({"compagnia": comp, "parent_company": parent, "modello": model, "motore": motore, "max_passeggeri": max_pax_val, "max_carico_kg": max_cargo_val, "built": built_y, "data": data_cal})
+
+    cov_pct = round(100.0 * known_f / total_f, 1) if total_f > 0 else 0.0
+    result["age_trend"] = {"classes": age_classes, "by_month": [{"month": ym, **age_by_month[ym]} for ym in sorted(age_by_month.keys())], "totals": age_totals, "coverage": {"known_flights": known_f, "total_flights": total_f, "pct": cov_pct, "reliable": cov_pct >= 60.0}}
+    logger.info(f"Fleet: passeggeri={len(result['passeggeri']['voli'])}, cargo={len(result['cargo']['voli'])}, charter+altri={len(result['charter']['voli'])}, age_coverage={cov_pct}%")
     return result
 
 
@@ -1859,6 +1737,7 @@ def build_web_json(days=90):
 
     payload = {
         "generated_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+        "category_labels": CATEGORY_LABELS,
         "data_quality_warnings": warnings,
         "period": {"from": date_from, "to": date_to},
         "min_date_active": min_date,
@@ -1928,12 +1807,14 @@ def build_delays_json(days=90):
 
     payload = {
         "generated_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+        "category_labels": CATEGORY_LABELS,
         "data_quality_warnings": warnings,
         "period": {"from": date_from, "to": date_to},
         "min_date_active": min_date,
         "soglie": delays["soglie"],
         "by_date": delays["by_date"],
         "raw_delays": delays["raw_delays"],
+        "top_rankings": delays["top_rankings"],
         "block_delays_hourly_weather": hourly_weather
     }
 
