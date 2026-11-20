@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 858,A,Brindisi,00:00,,Estimated 00:00,Ryanair,BDS,15 Oct,avionio
+FR 2893,A,Catania,00:15,,Estimated 00:15,Ryanair,CTA,15 Oct,avionio
+FR 3505,A,Krakow/Balice,00:20,,Estimated 00:20,Ryanair,KRK,15 Oct,avionio
+FR 821,A,Lisbon,00:20,,Estimated 00:20,Ryanair,LIS,15 Oct,avionio
+FR 3656,A,Stockholm,00:25,,Estimated 01:13,Ryanair,ARN,15 Oct,avionio
+FR 3650,A,Paphos,00:30,,Estimated 01:51,Ryanair,PFO,15 Oct,avionio
+FR 5093,A,Lamezia Terme,00:35,,Estimated 00:35,Ryanair,SUF,15 Oct,avionio
+FR 8350,A,Tirana,00:55,,Estimated 00:34,Ryanair,TIA,15 Oct,avionio
+FR 3393,A,Helsinki,01:10,,Estimated 01:25,Ryanair,HEL,15 Oct,avionio
+FR 4131,A,Bari,01:10,,Estimated 01:10,Ryanair,BRI,15 Oct,avionio
+FR 4968,A,Palermo,01:10,,Estimated 01:11,Ryanair,PMO,15 Oct,avionio
+FR 6502,A,Olbia,01:10,,Estimated 01:10,Ryanair,OLB,15 Oct,avionio
+FR 2294,A,Pescara,01:15,,Estimated 01:15,Ryanair,PSR,15 Oct,avionio
+FR 3507,A,Alicante,01:15,,Estimated 01:14,Ryanair,ALC,15 Oct,avionio
+FR 7977,A,Kos,01:15,,Estimated 01:15,Ryanair,KGS,15 Oct,avionio
+JSF 298,A,Manchester,01:58,,Estimated,Jet Stream Charter,MAN,15 Oct,avionio
+DJ 6402,A,Cologne/Bonn,04:00,,Scheduled,Air Djibouti,CGN,15 Oct,avionio
+DJ 6498,A,Cologne/Bonn,05:15,,Scheduled,Air Djibouti,CGN,15 Oct,avionio
+FR 1852,A,Marseille,07:00,,Scheduled,Ryanair,MRS,15 Oct,avionio
+W4 3551,A,Timisoara,07:25,,Scheduled,Wizz Air Malta,TSR,15 Oct,avionio

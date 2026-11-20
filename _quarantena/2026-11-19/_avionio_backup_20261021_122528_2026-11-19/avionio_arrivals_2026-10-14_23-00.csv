@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+W6 4123,A,Belgrade,23:00,,Estimated 22:38,Wizz Air,BEG,14 Oct,avionio
+FR 5493,A,Madrid,23:05,,Estimated 23:00,Ryanair,MAD,14 Oct,avionio
+FR 4664,A,Valencia,23:10,,Estimated 23:07,Ryanair,VLC,14 Oct,avionio
+NO 3865,A,Sal Island,23:10,,Estimated 22:37,Neos,SID,14 Oct,avionio
+FR 1702,A,Nottingham,23:15,,Estimated 23:14,Ryanair,EMA,14 Oct,avionio
+FR 6847,A,Liverpool,23:15,,Estimated 23:02,Ryanair,LPL,14 Oct,avionio
+FR 3666,A,Naples,23:25,,Estimated 23:57,Ryanair,NAP,14 Oct,avionio
+FR 8802,A,Ibiza,23:35,,Estimated 23:27,Ryanair,IBZ,14 Oct,avionio
+FR 2255,A,Alghero,23:45,,Estimated 01:15,Ryanair,AHO,14 Oct,avionio
+FR 858,A,Brindisi,00:00,,Estimated 00:10,Ryanair,BDS,15 Oct,avionio
+FR 2893,A,Catania,00:15,,Estimated 00:15,Ryanair,CTA,15 Oct,avionio
+FR 3505,A,Krakow/Balice,00:20,,Estimated 00:20,Ryanair,KRK,15 Oct,avionio
+FR 821,A,Lisbon,00:20,,Estimated 00:20,Ryanair,LIS,15 Oct,avionio
+FR 3656,A,Stockholm,00:25,,Estimated 01:13,Ryanair,ARN,15 Oct,avionio
+FR 3650,A,Paphos,00:30,,Estimated 01:51,Ryanair,PFO,15 Oct,avionio
+FR 5093,A,Lamezia Terme,00:35,,Estimated 00:35,Ryanair,SUF,15 Oct,avionio
+FR 8350,A,Tirana,00:55,,Estimated 00:55,Ryanair,TIA,15 Oct,avionio
+FR 3393,A,Helsinki,01:10,,Estimated 01:43,Ryanair,HEL,15 Oct,avionio
+FR 4131,A,Bari,01:10,,Scheduled,Ryanair,BRI,15 Oct,avionio
+FR 4968,A,Palermo,01:10,,Estimated 01:10,Ryanair,PMO,15 Oct,avionio

@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 3142,D,Barcelona,06:00,,Departed 05:57,Ryanair,BCN,18 Oct,avionio
+FR 3200,D,Cagliari,06:00,,Estimated 05:57,Ryanair,CAG,18 Oct,avionio
+FR 5719,D,Barcelona,06:00,,Unknown,Ryanair,BCN,18 Oct,avionio
+FRA 5719,D,Barcelona,06:00,,Scheduled,Draken Europe,BCN,18 Oct,avionio
+FR 410,D,Luxembourg,06:05,,Estimated 06:08,Ryanair,LUX,18 Oct,avionio
+FR 8334,D,Ibiza,06:05,,Estimated 06:12,Ryanair,IBZ,18 Oct,avionio
+FR 5139,D,Faro,06:15,,Estimated 06:27,Ryanair,FAO,18 Oct,avionio
+FR 2878,D,Stockholm,06:30,,Estimated 06:42,Ryanair,ARN,18 Oct,avionio
+FR 3392,D,Helsinki,06:30,,Estimated 06:42,Ryanair,HEL,18 Oct,avionio
+FR 3400,D,Sofia,06:30,,Estimated 06:39,Ryanair,SOF,18 Oct,avionio
+FR 3528,D,Prague,06:35,,Estimated 06:47,Ryanair,PRG,18 Oct,avionio
+FR 2285,D,Naples,06:40,,Estimated 06:49,Ryanair,NAP,18 Oct,avionio
+FR 3154,D,Amman,06:45,,Cancelled,Ryanair,AMM,18 Oct,avionio
+MT 3140,D,Marsa Alam,06:50,,Estimated 07:01,Malta MedAir,RMF,18 Oct,avionio
+AP 3637,D,Sharm el-Sheikh,07:00,,Estimated 07:10,Alba Star.es,SSH,18 Oct,avionio
+FR 9050,D,Cork,07:15,,Scheduled,Ryanair,ORK,18 Oct,avionio
+FR 3460,D,Eindhoven,07:20,,Scheduled,Ryanair,EIN,18 Oct,avionio
+FR 8121,D,Tirana,07:30,,Scheduled,Ryanair,TIA,18 Oct,avionio
+FR 6054,D,Zagreb,07:40,,Scheduled,Ryanair,ZAG,18 Oct,avionio
+FR 4667,D,Bari,07:45,,Scheduled,Ryanair,BRI,18 Oct,avionio

@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 1532,A,Vienna,07:10,,Landed 06:49,Ryanair,VIE,21 Oct,avionio
+FR 5550,A,Cologne/Bonn,07:15,,Landed 07:04,Ryanair,CGN,21 Oct,avionio
+FR 2859,A,Brindisi,07:25,,Landed 07:10,Ryanair,BDS,21 Oct,avionio
+W4 3131,A,Bucharest,07:30,,Estimated 07:14,Wizz Air Malta,OTP,21 Oct,avionio
+FR 3409,A,Katowice,07:35,,Estimated 07:29,Ryanair,KTW,21 Oct,avionio
+W6 4351,A,Sofia,07:35,,Estimated 07:23,Wizz Air,SOF,21 Oct,avionio
+FR 4699,A,Trapani,07:40,,Estimated 07:26,Ryanair,TPS,21 Oct,avionio
+FR 6452,A,Palermo,07:45,,Estimated 07:16,Ryanair,PMO,21 Oct,avionio
+W4 3381,A,Cluj-Napoca,07:50,,Estimated 07:25,Wizz Air Malta,CLJ,21 Oct,avionio
+FR 2108,A,Budapest,08:00,,Estimated 07:41,Ryanair,BUD,21 Oct,avionio
+FR 5115,A,Lamezia Terme,08:00,,Estimated 07:43,Ryanair,SUF,21 Oct,avionio
+W6 1431,A,Warsaw,08:05,,Estimated 08:02,Wizz Air,WAW,21 Oct,avionio
+FR 1785,A,Copenhagen,08:55,,Estimated 14:00,Ryanair,CPH,21 Oct,avionio
+FR 3527,A,Prague,09:15,,Estimated 09:15,Ryanair,PRG,21 Oct,avionio
+FR 3201,A,Cagliari,09:20,,Estimated 09:20,Ryanair,CAG,21 Oct,avionio
+FR 2879,A,Stockholm,09:35,,Estimated 09:27,Ryanair,ARN,21 Oct,avionio
+FR 2670,A,Berlin,09:45,,Estimated 09:45,Ryanair,BER,21 Oct,avionio
+FR 4844,A,Dublin,09:45,,Estimated 09:44,Ryanair,DUB,21 Oct,avionio
+FR 2286,A,Naples,10:00,,Scheduled,Ryanair,NAP,21 Oct,avionio
+FR 889,A,Krakow/Balice,10:05,,Scheduled,Ryanair,KRK,21 Oct,avionio

@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+DJ 6498,D,Bologna,06:00,,Estimated 06:29,Air Djibouti,BLQ,20 Oct,avionio
+FR 2261,D,Catania,06:00,,Estimated 06:10,Ryanair,CTA,20 Oct,avionio
+FR 2878,D,Stockholm,06:00,,Estimated 06:12,Ryanair,ARN,20 Oct,avionio
+FR 1319,D,Athens,06:05,,Estimated 06:16,Ryanair,ATH,20 Oct,avionio
+FR 2992,D,Copenhagen,06:05,,Estimated 06:17,Ryanair,CPH,20 Oct,avionio
+FR 3200,D,Cagliari,06:05,,Estimated 06:17,Ryanair,CAG,20 Oct,avionio
+FR 461,D,Newcastle,06:15,,Estimated 06:27,Ryanair,NCL,20 Oct,avionio
+DJ 6402,D,Ancona,06:20,,Estimated 06:27,Air Djibouti,AOI,20 Oct,avionio
+FR 2285,D,Naples,06:30,,Estimated 06:43,Ryanair,NAP,20 Oct,avionio
+FR 2107,D,Budapest,06:40,,Estimated 06:52,Ryanair,BUD,20 Oct,avionio
+FR 2087,D,Lisbon,06:50,,Estimated 07:05,Ryanair,LIS,20 Oct,avionio
+FR 484,D,Duesseldorf,07:00,,Scheduled,Ryanair,NRN,20 Oct,avionio
+FR 6091,D,Gran Canaria,07:00,,Scheduled,Ryanair,LPA,20 Oct,avionio
+FR 497,D,Valencia,07:05,,Scheduled,Ryanair,VLC,20 Oct,avionio
+FR 3432,D,Paris,07:15,,Estimated 08:18,Ryanair,BVA,20 Oct,avionio
+FR 2669,D,Berlin,07:25,,Scheduled,Ryanair,BER,20 Oct,avionio
+FR 1533,D,Vienna,07:40,,Scheduled,Ryanair,VIE,20 Oct,avionio
+FR 4667,D,Bari,07:40,,Scheduled,Ryanair,BRI,20 Oct,avionio
+FR 4993,D,Kefallinia,07:45,,Estimated 08:37,Ryanair,EFL,20 Oct,avionio
+FR 3408,D,Katowice,07:55,,Scheduled,Ryanair,KTW,20 Oct,avionio

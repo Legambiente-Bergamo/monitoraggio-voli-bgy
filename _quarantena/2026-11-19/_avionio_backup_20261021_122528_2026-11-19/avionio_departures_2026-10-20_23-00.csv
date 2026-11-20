@@ -1,0 +1,22 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+A9 732,D,Tbilisi,23:00,,Estimated 23:10,Georgian Airways1,TBS,20 Oct,avionio
+RM 1732,D,Tbilisi,23:00,,Estimated 23:10,Aircompany Armenia,TBS,20 Oct,avionio
+FR 3413,D,Katowice,23:10,,Estimated 23:21,Ryanair,KTW,20 Oct,avionio
+FR 6054,D,Zagreb,23:20,,Estimated 23:46,Ryanair,ZAG,20 Oct,avionio
+FR 847,D,Barcelona,23:30,,Estimated 00:30,Ryanair,BCN,20 Oct,avionio
+W6 4124,D,Belgrade,23:35,,Estimated 23:45,Wizz Air,BEG,20 Oct,avionio
+FR 2830,D,Tenerife,05:45,,Scheduled,Ryanair,TFS,21 Oct,avionio
+FR 6178,D,Fuerteventura,05:45,,Scheduled,Ryanair,FUE,21 Oct,avionio
+FR 3402,D,Marrakech,05:50,,Scheduled,Ryanair,RAK,21 Oct,avionio
+FR 2669,D,Berlin,05:55,,Scheduled,Ryanair,BER,21 Oct,avionio
+FR 3200,D,Cagliari,05:55,,Scheduled,Ryanair,CAG,21 Oct,avionio
+FR 3273,D,Agadir,06:00,,Scheduled,Ryanair,AGA,21 Oct,avionio
+FR 3528,D,Prague,06:00,,Scheduled,Ryanair,PRG,21 Oct,avionio
+FR 2087,D,Lisbon,06:05,,Scheduled,Ryanair,LIS,21 Oct,avionio
+FR 4631,D,Valencia,06:05,,Scheduled,Ryanair,VLC,21 Oct,avionio
+FR 8334,D,Ibiza,06:05,,Scheduled,Ryanair,IBZ,21 Oct,avionio
+FR 888,D,Krakow/Balice,06:10,,Scheduled,Ryanair,KRK,21 Oct,avionio
+FR 9890,D,Lodz,06:20,,Scheduled,Ryanair,LCJ,21 Oct,avionio
+FR 2285,D,Naples,06:45,,Scheduled,Ryanair,NAP,21 Oct,avionio
+FR 6304,D,Barcelona,06:45,,Scheduled,Ryanair,BCN,21 Oct,avionio
+FR 4042,D,Porto,06:50,,Scheduled,Ryanair,OPO,21 Oct,avionio

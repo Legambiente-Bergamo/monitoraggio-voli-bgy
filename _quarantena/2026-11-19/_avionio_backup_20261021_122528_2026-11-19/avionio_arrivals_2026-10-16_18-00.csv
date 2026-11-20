@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 4041,A,Porto,18:00,,Estimated 21:35,Ryanair,OPO,16 Oct,avionio
+FR 3201,A,Cagliari,18:05,,Estimated 01:25,Ryanair,CAG,16 Oct,avionio
+FR 3529,A,Prague,18:05,,Estimated 18:05,Ryanair,PRG,16 Oct,avionio
+FR 3660,A,Brussels,18:25,,Estimated 21:00,Ryanair,CRL,16 Oct,avionio
+FR 8799,A,Ibiza,18:35,,Estimated 20:40,Ryanair,IBZ,16 Oct,avionio
+FR 4401,A,Heraklion,18:45,,Estimated 18:45,Ryanair,HER,16 Oct,avionio
+FR 6502,A,Olbia,18:50,,Estimated 18:50,Ryanair,OLB,16 Oct,avionio
+FR 1852,A,Marseille,18:55,,Estimated 20:30,Ryanair,MRS,16 Oct,avionio
+FR 4699,A,Trapani,19:05,,Estimated 21:40,Ryanair,TPS,16 Oct,avionio
+FR 4202,A,Rhodes,19:10,,Estimated 19:10,Ryanair,RHO,16 Oct,avionio
+FR 2887,A,Catania,19:15,,Estimated 01:30,Ryanair,CTA,16 Oct,avionio
+FR 4632,A,Valencia,19:20,,Estimated 19:20,Ryanair,VLC,16 Oct,avionio
+3F247,A,Yerevan,19:25,,Estimated 20:27,FLYONE Armenia,EVN,16 Oct,avionio
+FR 5112,A,Crotone,19:40,,Cancelled,Ryanair,CRV,16 Oct,avionio
+FR 2859,A,Brindisi,19:55,,Estimated 19:55,Ryanair,BDS,16 Oct,avionio
+W4 3771,A,Craiova,19:55,,Scheduled,Wizz Air Malta,CRA,16 Oct,avionio
+W6 1433,A,Warsaw,20:05,,Estimated,Wizz Air,WAW,16 Oct,avionio
+FR 7977,A,Kos,20:10,,Estimated 20:10,Ryanair,KGS,16 Oct,avionio
+FR 4236,A,Vilnius,20:20,,Estimated 20:20,Ryanair,VNO,16 Oct,avionio
+FR 4474,A,Brussels,20:30,,Estimated 20:30,Ryanair,CRL,16 Oct,avionio

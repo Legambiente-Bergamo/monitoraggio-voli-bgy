@@ -1,0 +1,23 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+DJ 6402,A,Cologne/Bonn,03:50,,Estimated,Air Djibouti,CGN,20 Oct,avionio
+DJ 6498,A,Cologne/Bonn,05:10,,Scheduled,Air Djibouti,CGN,20 Oct,avionio
+FR 1532,A,Vienna,07:15,,Scheduled,Ryanair,VIE,20 Oct,avionio
+FR 4668,A,Bari,07:15,,Scheduled,Ryanair,BRI,20 Oct,avionio
+DN 421,A,Bacau,07:20,,Scheduled,Dan Air2,BCM,20 Oct,avionio
+A1 5244,A,Bacau,07:20,,Scheduled,A.P.G. Distribution System,BCM,20 Oct,avionio
+X1 1505,A,Bacau,07:20,,Scheduled,Hahn Air,BCM,20 Oct,avionio
+FR 3409,A,Katowice,07:30,,Scheduled,Ryanair,KTW,20 Oct,avionio
+W4 3671,A,Iasi,07:30,,Scheduled,Wizz Air Malta,IAS,20 Oct,avionio
+FR 3594,A,Poznan,07:35,,Scheduled,Ryanair,POZ,20 Oct,avionio
+W6 4351,A,Sofia,07:35,,Scheduled,Wizz Air,SOF,20 Oct,avionio
+FR 6148,A,Palermo,07:40,,Scheduled,Ryanair,PMO,20 Oct,avionio
+FR 9197,A,Trapani,07:40,,Scheduled,Ryanair,TPS,20 Oct,avionio
+FR 4522,A,Brussels,08:00,,Scheduled,Ryanair,CRL,20 Oct,avionio
+W6 1431,A,Warsaw,08:00,,Scheduled,Wizz Air,WAW,20 Oct,avionio
+FR 2871,A,Vilnius,08:25,,Scheduled,Ryanair,VNO,20 Oct,avionio
+FR 1852,A,Marseille,08:35,,Scheduled,Ryanair,MRS,20 Oct,avionio
+FR 5121,A,Madrid,08:35,,Scheduled,Ryanair,MAD,20 Oct,avionio
+FR 2294,A,Pescara,08:45,,Scheduled,Ryanair,PSR,20 Oct,avionio
+FR 2699,A,Alghero,08:50,,Scheduled,Ryanair,AHO,20 Oct,avionio
+FR 2738,A,London,08:50,,Scheduled,Ryanair,STN,20 Oct,avionio
+FR 3449,A,Brindisi,09:10,,Scheduled,Ryanair,BDS,20 Oct,avionio

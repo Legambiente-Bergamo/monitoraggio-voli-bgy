@@ -1,0 +1,22 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 3433,A,Paris,10:00,,Estimated 10:00,Ryanair,BVA,16 Oct,avionio
+FR 2879,A,Stockholm,10:05,,Estimated 10:15,Ryanair,ARN,16 Oct,avionio
+FR 2294,A,Pescara,10:10,,Estimated 10:10,Ryanair,PSR,16 Oct,avionio
+FR 2696,A,London,10:10,,Estimated 10:20,Ryanair,STN,16 Oct,avionio
+FR 3461,A,Eindhoven,10:20,,Estimated 10:20,Ryanair,EIN,16 Oct,avionio
+FR 7325,A,Malta,10:30,,Estimated 13:52,Ryanair,MLA,16 Oct,avionio
+FR 4651,A,Trapani,10:35,,Estimated 10:35,Ryanair,TPS,16 Oct,avionio
+FR 496,A,Valencia,10:40,,Estimated 10:41,Ryanair,VLC,16 Oct,avionio
+PC 1211,A,Istanbul,10:40,,Estimated 11:13,Pegasus1,SAW,16 Oct,avionio
+AZ 7051,A,Istanbul,10:40,,Estimated 11:13,ITA Airways,SAW,16 Oct,avionio
+FR 2262,A,Catania,10:50,,Estimated 13:47,Ryanair,CTA,16 Oct,avionio
+FR 3646,A,Edinburgh,10:50,,Estimated 10:50,Ryanair,EDI,16 Oct,avionio
+FR 2670,A,Berlin,11:00,,Estimated 13:25,Ryanair,BER,16 Oct,avionio
+E5 542,A,Cairo,11:25,,Estimated 11:31,Air Arabia Egypt,CAI,16 Oct,avionio
+FR 260,A,Bucharest,11:30,,Estimated 14:38,Ryanair,OTP,16 Oct,avionio
+FR 2871,A,Vilnius,11:35,,Estimated 11:35,Ryanair,VNO,16 Oct,avionio
+FR 8120,A,Tirana,11:35,,Estimated 11:35,Ryanair,TIA,16 Oct,avionio
+VF 61,A,Istanbul,11:45,,Estimated 11:45,Ajet,SAW,16 Oct,avionio
+FR 2429,A,Sarajevo,11:55,,Estimated 11:55,Ryanair,SJJ,16 Oct,avionio
+FR 5140,A,Faro,12:00,,Estimated 11:48,Ryanair,FAO,16 Oct,avionio
+FR 9428,A,Dublin,12:00,,Estimated 12:00,Ryanair,DUB,16 Oct,avionio

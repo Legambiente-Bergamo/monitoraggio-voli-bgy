@@ -1,0 +1,22 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 1904,A,Nowy Dwor Mazowiecki,14:10,,Estimated 13:55,Ryanair,WMI,20 Oct,avionio
+FR 8192,A,Vienna,14:20,,Estimated 14:24,Ryanair,VIE,20 Oct,avionio
+FRF 130,A,Oostende/Brugge,14:20,,Estimated 14:19,Fleet Air International,OST,20 Oct,avionio
+FR 2650,A,Malaga,14:35,,Estimated 15:07,Ryanair,AGP,20 Oct,avionio
+FR 411,A,Luxembourg,14:40,,Estimated 14:50,Ryanair,LUX,20 Oct,avionio
+FR 5981,A,Toulouse,14:40,,Estimated 14:40,Ryanair,TLS,20 Oct,avionio
+FR 8422,A,Tirana,14:40,,Estimated 14:29,Ryanair,TIA,20 Oct,avionio
+FR 3481,A,Cagliari,15:05,,Estimated 15:05,Ryanair,CAG,20 Oct,avionio
+FR 9240,A,Lublin,15:05,,Estimated 15:05,Ryanair,LUZ,20 Oct,avionio
+FR 3507,A,Alicante,15:10,,Estimated 15:10,Ryanair,ALC,20 Oct,avionio
+W4 5017,A,Tirana,15:10,,Estimated,Wizz Air Malta,TIA,20 Oct,avionio
+FR 6502,A,Olbia,15:15,,Estimated 15:15,Ryanair,OLB,20 Oct,avionio
+FR 3562,A,Naples,15:25,,Estimated 17:25,Ryanair,NAP,20 Oct,avionio
+FR 260,A,Bucharest,15:30,,Estimated 15:24,Ryanair,OTP,20 Oct,avionio
+FR 858,A,Brindisi,15:40,,Estimated 17:35,Ryanair,BDS,20 Oct,avionio
+FR 3560,A,Bristol,15:45,,Estimated 15:45,Ryanair,BRS,20 Oct,avionio
+FR 1747,A,Knock,15:55,,Estimated 15:50,Ryanair,NOC,20 Oct,avionio
+GH 1201,A,Turkmenabat,16:00,,Estimated 16:01,Georgian Airlines,CRZ,20 Oct,avionio
+FR 6090,A,Gran Canaria,16:10,,Estimated 16:45,Ryanair,LPA,20 Oct,avionio
+PC 1213,A,Istanbul,16:10,,Estimated,Pegasus1,SAW,20 Oct,avionio
+AZ 7053,A,Istanbul,16:10,,Estimated,ITA Airways,SAW,20 Oct,avionio

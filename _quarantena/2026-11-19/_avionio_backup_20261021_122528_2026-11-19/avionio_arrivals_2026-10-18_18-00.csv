@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+BZ 154,A,Tel Aviv-Yafo,18:10,,Unknown,Blue Bird Airways,TLV,18 Oct,avionio
+FR 2871,A,Vilnius,18:10,,Estimated 17:52,Ryanair,VNO,18 Oct,avionio
+FR 2290,A,Palermo,18:15,,Estimated 18:55,Ryanair,PMO,18 Oct,avionio
+FR 5406,A,Prague,18:25,,Estimated 18:25,Ryanair,PRG,18 Oct,avionio
+FR 1318,A,Athens,18:35,,Estimated 19:03,Ryanair,ATH,18 Oct,avionio
+FR 4637,A,Porto,18:55,,Estimated 18:46,Ryanair,OPO,18 Oct,avionio
+FR 3562,A,Naples,19:05,,Estimated 19:05,Ryanair,NAP,18 Oct,avionio
+FR 3113,A,Iasi,19:15,,Estimated 18:52,Ryanair,IAS,18 Oct,avionio
+FR 2865,A,Brindisi,19:20,,Estimated 19:20,Ryanair,BDS,18 Oct,avionio
+3F247,A,Yerevan,19:25,,Estimated 19:27,FLYONE Armenia,EVN,18 Oct,avionio
+D8 2940,A,Helsinki,19:30,,Estimated 19:45,Norwegian Air Sweden AOC,HEL,18 Oct,avionio
+FR 3538,A,Eindhoven,19:45,,Scheduled,Ryanair,EIN,18 Oct,avionio
+XZ 2222,A,Foggia,19:45,,Scheduled,Aeroitalia,FOG,18 Oct,avionio
+FR 7360,A,Vienna,19:50,,Estimated 19:50,Ryanair,VIE,18 Oct,avionio
+FR 9891,A,Lodz,19:55,,Estimated 19:55,Ryanair,LCJ,18 Oct,avionio
+W4 3771,A,Craiova,19:55,,Scheduled,Wizz Air Malta,CRA,18 Oct,avionio
+W6 1433,A,Warsaw,20:05,,Estimated,Wizz Air,WAW,18 Oct,avionio
+FR 6174,A,Catania,20:20,,Estimated 20:20,Ryanair,CTA,18 Oct,avionio
+FR 3500,A,Paris,20:25,,Estimated 20:25,Ryanair,BVA,18 Oct,avionio
+NP 221,A,Cairo,20:30,,Estimated 20:21,Nile Air,CAI,18 Oct,avionio

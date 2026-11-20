@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 2739,D,London,14:10,,Estimated 14:22,Ryanair,STN,14 Oct,avionio
+FR 4667,D,Bari,14:15,,Estimated 15:12,Ryanair,BRI,14 Oct,avionio
+FR 5139,D,Faro,14:15,,Estimated 14:30,Ryanair,FAO,14 Oct,avionio
+FR 3450,D,Tangier,14:25,,Estimated 14:45,Ryanair,TNG,14 Oct,avionio
+FR 1903,D,Nowy Dwor Mazowiecki,14:30,,Estimated 15:18,Ryanair,WMI,14 Oct,avionio
+FR 2289,D,Palermo,14:30,,Estimated 15:14,Ryanair,PMO,14 Oct,avionio
+FR 3645,D,Edinburgh,14:30,,Estimated 14:42,Ryanair,EDI,14 Oct,avionio
+FR 3112,D,Iasi,14:45,,Scheduled,Ryanair,IAS,14 Oct,avionio
+FR 3530,D,Prague,14:55,,Scheduled,Ryanair,PRG,14 Oct,avionio
+FR 9095,D,Gdansk,14:55,,Scheduled,Ryanair,GDN,14 Oct,avionio
+FR 8193,D,Vienna,15:15,,Estimated 15:37,Ryanair,VIE,14 Oct,avionio
+W4 3772,D,Craiova,15:20,,Scheduled,Wizz Air Malta,CRA,14 Oct,avionio
+FR 5531,D,Cologne/Bonn,15:30,,Scheduled,Ryanair,CGN,14 Oct,avionio
+FR 5655,D,Palma de Mallorca,15:35,,Scheduled,Ryanair,PMI,14 Oct,avionio
+W4 5018,D,Tirana,15:45,,Scheduled,Wizz Air Malta,TIA,14 Oct,avionio
+FR 1417,D,Lamezia Terme,15:55,,Scheduled,Ryanair,SUF,14 Oct,avionio
+FR 5108,D,Lourdes/Tarbes,16:00,,Scheduled,Ryanair,LDE,14 Oct,avionio
+FR 5113,D,Crotone,16:05,,Scheduled,Ryanair,CRV,14 Oct,avionio
+FR 219,D,Alicante,16:15,,Scheduled,Ryanair,ALC,14 Oct,avionio
+FR 4037,D,Dublin,16:15,,Scheduled,Ryanair,DUB,14 Oct,avionio

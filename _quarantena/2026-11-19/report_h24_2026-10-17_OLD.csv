@@ -1,0 +1,494 @@
+﻿data_calendario,callsign,tipo_movimento,direzione_sacbo,fonte_scheduled,destinazione_finale,stato_destinazione,compagnia_aerea,modello_aereo,orario_schedulato,timestamp,pista,pista_fonte,fase_volo,direzione,quota_ft,rotta_deg,distanza_km,paese,matched_score,icao24,stima_passeggeri,stima_rumore_db,is_scheduled,logic_version
+2026-10-17,FR2990,Passeggeri,D,sacbo,COPENHAGEN,Danimarca,Ryanair,Boeing 737-800,22:55,2026-10-17 00:00,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR9051,Passeggeri,A,sacbo,CORK,Irlanda,Ryanair,Boeing 737-800,00:00,2026-10-17 00:00:49,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,1125,284.96,4.91,N/D,100,4ca8d8,148,83.5,True,1.0.15
+2026-10-17,FR2893,Passeggeri,A,sacbo,CATANIA,Italia,Ryanair,Boeing 737-800,00:15,2026-10-17 00:03:07,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,625,284.52,1.83,Ireland,100,4ca8d8,148,91.6,True,1.0.15
+2026-10-17,NIA222,Passeggeri (radar),D,,N/D,DA CLASSIFICARE,Nile Air,N/D,,2026-10-17 00:06:10,RWY 10,radar_diretto,Decollo,Ovest -> Est,4750,112.34,7.37,N/D,0,01028f,0,0.0,False,1.0.15
+2026-10-17,RYR6CM,Passeggeri (radar),D,,N/D,DA CLASSIFICARE,Ryanair,Boeing 737-800,,2026-10-17 00:06:10,RWY 28,geometrico,Decollo,Rotta 232.2°,1925,232.21,3.24,N/D,0,48c220,166,84.4,False,1.0.15
+2026-10-17,FR4132,Passeggeri,D,sacbo,BARI,Italia,Ryanair,Boeing 737-800,21:35,2026-10-17 00:08,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,RYR9408,Passeggeri (radar),D,,N/D,DA CLASSIFICARE,Ryanair,Boeing 737-800,,2026-10-17 00:09:28,RWY 28,radar_diretto,Decollo,Est -> Ovest,1425,259.75,2.4,N/D,0,4ca808,166,85.1,False,1.0.15
+2026-10-17,FR3535,Passeggeri,D,sacbo,KRAKOW,Polonia,Ryanair,Boeing 737-800,23:00,2026-10-17 00:10,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,RYR50UT,Passeggeri (radar),D,,N/D,DA CLASSIFICARE,Ryanair,Boeing 737-800,,2026-10-17 00:11:41,RWY 28,propagato,Decollo,Rotta 227.1°,2675,227.07,4.53,N/D,0,4d251d,166,84.6,False,1.0.15
+2026-10-17,FR8355,Passeggeri,D,sacbo,TIRANA,Albania,Ryanair,Boeing 737-800,23:10,2026-10-17 00:15,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,RYR5984,Passeggeri (radar),D,,N/D,DA CLASSIFICARE,Ryanair,Boeing 737-800,,2026-10-17 00:15:52,N/D,N/D,Decollo,Rotta 224.3°,3025,224.32,5.05,N/D,0,4ca61e,166,83.3,False,1.0.15
+2026-10-17,RYR4AY,Passeggeri (radar),D,,N/D,DA CLASSIFICARE,Ryanair,Boeing 737-800,,2026-10-17 00:16:58,RWY 28,radar_diretto,Decollo,Est -> Ovest,1450,266.05,2.19,N/D,0,48c135,166,87.0,False,1.0.15
+2026-10-17,RYR1KW,Passeggeri (radar),D,,N/D,DA CLASSIFICARE,Ryanair,Boeing 737-800,,2026-10-17 00:19:00,RWY 28,propagato,Decollo,Rotta 224.1°,2825,224.07,4.62,N/D,0,4cae68,166,85.1,False,1.0.15
+2026-10-17,FR6991,Passeggeri,D,sacbo,RABAT,Marocco,Ryanair,Boeing 737-800,22:10,2026-10-17 00:22,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,RYR7HH,Passeggeri (radar),D,,N/D,DA CLASSIFICARE,Ryanair,Boeing 737-800,,2026-10-17 00:23:06,RWY 28,geometrico,Decollo,Rotta 249.2°,1675,249.17,2.67,N/D,0,48c1a6,166,82.1,False,1.0.15
+2026-10-17,FR1318,Passeggeri,A,sacbo,ATHENS,Grecia,Ryanair,Boeing 737-800,00:15,2026-10-17 00:24:07,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1950,284.95,9.65,N/D,100,4cae48,148,66.5,True,1.0.15
+2026-10-17,RYR46YA,Passeggeri (radar),D,,N/D,DA CLASSIFICARE,Ryanair,Boeing 737-800,,2026-10-17 00:25:08,RWY 28,geometrico,Decollo,Rotta 225.2°,3075,225.24,4.61,N/D,0,4ca97a,166,84.6,False,1.0.15
+2026-10-17,RYR4BN,Passeggeri (radar),D,,N/D,DA CLASSIFICARE,Ryanair,Boeing 737-800,,2026-10-17 00:29:12,RWY 28,propagato,Decollo,Rotta 225.0°,2850,225.0,4.83,N/D,0,4d236c,166,84.1,False,1.0.15
+2026-10-17,RYR2DL,Passeggeri (radar),D,,N/D,DA CLASSIFICARE,Ryanair,Boeing 737-800,,2026-10-17 00:34:19,RWY 28,geometrico,Decollo,Rotta 222.9°,2700,222.95,4.5,N/D,0,48c2b2,166,86.0,False,1.0.15
+2026-10-17,RYR63TC,Passeggeri (radar),D,,N/D,DA CLASSIFICARE,Ryanair,Boeing 737-800,,2026-10-17 00:45:37,RWY 28,geometrico,Decollo,Rotta 223.9°,2825,223.89,4.25,N/D,0,4ca9ec,166,86.2,False,1.0.15
+2026-10-17,FR3113,Passeggeri,A,sacbo,IASI,Romania,Ryanair,Boeing 737-800,00:35,2026-10-17 00:51:45,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1925,285.64,9.56,N/D,100,4d234d,148,66.7,True,1.0.15
+2026-10-17,WZZ6255,Passeggeri (radar),A,,N/D,DA CLASSIFICARE,Wizz Air,Airbus A320-200,,2026-10-17 00:51:45,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,675,285.0,2.26,N/D,0,471d72,149,86.7,False,1.0.15
+2026-10-17,MT3144,Passeggeri,A,sacbo,MARSA ALAM/SHARM EL SHEIKH,Egitto,Malta Air,N/D,00:20,2026-10-17 00:52,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,0,0.0,True,1.0.15
+2026-10-17,FR4659,Passeggeri,A,sacbo,BARI,Italia,Ryanair,Boeing 737-800,00:40,2026-10-17 00:53:47,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,925,284.29,3.73,N/D,100,4d234d,148,86.9,True,1.0.15
+2026-10-17,FR858,Passeggeri,A,sacbo,BRINDISI,Italia,Ryanair,Boeing 737-800,00:40,2026-10-17 00:54:48,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1775,285.35,8.64,N/D,100,4ca24e,148,68.8,True,1.0.15
+2026-10-17,RYR79WD,Passeggeri (radar),D,,N/D,DA CLASSIFICARE,Ryanair,Boeing 737-800,,2026-10-17 00:55:49,RWY 28,radar_diretto,Decollo,Est -> Ovest,975,285.26,0.96,N/D,0,48c123,166,90.3,False,1.0.15
+2026-10-17,FR4968,Passeggeri,A,sacbo,PALERMO,Italia,Ryanair,Boeing 737-800,00:55,2026-10-17 00:56:50,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,950,284.8,3.78,N/D,100,4ca24e,148,87.3,True,1.0.15
+2026-10-17,FR2734,Passeggeri,A,sacbo,LONDON STANSTED,Regno Unito,Ryanair,Boeing 737-800,00:55,2026-10-17 00:59:55,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,625,284.62,1.86,Ireland,100,4ca24e,148,91.3,True,1.0.15
+2026-10-17,FR5999,Passeggeri,D,sacbo,ZAGREB,Croazia,Ryanair,Boeing 737-800,23:05,2026-10-17 01:00,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR3403,Passeggeri,A,sacbo,MARRAKECH,Marocco,Ryanair,Boeing 737-800,01:00,2026-10-17 01:03:02,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1875,284.59,9.21,N/D,100,4cae51,148,67.3,True,1.0.15
+2026-10-17,FR4637,Passeggeri,A,sacbo,PORTO,Portogallo,Ryanair,Boeing 737-800,01:05,2026-10-17 01:05:04,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,925,284.78,3.7,N/D,100,4cae51,148,87.1,True,1.0.15
+2026-10-17,FR858,Passeggeri,A,sacbo,BRINDISI,Italia,Ryanair,Boeing 737-800,00:30,2026-10-17 01:06:05,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1600,285.0,7.61,N/D,100,4cadbd,148,72.2,True,1.0.15
+2026-10-17,FR4549,Passeggeri,A,sacbo,CHANIA-CRETA,Grecia,Ryanair,Boeing 737-800,01:10,2026-10-17 01:08:10,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,600,284.22,1.85,Ireland,100,4cadbd,148,91.3,True,1.0.15
+2026-10-17,FR265,Passeggeri,A,sacbo,FUERTEVENTURA,Spagna,Ryanair,Boeing 737-800,01:10,2026-10-17 01:08:10,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,625,285.01,1.93,Ireland,100,4cae51,148,90.7,True,1.0.15
+2026-10-17,RYR63AB,Passeggeri (radar),D,,N/D,DA CLASSIFICARE,Ryanair,Boeing 737-800,,2026-10-17 01:10:18,RWY 28,radar_diretto,Decollo,Est -> Ovest,2575,283.33,4.1,N/D,0,4ca8d8,166,87.3,False,1.0.15
+2026-10-17,FR6305,Passeggeri,A,sacbo,BARCELONA EL PRAT,Spagna,Ryanair,Boeing 737-800,01:10,2026-10-17 01:12:21,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,600,284.22,1.85,Ireland,100,4cadbd,148,91.3,True,1.0.15
+2026-10-17,FR8512,Passeggeri,A,sacbo,BENI MELLAL,Marocco,Ryanair,Boeing 737-800,01:15,2026-10-17 01:14:23,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1400,284.86,6.44,N/D,100,4ca741,148,76.0,True,1.0.15
+2026-10-17,FR2893,Passeggeri,A,sacbo,CATANIA,Italia,Ryanair,Boeing 737-800,01:15,2026-10-17 01:17:29,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,600,284.8,1.87,Ireland,100,4ca741,148,91.4,True,1.0.15
+2026-10-17,RYR7EK,Passeggeri (radar),D,,N/D,DA CLASSIFICARE,Ryanair,Boeing 737-800,,2026-10-17 01:18:30,N/D,N/D,Decollo,Rotta 227.2°,2950,227.17,5.03,N/D,0,4cae48,166,82.6,False,1.0.15
+2026-10-17,FR6502,Passeggeri,A,sacbo,OLBIA,Italia,Ryanair,Boeing 737-800,00:35,2026-10-17 01:21:33,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1500,285.22,7.03,N/D,100,4ca769,148,74.1,True,1.0.15
+2026-10-17,FR3438,Passeggeri,A,sacbo,SOFIA,Bulgaria,Ryanair,Boeing 737-800,00:40,2026-10-17 01:23:37,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,600,284.88,1.89,Ireland,100,4ca769,148,91.2,True,1.0.15
+2026-10-17,FR6090,Passeggeri,A,sacbo,GRAN CANARIA,Spagna,Ryanair,Boeing 737-800,00:45,2026-10-17 01:25:43,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,600,284.88,1.89,Ireland,100,4ca769,148,91.2,True,1.0.15
+2026-10-17,FR8799,Passeggeri,A,sacbo,IBIZA,Spagna,Ryanair,Boeing 737-800,00:45,2026-10-17 01:27:49,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,600,284.88,1.89,Ireland,100,4ca769,148,91.2,True,1.0.15
+2026-10-17,FR5935,Passeggeri,A,sacbo,DUBROVNIK,Croazia,Ryanair,Boeing 737-800,00:55,2026-10-17 01:33:02,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1325,283.36,8.61,N/D,100,4ca301,148,68.8,True,1.0.15
+2026-10-17,FR4131,Passeggeri,A,sacbo,BARI,Italia,Ryanair,Boeing 737-800,01:00,2026-10-17 01:42:27,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1275,285.05,5.68,N/D,100,4cae4b,148,78.8,True,1.0.15
+2026-10-17,FR4968,Passeggeri,A,sacbo,PALERMO,Italia,Ryanair,Boeing 737-800,01:05,2026-10-17 01:44:29,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1250,284.91,5.54,N/D,100,4ca264,148,79.7,True,1.0.15
+2026-10-17,FR3439,Passeggeri,A,sacbo,LAMEZIA,Italia,Ryanair,Boeing 737-800,01:10,2026-10-17 01:46:33,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,600,284.6,1.84,Ireland,100,4cae4b,148,91.6,True,1.0.15
+2026-10-17,FR4632,Passeggeri,A,sacbo,VALENCIA,Spagna,Ryanair,Boeing 737-800,01:15,2026-10-17 01:46:33,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,625,285.0,1.94,Ireland,100,4ca264,148,90.6,True,1.0.15
+2026-10-17,FR4651,Passeggeri,A,sacbo,TRAPANI,Italia,Ryanair,Boeing 737-800,01:15,2026-10-17 01:48:39,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,625,285.0,1.94,Ireland,100,4ca264,148,90.6,True,1.0.15
+2026-10-17,RYR56VF,Passeggeri (radar),A,,Malta,Malta,Ryanair,Boeing 737-800,,2026-10-17 01:53:48,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,625,285.26,1.94,Malta,0,4d24cc,166,90.7,False,1.0.15
+2026-10-17,3O457,Passeggeri,A,sacbo,CASABLANCA,Marocco,Air Arabia Maroc,Airbus A320-200,01:55,2026-10-17 01:55,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,144,0.0,True,1.0.15
+2026-10-17,WZZ6579,Passeggeri (radar),D,,N/D,DA CLASSIFICARE,Wizz Air,Airbus A320-200,,2026-10-17 01:55:50,RWY 10,propagato,Decollo,Rotta 241.5°,2200,241.52,3.62,N/D,0,471d72,149,80.6,False,1.0.15
+2026-10-17,RYR583Z,Passeggeri (radar),D,,N/D,DA CLASSIFICARE,Ryanair,Boeing 737-800,,2026-10-17 01:58:55,RWY 28,radar_diretto,Decollo,Est -> Ovest,1675,262.1,2.48,N/D,0,4ca24e,166,85.0,False,1.0.15
+2026-10-17,RYR52TC,Passeggeri (radar),A,,Malta,Malta,Ryanair,Boeing 737-800,,2026-10-17 02:06:14,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,600,284.84,1.88,Malta,0,4d24ea,166,91.3,False,1.0.15
+2026-10-17,RYR6MJ,Passeggeri (radar),A,,Malta,Malta,Ryanair,Boeing 737-800,,2026-10-17 02:06:14,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,625,284.88,1.87,Malta,0,4d2384,166,91.3,False,1.0.15
+2026-10-17,RYR18AE,Passeggeri (radar),D,,N/D,DA CLASSIFICARE,Ryanair,Boeing 737-800,,2026-10-17 02:07:15,RWY 28,radar_diretto,Decollo,Est -> Ovest,1025,285.06,1.19,N/D,0,4cadbd,166,92.1,False,1.0.15
+2026-10-17,RYR3N,Passeggeri (radar),D,,N/D,DA CLASSIFICARE,Ryanair,Boeing 737-800,,2026-10-17 02:13:29,RWY 28,radar_diretto,Decollo,Est -> Ovest,2900,284.59,3.91,N/D,0,4ca769,166,87.2,False,1.0.15
+2026-10-17,RYR765L,Passeggeri (radar),A,,Ireland,Irlanda,Ryanair,Boeing 737-800,,2026-10-17 02:15:32,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,600,284.6,1.86,Ireland,0,4ca226,166,91.4,False,1.0.15
+2026-10-17,RYR2325,Passeggeri (radar),D,,N/D,DA CLASSIFICARE,Ryanair,Boeing 737-800,,2026-10-17 02:37:26,RWY 10,radar_diretto,Decollo,Ovest -> Est,4950,108.1,8.67,N/D,0,4cae4b,166,79.5,False,1.0.15
+2026-10-17,RYR13PK,Passeggeri (radar),A,,Ireland,Irlanda,Ryanair,Boeing 737-800,,2026-10-17 02:43:35,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,600,285.22,1.84,Ireland,0,4cae58,166,91.8,False,1.0.15
+2026-10-17,3O458,Passeggeri,D,sacbo,D CASABLANCA,Marocco,Air Arabia Maroc,Airbus A320-200,02:45,2026-10-17 02:45,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,144,0.0,True,1.0.15
+2026-10-17,RYR7RD,Passeggeri (radar),A,,Ireland,Irlanda,Ryanair,Boeing 737-800,,2026-10-17 02:57:59,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,625,285.08,1.84,Ireland,0,4ca2bf,166,91.7,False,1.0.15
+2026-10-17,RYR86JJ,Passeggeri (radar),A,,Malta,Malta,Ryanair,Boeing 737-800,,2026-10-17 02:57:59,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,625,284.8,1.83,Malta,0,4d234b,166,91.7,False,1.0.15
+2026-10-17,RYR8ZZ,Passeggeri (radar),A,,N/D,DA CLASSIFICARE,Ryanair,Boeing 737-800,,2026-10-17 03:01:04,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1625,285.07,7.65,N/D,0,4caf29,166,72.1,False,1.0.15
+2026-10-17,RYR4HB,Passeggeri (radar),A,,Ireland,Irlanda,Ryanair,Boeing 737-800,,2026-10-17 03:10:20,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,625,284.91,1.9,Ireland,0,4ca245,166,91.0,False,1.0.15
+2026-10-17,RYR97KC,Passeggeri (radar),A,,Ireland,Irlanda,Ryanair,Boeing 737-800,,2026-10-17 03:12:26,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,625,285.01,1.85,Ireland,0,4ca97a,166,91.6,False,1.0.15
+2026-10-17,RYR265,Passeggeri (radar),A,,N/D,DA CLASSIFICARE,Ryanair,Boeing 737-800,,2026-10-17 03:21:37,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,950,284.41,3.82,N/D,0,4d244a,166,87.2,False,1.0.15
+2026-10-17,RYR5HT,Passeggeri (radar),A,,Ireland,Irlanda,Ryanair,Boeing 737-800,,2026-10-17 03:29:53,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,650,284.7,1.91,Ireland,0,4cad3e,166,90.8,False,1.0.15
+2026-10-17,RYR1YJ,Passeggeri (radar),A,,Malta,Malta,Ryanair,Boeing 737-800,,2026-10-17 03:37:08,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,650,284.93,1.81,Malta,0,4d251d,166,91.8,False,1.0.15
+2026-10-17,RYR8512,Passeggeri (radar),A,,Ireland,Irlanda,Ryanair,Boeing 737-800,,2026-10-17 04:02:05,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,625,284.72,1.9,Ireland,0,4cada4,166,91.0,False,1.0.15
+2026-10-17,RYR5GG,Passeggeri (radar),A,,Ireland,Irlanda,Ryanair,Boeing 737-800,,2026-10-17 04:26:03,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,650,284.69,1.85,Ireland,0,4ca707,166,91.4,False,1.0.15
+2026-10-17,RYR46XX,Passeggeri (radar),D,,N/D,DA CLASSIFICARE,Ryanair,Boeing 737-800,,2026-10-17 04:27:04,RWY 28,propagato,Decollo,Rotta 132.3°,2775,132.29,6.31,N/D,0,4cad3e,166,74.7,False,1.0.15
+2026-10-17,RYR91SU,Passeggeri (radar),A,,Ireland,Irlanda,Ryanair,Boeing 737-800,,2026-10-17 04:57:18,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,825,285.11,2.9,Ireland,0,4cada3,166,83.0,False,1.0.15
+2026-10-17,FR2254,Passeggeri,D,sacbo,ALGHERO,Italia,Ryanair,Boeing 737-800,05:45,2026-10-17 05:44:20,RWY 10,radar_diretto,Decollo,Ovest -> Est,2100,105.74,4.95,N/D,100,4ca226,148,81.1,True,1.0.15
+2026-10-17,FR6086,Passeggeri,D,sacbo,KALAMATA,Grecia,Ryanair,Boeing 737-800,05:45,2026-10-17 05:45,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR2830,Passeggeri,D,sacbo,TENERIFE,Spagna,Ryanair,Boeing 737-800,05:50,2026-10-17 05:50,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR2293,Passeggeri,D,sacbo,PESCARA,Italia,Ryanair,Boeing 737-800,05:55,2026-10-17 05:55,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR8511,Passeggeri,D,sacbo,BENI MELLAL,Marocco,Ryanair,Boeing 737-800,05:55,2026-10-17 05:55,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR2254,Passeggeri,D,sacbo,ALGHERO,Italia,Ryanair,Boeing 737-800,05:55,2026-10-17 05:55,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR2669,Passeggeri,D,sacbo,BERLIN,Germania,Ryanair,Boeing 737-800,05:45,2026-10-17 05:56:44,RWY 10,radar_diretto,Decollo,Ovest -> Est,2300,105.08,5.0,N/D,100,4ca2bf,148,81.2,True,1.0.15
+2026-10-17,FR3142,Passeggeri,D,sacbo,BARCELONA EL PRAT,Spagna,Ryanair,Boeing 737-800,06:00,2026-10-17 06:00,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR3200,Passeggeri,D,sacbo,CAGLIARI,Italia,Ryanair,Boeing 737-800,06:00,2026-10-17 06:00,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR5139,Passeggeri,D,sacbo,FARO,Portogallo,Ryanair,Boeing 737-800,05:50,2026-10-17 06:02:54,RWY 28,propagato,Decollo,Rotta 194.0°,3750,194.04,8.23,N/D,100,4cae51,148,72.8,True,1.0.15
+2026-10-17,FR8334,Passeggeri,D,sacbo,IBIZA,Spagna,Ryanair,Boeing 737-800,06:05,2026-10-17 06:05,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR410,Passeggeri,D,sacbo,LUXEMBOURG,Lussemburgo,Ryanair,Boeing 737-800,06:05,2026-10-17 06:05,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR6178,Passeggeri,D,sacbo,FUERTEVENTURA,Spagna,Ryanair,Boeing 737-800,05:55,2026-10-17 06:12:01,RWY 10,propagato,Decollo,Rotta 136.2°,3000,136.23,6.38,N/D,100,4ca707,148,73.3,True,1.0.15
+2026-10-17,FR5139,Passeggeri,D,sacbo,FARO,Portogallo,Ryanair,Boeing 737-800,06:15,2026-10-17 06:15,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR3659,Passeggeri,D,sacbo,BRUXELLES CHARLEROI,Belgio,Ryanair,Boeing 737-800,05:55,2026-10-17 06:18:07,RWY 28,propagato,Decollo,Rotta 206.6°,3050,206.57,8.06,N/D,100,4cada4,148,74.4,True,1.0.15
+2026-10-17,FR9196,Passeggeri,D,sacbo,TRAPANI,Italia,Ryanair,Boeing 737-800,06:05,2026-10-17 06:20:08,RWY 28,propagato,Decollo,Rotta 206.6°,3525,206.57,8.29,N/D,100,4d2384,148,73.6,True,1.0.15
+2026-10-17,FR8334,Passeggeri,D,sacbo,IBIZA,Spagna,Ryanair,Boeing 737-800,06:00,2026-10-17 06:22:09,RWY 10,radar_diretto,Decollo,Ovest -> Est,2275,107.97,5.35,N/D,100,4d234b,148,81.7,True,1.0.15
+2026-10-17,FR5551,Passeggeri,D,sacbo,COLOGNE,Germania,Ryanair,Boeing 737-800,06:05,2026-10-17 06:24:10,RWY 10,radar_diretto,Decollo,Ovest -> Est,2225,104.81,4.61,N/D,100,4d234d,148,80.2,True,1.0.15
+2026-10-17,FR3142,Passeggeri,D,sacbo,BARCELONA EL PRAT,Spagna,Ryanair,Boeing 737-800,06:10,2026-10-17 06:26:11,RWY 10,radar_diretto,Decollo,Ovest -> Est,1925,107.41,3.89,N/D,100,4ca264,148,80.9,True,1.0.15
+2026-10-17,FR3392,Passeggeri,D,sacbo,HELSINKI,Finlandia,Ryanair,Boeing 737-800,06:30,2026-10-17 06:30,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR3400,Passeggeri,D,sacbo,SOFIA,Bulgaria,Ryanair,Boeing 737-800,06:30,2026-10-17 06:30,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR2878,Passeggeri,D,sacbo,STOCKHOLM,Svezia,Ryanair,Boeing 737-800,06:30,2026-10-17 06:30,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR2285,Passeggeri,D,sacbo,NAPOLI,Italia,Ryanair,Boeing 737-800,06:20,2026-10-17 06:32:41,RWY 28,propagato,Decollo,Rotta 230.8°,3825,230.78,8.21,N/D,100,4d244a,148,72.4,True,1.0.15
+2026-10-17,FR3528,Passeggeri,D,sacbo,PRAGUE,Repubblica Ceca,Ryanair,Boeing 737-800,06:35,2026-10-17 06:35,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR5120,Passeggeri,D,sacbo,MADRID,Spagna,Ryanair,Boeing 737-800,06:20,2026-10-17 06:38:44,RWY 28,propagato,Decollo,Rotta 211.2°,3875,211.18,8.44,N/D,100,4ca245,148,73.1,True,1.0.15
+2026-10-17,FR2285,Passeggeri,D,sacbo,NAPOLI,Italia,Ryanair,Boeing 737-800,06:40,2026-10-17 06:40,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,RYR8ZQ,Passeggeri (radar),A,,Malta,Malta,Ryanair,Boeing 737-800,,2026-10-17 06:46:50,RWY 10,radar_diretto,Atterraggio,Ovest -> Est,775,105.11,1.37,Malta,0,4d22b7,166,83.7,False,1.0.15
+2026-10-17,FR3593,Passeggeri,D,sacbo,POZNAN,Polonia,Ryanair,Boeing 737-800,06:30,2026-10-17 06:48:52,RWY 28,propagato,Decollo,Rotta 239.8°,3950,239.83,7.26,N/D,100,4cae58,148,73.8,True,1.0.15
+2026-10-17,MT3140,Passeggeri,D,sacbo,MARSA ALAM,Egitto,Malta Air,N/D,06:50,2026-10-17 06:50,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,0,0.0,True,1.0.15
+2026-10-17,FR3528,Passeggeri,D,sacbo,PRAGUE,Repubblica Ceca,Ryanair,Boeing 737-800,06:30,2026-10-17 06:50:53,RWY 28,propagato,Decollo,Rotta 230.0°,2450,230.02,3.83,N/D,100,4ca301,148,85.1,True,1.0.15
+2026-10-17,DNA421,Passeggeri (radar),A,,N/D,DA CLASSIFICARE,Norwegian Air Shuttle,Boeing 737-800,,2026-10-17 06:52:54,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1325,284.77,5.71,N/D,0,4a1265,148,78.6,False,1.0.15
+2026-10-17,DN421,Passeggeri,A,sacbo,BACAU,Romania,Norwegian Air Shuttle,Boeing 737-800,07:20,2026-10-17 06:55,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR3400,Passeggeri,D,sacbo,SOFIA,Bulgaria,Ryanair,Boeing 737-800,06:45,2026-10-17 06:56:56,RWY 28,propagato,Decollo,Rotta 228.4°,2600,228.37,3.62,N/D,100,4d251d,148,85.5,True,1.0.15
+2026-10-17,AP3637,Charter (AlbaStar),D,sacbo,SHARM EL SHEIKH,Egitto,AlbaStar,N/D,07:00,2026-10-17 07:00,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,0,0.0,True,1.0.15
+2026-10-17,FR1532,Passeggeri,A,sacbo,VIENNA,Austria,Ryanair,Boeing 737-800,07:10,2026-10-17 07:12:11,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,1175,284.41,4.85,N/D,100,4ca225,148,83.6,True,1.0.15
+2026-10-17,FR6055,Passeggeri,A,sacbo,ZAGREB,Croazia,Ryanair,Boeing 737-800,07:10,2026-10-17 07:14:12,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1275,284.91,5.35,N/D,100,4cade7,148,80.9,True,1.0.15
+2026-10-17,FR9050,Passeggeri,D,sacbo,CORK,Irlanda,Ryanair,Boeing 737-800,07:15,2026-10-17 07:15,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,W43131,Passeggeri,A,sacbo,BUCHAREST OTOPENI,Romania,Wizz Air Malta,Airbus A320-200,07:30,2026-10-17 07:18:14,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1225,284.99,5.05,N/D,100,471e5f,144,81.7,True,1.0.15
+2026-10-17,FR4668,Passeggeri,A,sacbo,BARI,Italia,Ryanair,Boeing 737-800,07:20,2026-10-17 07:20,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR3460,Passeggeri,D,sacbo,EINDHOVEN,Paesi Bassi,Ryanair,Boeing 737-800,07:20,2026-10-17 07:20,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,W43671,Passeggeri,A,sacbo,IASI,Romania,Wizz Air Malta,Airbus A320-200,07:25,2026-10-17 07:25,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,144,0.0,True,1.0.15
+2026-10-17,FR5115,Passeggeri,A,sacbo,LAMEZIA,Italia,Ryanair,Boeing 737-800,07:25,2026-10-17 07:25,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR4663,Passeggeri,D,sacbo,VALENCIA,Spagna,Ryanair,Boeing 737-800,07:25,2026-10-17 07:25,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,W64351,Passeggeri,A,sacbo,SOFIA,Bulgaria,Wizz Air,Airbus A320-200,07:30,2026-10-17 07:26:18,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1525,285.04,6.96,N/D,100,471f03,144,73.3,True,1.0.15
+2026-10-17,FR8121,Passeggeri,D,sacbo,TIRANA,Albania,Ryanair,Boeing 737-800,07:30,2026-10-17 07:30,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR412,Passeggeri,A,sacbo,THESSALONIKI,Grecia,Ryanair,Boeing 737-800,07:25,2026-10-17 07:30:21,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,1200,284.72,4.89,N/D,100,48c2a7,148,83.5,True,1.0.15
+2026-10-17,FR2261,Passeggeri,D,sacbo,CATANIA,Italia,Ryanair,Boeing 737-800,06:45,2026-10-17 07:34:23,RWY 28,radar_diretto,Decollo,Est -> Ovest,3850,251.57,6.75,N/D,100,4cace0,148,73.0,True,1.0.15
+2026-10-17,FR6054,Passeggeri,D,sacbo,ZAGREB,Croazia,Ryanair,Boeing 737-800,07:40,2026-10-17 07:40,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR1417,Passeggeri,D,sacbo,LAMEZIA,Italia,Ryanair,Boeing 737-800,06:45,2026-10-17 07:40:26,RWY 28,geometrico,Decollo,Rotta 229.0°,2825,229.01,4.09,N/D,100,4d22b7,148,84.8,True,1.0.15
+2026-10-17,W43381,Passeggeri,A,sacbo,CLUJ-NAPOCA,Romania,Wizz Air Malta,Airbus A320-200,07:45,2026-10-17 07:45,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,144,0.0,True,1.0.15
+2026-10-17,FR4667,Passeggeri,D,sacbo,BARI,Italia,Ryanair,Boeing 737-800,07:45,2026-10-17 07:45,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR3645,Passeggeri,D,sacbo,EDINBURGH,Regno Unito,Ryanair,Boeing 737-800,07:15,2026-10-17 07:46:31,RWY 28,propagato,Decollo,Rotta 225.0°,4350,225.0,9.22,N/D,100,4d251a,148,70.7,True,1.0.15
+2026-10-17,W61431,Passeggeri,A,sacbo,WARSAW,Polonia,Wizz Air,Airbus A320-200,08:00,2026-10-17 07:46:31,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1275,284.88,5.2,N/D,100,4d24b4,144,80.8,True,1.0.15
+2026-10-17,FR5114,Passeggeri,D,sacbo,LAMEZIA,Italia,Ryanair,Boeing 737-800,07:50,2026-10-17 07:50,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR5981,Passeggeri,A,sacbo,TOULOUSE,Francia,Ryanair,Boeing 737-800,07:30,2026-10-17 07:52:34,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1875,284.82,8.86,N/D,100,4ca570,148,68.1,True,1.0.15
+2026-10-17,FR2107,Passeggeri,D,sacbo,BUDAPEST,Ungheria,Ryanair,Boeing 737-800,07:55,2026-10-17 07:55,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR2865,Passeggeri,A,sacbo,BRINDISI,Italia,Ryanair,Boeing 737-800,07:35,2026-10-17 07:56:39,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,700,284.7,1.94,Ireland,100,4ca570,148,90.3,True,1.0.15
+2026-10-17,FR2108,Passeggeri,A,sacbo,BUDAPEST,Ungheria,Ryanair,Boeing 737-800,07:45,2026-10-17 07:58:42,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,700,284.7,1.94,Ireland,100,4ca570,148,90.3,True,1.0.15
+2026-10-17,FR3448,Passeggeri,D,sacbo,BRINDISI,Italia,Ryanair,Boeing 737-800,08:00,2026-10-17 08:00,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,W43672,Passeggeri,D,sacbo,IASI,Romania,Wizz Air Malta,Airbus A320-200,08:00,2026-10-17 08:00,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,144,0.0,True,1.0.15
+2026-10-17,W43769,Passeggeri,A,sacbo,CRAIOVA,Romania,Wizz Air Malta,Airbus A320-200,08:05,2026-10-17 08:05,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,144,0.0,True,1.0.15
+2026-10-17,DN422,Passeggeri,D,sacbo,BACAU,Romania,Norwegian Air Shuttle,Boeing 737-800,08:05,2026-10-17 08:05,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR6458,Passeggeri,D,sacbo,PALERMO,Italia,Ryanair,Boeing 737-800,08:10,2026-10-17 08:10,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR2107,Passeggeri,D,sacbo,BUDAPEST,Ungheria,Ryanair,Boeing 737-800,08:10,2026-10-17 08:10,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR1746,Passeggeri,D,sacbo,KNOCK,Irlanda,Ryanair,Boeing 737-800,07:20,2026-10-17 08:10:52,RWY 28,geometrico,Decollo,Rotta 230.9°,2350,230.92,3.37,N/D,100,4cade7,148,84.7,True,1.0.15
+2026-10-17,DNA422,Passeggeri (radar),D,,N/D,DA CLASSIFICARE,Norwegian Air Shuttle,Boeing 737-800,,2026-10-17 08:14:54,RWY 28,radar_diretto,Decollo,Est -> Ovest,2125,254.78,2.67,N/D,0,4a1265,148,82.8,False,1.0.15
+2026-10-17,FR5120,Passeggeri,D,sacbo,MADRID,Spagna,Ryanair,Boeing 737-800,08:15,2026-10-17 08:15,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR888,Passeggeri,D,sacbo,KRAKOW,Polonia,Ryanair,Boeing 737-800,08:15,2026-10-17 08:15,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR2864,Passeggeri,D,sacbo,BRINDISI,Italia,Ryanair,Boeing 737-800,08:15,2026-10-17 08:15,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,W43132,Passeggeri,D,sacbo,BUCHAREST OTOPENI,Romania,Wizz Air Malta,Airbus A320-200,08:05,2026-10-17 08:18:56,N/D,N/D,Decollo,Rotta 222.1°,4000,222.06,6.42,N/D,100,471e5f,144,77.8,True,1.0.15
+2026-10-17,W43382,Passeggeri,D,sacbo,CLUJ-NAPOCA,Romania,Wizz Air Malta,Airbus A320-200,08:25,2026-10-17 08:25,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,144,0.0,True,1.0.15
+2026-10-17,FR3396,Passeggeri,D,sacbo,CROTONE,Italia,Ryanair,Boeing 737-800,08:25,2026-10-17 08:25,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR2108,Passeggeri,A,sacbo,BUDAPEST,Ungheria,Ryanair,Boeing 737-800,07:30,2026-10-17 08:28:06,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1225,284.78,5.04,N/D,100,4cae64,148,82.7,True,1.0.15
+2026-10-17,XZ354,Passeggeri,D,sacbo,TRIPOLI,Libia,SkyAlps,Dash 8-400,08:30,2026-10-17 08:30,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,66,0.0,True,1.0.15
+2026-10-17,FR3449,Passeggeri,A,sacbo,BRINDISI,Italia,Ryanair,Boeing 737-800,07:35,2026-10-17 08:30:08,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,2025,284.97,9.61,N/D,100,4ca226,148,66.6,True,1.0.15
+2026-10-17,W64352,Passeggeri,D,sacbo,SOFIA,Bulgaria,Wizz Air,Airbus A320-200,08:10,2026-10-17 08:32:09,N/D,N/D,Decollo,Rotta 220.3°,3975,220.26,6.95,N/D,100,471f03,144,76.4,True,1.0.15
+2026-10-17,FR6459,Passeggeri,A,sacbo,PALERMO,Italia,Ryanair,Boeing 737-800,07:45,2026-10-17 08:32:09,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,1150,284.6,4.57,N/D,100,4ca226,148,85.1,True,1.0.15
+2026-10-17,FR1533,Passeggeri,D,sacbo,VIENNA,Austria,Ryanair,Boeing 737-800,07:35,2026-10-17 08:34:10,RWY 28,radar_diretto,Decollo,Est -> Ovest,1900,253.2,2.68,N/D,100,4d24ea,148,82.6,True,1.0.15
+2026-10-17,FR413,Passeggeri,D,sacbo,THESSALONIKI,Grecia,Ryanair,Boeing 737-800,07:50,2026-10-17 08:36:11,RWY 28,geometrico,Decollo,Rotta 225.9°,3100,225.95,4.44,N/D,100,4ca225,148,84.8,True,1.0.15
+2026-10-17,FR2738,Passeggeri,A,sacbo,LONDON STANSTED,Regno Unito,Ryanair,Boeing 737-800,08:45,2026-10-17 08:36:11,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,1175,284.88,4.69,N/D,100,4ca4ea,148,84.6,True,1.0.15
+2026-10-17,FR1785,Passeggeri,A,sacbo,COPENHAGEN,Danimarca,Ryanair,Boeing 737-800,08:40,2026-10-17 08:38:12,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1400,285.05,6.06,N/D,100,4ca9c2,148,77.2,True,1.0.15
+2026-10-17,FR4475,Passeggeri,D,sacbo,BRUXELLES CHARLEROI,Belgio,Ryanair,Boeing 737-800,08:40,2026-10-17 08:40,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,W47691,Passeggeri,D,sacbo,ORADEA,Romania,Wizz Air Malta,Airbus A320-200,08:40,2026-10-17 08:40,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,144,0.0,True,1.0.15
+2026-10-17,FR2255,Passeggeri,A,sacbo,ALGHERO,Italia,Ryanair,Boeing 737-800,08:40,2026-10-17 08:42:14,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1825,284.53,8.57,N/D,100,4d225b,148,69.0,True,1.0.15
+2026-10-17,FR5980,Passeggeri,D,sacbo,TOULOUSE,Francia,Ryanair,Boeing 737-800,07:55,2026-10-17 08:42:14,RWY 28,radar_diretto,Decollo,Est -> Ovest,1725,259.11,2.3,N/D,100,4ca570,148,85.3,True,1.0.15
+2026-10-17,FR1532,Passeggeri,A,sacbo,VIENNA,Austria,Ryanair,Boeing 737-800,08:45,2026-10-17 08:45,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,W61432,Passeggeri,D,sacbo,WARSAW,Polonia,Wizz Air,Airbus A320-200,08:40,2026-10-17 08:48:18,N/D,N/D,Decollo,Rotta 201.7°,4625,201.69,8.74,N/D,100,4d24b4,144,70.8,True,1.0.15
+2026-10-17,MABSU,Passeggeri (radar),A,,N/D,DA CLASSIFICARE,Millardair,N/D,,2026-10-17 08:48:18,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,1200,285.33,4.91,N/D,0,424c8c,0,0.0,False,1.0.15
+2026-10-17,FR2255,Passeggeri,A,sacbo,ALGHERO,Italia,Ryanair,Boeing 737-800,08:50,2026-10-17 08:50,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR2734,Passeggeri,A,sacbo,LONDON STANSTED,Regno Unito,Ryanair,Boeing 737-800,08:55,2026-10-17 08:55,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR888,Passeggeri,D,sacbo,KRAKOW,Polonia,Ryanair,Boeing 737-800,08:10,2026-10-17 09:00,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,W43132,Passeggeri,D,sacbo,BUCHAREST OTOPENI,Romania,Wizz Air Malta,Airbus A320-200,09:00,2026-10-17 09:00,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,144,0.0,True,1.0.15
+2026-10-17,FR4680,Passeggeri,A,sacbo,STOCKHOLM,Svezia,Ryanair,Boeing 737-800,08:50,2026-10-17 09:00:24,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1500,285.08,6.72,N/D,100,4cae51,148,75.1,True,1.0.15
+2026-10-17,FR4668,Passeggeri,A,sacbo,BARI,Italia,Ryanair,Boeing 737-800,09:05,2026-10-17 09:04:26,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1800,285.16,8.58,N/D,100,4ca27c,148,69.0,True,1.0.15
+2026-10-17,FR3216,Passeggeri,A,sacbo,MANCHESTER,Regno Unito,Ryanair,Boeing 737-800,09:05,2026-10-17 09:05,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR4474,Passeggeri,A,sacbo,BRUXELLES CHARLEROI,Belgio,Ryanair,Boeing 737-800,08:15,2026-10-17 09:08:29,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1375,284.6,5.92,N/D,100,4d24cc,148,77.6,True,1.0.15
+2026-10-17,FR1533,Passeggeri,D,sacbo,VIENNA,Austria,Ryanair,Boeing 737-800,09:10,2026-10-17 09:10,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR1903,Passeggeri,D,sacbo,VARSAVIA MODLIN,Polonia,Ryanair,Boeing 737-800,09:10,2026-10-17 09:10,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR5532,Passeggeri,A,sacbo,COLOGNE,Germania,Ryanair,Boeing 737-800,09:10,2026-10-17 09:10,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR077,Passeggeri,A,sacbo,SEVILLA,Spagna,Ryanair,Boeing 737-800,09:15,2026-10-17 09:12:31,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1225,284.88,5.22,N/D,100,4cada4,148,81.7,True,1.0.15
+2026-10-17,FR3396,Passeggeri,D,sacbo,CROTONE,Italia,Ryanair,Boeing 737-800,08:45,2026-10-17 09:16:33,RWY 10,propagato,Decollo,Rotta 224.1°,3650,224.05,6.49,N/D,100,4ca741,148,78.6,True,1.0.15
+2026-10-17,FR4042,Passeggeri,D,sacbo,PORTO,Portogallo,Ryanair,Boeing 737-800,09:05,2026-10-17 09:18:34,N/D,N/D,Decollo,Rotta 224.6°,4375,224.6,8.42,N/D,100,4cae64,148,72.3,True,1.0.15
+2026-10-17,FR411,Passeggeri,A,sacbo,LUXEMBOURG,Lussemburgo,Ryanair,Boeing 737-800,09:20,2026-10-17 09:20,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR2735,Passeggeri,D,sacbo,LONDON STANSTED,Regno Unito,Ryanair,Boeing 737-800,09:20,2026-10-17 09:20,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR5550,Passeggeri,A,sacbo,COLOGNE,Germania,Ryanair,Boeing 737-800,09:25,2026-10-17 09:20:35,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,2000,284.89,9.63,N/D,100,4d234d,148,66.5,True,1.0.15
+2026-10-17,FR3660,Passeggeri,A,sacbo,BRUXELLES CHARLEROI,Belgio,Ryanair,Boeing 737-800,09:25,2026-10-17 09:22:36,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,1175,284.13,4.85,N/D,100,4d234d,148,83.5,True,1.0.15
+2026-10-17,FR3201,Passeggeri,A,sacbo,CAGLIARI,Italia,Ryanair,Boeing 737-800,09:25,2026-10-17 09:25,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR1784,Passeggeri,D,sacbo,COPENHAGEN,Danimarca,Ryanair,Boeing 737-800,09:05,2026-10-17 09:28:40,RWY 28,radar_diretto,Decollo,Est -> Ovest,4300,264.32,7.9,N/D,100,4ca4ea,148,71.9,True,1.0.15
+2026-10-17,FR3217,Passeggeri,D,sacbo,MANCHESTER,Regno Unito,Ryanair,Boeing 737-800,09:30,2026-10-17 09:30,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR2294,Passeggeri,A,sacbo,PESCARA,Italia,Ryanair,Boeing 737-800,08:45,2026-10-17 09:32:42,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,1150,285.11,4.64,N/D,100,4d244a,148,85.0,True,1.0.15
+2026-10-17,FR2286,Passeggeri,A,sacbo,NAPOLI,Italia,Ryanair,Boeing 737-800,09:35,2026-10-17 09:34:43,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,2025,285.04,9.7,N/D,100,4d2384,148,66.4,True,1.0.15
+2026-10-17,FR5531,Passeggeri,D,sacbo,COLOGNE,Germania,Ryanair,Boeing 737-800,09:35,2026-10-17 09:35,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR2670,Passeggeri,A,sacbo,BERLIN,Germania,Ryanair,Boeing 737-800,09:35,2026-10-17 09:36:44,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,1000,285.11,3.82,N/D,100,4d2384,148,87.5,True,1.0.15
+2026-10-17,FR3527,Passeggeri,A,sacbo,PRAGUE,Repubblica Ceca,Ryanair,Boeing 737-800,09:45,2026-10-17 09:38:45,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1225,285.01,5.1,N/D,100,48c1a4,148,82.4,True,1.0.15
+2026-10-17,FR076,Passeggeri,D,sacbo,SEVILLA,Spagna,Ryanair,Boeing 737-800,09:40,2026-10-17 09:40,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR2739,Passeggeri,D,sacbo,LONDON STANSTED,Regno Unito,Ryanair,Boeing 737-800,09:10,2026-10-17 09:42:48,N/D,N/D,Decollo,Rotta 224.8°,4275,224.8,7.65,N/D,100,4d225b,148,74.8,True,1.0.15
+2026-10-17,FR7324,Passeggeri,D,sacbo,MALTA,Malta,Ryanair,Boeing 737-800,09:50,2026-10-17 09:50,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR3480,Passeggeri,D,sacbo,CAGLIARI,Italia,Ryanair,Boeing 737-800,09:50,2026-10-17 09:50,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR3527,Passeggeri,A,sacbo,PRAGUE,Repubblica Ceca,Ryanair,Boeing 737-800,09:50,2026-10-17 09:50,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,VOE3QN,Passeggeri (radar),A,,N/D,DA CLASSIFICARE,Volotea,N/D,,2026-10-17 09:50:56,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1875,284.74,8.71,N/D,0,347256,0,0.0,False,1.0.15
+2026-10-17,FR4681,Passeggeri,D,sacbo,STOCKHOLM,Svezia,Ryanair,Boeing 737-800,09:15,2026-10-17 09:54:58,RWY 28,propagato,Decollo,Rotta 245.4°,2075,245.42,2.78,N/D,100,4cae51,148,81.3,True,1.0.15
+2026-10-17,FR9197,Passeggeri,A,sacbo,TRAPANI,Italia,Ryanair,Boeing 737-800,09:50,2026-10-17 09:54:58,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1225,284.59,5.06,N/D,100,4ca264,148,82.5,True,1.0.15
+2026-10-17,FR6126,Passeggeri,A,sacbo,DUBLIN,Irlanda,Ryanair,Boeing 737-800,09:55,2026-10-17 09:55,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR2286,Passeggeri,A,sacbo,NAPOLI,Italia,Ryanair,Boeing 737-800,09:55,2026-10-17 09:55,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,RK9603,Passeggeri,A,sacbo,BELFAST,Regno Unito,Ryanair UK,N/D,09:55,2026-10-17 09:55,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,0,0.0,True,1.0.15
+2026-10-17,V73510,Passeggeri,A,sacbo,ASTURIAS,Spagna,Volotea,N/D,10:20,2026-10-17 09:56,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,0,0.0,True,1.0.15
+2026-10-17,FR9617,Passeggeri,A,sacbo,RIGA,Lettonia,Ryanair,Boeing 737-800,10:10,2026-10-17 09:59:00,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,1150,284.78,4.68,N/D,100,48c128,148,84.6,True,1.0.15
+2026-10-17,FR3143,Passeggeri,A,sacbo,BARCELONA EL PRAT,Spagna,Ryanair,Boeing 737-800,10:00,2026-10-17 10:00,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR461,Passeggeri,D,sacbo,NEWCASTLE,Regno Unito,Ryanair,Boeing 737-800,10:00,2026-10-17 10:00,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR4667,Passeggeri,D,sacbo,BARI,Italia,Ryanair,Boeing 737-800,09:30,2026-10-17 10:02:36,RWY 28,geometrico,Decollo,Rotta 224.5°,2550,224.53,3.76,N/D,100,4d24cc,148,86.8,True,1.0.15
+2026-10-17,FR3963,Passeggeri,A,sacbo,MARRAKECH,Marocco,Ryanair,Boeing 737-800,10:05,2026-10-17 10:05,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR4201,Passeggeri,D,sacbo,RHODES,Grecia,Ryanair,Boeing 737-800,10:10,2026-10-17 10:10,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR821,Passeggeri,A,sacbo,LISBON,Portogallo,Ryanair,Boeing 737-800,10:10,2026-10-17 10:10,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR8845,Passeggeri,A,sacbo,WROCLAW - BRESLAVIA,Polonia,Ryanair,Boeing 737-800,10:15,2026-10-17 10:15,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR3502,Passeggeri,D,sacbo,ZARAGOZA,Spagna,Ryanair,Boeing 737-800,10:15,2026-10-17 10:15,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR3143,Passeggeri,A,sacbo,BARCELONA EL PRAT,Spagna,Ryanair,Boeing 737-800,10:10,2026-10-17 10:18:45,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1700,284.76,7.94,N/D,100,4cada3,148,71.1,True,1.0.15
+2026-10-17,RK9604,Passeggeri,D,sacbo,BELFAST,Regno Unito,Ryanair UK,N/D,10:20,2026-10-17 10:20,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,0,0.0,True,1.0.15
+2026-10-17,FR6125,Passeggeri,D,sacbo,DUBLIN,Irlanda,Ryanair,Boeing 737-800,10:20,2026-10-17 10:20,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR4037,Passeggeri,D,sacbo,DUBLIN,Irlanda,Ryanair,Boeing 737-800,10:25,2026-10-17 10:22:47,RWY 28,radar_diretto,Decollo,Est -> Ovest,1500,259.61,1.98,N/D,100,4d244a,148,86.7,True,1.0.15
+2026-10-17,FR3546,Passeggeri,A,sacbo,FEZ,Marocco,Ryanair,Boeing 737-800,10:25,2026-10-17 10:25,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR3432,Passeggeri,D,sacbo,PARIS BEAUVAIS,Francia,Ryanair,Boeing 737-800,10:25,2026-10-17 10:25,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR8335,Passeggeri,A,sacbo,IBIZA,Spagna,Ryanair,Boeing 737-800,10:20,2026-10-17 10:28:51,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1650,284.69,7.66,N/D,100,4d234b,148,72.0,True,1.0.15
+2026-10-17,FR5108,Passeggeri,D,sacbo,LOURDES,Francia,Ryanair,Boeing 737-800,10:30,2026-10-17 10:30,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR1904,Passeggeri,A,sacbo,VARSAVIA MODLIN,Polonia,Ryanair,Boeing 737-800,10:30,2026-10-17 10:34:56,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,675,285.01,1.99,Malta,100,4d234b,148,89.9,True,1.0.15
+2026-10-17,FR9618,Passeggeri,D,sacbo,RIGA,Lettonia,Ryanair,Boeing 737-800,10:35,2026-10-17 10:35,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,PC1211,Passeggeri,A,sacbo,ISTANBUL S. GOKCEN,Turchia,Pegasus Airlines,Airbus A320-200,10:40,2026-10-17 10:36:59,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,725,285.04,1.97,Turkey,100,4bc88a,144,89.0,True,1.0.15
+2026-10-17,AZ7051,Passeggeri,A,sacbo,ISTANBUL S. GOKCEN,Turchia,ITA Airways,Airbus A319-100,10:40,2026-10-17 10:40,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,123,0.0,True,1.0.15
+2026-10-17,FR3594,Passeggeri,A,sacbo,POZNAN,Polonia,Ryanair,Boeing 737-800,10:30,2026-10-17 10:44:03,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1275,284.52,5.28,N/D,100,4ca301,148,81.2,True,1.0.15
+2026-10-17,FR3217,Passeggeri,D,sacbo,MANCHESTER,Regno Unito,Ryanair,Boeing 737-800,10:45,2026-10-17 10:52:12,RWY 28,radar_diretto,Decollo,Est -> Ovest,1725,263.74,2.21,N/D,100,4d2384,148,86.4,True,1.0.15
+2026-10-17,FR2888,Passeggeri,D,sacbo,CATANIA,Italia,Ryanair,Boeing 737-800,10:00,2026-10-17 10:54:13,RWY 10,propagato,Decollo,Rotta 228.6°,2575,228.62,3.86,N/D,100,4ca264,148,85.4,True,1.0.15
+2026-10-17,FR1903,Passeggeri,D,sacbo,VARSAVIA MODLIN,Polonia,Ryanair,Boeing 737-800,10:55,2026-10-17 10:55,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR1418,Passeggeri,A,sacbo,LAMEZIA,Italia,Ryanair,Boeing 737-800,10:40,2026-10-17 10:56:26,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1300,284.3,5.46,N/D,100,4cae58,148,80.0,True,1.0.15
+2026-10-17,FR5102,Passeggeri,D,sacbo,BIRMINGHAM,Regno Unito,Ryanair,Boeing 737-800,11:00,2026-10-17 11:00:29,RWY 28,geometrico,Decollo,Rotta 224.8°,2975,224.77,4.9,N/D,100,48c12b,148,83.8,True,1.0.15
+2026-10-17,FR2262,Passeggeri,A,sacbo,CATANIA,Italia,Ryanair,Boeing 737-800,10:55,2026-10-17 11:02:31,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1325,285.0,5.61,N/D,100,4d251d,148,79.3,True,1.0.15
+2026-10-17,FR4549,Passeggeri,A,sacbo,CHANIA-CRETA,Grecia,Ryanair,Boeing 737-800,11:05,2026-10-17 11:04:32,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1400,284.59,6.01,N/D,100,4ca564,148,77.3,True,1.0.15
+2026-10-17,FR6126,Passeggeri,A,sacbo,DUBLIN,Irlanda,Ryanair,Boeing 737-800,11:10,2026-10-17 11:08:34,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1275,284.57,5.26,N/D,100,4ca24e,148,81.3,True,1.0.15
+2026-10-17,V73511,Passeggeri,D,sacbo,ASTURIAS,Spagna,Volotea,N/D,10:55,2026-10-17 11:08:34,N/D,N/D,Decollo,Rotta 225.0°,3625,225.0,6.17,N/D,100,347256,0,0.0,True,1.0.15
+2026-10-17,FR497,Passeggeri,D,sacbo,VALENCIA,Spagna,Ryanair,Boeing 737-800,10:45,2026-10-17 11:10,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,NOZ1842,Passeggeri (radar),A,,N/D,DA CLASSIFICARE,Neos,N/D,,2026-10-17 11:10:35,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1850,285.12,8.67,N/D,0,47a518,0,0.0,False,1.0.15
+2026-10-17,ISTDI,Passeggeri (radar),A,,N/D,DA CLASSIFICARE,Istanbul Airlines,N/D,,2026-10-17 11:14:37,RWY 10,propagato,Atterraggio,Rotta 355.7°,1425,355.7,4.47,N/D,0,300472,0,0.0,False,1.0.15
+2026-10-17,DY1842,Passeggeri,A,sacbo,STAVANGER,DA CLASSIFICARE,Norwegian Air Shuttle,N/D,11:25,2026-10-17 11:16,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,0,0.0,True,1.0.15
+2026-10-17,FR9239,Passeggeri,D,sacbo,LUBLIN,Polonia,Ryanair,Boeing 737-800,10:15,2026-10-17 11:20,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR3401,Passeggeri,A,sacbo,SOFIA,Bulgaria,Ryanair,Boeing 737-800,11:15,2026-10-17 11:20:57,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1350,285.46,5.76,N/D,100,4ca245,148,78.4,True,1.0.15
+2026-10-17,FR8120,Passeggeri,A,sacbo,TIRANA,Albania,Ryanair,Boeing 737-800,11:30,2026-10-17 11:25:02,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,700,284.8,1.96,Ireland,100,4ca245,148,90.1,True,1.0.15
+2026-10-17,FR259,Passeggeri,D,sacbo,BUCHAREST OTOPENI,Romania,Ryanair,Boeing 737-800,10:55,2026-10-17 11:30,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR4196,Passeggeri,D,sacbo,CORFU,Grecia,Ryanair,Boeing 737-800,10:40,2026-10-17 11:36:14,RWY 28,radar_diretto,Decollo,Est -> Ovest,2050,257.93,2.45,N/D,100,4ca301,148,84.3,True,1.0.15
+2026-10-17,FZ1573,Passeggeri,A,sacbo,DUBAI,Emirati Arabi Uniti,flydubai,Boeing 737-800,12:10,2026-10-17 11:42,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,EK2140,Passeggeri,A,sacbo,DUBAI,Emirati Arabi Uniti,Emirates,Boeing 777-300ER,12:10,2026-10-17 11:42,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,323,0.0,True,1.0.15
+2026-10-17,VF061,Passeggeri,A,sacbo,ISTANBUL S. GOKCEN,Turchia,Vueling,Airbus A320-200,11:45,2026-10-17 11:44:22,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,700,284.74,1.96,Turkey,100,4bb025,144,89.1,True,1.0.15
+2026-10-17,FDB64C,Passeggeri (radar),A,,United Arab Emirates,Emirati Arabi Uniti,Fly Dubai,N/D,,2026-10-17 11:44:22,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,675,285.08,2.01,United Arab Emirates,0,896687,0,0.0,False,1.0.15
+2026-10-17,AZ7048,Passeggeri,D,sacbo,ISTANBUL S. GOKCEN,Turchia,ITA Airways,Airbus A319-100,11:45,2026-10-17 11:45,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,123,0.0,True,1.0.15
+2026-10-17,FR5121,Passeggeri,A,sacbo,MADRID,Spagna,Ryanair,Boeing 737-800,11:35,2026-10-17 11:56:29,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1625,285.19,6.81,N/D,100,4ca2bf,148,74.8,True,1.0.15
+2026-10-17,IPGAR,Passeggeri (radar),D,,N/D,DA CLASSIFICARE,AeroClub - Escluso,N/D,,2026-10-17 11:58:30,N/D,N/D,Decollo,Rotta 175.7°,1325,175.66,3.32,N/D,0,3007fe,0,0.0,False,1.0.15
+2026-10-17,FR9292,Passeggeri,D,sacbo,KAUNAS,Lituania,Ryanair,Boeing 737-800,11:05,2026-10-17 12:02:33,RWY 28,radar_diretto,Decollo,Est -> Ovest,2475,285.31,3.07,N/D,100,4ca24e,148,85.9,True,1.0.15
+2026-10-17,FR4548,Passeggeri,D,sacbo,CHANIA-CRETA,Grecia,Ryanair,Boeing 737-800,11:30,2026-10-17 12:04:34,RWY 28,geometrico,Decollo,Rotta 225.9°,2800,225.92,4.44,N/D,100,4ca564,148,85.1,True,1.0.15
+2026-10-17,DY1843,Passeggeri,D,sacbo,STAVANGER,DA CLASSIFICARE,Norwegian Air Shuttle,N/D,12:10,2026-10-17 12:10,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,0,0.0,True,1.0.15
+2026-10-17,FR6125,Passeggeri,D,sacbo,DUBLIN,Irlanda,Ryanair,Boeing 737-800,11:35,2026-10-17 12:14:39,RWY 10,propagato,Decollo,Rotta 223.8°,3075,223.84,5.04,N/D,100,4d234b,148,83.4,True,1.0.15
+2026-10-17,IHFRT,Passeggeri (radar),A,,N/D,DA CLASSIFICARE,Elicottero - Escluso,N/D,,2026-10-17 12:18:42,RWY 10,propagato,Atterraggio,Rotta 309.4°,1500,309.45,3.14,N/D,0,3006a9,0,0.0,False,1.0.15
+2026-10-17,PC1212,Passeggeri,D,sacbo,ISTANBUL S. GOKCEN,Turchia,Pegasus Airlines,Airbus A320-200,11:45,2026-10-17 12:24:45,N/D,N/D,Decollo,Rotta 198.7°,4400,198.71,8.37,N/D,100,4bc88a,144,71.6,True,1.0.15
+2026-10-17,FR5655,Passeggeri,D,sacbo,PALMA DE MALLORCA,Spagna,Ryanair,Boeing 737-800,11:40,2026-10-17 12:28:48,RWY 28,radar_diretto,Decollo,Est -> Ovest,2150,284.85,2.61,N/D,100,4ca245,148,86.6,True,1.0.15
+2026-10-17,FR5140,Passeggeri,A,sacbo,FARO,Portogallo,Ryanair,Boeing 737-800,12:00,2026-10-17 12:28:48,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1325,284.67,5.62,N/D,100,4d23fa,148,79.1,True,1.0.15
+2026-10-17,FR3460,Passeggeri,D,sacbo,EINDHOVEN,Paesi Bassi,Ryanair,Boeing 737-800,12:00,2026-10-17 12:52:02,RWY 10,propagato,Decollo,Rotta 223.9°,4950,223.92,9.0,N/D,100,4ca2bf,148,71.0,True,1.0.15
+2026-10-17,FR889,Passeggeri,A,sacbo,KRAKOW,Polonia,Ryanair,Boeing 737-800,12:05,2026-10-17 12:52:02,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1650,285.15,7.33,N/D,100,4ca97a,148,73.1,True,1.0.15
+2026-10-17,FR4664,Passeggeri,A,sacbo,VALENCIA,Spagna,Ryanair,Boeing 737-800,12:40,2026-10-17 12:56:04,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1350,284.96,5.63,N/D,100,4d2244,148,79.1,True,1.0.15
+2026-10-17,MMO121P,Passeggeri (radar),A,,N/D,DA CLASSIFICARE,Malta MedAir,N/D,,2026-10-17 12:58:06,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1575,284.9,6.89,N/D,0,501c39,0,0.0,False,1.0.15
+2026-10-17,FR3397,Passeggeri,A,sacbo,CROTONE,Italia,Ryanair,Boeing 737-800,12:40,2026-10-17 13:00:12,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1550,284.04,6.85,N/D,100,4ca27b,148,74.6,True,1.0.15
+2026-10-17,VF062,Passeggeri,D,sacbo,ISTANBUL S. GOKCEN,Turchia,Vueling,Airbus A320-200,12:45,2026-10-17 13:04:14,N/D,N/D,Decollo,Rotta 227.1°,3150,227.07,5.69,N/D,100,4bb025,144,79.6,True,1.0.15
+2026-10-17,FR847,Passeggeri,D,sacbo,BARCELONA EL PRAT,Spagna,Ryanair,Boeing 737-800,13:10,2026-10-17 13:10,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FIAMM25,Charter (Fly One),A,,Italy,Italia,Fly One,N/D,,2026-10-17 13:14:26,RWY 10,propagato,Atterraggio,Rotta 226.7°,800,226.74,0.52,Italy,0,33fcbd,0,0.0,False,1.0.15
+2026-10-17,FR4658,Passeggeri,D,sacbo,BARI,Italia,Ryanair,Boeing 737-800,12:25,2026-10-17 13:16:27,RWY 28,radar_diretto,Decollo,Est -> Ovest,1775,263.37,2.27,N/D,100,4d23fa,148,86.0,True,1.0.15
+2026-10-17,FR846,Passeggeri,A,sacbo,BARCELONA EL PRAT,Spagna,Ryanair,Boeing 737-800,12:45,2026-10-17 13:18:28,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1300,284.91,5.34,N/D,100,4cace0,148,80.9,True,1.0.15
+2026-10-17,FR9372,Passeggeri,D,sacbo,BRNO,Repubblica Ceca,Ryanair,Boeing 737-800,12:30,2026-10-17 13:22:30,RWY 28,propagato,Decollo,Rotta 224.8°,4550,224.79,8.59,N/D,100,4d251a,148,71.8,True,1.0.15
+2026-10-17,FR3646,Passeggeri,A,sacbo,EDINBURGH,Regno Unito,Ryanair,Boeing 737-800,12:50,2026-10-17 13:22:30,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1275,284.88,5.18,N/D,100,48c235,148,81.9,True,1.0.15
+2026-10-17,FR6452,Passeggeri,A,sacbo,PALERMO,Italia,Ryanair,Boeing 737-800,12:55,2026-10-17 13:24:31,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1375,284.84,5.76,N/D,100,4caa58,148,78.2,True,1.0.15
+2026-10-17,FR3665,Passeggeri,D,sacbo,NAPOLI,Italia,Ryanair,Boeing 737-800,13:25,2026-10-17 13:25,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR3666,Passeggeri,A,sacbo,NAPOLI,Italia,Ryanair,Boeing 737-800,13:00,2026-10-17 13:26:33,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1700,284.51,7.53,N/D,100,4d24ea,148,72.4,True,1.0.15
+2026-10-17,FR2871,Passeggeri,A,sacbo,VILNIUS,Lituania,Ryanair,Boeing 737-800,13:05,2026-10-17 13:30:36,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1275,284.0,5.05,N/D,100,4ca741,148,82.4,True,1.0.15
+2026-10-17,FR1747,Passeggeri,A,sacbo,KNOCK,Irlanda,Ryanair,Boeing 737-800,13:05,2026-10-17 13:32:37,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1300,284.51,5.34,N/D,100,4d21fe,148,80.8,True,1.0.15
+2026-10-17,FR2877,Passeggeri,A,sacbo,BRINDISI,Italia,Ryanair,Boeing 737-800,13:20,2026-10-17 13:34:38,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1750,284.59,7.96,N/D,100,4ca760,148,71.0,True,1.0.15
+2026-10-17,FR8847,Passeggeri,A,sacbo,MARRAKECH,Marocco,Ryanair,Boeing 737-800,13:35,2026-10-17 13:36:41,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,725,285.08,1.87,Malta,100,4d21fe,148,91.2,True,1.0.15
+2026-10-17,FR3587,Passeggeri,D,sacbo,OSLO TORP,Norvegia,Ryanair,Boeing 737-800,12:50,2026-10-17 13:38:43,RWY 28,radar_diretto,Decollo,Est -> Ovest,1625,271.04,1.98,N/D,100,4d2244,148,88.5,True,1.0.15
+2026-10-17,EK2141,Passeggeri,D,sacbo,DUBAI,Emirati Arabi Uniti,Emirates,Boeing 777-300ER,13:40,2026-10-17 13:40,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,323,0.0,True,1.0.15
+2026-10-17,FR3450,Passeggeri,D,sacbo,TANGIER,Marocco,Ryanair,Boeing 737-800,11:45,2026-10-17 13:48,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FZ1574,Passeggeri,D,sacbo,DUBAI,Emirati Arabi Uniti,flydubai,Boeing 737-800,13:40,2026-10-17 13:54:57,N/D,N/D,Decollo,Rotta 224.6°,4100,224.58,8.88,N/D,100,896687,148,71.4,True,1.0.15
+2026-10-17,FR2872,Passeggeri,D,sacbo,VILNIUS,Lituania,Ryanair,Boeing 737-800,13:30,2026-10-17 14:00,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,MT3144,Passeggeri,D,sacbo,MARSA ALAM/SHARM EL SHEIKH,Egitto,Malta Air,N/D,13:05,2026-10-17 14:00,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,0,0.0,True,1.0.15
+2026-10-17,FR4699,Passeggeri,A,sacbo,TRAPANI,Italia,Ryanair,Boeing 737-800,13:50,2026-10-17 14:02:36,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1425,284.7,5.95,N/D,100,4cae51,148,77.5,True,1.0.15
+2026-10-17,RYR62FP,Passeggeri (radar),A,,N/D,DA CLASSIFICARE,Ryanair,Boeing 737-800,,2026-10-17 14:06:40,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1300,284.49,5.19,N/D,0,4cada4,166,81.7,False,1.0.15
+2026-10-17,FR3530,Passeggeri,D,sacbo,PRAGUE,Repubblica Ceca,Ryanair,Boeing 737-800,13:05,2026-10-17 14:10,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,ICNTK,Passeggeri (radar),A,,N/D,DA CLASSIFICARE,Inter-Canadian,N/D,,2026-10-17 14:10:42,RWY 10,radar_diretto,Avvicinamento,Ovest -> Est,1225,73.65,9.99,N/D,0,3009fb,0,0.0,False,1.0.15
+2026-10-17,FR2887,Passeggeri,A,sacbo,CATANIA,Italia,Ryanair,Boeing 737-800,14:10,2026-10-17 14:12:43,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1325,285.08,5.39,N/D,100,4d2384,148,80.7,True,1.0.15
+2026-10-17,ICNTF,Passeggeri (radar),D,,N/D,DA CLASSIFICARE,Inter-Canadian,N/D,,2026-10-17 14:12:43,N/D,N/D,Decollo,Rotta 30.3°,1000,30.32,9.9,N/D,0,3007af,0,0.0,False,1.0.15
+2026-10-17,FR218,Passeggeri,A,sacbo,ALICANTE,Spagna,Ryanair,Boeing 737-800,14:15,2026-10-17 14:14:44,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1325,285.36,5.34,N/D,100,4d2095,148,81.0,True,1.0.15
+2026-10-17,FR4698,Passeggeri,D,sacbo,TRAPANI,Italia,Ryanair,Boeing 737-800,14:15,2026-10-17 14:15,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR7325,Passeggeri,A,sacbo,MALTA,Malta,Ryanair,Boeing 737-800,14:15,2026-10-17 14:16:45,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1675,284.69,7.37,N/D,100,4cae68,148,72.9,True,1.0.15
+2026-10-17,FR6451,Passeggeri,D,sacbo,PALERMO,Italia,Ryanair,Boeing 737-800,13:20,2026-10-17 14:18:47,N/D,N/D,Decollo,Rotta 224.6°,4600,224.63,9.36,N/D,100,48c235,148,70.4,True,1.0.15
+2026-10-17,FR5109,Passeggeri,A,sacbo,LOURDES,Francia,Ryanair,Boeing 737-800,14:20,2026-10-17 14:20:48,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1325,285.26,5.33,N/D,100,4caf29,148,81.1,True,1.0.15
+2026-10-17,FR3300,Passeggeri,D,sacbo,VITORIA,Spagna,Ryanair,Boeing 737-800,13:40,2026-10-17 14:32:55,N/D,N/D,Decollo,Rotta 222.4°,3650,222.42,6.2,N/D,100,4d21fe,148,79.6,True,1.0.15
+2026-10-17,FR2876,Passeggeri,D,sacbo,BRINDISI,Italia,Ryanair,Boeing 737-800,13:45,2026-10-17 14:35:01,RWY 28,propagato,Decollo,Rotta 226.5°,4650,226.47,8.73,N/D,100,4cace0,148,71.5,True,1.0.15
+2026-10-17,FR3200,Passeggeri,D,sacbo,CAGLIARI,Italia,Ryanair,Boeing 737-800,14:40,2026-10-17 14:40:17,N/D,N/D,Decollo,Rotta 225.2°,4475,225.22,7.56,N/D,100,4ca97a,148,74.9,True,1.0.15
+2026-10-17,FR8846,Passeggeri,D,sacbo,MARRAKECH,Marocco,Ryanair,Boeing 737-800,14:00,2026-10-17 14:42:18,N/D,N/D,Decollo,Rotta 225.2°,4875,225.21,9.0,N/D,100,4ca760,148,71.0,True,1.0.15
+2026-10-17,FR6258,Passeggeri,A,sacbo,KRAKOW,Polonia,Ryanair,Boeing 737-800,14:25,2026-10-17 14:44:19,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1350,285.29,5.43,N/D,100,4ca226,148,80.4,True,1.0.15
+2026-10-17,SM831,Passeggeri,A,sacbo,SHARM EL SHEIKH,Egitto,Air Cairo,Airbus A320-200,14:55,2026-10-17 14:46:20,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1300,284.72,5.25,N/D,100,01025b,144,80.4,True,1.0.15
+2026-10-17,FR3674,Passeggeri,A,sacbo,LONDON STANSTED,Regno Unito,Ryanair,Boeing 737-800,14:30,2026-10-17 14:48:21,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1750,285.64,7.89,N/D,100,4ca264,148,71.3,True,1.0.15
+2026-10-17,FR4197,Passeggeri,A,sacbo,CORFU,Grecia,Ryanair,Boeing 737-800,14:55,2026-10-17 14:55,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,W45017,Passeggeri,A,sacbo,TIRANA,Albania,Wizz Air Malta,Airbus A320-200,15:10,2026-10-17 14:58:36,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,750,284.83,1.98,Hungary,100,471dad,144,88.9,True,1.0.15
+2026-10-17,FR4041,Passeggeri,A,sacbo,PORTO,Portogallo,Ryanair,Boeing 737-800,14:45,2026-10-17 15:00,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR460,Passeggeri,A,sacbo,NEWCASTLE,Regno Unito,Ryanair,Boeing 737-800,15:00,2026-10-17 15:00,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,DFIPO,Passeggeri (radar),A,,Germany,Germania,Privato - Escluso,N/D,,2026-10-17 15:10:49,N/D,N/D,Avvicinamento,Rotta 25.2°,1500,25.17,9.94,Germany,0,3d6004,0,0.0,False,1.0.15
+2026-10-17,NOZ8EH,Passeggeri (radar),A,,N/D,DA CLASSIFICARE,Neos,N/D,,2026-10-17 15:14:58,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1350,284.57,5.45,N/D,0,47a743,0,0.0,False,1.0.15
+2026-10-17,FR2888,Passeggeri,D,sacbo,CATANIA,Italia,Ryanair,Boeing 737-800,15:05,2026-10-17 15:18:01,RWY 28,radar_diretto,Decollo,Est -> Ovest,2850,272.63,4.35,N/D,100,4d2095,148,82.9,True,1.0.15
+2026-10-17,DY1848,Passeggeri,A,sacbo,BERGEN,DA CLASSIFICARE,Norwegian Air Shuttle,N/D,15:25,2026-10-17 15:25,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,0,0.0,True,1.0.15
+2026-10-17,FR219,Passeggeri,D,sacbo,ALICANTE,Spagna,Ryanair,Boeing 737-800,14:40,2026-10-17 15:28:20,RWY 28,propagato,Decollo,Rotta 223.6°,3125,223.59,5.04,N/D,100,4cae68,148,83.4,True,1.0.15
+2026-10-17,FR3216,Passeggeri,A,sacbo,MANCHESTER,Regno Unito,Ryanair,Boeing 737-800,15:35,2026-10-17 15:32:38,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1550,285.19,6.61,N/D,100,4d251d,148,75.5,True,1.0.15
+2026-10-17,FR5113,Passeggeri,D,sacbo,CROTONE,Italia,Ryanair,Boeing 737-800,15:35,2026-10-17 15:35,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR5103,Passeggeri,A,sacbo,BIRMINGHAM,Regno Unito,Ryanair,Boeing 737-800,15:35,2026-10-17 15:36:41,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1350,284.96,5.46,N/D,100,4ca301,148,80.2,True,1.0.15
+2026-10-17,FR6179,Passeggeri,A,sacbo,FUERTEVENTURA,Spagna,Ryanair,Boeing 737-800,14:40,2026-10-17 15:40:43,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1350,284.65,5.3,N/D,100,4ca2bf,148,81.1,True,1.0.15
+2026-10-17,FR9240,Passeggeri,A,sacbo,LUBLIN,Polonia,Ryanair,Boeing 737-800,14:45,2026-10-17 15:43:05,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1325,284.88,5.34,N/D,100,4ca245,148,80.9,True,1.0.15
+2026-10-17,FR3673,Passeggeri,D,sacbo,LONDON STANSTED,Regno Unito,Ryanair,Boeing 737-800,14:55,2026-10-17 15:44:06,RWY 28,radar_diretto,Decollo,Est -> Ovest,3725,252.9,7.23,N/D,100,4d2384,148,71.7,True,1.0.15
+2026-10-17,FR3480,Passeggeri,D,sacbo,CAGLIARI,Italia,Ryanair,Boeing 737-800,15:45,2026-10-17 15:45,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,W45018,Passeggeri,D,sacbo,TIRANA,Albania,Wizz Air Malta,Airbus A320-200,15:45,2026-10-17 15:45,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,144,0.0,True,1.0.15
+2026-10-17,FR2698,Passeggeri,D,sacbo,ALGHERO,Italia,Ryanair,Boeing 737-800,15:00,2026-10-17 15:46:07,RWY 28,radar_diretto,Decollo,Est -> Ovest,1975,254.77,2.81,N/D,100,4cae51,148,82.2,True,1.0.15
+2026-10-17,FR5494,Passeggeri,D,sacbo,MADRID,Spagna,Ryanair,Boeing 737-800,15:05,2026-10-17 15:48:12,RWY 10,propagato,Decollo,Rotta 222.1°,2875,222.11,4.57,N/D,100,4ca226,148,85.8,True,1.0.15
+2026-10-17,FR6257,Passeggeri,D,sacbo,KRAKOW,Polonia,Ryanair,Boeing 737-800,15:20,2026-10-17 15:50:19,RWY 10,propagato,Decollo,Rotta 223.0°,3450,222.96,5.64,N/D,100,4ca264,148,81.2,True,1.0.15
+2026-10-17,FR8422,Passeggeri,A,sacbo,TIRANA,Albania,Ryanair,Boeing 737-800,15:55,2026-10-17 15:55,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR4038,Passeggeri,A,sacbo,DUBLIN,Irlanda,Ryanair,Boeing 737-800,15:55,2026-10-17 16:00:23,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1375,284.49,5.51,N/D,100,48e9f3,148,79.7,True,1.0.15
+2026-10-17,FR4037,Passeggeri,D,sacbo,DUBLIN,Irlanda,Ryanair,Boeing 737-800,15:25,2026-10-17 16:00:23,RWY 10,propagato,Decollo,Rotta 226.8°,2475,226.82,3.69,N/D,100,4ca27b,148,86.1,True,1.0.15
+2026-10-17,PC1213,Passeggeri,A,sacbo,ISTANBUL S. GOKCEN,Turchia,Pegasus Airlines,Airbus A320-200,16:10,2026-10-17 16:04:46,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1300,285.0,5.09,N/D,100,4bc885,144,81.4,True,1.0.15
+2026-10-17,FR496,Passeggeri,A,sacbo,VALENCIA,Spagna,Ryanair,Boeing 737-800,15:15,2026-10-17 16:07:02,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1600,284.89,6.93,N/D,100,4cae49,148,74.4,True,1.0.15
+2026-10-17,AZ7053,Passeggeri,A,sacbo,ISTANBUL S. GOKCEN,Turchia,ITA Airways,Airbus A319-100,16:10,2026-10-17 16:10,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,123,0.0,True,1.0.15
+2026-10-17,DY1849,Passeggeri,D,sacbo,BERGEN,DA CLASSIFICARE,Norwegian Air Shuttle,N/D,16:10,2026-10-17 16:10,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,0,0.0,True,1.0.15
+2026-10-17,SM832,Passeggeri,D,sacbo,SHARM EL SHEIKH,Egitto,Air Cairo,Airbus A320-200,16:10,2026-10-17 16:10,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,144,0.0,True,1.0.15
+2026-10-17,FR6856,Passeggeri,D,sacbo,PORTO,Portogallo,Ryanair,Boeing 737-800,15:30,2026-10-17 16:14:55,RWY 28,radar_diretto,Decollo,Est -> Ovest,3300,254.77,5.57,N/D,100,4d234d,148,76.3,True,1.0.15
+2026-10-17,FR9293,Passeggeri,A,sacbo,KAUNAS,Lituania,Ryanair,Boeing 737-800,16:15,2026-10-17 16:15,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR820,Passeggeri,D,sacbo,LISBON,Portogallo,Ryanair,Boeing 737-800,15:35,2026-10-17 16:15,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR3461,Passeggeri,A,sacbo,EINDHOVEN,Paesi Bassi,Ryanair,Boeing 737-800,15:40,2026-10-17 16:18:15,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1575,284.8,6.82,N/D,100,4d234b,148,74.7,True,1.0.15
+2026-10-17,FR9373,Passeggeri,A,sacbo,BRNO,Repubblica Ceca,Ryanair,Boeing 737-800,15:45,2026-10-17 16:24:47,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1475,284.51,5.81,N/D,100,4d244a,148,77.9,True,1.0.15
+2026-10-17,FR5656,Passeggeri,A,sacbo,PALMA DE MALLORCA,Spagna,Ryanair,Boeing 737-800,15:45,2026-10-17 16:26:59,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,2075,285.73,9.65,N/D,100,4cae58,148,66.5,True,1.0.15
+2026-10-17,FR6091,Passeggeri,D,sacbo,GRAN CANARIA,Spagna,Ryanair,Boeing 737-800,15:35,2026-10-17 16:34:59,RWY 28,propagato,Decollo,Rotta 227.3°,2525,227.35,3.73,N/D,100,4d251d,148,85.9,True,1.0.15
+2026-10-17,FR2289,Passeggeri,D,sacbo,PALERMO,Italia,Ryanair,Boeing 737-800,16:35,2026-10-17 16:35,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR8821,Passeggeri,D,sacbo,BIARRITZ - BAYONA,Francia,Ryanair,Boeing 737-800,15:40,2026-10-17 16:37:15,RWY 28,propagato,Decollo,Rotta 243.7°,3300,243.72,5.54,N/D,100,4ca245,148,77.8,True,1.0.15
+2026-10-17,IORYO,Passeggeri (radar),A,,N/D,DA CLASSIFICARE,AeroClub - Escluso,N/D,,2026-10-17 16:37:15,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,1400,292.73,2.25,N/D,0,30037b,0,0.0,False,1.0.15
+2026-10-17,IBGBG,Passeggeri (radar),A,,N/D,DA CLASSIFICARE,AeroClub - Escluso,N/D,,2026-10-17 16:40:20,RWY 10,propagato,Atterraggio,Rotta 222.7°,1450,222.66,3.43,N/D,0,300633,0,0.0,False,1.0.15
+2026-10-17,BZ154,Passeggeri,A,sacbo,TEL AVIV,Israele,Blue Bird Airways,N/D,17:10,2026-10-17 16:42,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,0,0.0,True,1.0.15
+2026-10-17,FR260,Passeggeri,A,sacbo,BUCHAREST OTOPENI,Romania,Ryanair,Boeing 737-800,15:50,2026-10-17 16:47:10,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1325,284.74,5.24,N/D,100,4d251a,148,81.5,True,1.0.15
+2026-10-17,FR3432,Passeggeri,D,sacbo,PARIS BEAUVAIS,Francia,Ryanair,Boeing 737-800,15:50,2026-10-17 16:47:10,RWY 28,propagato,Decollo,Rotta 249.3°,2175,249.33,2.89,N/D,100,4ca301,148,81.4,True,1.0.15
+2026-10-17,FR4659,Passeggeri,A,sacbo,BARI,Italia,Ryanair,Boeing 737-800,15:50,2026-10-17 16:50:13,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1875,284.87,8.42,N/D,100,48c135,148,69.5,True,1.0.15
+2026-10-17,FR4993,Passeggeri,D,sacbo,CEFALONIA,Grecia,Ryanair,Boeing 737-800,16:10,2026-10-17 16:56:43,RWY 28,radar_diretto,Decollo,Est -> Ovest,1700,276.41,1.75,N/D,100,48e9f3,148,90.5,True,1.0.15
+2026-10-17,FR8421,Passeggeri,D,sacbo,TIRANA,Albania,Ryanair,Boeing 737-800,16:20,2026-10-17 17:04:18,RWY 28,geometrico,Decollo,Rotta 225.2°,2625,225.24,4.24,N/D,100,4cae49,148,86.0,True,1.0.15
+2026-10-17,IAMAA,Passeggeri (radar),A,,N/D,DA CLASSIFICARE,Aeronautica Militare,N/D,,2026-10-17 17:08:41,RWY 10,propagato,Atterraggio,Rotta 244.2°,1300,244.2,2.07,N/D,0,30086e,0,0.0,False,1.0.15
+2026-10-17,FR4043,Passeggeri,A,sacbo,VARSAVIA MODLIN,Polonia,Ryanair,Boeing 737-800,17:10,2026-10-17 17:10,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR2991,Passeggeri,A,sacbo,COPENHAGEN,Danimarca,Ryanair,Boeing 737-800,17:10,2026-10-17 17:10,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR4189,Passeggeri,A,sacbo,LONDON STANSTED,Regno Unito,Ryanair,Boeing 737-800,16:10,2026-10-17 17:10:50,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1575,284.51,6.66,N/D,100,4d2303,148,75.2,True,1.0.15
+2026-10-17,FR5102,Passeggeri,D,sacbo,BIRMINGHAM,Regno Unito,Ryanair,Boeing 737-800,17:15,2026-10-17 17:15,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,AZ7058,Passeggeri,D,sacbo,ISTANBUL S. GOKCEN,Turchia,ITA Airways,Airbus A319-100,17:15,2026-10-17 17:15,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,123,0.0,True,1.0.15
+2026-10-17,FR3653,Passeggeri,D,sacbo,BARI,Italia,Ryanair,Boeing 737-800,17:15,2026-10-17 17:15,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR4202,Passeggeri,A,sacbo,RHODES,Grecia,Ryanair,Boeing 737-800,16:25,2026-10-17 17:24:51,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1400,284.69,5.61,N/D,100,4ca741,148,79.1,True,1.0.15
+2026-10-17,FR5103,Passeggeri,A,sacbo,BIRMINGHAM,Regno Unito,Ryanair,Boeing 737-800,16:50,2026-10-17 17:27:09,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,750,284.88,1.86,Ireland,100,4ca741,148,91.1,True,1.0.15
+2026-10-17,FR410,Passeggeri,D,sacbo,LUXEMBOURG,Lussemburgo,Ryanair,Boeing 737-800,16:30,2026-10-17 17:28:26,RWY 28,radar_diretto,Decollo,Est -> Ovest,3175,255.57,5.73,N/D,100,4cae58,148,76.1,True,1.0.15
+2026-10-17,FR4188,Passeggeri,D,sacbo,LONDON STANSTED,Regno Unito,Ryanair,Boeing 737-800,16:35,2026-10-17 17:30:42,RWY 28,propagato,Decollo,Rotta 224.8°,3925,224.78,7.43,N/D,100,4d244a,148,75.5,True,1.0.15
+2026-10-17,FR3529,Passeggeri,A,sacbo,PRAGUE,Repubblica Ceca,Ryanair,Boeing 737-800,16:20,2026-10-17 17:31,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR4044,Passeggeri,D,sacbo,VARSAVIA MODLIN,Polonia,Ryanair,Boeing 737-800,17:35,2026-10-17 17:35,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR2992,Passeggeri,D,sacbo,COPENHAGEN,Danimarca,Ryanair,Boeing 737-800,17:35,2026-10-17 17:35,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR845,Passeggeri,D,sacbo,CLUJ-NAPOCA,Romania,Ryanair,Boeing 737-800,16:35,2026-10-17 17:35,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,PC1214,Passeggeri,D,sacbo,ISTANBUL S. GOKCEN,Turchia,Pegasus Airlines,Airbus A320-200,17:15,2026-10-17 17:38:55,RWY 28,geometrico,Decollo,Rotta 231.9°,2700,231.92,4.12,N/D,100,4bc885,144,82.8,True,1.0.15
+2026-10-17,FR2878,Passeggeri,D,sacbo,STOCKHOLM,Svezia,Ryanair,Boeing 737-800,17:05,2026-10-17 17:40:58,RWY 28,radar_diretto,Decollo,Est -> Ovest,1775,255.64,2.35,N/D,100,48c135,148,84.5,True,1.0.15
+2026-10-17,FR3451,Passeggeri,A,sacbo,TANGIER,Marocco,Ryanair,Boeing 737-800,17:45,2026-10-17 17:42:59,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1350,285.03,5.33,N/D,100,4cadf4,148,81.0,True,1.0.15
+2026-10-17,FR3392,Passeggeri,D,sacbo,HELSINKI,Finlandia,Ryanair,Boeing 737-800,17:05,2026-10-17 17:46:08,RWY 28,radar_diretto,Decollo,Est -> Ovest,2425,282.18,4.28,N/D,100,4cadef,148,86.8,True,1.0.15
+2026-10-17,FR3319,Passeggeri,D,sacbo,BARCELONA EL PRAT,Spagna,Ryanair,Boeing 737-800,17:10,2026-10-17 17:48:25,RWY 28,propagato,Decollo,Rotta 223.4°,3525,223.44,6.08,N/D,100,4d251a,148,79.9,True,1.0.15
+2026-10-17,FR2649,Passeggeri,D,sacbo,MALAGA,Spagna,Ryanair,Boeing 737-800,17:50,2026-10-17 17:50,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR3402,Passeggeri,D,sacbo,MARRAKECH,Marocco,Ryanair,Boeing 737-800,17:55,2026-10-17 17:53:00,RWY 28,radar_diretto,Decollo,Est -> Ovest,1500,281.96,1.72,N/D,100,4d236c,148,92.1,True,1.0.15
+2026-10-17,ICNTG,Passeggeri (radar),A,,N/D,DA CLASSIFICARE,Inter-Canadian,N/D,,2026-10-17 18:09:07,N/D,N/D,Avvicinamento,Rotta 21.9°,1500,21.94,9.27,N/D,0,300736,0,0.0,False,1.0.15
+2026-10-17,FR3201,Passeggeri,A,sacbo,CAGLIARI,Italia,Ryanair,Boeing 737-800,18:05,2026-10-17 18:14:57,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1775,285.1,7.83,N/D,100,4cae68,148,71.5,True,1.0.15
+2026-10-17,FR2650,Passeggeri,A,sacbo,MALAGA,Spagna,Ryanair,Boeing 737-800,17:25,2026-10-17 18:18:07,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1925,284.74,8.75,N/D,100,4ca707,148,68.4,True,1.0.15
+2026-10-17,FR5093,Passeggeri,A,sacbo,LAMEZIA,Italia,Ryanair,Boeing 737-800,17:50,2026-10-17 18:20:10,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,750,284.66,1.9,Ireland,100,4ca707,148,90.6,True,1.0.15
+2026-10-17,FR2699,Passeggeri,A,sacbo,ALGHERO,Italia,Ryanair,Boeing 737-800,17:55,2026-10-17 18:20:10,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,725,285.22,1.84,Ireland,100,4cae68,148,91.5,True,1.0.15
+2026-10-17,LEJ330,Passeggeri (radar),A,,Germany,Germania,FSH Luftfahrtunternehmen,N/D,,2026-10-17 18:24:45,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,825,285.12,2.14,Germany,0,3e31ea,0,0.0,False,1.0.15
+2026-10-17,FR3301,Passeggeri,A,sacbo,VITORIA,Spagna,Ryanair,Boeing 737-800,18:05,2026-10-17 18:24:45,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,750,284.66,1.9,Ireland,100,4ca707,148,90.6,True,1.0.15
+2026-10-17,ILMBD,Passeggeri (radar),A,,N/D,DA CLASSIFICARE,Elicottero - Escluso,N/D,,2026-10-17 18:30:25,RWY 10,propagato,Avvicinamento,Rotta 142.1°,1250,142.13,7.01,N/D,0,300640,0,0.0,False,1.0.15
+2026-10-17,TCV630,Passeggeri (radar),A,,Cape Verde,Capo Verde,TACV,N/D,,2026-10-17 18:37:01,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,750,285.12,1.9,Cape Verde,0,096028,0,0.0,False,1.0.15
+2026-10-17,FR2858,Passeggeri,D,sacbo,BRINDISI,Italia,Ryanair,Boeing 737-800,18:10,2026-10-17 18:38:33,RWY 28,radar_diretto,Decollo,Est -> Ovest,1500,279.68,1.72,N/D,100,4cadf4,148,91.7,True,1.0.15
+2026-10-17,VR630,Passeggeri,A,sacbo,SAL - CABOVERDE,Capo Verde,Cabo Verde Airlines,N/D,19:15,2026-10-17 18:40,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,0,0.0,True,1.0.15
+2026-10-17,FR2428,Passeggeri,D,sacbo,SARAJEVO,Bosnia ed Erzegovina,Ryanair,Boeing 737-800,18:50,2026-10-17 18:50,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR3588,Passeggeri,A,sacbo,OSLO TORP,Norvegia,Ryanair,Boeing 737-800,18:20,2026-10-17 18:53:02,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1350,285.0,5.35,N/D,100,4ca264,148,80.9,True,1.0.15
+2026-10-17,FR3481,Passeggeri,A,sacbo,CAGLIARI,Italia,Ryanair,Boeing 737-800,19:10,2026-10-17 18:56:52,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,750,284.93,2.01,Ireland,100,4ca264,148,89.7,True,1.0.15
+2026-10-17,BZ151,Passeggeri,D,sacbo,TEL AVIV,Israele,Blue Bird Airways,N/D,19:00,2026-10-17 19:00,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,0,0.0,True,1.0.15
+2026-10-17,FR5092,Passeggeri,D,sacbo,LAMEZIA,Italia,Ryanair,Boeing 737-800,18:15,2026-10-17 19:01:12,RWY 28,geometrico,Decollo,Rotta 243.7°,2175,243.71,3.06,N/D,100,4d2303,148,81.2,True,1.0.15
+2026-10-17,FR4845,Passeggeri,D,sacbo,DUBLIN,Irlanda,Ryanair,Boeing 737-800,18:20,2026-10-17 19:06,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR4638,Passeggeri,D,sacbo,PORTO,Portogallo,Ryanair,Boeing 737-800,19:15,2026-10-17 19:07:02,RWY 28,radar_diretto,Decollo,Est -> Ovest,3475,254.19,6.78,N/D,100,4cae68,148,73.1,True,1.0.15
+2026-10-17,FR2887,Passeggeri,A,sacbo,CATANIA,Italia,Ryanair,Boeing 737-800,19:15,2026-10-17 19:12:48,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1100,285.36,5.22,N/D,100,4ca226,148,81.9,True,1.0.15
+2026-10-17,FR3433,Passeggeri,A,sacbo,PARIS BEAUVAIS,Francia,Ryanair,Boeing 737-800,19:20,2026-10-17 19:25:12,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,2125,285.01,9.96,N/D,100,4d234d,148,65.9,True,1.0.15
+2026-10-17,FR5112,Passeggeri,A,sacbo,CROTONE,Italia,Ryanair,Boeing 737-800,19:30,2026-10-17 19:31:15,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,1225,284.98,4.79,N/D,100,4ca245,148,84.1,True,1.0.15
+2026-10-17,FR3216,Passeggeri,A,sacbo,MANCHESTER,Regno Unito,Ryanair,Boeing 737-800,19:35,2026-10-17 19:36:58,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,725,285.01,1.94,Ireland,100,4cada4,148,90.4,True,1.0.15
+2026-10-17,FR8822,Passeggeri,A,sacbo,BIARRITZ - BAYONA,Francia,Ryanair,Boeing 737-800,19:40,2026-10-17 19:39:16,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,725,285.01,1.94,Ireland,100,4cada4,148,90.4,True,1.0.15
+2026-10-17,FR3165,Passeggeri,A,sacbo,BUDAPEST,Ungheria,Ryanair,Boeing 737-800,19:40,2026-10-17 19:42:56,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1300,284.59,5.25,N/D,100,48c2b1,148,81.4,True,1.0.15
+2026-10-17,FR3112,Passeggeri,D,sacbo,IASI,Romania,Ryanair,Boeing 737-800,19:30,2026-10-17 19:47:13,RWY 10,propagato,Decollo,Rotta 224.1°,2850,224.07,4.28,N/D,100,4ca264,148,86.0,True,1.0.15
+2026-10-17,FR411,Passeggeri,A,sacbo,LUXEMBOURG,Lussemburgo,Ryanair,Boeing 737-800,19:45,2026-10-17 19:50:34,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1325,284.7,5.35,N/D,100,4d21ee,148,80.8,True,1.0.15
+2026-10-17,FR7360,Passeggeri,A,sacbo,VIENNA,Austria,Ryanair,Boeing 737-800,19:55,2026-10-17 19:52:54,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1425,284.78,5.99,N/D,100,4d251d,148,77.4,True,1.0.15
+2026-10-17,FR865,Passeggeri,D,sacbo,BUCHAREST OTOPENI,Romania,Ryanair,Boeing 737-800,18:30,2026-10-17 20:00,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR3561,Passeggeri,D,sacbo,NAPOLI,Italia,Ryanair,Boeing 737-800,19:00,2026-10-17 20:00,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,W64773,Passeggeri,A,sacbo,SKOPJE,Macedonia del Nord,Wizz Air,Airbus A320-200,20:05,2026-10-17 20:01:17,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,750,284.88,1.94,Hungary,100,471f41,144,89.3,True,1.0.15
+2026-10-17,W61433,Passeggeri,A,sacbo,WARSAW,Polonia,Wizz Air,Airbus A320-200,20:00,2026-10-17 20:01:17,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,750,284.55,2.02,Malta,100,4d2527,144,88.5,True,1.0.15
+2026-10-17,FR8349,Passeggeri,D,sacbo,TIRANA,Albania,Ryanair,Boeing 737-800,19:35,2026-10-17 20:03:03,RWY 10,propagato,Decollo,Rotta 159.3°,4825,159.26,8.55,N/D,100,4ca226,148,68.8,True,1.0.15
+2026-10-17,FR3164,Passeggeri,D,sacbo,BUDAPEST,Ungheria,Ryanair,Boeing 737-800,20:05,2026-10-17 20:05,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR3437,Passeggeri,D,sacbo,SOFIA,Bulgaria,Ryanair,Boeing 737-800,20:10,2026-10-17 20:10,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR5493,Passeggeri,A,sacbo,MADRID,Spagna,Ryanair,Boeing 737-800,20:20,2026-10-17 20:18:07,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1825,284.98,8.2,N/D,100,4d22bf,148,70.2,True,1.0.15
+2026-10-17,FR7361,Passeggeri,D,sacbo,VIENNA,Austria,Ryanair,Boeing 737-800,20:20,2026-10-17 20:20,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR3893,Passeggeri,D,sacbo,CAGLIARI,Italia,Ryanair,Boeing 737-800,19:45,2026-10-17 20:22:56,RWY 10,propagato,Decollo,Rotta 224.3°,3550,224.32,6.67,N/D,100,4d234d,148,78.0,True,1.0.15
+2026-10-17,E5544,Charter (Air Arabia Egypt),A,sacbo,CAIRO,Egitto,Air Arabia Egypt,N/D,20:30,2026-10-17 20:22:56,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,1025,284.88,3.64,N/D,100,010255,0,0.0,True,1.0.15
+2026-10-17,FR2290,Passeggeri,A,sacbo,PALERMO,Italia,Ryanair,Boeing 737-800,20:20,2026-10-17 20:25:13,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1300,284.59,5.2,N/D,100,4ca2bf,148,81.7,True,1.0.15
+2026-10-17,RYR52BG,Passeggeri (radar),A,,N/D,DA CLASSIFICARE,Ryanair,Boeing 737-800,,2026-10-17 20:28:53,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1275,284.59,5.13,N/D,0,4ca8d5,166,82.1,False,1.0.15
+2026-10-17,VR631,Passeggeri,D,sacbo,SAL - CABOVERDE,Capo Verde,Cabo Verde Airlines,N/D,20:20,2026-10-17 20:33:29,N/D,N/D,Decollo,Rotta 224.6°,4000,224.57,8.27,N/D,100,096028,0,0.0,True,1.0.15
+2026-10-17,W43469,Passeggeri,A,sacbo,TIRGU MURES,Romania,Wizz Air Malta,Airbus A320-200,19:55,2026-10-17 20:37:04,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,1050,285.22,3.7,N/D,100,4d24b2,144,86.2,True,1.0.15
+2026-10-17,FR4522,Passeggeri,A,sacbo,BRUXELLES CHARLEROI,Belgio,Ryanair,Boeing 737-800,20:35,2026-10-17 20:38:35,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,1175,284.49,4.64,N/D,100,4d222c,148,84.7,True,1.0.15
+2026-10-17,FR3217,Passeggeri,D,sacbo,MANCHESTER,Regno Unito,Ryanair,Boeing 737-800,20:00,2026-10-17 20:43:09,N/D,N/D,Decollo,Rotta 226.1°,4675,226.09,9.97,N/D,100,48c2b1,148,69.1,True,1.0.15
+2026-10-17,FR4994,Passeggeri,A,sacbo,CEFALONIA,Grecia,Ryanair,Boeing 737-800,20:55,2026-10-17 20:43:09,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,1050,285.22,3.91,N/D,100,4d244a,148,87.7,True,1.0.15
+2026-10-17,FR4631,Passeggeri,D,sacbo,VALENCIA,Spagna,Ryanair,Boeing 737-800,20:45,2026-10-17 20:45,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,W64774,Passeggeri,D,sacbo,SKOPJE,Macedonia del Nord,Wizz Air,Airbus A320-200,20:45,2026-10-17 20:45,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,144,0.0,True,1.0.15
+2026-10-17,FR5532,Passeggeri,A,sacbo,COLOGNE,Germania,Ryanair,Boeing 737-800,20:45,2026-10-17 20:46:48,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1275,284.73,5.1,N/D,100,4ca27b,148,82.3,True,1.0.15
+2026-10-17,FR4038,Passeggeri,A,sacbo,DUBLIN,Irlanda,Ryanair,Boeing 737-800,20:55,2026-10-17 20:49:09,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1275,285.05,5.13,N/D,100,4caf29,148,82.2,True,1.0.15
+2026-10-17,W43135,Passeggeri,A,sacbo,BUCHAREST OTOPENI,Romania,Wizz Air Malta,Airbus A320-200,21:00,2026-10-17 20:52:43,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1325,285.29,5.27,N/D,100,471d6c,144,80.4,True,1.0.15
+2026-10-17,W45019,Passeggeri,A,sacbo,TIRANA,Albania,Wizz Air Malta,Airbus A320-200,21:00,2026-10-17 20:54:59,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,2100,285.19,9.84,N/D,100,471f55,144,65.1,True,1.0.15
+2026-10-17,FR2892,Passeggeri,D,sacbo,CATANIA,Italia,Ryanair,Boeing 737-800,20:05,2026-10-17 20:56:16,RWY 28,propagato,Decollo,Rotta 223.2°,3050,223.17,5.12,N/D,100,4d251d,148,83.2,True,1.0.15
+2026-10-17,LAV901P,Charter (AlbaStar),A,,N/D,DA CLASSIFICARE,AlbaStar,N/D,,2026-10-17 21:00:50,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,1225,284.91,4.89,N/D,0,345617,0,0.0,False,1.0.15
+2026-10-17,W61434,Passeggeri,D,sacbo,WARSAW,Polonia,Wizz Air,Airbus A320-200,20:40,2026-10-17 21:04:23,N/D,N/D,Decollo,Rotta 221.2°,3300,221.19,5.59,N/D,100,471f41,144,80.6,True,1.0.15
+2026-10-17,FR6857,Passeggeri,A,sacbo,PORTO,Portogallo,Ryanair,Boeing 737-800,21:10,2026-10-17 21:10,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR5531,Passeggeri,D,sacbo,COLOGNE,Germania,Ryanair,Boeing 737-800,21:10,2026-10-17 21:10,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR2086,Passeggeri,A,sacbo,LISBON,Portogallo,Ryanair,Boeing 737-800,21:05,2026-10-17 21:11:13,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1875,285.56,8.65,N/D,100,4cad2a,148,68.8,True,1.0.15
+2026-10-17,FR6304,Passeggeri,D,sacbo,BARCELONA EL PRAT,Spagna,Ryanair,Boeing 737-800,21:10,2026-10-17 21:11:13,RWY 28,radar_diretto,Decollo,Est -> Ovest,1500,278.08,1.68,N/D,100,4d22bf,148,91.4,True,1.0.15
+2026-10-17,FR485,Passeggeri,A,sacbo,DUSSELDORF - WEEZE,Germania,Ryanair,Boeing 737-800,20:55,2026-10-17 21:16:41,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,1225,284.86,4.82,N/D,100,4cae49,148,83.9,True,1.0.15
+2026-10-17,FR3654,Passeggeri,A,sacbo,BARI,Italia,Ryanair,Boeing 737-800,21:00,2026-10-17 21:19:13,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1550,285.29,6.66,N/D,100,4d2237,148,75.3,True,1.0.15
+2026-10-17,FR859,Passeggeri,D,sacbo,BRINDISI,Italia,Ryanair,Boeing 737-800,20:45,2026-10-17 21:20,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR844,Passeggeri,A,sacbo,CLUJ-NAPOCA,Romania,Ryanair,Boeing 737-800,21:00,2026-10-17 21:23:12,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,725,284.78,2.03,Malta,100,4d2237,148,89.5,True,1.0.15
+2026-10-17,FR8800,Passeggeri,D,sacbo,IBIZA,Spagna,Ryanair,Boeing 737-800,20:25,2026-10-17 21:24:29,RWY 10,propagato,Decollo,Rotta 228.0°,2375,228.04,4.05,N/D,100,4ca2bf,148,85.6,True,1.0.15
+2026-10-17,FR3440,Passeggeri,D,sacbo,LAMEZIA,Italia,Ryanair,Boeing 737-800,21:25,2026-10-17 21:25,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR4969,Passeggeri,D,sacbo,PALERMO,Italia,Ryanair,Boeing 737-800,21:20,2026-10-17 21:26:46,RWY 28,radar_diretto,Decollo,Est -> Ovest,2250,283.96,3.75,N/D,100,4ca8d5,148,87.8,True,1.0.15
+2026-10-17,E5545,Charter (Air Arabia Egypt),D,sacbo,CAIRO,Egitto,Air Arabia Egypt,N/D,21:30,2026-10-17 21:30,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,0,0.0,True,1.0.15
+2026-10-17,FR6126,Passeggeri,A,sacbo,DUBLIN,Irlanda,Ryanair,Boeing 737-800,21:35,2026-10-17 21:32:51,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1350,284.82,5.51,N/D,100,48c227,148,79.8,True,1.0.15
+2026-10-17,FR2087,Passeggeri,D,sacbo,LISBON,Portogallo,Ryanair,Boeing 737-800,21:30,2026-10-17 21:32:51,N/D,N/D,Decollo,Rotta 224.2°,4400,224.24,9.17,N/D,100,4d222c,148,70.8,True,1.0.15
+2026-10-17,FR6501,Passeggeri,D,sacbo,OLBIA,Italia,Ryanair,Boeing 737-800,21:35,2026-10-17 21:35,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,W64507,Passeggeri,A,sacbo,VARNA,Bulgaria,Wizz Air,Airbus A320-200,21:30,2026-10-17 21:36:21,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1850,285.03,8.49,N/D,100,471f6b,144,68.3,True,1.0.15
+2026-10-17,G9695,Passeggeri,A,sacbo,SHARJAH,Emirati Arabi Uniti,Air Arabia,Airbus A320-200,21:50,2026-10-17 21:41:09,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,1000,284.72,3.44,N/D,100,896740,144,84.8,True,1.0.15
+2026-10-17,FR3320,Passeggeri,A,sacbo,BARCELONA EL PRAT,Spagna,Ryanair,Boeing 737-800,21:10,2026-10-17 21:42:26,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1700,284.93,7.57,N/D,100,4d251a,148,72.3,True,1.0.15
+2026-10-17,W43931,Passeggeri,A,sacbo,CHISINAU,Moldova,Wizz Air Malta,Airbus A320-200,21:10,2026-10-17 21:47:11,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,1050,284.84,3.78,N/D,100,471f66,144,86.2,True,1.0.15
+2026-10-17,FR821,Passeggeri,A,sacbo,LISBON,Portogallo,Ryanair,Boeing 737-800,21:55,2026-10-17 21:48:50,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,725,284.59,1.91,Malta,100,4d251a,148,90.6,True,1.0.15
+2026-10-17,FR484,Passeggeri,D,sacbo,DUSSELDORF - WEEZE,Germania,Ryanair,Boeing 737-800,21:20,2026-10-17 21:50,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,W43470,Passeggeri,D,sacbo,TIRGU MURES,Romania,Wizz Air Malta,Airbus A320-200,20:35,2026-10-17 21:50,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,144,0.0,True,1.0.15
+2026-10-17,FR4523,Passeggeri,D,sacbo,BRUXELLES CHARLEROI,Belgio,Ryanair,Boeing 737-800,21:00,2026-10-17 21:51:16,RWY 28,propagato,Decollo,Rotta 224.3°,3575,224.32,7.14,N/D,100,4d244a,148,76.6,True,1.0.15
+2026-10-17,FR5934,Passeggeri,D,sacbo,DUBROVNIK,Croazia,Ryanair,Boeing 737-800,21:25,2026-10-17 21:54,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,W43136,Passeggeri,D,sacbo,BUCHAREST OTOPENI,Romania,Wizz Air Malta,Airbus A320-200,21:45,2026-10-17 21:57:06,RWY 28,geometrico,Decollo,Rotta 229.7°,2750,229.69,4.5,N/D,100,4d24b2,144,82.7,True,1.0.15
+2026-10-17,FR3341,Passeggeri,D,sacbo,VARSAVIA MODLIN,Polonia,Ryanair,Boeing 737-800,22:00,2026-10-17 21:58:23,RWY 28,propagato,Decollo,Rotta 242.2°,1850,242.24,3.09,N/D,100,4d24ea,148,81.6,True,1.0.15
+2026-10-17,FR7960,Passeggeri,D,sacbo,BIRMINGHAM,Regno Unito,Ryanair,Boeing 737-800,22:00,2026-10-17 22:04:31,RWY 28,radar_diretto,Decollo,Est -> Ovest,1275,279.46,1.61,N/D,100,4cacdf,148,92.2,True,1.0.15
+2026-10-17,FR2859,Passeggeri,A,sacbo,BRINDISI,Italia,Ryanair,Boeing 737-800,22:00,2026-10-17 22:08:53,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,1200,285.03,4.73,N/D,100,4ca707,148,84.5,True,1.0.15
+2026-10-17,FR4189,Passeggeri,A,sacbo,LONDON STANSTED,Regno Unito,Ryanair,Boeing 737-800,22:15,2026-10-17 22:11:10,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,700,285.26,1.89,Ireland,100,4ca707,148,91.1,True,1.0.15
+2026-10-17,FR2429,Passeggeri,A,sacbo,SARAJEVO,Bosnia ed Erzegovina,Ryanair,Boeing 737-800,22:10,2026-10-17 22:16,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,W45020,Passeggeri,D,sacbo,TIRANA,Albania,Wizz Air Malta,Airbus A320-200,21:45,2026-10-17 22:17:00,RWY 28,geometrico,Decollo,Rotta 241.7°,2525,241.65,3.56,N/D,100,471f55,144,80.5,True,1.0.15
+2026-10-17,FR3506,Passeggeri,D,sacbo,ALICANTE,Spagna,Ryanair,Boeing 737-800,22:15,2026-10-17 22:18:18,RWY 28,radar_diretto,Decollo,Est -> Ovest,1500,285.64,1.98,N/D,100,4cad2a,148,91.6,True,1.0.15
+2026-10-17,FR3280,Passeggeri,D,sacbo,GDANSK - DANZICA,Polonia,Ryanair,Boeing 737-800,22:20,2026-10-17 22:20,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,W43932,Passeggeri,D,sacbo,CHISINAU,Moldova,Wizz Air Malta,Airbus A320-200,21:50,2026-10-17 22:22:50,N/D,N/D,Decollo,Rotta 181.3°,4900,181.3,9.41,N/D,100,471d6c,144,68.0,True,1.0.15
+2026-10-17,FR9408,Passeggeri,D,sacbo,FEZ,Marocco,Ryanair,Boeing 737-800,22:20,2026-10-17 22:26:24,N/D,N/D,Decollo,Rotta 220.9°,3050,220.91,5.58,N/D,100,48c227,148,81.8,True,1.0.15
+2026-10-17,FR6992,Passeggeri,A,sacbo,RABAT,Marocco,Ryanair,Boeing 737-800,21:45,2026-10-17 22:28:39,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1575,284.82,6.88,N/D,100,48c132,148,74.6,True,1.0.15
+2026-10-17,FR3279,Passeggeri,A,sacbo,GDANSK - DANZICA,Polonia,Ryanair,Boeing 737-800,21:55,2026-10-17 22:30:56,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1950,285.12,8.99,N/D,100,48c2b2,148,67.8,True,1.0.15
+2026-10-17,FR3536,Passeggeri,A,sacbo,KRAKOW,Polonia,Ryanair,Boeing 737-800,22:35,2026-10-17 22:36:46,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,700,285.19,1.85,Poland,100,48c2b2,148,91.4,True,1.0.15
+2026-10-17,W64508,Passeggeri,D,sacbo,VARNA,Bulgaria,Wizz Air,Airbus A320-200,22:10,2026-10-17 22:42:38,N/D,N/D,Decollo,Rotta 219.2°,3225,219.21,7.06,N/D,100,471f6b,144,76.4,True,1.0.15
+2026-10-17,FR5984,Passeggeri,D,sacbo,MADRID,Spagna,Ryanair,Boeing 737-800,22:20,2026-10-17 22:45:10,RWY 28,radar_diretto,Decollo,Est -> Ovest,1275,285.14,1.57,N/D,100,4d251a,148,93.5,True,1.0.15
+2026-10-17,IGT1201,Passeggeri (radar),A,,N/D,DA CLASSIFICARE,Georgian Airlines,N/D,,2026-10-17 22:46:28,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,1050,284.65,3.84,N/D,0,5140d1,0,0.0,False,1.0.15
+2026-10-17,W64123,Passeggeri,A,sacbo,BELGRADE,Serbia,Wizz Air,Airbus A320-200,22:55,2026-10-17 22:51:00,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,1100,285.33,4.09,N/D,100,471d71,144,86.6,True,1.0.15
+2026-10-17,FR8356,Passeggeri,A,sacbo,TIRANA,Albania,Ryanair,Boeing 737-800,22:45,2026-10-17 22:52:17,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1875,284.36,8.67,N/D,100,4ca301,148,68.7,True,1.0.15
+2026-10-17,FR4650,Passeggeri,D,sacbo,TRAPANI,Italia,Ryanair,Boeing 737-800,21:30,2026-10-17 22:54,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR864,Passeggeri,A,sacbo,BUCHAREST OTOPENI,Romania,Ryanair,Boeing 737-800,22:50,2026-10-17 22:54:41,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,700,284.91,1.83,Ireland,100,4ca301,148,91.5,True,1.0.15
+2026-10-17,FR8844,Passeggeri,D,sacbo,WROCLAW - BRESLAVIA,Polonia,Ryanair,Boeing 737-800,22:55,2026-10-17 22:55,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,G9696,Passeggeri,D,sacbo,SHARJAH,Emirati Arabi Uniti,Air Arabia,Airbus A320-200,22:50,2026-10-17 22:56:58,N/D,N/D,Decollo,Rotta 224.5°,3775,224.53,6.56,N/D,100,896740,144,77.3,True,1.0.15
+2026-10-17,UNKNOWN,Non classificato,D,,Ireland,Irlanda,Non identificato,N/D,,2026-10-17 23:02:14,RWY 10,radar_diretto,Decollo,Ovest -> Est,775,105.13,1.21,Ireland,0,4ca707,0,0.0,False,1.0.15
+2026-10-17,W45020,Passeggeri,D,sacbo,TIRANA,Albania,Wizz Air Malta,Airbus A320-200,23:00,2026-10-17 23:04:44,N/D,N/D,Decollo,Rotta 122.0°,3250,122.01,5.32,N/D,100,471f66,144,76.8,True,1.0.15
+2026-10-17,FR3408,Passeggeri,D,sacbo,KATOWICE,Polonia,Ryanair,Boeing 737-800,23:10,2026-10-17 23:10,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR1177,Passeggeri,A,sacbo,MENORCA,Spagna,Ryanair,Boeing 737-800,22:55,2026-10-17 23:11:37,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,1200,284.65,4.76,N/D,100,4d234d,148,84.2,True,1.0.15
+2026-10-17,FR5877,Passeggeri,A,sacbo,PARIS BEAUVAIS,Francia,Ryanair,Boeing 737-800,23:05,2026-10-17 23:14:18,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1775,285.0,8.09,N/D,100,4ca226,148,70.6,True,1.0.15
+2026-10-17,FR3535,Passeggeri,D,sacbo,KRAKOW,Polonia,Ryanair,Boeing 737-800,23:15,2026-10-17 23:15,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR3481,Passeggeri,A,sacbo,CAGLIARI,Italia,Ryanair,Boeing 737-800,23:05,2026-10-17 23:16:56,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1475,284.84,6.31,N/D,100,4ca264,148,76.4,True,1.0.15
+2026-10-17,FR3562,Passeggeri,A,sacbo,NAPOLI,Italia,Ryanair,Boeing 737-800,22:15,2026-10-17 23:18,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR8802,Passeggeri,A,sacbo,IBIZA,Spagna,Ryanair,Boeing 737-800,23:20,2026-10-17 23:28:14,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1575,285.1,6.85,N/D,100,4cada3,148,74.7,True,1.0.15
+2026-10-17,FR8845,Passeggeri,A,sacbo,WROCLAW - BRESLAVIA,Polonia,Ryanair,Boeing 737-800,22:30,2026-10-17 23:30:48,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1350,284.93,5.57,N/D,100,4d234b,148,79.5,True,1.0.15
+2026-10-17,FR6000,Passeggeri,A,sacbo,ZAGREB,Croazia,Ryanair,Boeing 737-800,22:40,2026-10-17 23:34:19,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1425,285.04,6.02,N/D,100,4ca741,148,77.3,True,1.0.15
+2026-10-17,W64124,Passeggeri,D,sacbo,BELGRADE,Serbia,Wizz Air,Airbus A320-200,23:35,2026-10-17 23:35,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,144,0.0,True,1.0.15
+2026-10-17,FR3409,Passeggeri,A,sacbo,KATOWICE,Polonia,Ryanair,Boeing 737-800,22:45,2026-10-17 23:36:52,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,700,284.41,1.87,Ireland,100,4ca741,148,91.0,True,1.0.15
+2026-10-17,FR3218,Passeggeri,A,sacbo,MANCHESTER,Regno Unito,Ryanair,Boeing 737-800,23:40,2026-10-17 23:36:52,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,700,284.78,1.85,Malta,100,4d234b,148,91.3,True,1.0.15
+2026-10-17,FR4188,Passeggeri,D,sacbo,LONDON STANSTED,Regno Unito,Ryanair,Boeing 737-800,22:40,2026-10-17 23:40:27,N/D,N/D,Decollo,Rotta 143.0°,2750,143.02,6.66,N/D,100,48c2b6,148,72.4,True,1.0.15
+2026-10-17,FR3657,Passeggeri,D,sacbo,EDINBURGH,Regno Unito,Ryanair,Boeing 737-800,22:45,2026-10-17 23:43:11,N/D,N/D,Decollo,Rotta 126.8°,2550,126.75,6.04,N/D,100,48c128,148,76.8,True,1.0.15
+2026-10-17,NP222,Passeggeri,D,sacbo,CAIRO,Egitto,Nile Air,N/D,23:20,2026-10-17 23:45,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,0,0.0,True,1.0.15
+2026-10-17,FR3867,Passeggeri,D,sacbo,POZNAN,Polonia,Ryanair,Boeing 737-800,22:25,2026-10-17 23:46,N/D,N/D,Non rilevato,N/D,0,0.0,0.0,N/D,0,,148,0.0,True,1.0.15
+2026-10-17,FR3536,Passeggeri,A,sacbo,KRAKOW,Polonia,Ryanair,Boeing 737-800,22:50,2026-10-17 23:48:59,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1775,284.83,8.16,N/D,100,4d2229,148,70.4,True,1.0.15
+2026-10-17,FR3562,Passeggeri,A,sacbo,NAPOLI,Italia,Ryanair,Boeing 737-800,23:50,2026-10-17 23:51:37,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,725,284.93,2.01,Malta,100,4d2229,148,89.7,True,1.0.15
+2026-10-17,FR2879,Passeggeri,A,sacbo,STOCKHOLM,Svezia,Ryanair,Boeing 737-800,22:55,2026-10-17 23:55:13,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1500,284.57,6.5,N/D,100,4cae68,148,75.8,True,1.0.15
+2026-10-17,FR3892,Passeggeri,A,sacbo,CAGLIARI,Italia,Ryanair,Boeing 737-800,23:10,2026-10-17 23:57:55,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,700,284.88,1.91,Ireland,100,4cae68,148,90.7,True,1.0.15
+2026-10-17,W64124,Passeggeri,D,sacbo,BELGRADE,Serbia,Wizz Air,Airbus A320-200,23:40,2026-10-17 23:59:00,RWY 10,radar_diretto,Decollo,Ovest -> Est,1650,104.78,2.7,N/D,100,471d71,144,85.0,True,1.0.15
+2026-10-17,FR864,Passeggeri,A,sacbo,BUCHAREST OTOPENI,Romania,Ryanair,Boeing 737-800,23:25,2026-10-18 00:09:41,RWY 28,radar_diretto,Avvicinamento,Est -> Ovest,1775,285.12,8.17,N/D,100,4d22c4,148,70.4,True,1.0.15
+2026-10-17,FR8350,Passeggeri,A,sacbo,TIRANA,Albania,Ryanair,Boeing 737-800,23:35,2026-10-18 00:13:36,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,1025,284.13,3.85,N/D,100,4caf29,148,87.0,True,1.0.15
+2026-10-17,FR4844,Passeggeri,A,sacbo,DUBLIN,Irlanda,Ryanair,Boeing 737-800,23:50,2026-10-18 00:14:39,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,700,285.11,1.85,Malta,100,4d22c4,148,91.4,True,1.0.15
+2026-10-17,FR3393,Passeggeri,A,sacbo,HELSINKI,Finlandia,Ryanair,Boeing 737-800,23:50,2026-10-18 00:15:44,RWY 28,radar_diretto,Atterraggio,Est -> Ovest,700,284.88,1.8,Ireland,100,4caf29,148,91.8,True,1.0.15
+2026-10-17,FR3408,Passeggeri,D,sacbo,KATOWICE,Polonia,Ryanair,Boeing 737-800,23:35,2026-10-18 00:31:19,RWY 10,radar_diretto,Decollo,Ovest -> Est,2250,106.04,3.97,N/D,100,4ca741,148,80.7,True,1.0.15

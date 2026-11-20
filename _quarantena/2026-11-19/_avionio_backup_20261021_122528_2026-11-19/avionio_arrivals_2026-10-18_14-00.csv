@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 2670,A,Berlin,14:20,,Estimated 14:05,Ryanair,BER,18 Oct,avionio
+FR 3654,A,Bari,14:20,,Estimated 14:45,Ryanair,BRI,18 Oct,avionio
+FR 3646,A,Edinburgh,14:30,,Estimated 14:20,Ryanair,EDI,18 Oct,avionio
+FR 9094,A,Gdansk,14:30,,Estimated 14:06,Ryanair,GDN,18 Oct,avionio
+FR 2738,A,London,14:35,,Estimated 14:32,Ryanair,STN,18 Oct,avionio
+FR 3503,A,Zaragoza,14:35,,Estimated 14:48,Ryanair,ZAZ,18 Oct,avionio
+FR 218,A,Alicante,14:40,,Estimated 15:01,Ryanair,ALC,18 Oct,avionio
+W4 3607,A,Suceava,14:50,,Estimated 15:12,Wizz Air Malta,SCV,18 Oct,avionio
+FR 3412,A,Katowice,14:55,,Estimated 14:33,Ryanair,KTW,18 Oct,avionio
+FR 4699,A,Trapani,15:00,,Estimated 15:10,Ryanair,TPS,18 Oct,avionio
+FR 858,A,Brindisi,15:00,,Estimated 14:47,Ryanair,BDS,18 Oct,avionio
+UJ 930,A,Cairo,15:00,,Estimated,Almasria Universal Airlines,CAI,18 Oct,avionio
+FR 1852,A,Marseille,15:05,,Estimated 15:05,Ryanair,MRS,18 Oct,avionio
+W4 5017,A,Tirana,15:10,,Estimated,Wizz Air Malta,TIA,18 Oct,avionio
+D8 3880,A,Billund,15:15,,Estimated,Norwegian Air Sweden AOC,BLL,18 Oct,avionio
+FR 2831,A,Tenerife,15:15,,Estimated 15:06,Ryanair,TFS,18 Oct,avionio
+FR 260,A,Bucharest,15:20,,Estimated 15:08,Ryanair,OTP,18 Oct,avionio
+FR 3155,A,Amman,15:30,,Cancelled,Ryanair,AMM,18 Oct,avionio
+FR 3560,A,Bristol,15:35,,Estimated 15:35,Ryanair,BRS,18 Oct,avionio
+XZ 2825,A,Catania,15:40,,Estimated,Aeroitalia,CTA,18 Oct,avionio

@@ -1,0 +1,420 @@
+[1mdiff --git a/bgy_reports/bgy_report_h24.py b/bgy_reports/bgy_report_h24.py[m
+[1mindex c48bfb1..b5611a4 100644[m
+[1m--- a/bgy_reports/bgy_report_h24.py[m
+[1m+++ b/bgy_reports/bgy_report_h24.py[m
+[36m@@ -1,4 +1,4 @@[m
+[31m-﻿"""[m
+[32m+[m[32m"""[m
+ bgy_reports/bgy_report_h24.py - Report H24 integrato (SACBO + Avionio + radar).[m
+ Versione 1.0.15[m
+ [m
+[36m@@ -33,6 +33,7 @@[m [mfrom bgy_core import bgy_db[m
+ [m
+ from bgy_reports.bgy_report_common import ([m
+     match_extreme_anomalies,[m
+[32m+[m[32m    fill_unknown_icao24_turnaround,[m
+     fill_unknown_runways_icao24,[m
+     propagate_runway_in_session,[m
+     fill_unknown_runways_geometric,[m
+[36m@@ -583,6 +584,67 @@[m [mdef _try_alternative_same_icao(radar, best_idx, direzione_sacbo, sched_min, low,[m
+     return best_alt_idx, best_alt_delta[m
+ [m
+ [m
+[32m+[m
+[32m+[m[32mdef _try_codeshare_match(sched_callsign, direzione_sacbo, sched_min, low, high, radar, used_radar_idx):[m
+[32m+[m[32m    """[m
+[32m+[m[32m    Cerca un match codeshare: scheduled con callsign IATA (es. DY1844)[m
+[32m+[m[32m    e radar con callsign ICAO (es. NOZ1844) o viceversa.[m
+[32m+[m[32m    """[m
+[32m+[m[32m    if not sched_callsign: return None, None[m
+[32m+[m[32m    cs = _normalize_callsign(sched_callsign)[m
+[32m+[m[32m    m = re.match(r'^([A-Z]{2,3})(\d+)$', cs)[m
+[32m+[m[32m    if not m: return None, None[m
+[32m+[m[32m    prefix_sched = m.group(1)[m
+[32m+[m[32m    num_sched = m.group(2)[m
+[32m+[m
+[32m+[m[32m    # Determina il prefisso ICAO corrispondente[m
+[32m+[m[32m    if len(prefix_sched) == 2:[m
+[32m+[m[32m        icao_prefix = iata_to_icao_prefix(prefix_sched)[m
+[32m+[m[32m        if not icao_prefix:[m
+[32m+[m[32m            # Fallback statico per i codeshare noti[m
+[32m+[m[32m            _STATIC_IATA_TO_ICAO = {[m
+[32m+[m[32m                'DY': 'NOZ', 'BZ': 'BBG', 'MV': 'MAR', 'XM': 'JUP',[m
+[32m+[m[32m                'DN': 'DNA', 'W6': 'WZZ', 'FR': 'RYR', 'U2': 'EZY',[m
+[32m+[m[32m                'AZ': 'ITY', 'PC': 'PGT', 'TK': 'THY', 'EK': 'UAE',[m
+[32m+[m[32m            }[m
+[32m+[m[32m            icao_prefix = _STATIC_IATA_TO_ICAO.get(prefix_sched, prefix_sched)[m
+[32m+[m[32m        icao_prefix = icao_prefix.upper()[m
+[32m+[m[32m    else:[m
+[32m+[m[32m        icao_prefix = prefix_sched[m
+[32m+[m
+[32m+[m[32m    best_idx = None[m
+[32m+[m[32m    best_delta = None[m
+[32m+[m[32m    for idx, r in radar.iterrows():[m
+[32m+[m[32m        if idx in used_radar_idx: continue[m
+[32m+[m[32m        r_min = r['_radar_min'][m
+[32m+[m[32m        if r_min is None or r_min < low or r_min > high: continue[m
+[32m+[m[32m        fase = str(r.get('fase_volo', '') or '')[m
+[32m+[m[32m        if not _is_phase_compatible(direzione_sacbo, fase): continue[m
+[32m+[m
+[32m+[m[32m        r_cs = _normalize_callsign(r.get('callsign', ''))[m
+[32m+[m[32m        if not r_cs: continue[m
+[32m+[m[32m        r_m = re.match(r'^([A-Z]{2,3})(\d+)$', r_cs)[m
+[32m+[m[32m        if not r_m: continue[m
+[32m+[m[32m        r_prefix = r_m.group(1)[m
+[32m+[m[32m        r_num = r_m.group(2)[m
+[32m+[m[32m        if r_num != num_sched: continue[m
+[32m+[m
+[32m+[m[32m        r_icao = r_prefix.upper()[m
+[32m+[m[32m        if len(r_prefix) == 2:[m
+[32m+[m[32m            r_icao_from_iata = iata_to_icao_prefix(r_prefix)[m
+[32m+[m[32m            if r_icao_from_iata:[m
+[32m+[m[32m                r_icao = r_icao_from_iata.upper()[m
+[32m+[m
+[32m+[m[32m        if r_icao != icao_prefix: continue[m
+[32m+[m
+[32m+[m[32m        delta = abs(r_min - sched_min)[m
+[32m+[m[32m        if best_delta is None or delta < best_delta:[m
+[32m+[m[32m            best_delta = delta[m
+[32m+[m[32m            best_idx = idx[m
+[32m+[m
+[32m+[m[32m    return best_idx, best_delta[m
+[32m+[m
+[32m+[m
+ def match_flights_h24(scheduled_df, radar_df, date_str):[m
+     if scheduled_df.empty and radar_df.empty:[m
+         return pd.DataFrame()[m
+[36m@@ -649,6 +711,7 @@[m [mdef match_flights_h24(scheduled_df, radar_df, date_str):[m
+     inv_patterns = _get_inverted_patterns()[m
+     matched = [][m
+     used_radar_idx = set()[m
+[32m+[m[32m    used_icao24 = {}  # icao24 -> _radar_min per evitare match multipli[m
+ [m
+     for _, s in sched.iterrows():[m
+         sched_min = s['_sched_min'][m
+[36m@@ -690,6 +753,13 @@[m [mdef match_flights_h24(scheduled_df, radar_df, date_str):[m
+ [m
+         for idx, r in radar.iterrows():[m
+             if idx in used_radar_idx: continue[m
+[32m+[m[41m            [m
+[32m+[m[32m            r_icao = str(r.get('icao24', '')).strip().lower()[m
+[32m+[m[32m            if r_icao and r_icao not in ('nan', 'none', 'n/d', ''):[m
+[32m+[m[32m                if r_icao in used_icao24:[m
+[32m+[m[32m                    if abs(r['_radar_min'] - used_icao24[r_icao]) < 45:[m
+[32m+[m[32m                        continue[m
+[32m+[m[41m            [m
+             r_min = r['_radar_min'][m
+             if r_min is None or r_min < low or r_min > high: continue[m
+             fase = str(r.get('fase_volo', '') or '')[m
+[36m@@ -712,6 +782,22 @@[m [mdef match_flights_h24(scheduled_df, radar_df, date_str):[m
+             pat_idx, pat_delta = _try_pattern_match_for_sched(callsign_sched, direzione, sched_min, low, high, radar, used_radar_idx, inv_patterns)[m
+             if pat_idx is not None: best_idx = pat_idx; best_delta = pat_delta[m
+ [m
+[32m+[m[32m        if best_idx is None:[m
+[32m+[m[32m            cs_idx, cs_delta = _try_codeshare_match([m
+[32m+[m[32m                callsign_sched, direzione, sched_min, low, high, radar, used_radar_idx[m
+[32m+[m[32m            )[m
+[32m+[m[32m            if cs_idx is not None:[m
+[32m+[m[32m                best_idx = cs_idx[m
+[32m+[m[32m                best_delta = cs_delta[m
+[32m+[m
+[32m+[m[32m        if best_idx is None:[m
+[32m+[m[32m            cs_idx, cs_delta = _try_codeshare_match([m
+[32m+[m[32m                callsign_sched, direzione, sched_min, low, high, radar, used_radar_idx[m
+[32m+[m[32m            )[m
+[32m+[m[32m            if cs_idx is not None:[m
+[32m+[m[32m                best_idx = cs_idx[m
+[32m+[m[32m                best_delta = cs_delta[m
+[32m+[m
+         if best_idx is not None:[m
+             alt_idx, alt_delta = _try_alternative_same_icao(radar, best_idx, direzione, sched_min, low, high, used_radar_idx)[m
+             if alt_idx is not None: best_idx = alt_idx; best_delta = alt_delta[m
+[36m@@ -719,6 +805,9 @@[m [mdef match_flights_h24(scheduled_df, radar_df, date_str):[m
+         if best_idx is not None:[m
+             used_radar_idx.add(best_idx)[m
+             r = radar.loc[best_idx][m
+[32m+[m[32m            r_icao_best = str(r.get('icao24', '')).strip().lower()[m
+[32m+[m[32m            if r_icao_best and r_icao_best not in ('nan', 'none', 'n/d', ''):[m
+[32m+[m[32m                used_icao24[r_icao_best] = r['_radar_min'][m
+             combined = {**s.to_dict(), **r.to_dict()}[m
+             combined['is_scheduled'] = True[m
+             combined['matched_score'] = 100[m
+[36m@@ -972,6 +1061,35 @@[m [mdef _sort_report_chronologically(df, date_str):[m
+     return df[m
+ [m
+ [m
+[32m+[m[32mdef _normalize_stato_and_rank(stato_raw):[m
+[32m+[m[32m    if stato_raw is None:[m
+[32m+[m[32m        return None, 4[m
+[32m+[m[32m    s = str(stato_raw).strip().upper()[m
+[32m+[m[32m    if not s or s in ('NAN', 'NONE', 'NULL'):[m
+[32m+[m[32m        return None, 4[m
+[32m+[m[32m    if any(k in s for k in ('OPERATO DA', 'ASSISTENZA', 'SEDE LEGALE', 'VIA ORIO', 'AIRLINES', 'AIR ')) and not any([m
+[32m+[m[32m        t in s for t in ('CANCELL', 'ATTERR', 'DECOLL', 'PARTIT', 'RITARD', 'IMBARC', 'OPERATIV')[m
+[32m+[m[32m    ):[m
+[32m+[m[32m        return None, 4[m
+[32m+[m[32m    if 'CANCELL' in s:[m
+[32m+[m[32m        return 'Cancellato', 1[m
+[32m+[m[32m    if 'ATTERR' in s or 'LANDED' in s:[m
+[32m+[m[32m        return 'Atterrato', 1[m
+[32m+[m[32m    if 'DECOLL' in s or 'PARTIT' in s or 'DEPART' in s or s.startswith('DECOL'):[m
+[32m+[m[32m        return 'Decollato', 1[m
+[32m+[m[32m    if 'DIROTT' in s or 'DIVERT' in s:[m
+[32m+[m[32m        return 'Dirottato', 1[m
+[32m+[m[32m    if 'IMBARC' in s or 'BOARD' in s:[m
+[32m+[m[32m        return 'Imbarco', 2[m
+[32m+[m[32m    if 'RITARD' in s or 'DELAY' in s or s.startswith('IN RIT'):[m
+[32m+[m[32m        return 'In ritardo', 2[m
+[32m+[m[32m    if 'ESTIMAT' in s or 'STIMAT' in s:[m
+[32m+[m[32m        return 'Estimated', 2[m
+[32m+[m[32m    if 'OPERATIV' in s or 'PROGRAMM' in s or 'SCHEDUL' in s:[m
+[32m+[m[32m        return 'Operativo', 3[m
+[32m+[m[32m    return None, 4[m
+[32m+[m
+[32m+[m
+ def load_scheduled_flights_h24(date_str, radar_df=None):[m
+     date_norm = normalize_date(date_str)[m
+     scan_files = [f for f in os.listdir(RAW_DIR)[m
+[36m@@ -979,11 +1097,15 @@[m [mdef load_scheduled_flights_h24(date_str, radar_df=None):[m
+     scan_files.sort()[m
+ [m
+     flights = defaultdict(list)[m
+[32m+[m
+     for f in scan_files:[m
+         filepath = os.path.join(RAW_DIR, f)[m
+[31m-        scan_time = _extract_scan_time(f)[m
+[32m+[m[32m        scan_time = _extract_scan_time(f)  # formato HH-MM[m
+         if not scan_time:[m
+             continue[m
+[32m+[m
+[32m+[m[32m        scan_hhmm = scan_time.replace('-', ':')[m
+[32m+[m
+         try:[m
+             df = pd.read_csv(filepath)[m
+             df = normalize_scan_columns(df)[m
+[36m@@ -991,60 +1113,101 @@[m [mdef load_scheduled_flights_h24(date_str, radar_df=None):[m
+                 sched_raw = row.get('orario_schedulato')[m
+                 if not sched_raw:[m
+                     continue[m
+[31m-                cs_norm = _normalize_callsign(row.get('callsign_volo', ''))[m
+[32m+[m
+                 sched_norm = _normalize_hhmm(sched_raw)[m
+[31m-                if not cs_norm or not sched_norm:[m
+[32m+[m[32m                if not sched_norm:[m
+[32m+[m[32m                    continue[m
+[32m+[m
+[32m+[m[32m                stato_raw = row.get('stato_volo')[m
+[32m+[m[32m                stato_norm, stato_rank = _normalize_stato_and_rank(stato_raw)[m
+[32m+[m
+[32m+[m[32m                # Filtro incrociato orario scansione / orario schedulato + guard scan serali[m
+[32m+[m[32m                if scan_hhmm < '06:00':[m
+[32m+[m[32m                    if sched_norm >= '06:00':[m
+[32m+[m[32m                        continue  # Volo in ritardo di ieri[m
+[32m+[m[32m                else:[m
+[32m+[m[32m                    if sched_norm < '06:00':[m
+[32m+[m[32m                        continue  # Volo di domani mattina[m
+[32m+[m[32m                    # Evita falsi orfani mattutini pubblicati sul tabellone notturno dopo le 22:00 (es. FR1853)[m
+[32m+[m[32m                    if scan_hhmm >= '22:00' and sched_norm < '18:00' and stato_rank >= 3:[m
+[32m+[m[32m                        continue[m
+[32m+[m
+[32m+[m[32m                cs_norm = _normalize_callsign(row.get('callsign_volo', ''))[m
+[32m+[m[32m                if not cs_norm:[m
+[32m+[m[32m                    continue[m
+[32m+[m
+[32m+[m[32m                tipo = str(row.get('tipo_movimento', '')).strip().upper()[m
+[32m+[m[32m                if tipo not in ('D', 'A'):[m
+                     continue[m
+[31m-                flights[(cs_norm, sched_norm)].append({[m
+[32m+[m
+[32m+[m[32m                dest_raw = str(row.get('destinazione_origine') or '').strip()[m
+[32m+[m[32m                dest_first_leg = dest_raw.split('/')[0].strip() if dest_raw else ''[m
+[32m+[m
+[32m+[m[32m                flights[(cs_norm, sched_norm, tipo, dest_first_leg.upper())].append({[m
+                     'scan_time': scan_time,[m
+                     'callsign_volo': cs_norm,[m
+                     'orario_schedulato': sched_norm,[m
+                     'orario_effettivo': row.get('orario_effettivo'),[m
+[31m-                    'stato_volo': row.get('stato_volo'),[m
+[31m-                    'tipo_movimento': row.get('tipo_movimento'),[m
+[31m-                    'destinazione_origine': row.get('destinazione_origine'),[m
+[32m+[m[32m                    'stato_volo': stato_norm if stato_norm else stato_raw,[m
+[32m+[m[32m                    'stato_norm': stato_norm,[m
+[32m+[m[32m                    'stato_rank': stato_rank,[m
+[32m+[m[32m                    'tipo_movimento': tipo,[m
+[32m+[m[32m                    'destinazione_origine': dest_first_leg,[m
+                 })[m
+         except Exception:[m
+             pass[m
+ [m
+     latest_by_key = {}[m
+     for key, records in flights.items():[m
+[31m-        records.sort(key=lambda r: _scan_time_to_order_h24(r['scan_time']))[m
+[31m-        latest_by_key[key] = records[-1][m
+[31m-[m
+[31m-    def _dest_key(rec):[m
+[31m-        return (str(rec.get('destinazione_origine') or '').strip().upper())[m
+[32m+[m[32m        # Vince stato terminale (rank 1), poi presenza orario effettivo, poi scan pi? recente[m
+[32m+[m[32m        records.sort(key=lambda r: ([m
+[32m+[m[32m            r['stato_rank'],[m
+[32m+[m[32m            0 if pd.notna(r.get('orario_effettivo')) and str(r.get('orario_effettivo')).strip() else 1,[m
+[32m+[m[32m            -_scan_time_to_order_h24(r['scan_time'])[m
+[32m+[m[32m        ))[m
+[32m+[m[32m        latest_by_key[key] = records[0][m
+ [m
+     by_flight = defaultdict(list)[m
+[31m-    for (cs, _sched), rec in latest_by_key.items():[m
+[31m-        by_flight[(cs, _dest_key(rec))].append(rec)[m
+[32m+[m[32m    for (cs, _sched, _tipo, dest_u), rec in latest_by_key.items():[m
+[32m+[m[32m        by_flight[(cs, dest_u, _tipo)].append(rec)[m
+ [m
+     scheduled = [][m
+[31m-    for (cs, dest), records in by_flight.items():[m
+[32m+[m[32m    cluster_tol = max(SCHED_CLUSTER_TOLERANCE_MIN, 45)[m
+[32m+[m[32m    for (cs, dest_u, _tipo), records in by_flight.items():[m
+         records.sort(key=lambda r: _time_to_minutes(r['orario_schedulato']) or 0)[m
+         clusters = [][m
+         for rec in records:[m
+             sched_min = _time_to_minutes(rec['orario_schedulato'])[m
+             if sched_min is None:[m
+[31m-                scheduled.append(rec)[m
+[32m+[m[32m                if rec.get('stato_norm') != 'Cancellato':[m
+[32m+[m[32m                    scheduled.append(rec)[m
+                 continue[m
+             placed = False[m
+             for cluster in clusters:[m
+                 if all(abs(sched_min - (_time_to_minutes(m['orario_schedulato']) or 0))[m
+[31m-                       <= SCHED_CLUSTER_TOLERANCE_MIN for m in cluster):[m
+[32m+[m[32m                       <= cluster_tol for m in cluster):[m
+                     cluster.append(rec)[m
+                     placed = True[m
+                     break[m
+             if not placed:[m
+                 clusters.append([rec])[m
+[32m+[m
+         for cluster in clusters:[m
+[31m-            best = min(cluster, key=lambda r: _scan_time_to_order_h24(r['scan_time']))[m
+[32m+[m[32m            # Se il volo risulta cancellato in qualsiasi scan del cluster, scarta prima del match[m
+[32m+[m[32m            if any(m.get('stato_norm') == 'Cancellato' for m in cluster):[m
+[32m+[m[32m                continue[m
+[32m+[m[32m            best = min(cluster, key=lambda r: ([m
+[32m+[m[32m                r['stato_rank'],[m
+[32m+[m[32m                -_scan_time_to_order_h24(r['scan_time'])[m
+[32m+[m[32m            ))[m
+             scheduled.append(best)[m
+ [m
+     result = [][m
+     for row_dict in scheduled:[m
+         row_dict = row_dict.copy()[m
+         row_dict.pop('scan_time', None)[m
+[32m+[m[32m        row_dict.pop('stato_norm', None)[m
+[32m+[m[32m        row_dict.pop('stato_rank', None)[m
+         row_dict['direzione_sacbo'] = str(row_dict.get('tipo_movimento', '')).strip().upper()[:1][m
+         row_dict['notte_categoria'] = ''[m
+         row_dict.pop('tipo_movimento', None)[m
+[36m@@ -1053,6 +1216,7 @@[m [mdef load_scheduled_flights_h24(date_str, radar_df=None):[m
+ [m
+     return pd.DataFrame(result) if result else pd.DataFrame()[m
+ [m
+[32m+[m
+ def _normalize_avionio_callsign(cs):[m
+     """Normalizza callsign Avionio: FRA1234 -> FR1234, FRF1234 -> FR1234."""[m
+     if not cs: return cs[m
+[36m@@ -1114,15 +1278,69 @@[m [mdef merge_scheduled_sources(sacbo_df, avionio_df):[m
+     if sacbo_df is None: sacbo_df = pd.DataFrame()[m
+     if avionio_df is None: avionio_df = pd.DataFrame()[m
+     if sacbo_df.empty and avionio_df.empty: return pd.DataFrame()[m
+[31m-    if sacbo_df.empty: return avionio_df.copy()[m
+[32m+[m[32m    if sacbo_df.empty:[m
+[32m+[m[32m        av_only = avionio_df.copy()[m
+[32m+[m[32m        av_only = av_only[av_only['stato_volo'].apply(lambda s: _normalize_stato_and_rank(s)[0] != 'Cancellato')][m
+[32m+[m[32m        return av_only[m
+     if avionio_df.empty:[m
+         sacbo = sacbo_df.copy(); sacbo['fonte_scheduled'] = 'sacbo'; return sacbo[m
+[32m+[m
+     sacbo = sacbo_df.copy(); sacbo['fonte_scheduled'] = 'sacbo'[m
+[31m-    sacbo_keys = set((_normalize_callsign_for_dedup(r.get('callsign_volo', '')), _normalize_hhmm(r.get('orario_schedulato', ''))) for _, r in sacbo.iterrows() if _normalize_callsign_for_dedup(r.get('callsign_volo', '')) and _normalize_hhmm(r.get('orario_schedulato', '')))[m
+[31m-    avionio_extra_rows = [r.to_dict() for _, r in avionio_df.iterrows() if _normalize_callsign(r.get('callsign_volo', '')) and _normalize_hhmm(r.get('orario_schedulato', '')) and (_normalize_callsign(r.get('callsign_volo', '')), _normalize_hhmm(r.get('orario_schedulato', ''))) not in sacbo_keys][m
+[32m+[m[32m    sacbo_entries = [][m
+[32m+[m[32m    for _, r in sacbo.iterrows():[m
+[32m+[m[32m        cs = _normalize_callsign_for_dedup(r.get('callsign_volo', ''))[m
+[32m+[m[32m        direz = str(r.get('direzione_sacbo', '') or '').strip().upper()[:1][m
+[32m+[m[32m        m_min = _time_to_minutes(r.get('orario_schedulato', ''))[m
+[32m+[m[32m        dest = str(r.get('destinazione_origine', '') or '').split('/')[0].strip().upper()[m
+[32m+[m[32m        if cs and direz and m_min is not None:[m
+[32m+[m[32m            sacbo_entries.append((cs, direz, m_min, dest))[m
+[32m+[m
+[32m+[m[32m    avionio_extra_rows = [][m
+[32m+[m[32m    for _, r in avionio_df.iterrows():[m
+[32m+[m[32m        stato_norm, _ = _normalize_stato_and_rank(r.get('stato_volo', ''))[m
+[32m+[m[32m        if stato_norm == 'Cancellato':[m
+[32m+[m[32m            continue[m
+[32m+[m[32m        cs_av = _normalize_callsign_for_dedup(r.get('callsign_volo', ''))[m
+[32m+[m[32m        direz_av = str(r.get('direzione_sacbo', '') or '').strip().upper()[:1][m
+[32m+[m[32m        m_av = _time_to_minutes(r.get('orario_schedulato', ''))[m
+[32m+[m[32m        dest_av = str(r.get('destinazione_origine', '') or '').split('/')[0].strip().upper()[m
+[32m+[m[32m        iata_av = str(r.get('codice_iata', '') or '').strip().upper()[m
+[32m+[m[32m        if not cs_av or not direz_av or m_av is None:[m
+[32m+[m[32m            continue[m
+[32m+[m
+[32m+[m[32m        # 1. Match cross-source con tolleranza +/- 30 minuti[m
+[32m+[m[32m        is_dup = False[m
+[32m+[m[32m        for cs_s, direz_s, m_s, _dest_s in sacbo_entries:[m
+[32m+[m[32m            if cs_s == cs_av and direz_s == direz_av:[m
+[32m+[m[32m                delta = abs(m_s - m_av)[m
+[32m+[m[32m                if delta > 720:[m
+[32m+[m[32m                    delta = 1440 - delta[m
+[32m+[m[32m                if delta <= 30:[m
+[32m+[m[32m                    is_dup = True[m
+[32m+[m[32m                    break[m
+[32m+[m[32m        if is_dup:[m
+[32m+[m[32m            continue[m
+[32m+[m
+[32m+[m[32m        # 2. Filtro codeshare di pura biglietteria (A1 APG Airlines, X1 Hahn Air) su tratta gi? coperta da SACBO[m
+[32m+[m[32m        if cs_av[:2] in ('A1', 'X1'):[m
+[32m+[m[32m            is_virtual_cs = False[m
+[32m+[m[32m            for _cs_s, direz_s, m_s, dest_s in sacbo_entries:[m
+[32m+[m[32m                if direz_s == direz_av:[m
+[32m+[m[32m                    delta = abs(m_s - m_av)[m
+[32m+[m[32m                    if delta > 720:[m
+[32m+[m[32m                        delta = 1440 - delta[m
+[32m+[m[32m                    if delta <= 30 and (dest_av and dest_av == dest_s or iata_av and iata_av in dest_s):[m
+[32m+[m[32m                        is_virtual_cs = True[m
+[32m+[m[32m                        break[m
+[32m+[m[32m            if is_virtual_cs:[m
+[32m+[m[32m                continue[m
+[32m+[m
+[32m+[m[32m        avionio_extra_rows.append(r.to_dict())[m
+[32m+[m
+     return pd.concat([sacbo, pd.DataFrame(avionio_extra_rows)], ignore_index=True) if avionio_extra_rows else sacbo[m
+ [m
+ [m
+[32m+[m
+ def load_radar_data_h24(date_str):[m
+     date_norm = normalize_date(date_str)[m
+     dt = datetime.strptime(date_norm, "%Y-%m-%d")[m
+[36m@@ -1218,6 +1436,8 @@[m [mdef generate_h24_report(date_str=None):[m
+     result_df, n_dedup_sched = _dedup_scheduled_same_icao24(result_df)[m
+     result_df, n_dedup_icao24 = _dedup_radar_only_via_icao24(result_df, date_norm)[m
+     result_df = _dedup_by_key(result_df)[m
+[32m+[m[32m    result_df = fill_unknown_icao24_turnaround(result_df)[m
+[32m+[m[32m    result_df = fill_unknown_runways_icao24(result_df)[m
+ [m
+     result_df = _sort_report_chronologically(result_df, date_norm)[m
+ [m
+[36m@@ -1225,14 +1445,14 @@[m [mdef generate_h24_report(date_str=None):[m
+     out_path = os.path.join(OUTPUT_CSV_DIR, f"report_h24_{date_norm}.csv")[m
+ [m
+     result_df['data_calendario'] = date_norm[m
+[31m-    result_df['logic_version'] = "1.0.15"[m
+[32m+[m[32m    result_df['logic_version'] = "1.0.16"[m
+ [m
+     final_columns = [[m
+         'data_calendario', 'callsign', 'tipo_movimento', 'direzione_sacbo',[m
+         'fonte_scheduled', 'destinazione_finale', 'stato_destinazione',[m
+         'compagnia_aerea', 'modello_aereo', 'orario_schedulato', 'timestamp',[m
+         'pista', 'pista_fonte', 'fase_volo', 'direzione', 'quota_ft', 'rotta_deg',[m
+[31m-        'distanza_km', 'paese', 'matched_score', 'icao24',[m
+[32m+[m[32m        'distanza_km', 'paese', 'matched_score', 'icao24', 'icao24_fonte', 'icao24_confidence',[m
+         'stima_passeggeri', 'stima_rumore_db', 'is_scheduled', 'logic_version'[m
+     ][m
+     for col in final_columns:[m

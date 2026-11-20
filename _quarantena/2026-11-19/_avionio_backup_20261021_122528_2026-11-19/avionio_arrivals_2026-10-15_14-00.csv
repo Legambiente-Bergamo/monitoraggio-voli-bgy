@@ -1,0 +1,22 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 8356,A,Tirana,14:00,,Estimated 14:27,Ryanair,TIA,15 Oct,avionio
+FR 5981,A,Toulouse,14:05,,Estimated 13:52,Ryanair,TLS,15 Oct,avionio
+FR 218,A,Alicante,14:25,,Estimated 14:25,Ryanair,ALC,15 Oct,avionio
+FR 2887,A,Catania,14:35,,Estimated 14:49,Ryanair,CTA,15 Oct,avionio
+FR 1537,A,Castellon de la Plana,14:45,,Estimated 14:38,Ryanair,CDT,15 Oct,avionio
+FR 265,A,Fuerteventura,14:50,,Estimated 14:49,Ryanair,FUE,15 Oct,avionio
+FR 3658,A,Edinburgh,14:55,,Estimated 15:39,Ryanair,EDI,15 Oct,avionio
+FR 1418,A,Lamezia Terme,15:00,,Estimated 14:43,Ryanair,SUF,15 Oct,avionio
+FR 4659,A,Bari,15:00,,Estimated 15:00,Ryanair,BRI,15 Oct,avionio
+FR 3963,A,Marrakech,15:10,,Estimated 16:28,Ryanair,RAK,15 Oct,avionio
+W4 5017,A,Tirana,15:10,,Estimated,Wizz Air Malta,TIA,15 Oct,avionio
+FR 2831,A,Tenerife,15:15,,Estimated 15:09,Ryanair,TFS,15 Oct,avionio
+FR 4715,A,Riga,15:35,,Estimated 16:05,Ryanair,RIX,15 Oct,avionio
+FR 3155,A,Amman,15:50,,Cancelled,Ryanair,AMM,15 Oct,avionio
+FR 485,A,Duesseldorf,15:55,,Estimated 15:55,Ryanair,NRN,15 Oct,avionio
+PC 1213,A,Istanbul,16:10,,Estimated,Pegasus1,SAW,15 Oct,avionio
+AZ 7053,A,Istanbul,16:10,,Estimated,ITA Airways,SAW,15 Oct,avionio
+FR 1785,A,Copenhagen,16:15,,Estimated 16:15,Ryanair,CPH,15 Oct,avionio
+FR 844,A,Cluj-Napoca,16:30,,Estimated 16:30,Ryanair,CLJ,15 Oct,avionio
+FR 2670,A,Berlin,16:35,,Scheduled,Ryanair,BER,15 Oct,avionio
+FR 2650,A,Malaga,16:40,,Estimated 16:40,Ryanair,AGP,15 Oct,avionio

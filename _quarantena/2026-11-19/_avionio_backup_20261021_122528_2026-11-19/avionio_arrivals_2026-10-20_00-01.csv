@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 3505,A,Krakow/Balice,00:00,,Estimated 00:25,Ryanair,KRK,20 Oct,avionio
+FR 3320,A,Barcelona,00:15,,Estimated 00:15,Ryanair,BCN,20 Oct,avionio
+FR 4659,A,Bari,00:20,,Estimated 00:20,Ryanair,BRI,20 Oct,avionio
+FR 2865,A,Brindisi,00:25,,Estimated 00:07,Ryanair,BDS,20 Oct,avionio
+FR 3340,A,Nowy Dwor Mazowiecki,00:25,,Estimated 01:09,Ryanair,WMI,20 Oct,avionio
+FR 4968,A,Palermo,00:25,,Estimated 00:36,Ryanair,PMO,20 Oct,avionio
+FR 3963,A,Marrakech,00:30,,Estimated 02:34,Ryanair,RAK,20 Oct,avionio
+FR 4787,A,Salerno,00:40,,Estimated 00:40,Ryanair,QSR,20 Oct,avionio
+FR 2734,A,London,00:45,,Estimated 03:31,Ryanair,STN,20 Oct,avionio
+FR 5109,A,Lourdes/Tarbes,00:45,,Estimated 02:40,Ryanair,LDE,20 Oct,avionio
+FR 821,A,Lisbon,00:45,,Estimated 00:45,Ryanair,LIS,20 Oct,avionio
+FR 2255,A,Alghero,00:55,,Estimated 00:55,Ryanair,AHO,20 Oct,avionio
+FR 4699,A,Trapani,00:55,,Estimated 04:02,Ryanair,TPS,20 Oct,avionio
+FR 3892,A,Cagliari,01:00,,Estimated 02:35,Ryanair,CAG,20 Oct,avionio
+FR 5093,A,Lamezia Terme,01:10,,Estimated 03:00,Ryanair,SUF,20 Oct,avionio
+FR 4197,A,Kerkyra,01:15,,Estimated 01:15,Ryanair,CFU,20 Oct,avionio
+DJ 6402,A,Cologne/Bonn,03:50,,Scheduled,Air Djibouti,CGN,20 Oct,avionio
+DJ 6498,A,Cologne/Bonn,05:10,,Scheduled,Air Djibouti,CGN,20 Oct,avionio
+FR 1532,A,Vienna,07:15,,Scheduled,Ryanair,VIE,20 Oct,avionio
+FR 4668,A,Bari,07:15,,Scheduled,Ryanair,BRI,20 Oct,avionio

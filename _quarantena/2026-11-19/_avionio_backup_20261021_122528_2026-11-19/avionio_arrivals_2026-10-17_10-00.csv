@@ -1,0 +1,23 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 3143,A,Barcelona,10:10,,Estimated 09:47,Ryanair,BCN,17 Oct,avionio
+FR 9617,A,Riga,10:10,,Landed 09:39,Ryanair,RIX,17 Oct,avionio
+FR 8335,A,Ibiza,10:20,,Estimated 10:40,Ryanair,IBZ,17 Oct,avionio
+FR 1904,A,Nowy Dwor Mazowiecki,10:30,,Estimated 10:00,Ryanair,WMI,17 Oct,avionio
+FR 3594,A,Poznan,10:30,,Estimated 10:52,Ryanair,POZ,17 Oct,avionio
+FR 1418,A,Lamezia Terme,10:40,,Estimated 10:26,Ryanair,SUF,17 Oct,avionio
+PC 1211,A,Istanbul,10:40,,Estimated 10:33,Pegasus1,SAW,17 Oct,avionio
+AZ 7051,A,Istanbul,10:40,,Estimated 10:33,ITA Airways,SAW,17 Oct,avionio
+FR 2262,A,Catania,10:55,,Estimated 10:47,Ryanair,CTA,17 Oct,avionio
+FR 4549,A,Chania,11:05,,Estimated 11:08,Ryanair,CHQ,17 Oct,avionio
+FR 6126,A,Dublin,11:10,,Estimated 11:07,Ryanair,DUB,17 Oct,avionio
+FR 3401,A,Sofia,11:15,,Estimated 11:04,Ryanair,SOF,17 Oct,avionio
+DY 1842,A,Stavanger,11:25,,Estimated 11:06,Norwegian,SVG,17 Oct,avionio
+FR 8120,A,Tirana,11:30,,Estimated 11:30,Ryanair,TIA,17 Oct,avionio
+FR 5121,A,Madrid,11:35,,Estimated 11:25,Ryanair,MAD,17 Oct,avionio
+VF 61,A,Istanbul,11:45,,Estimated 11:39,Ajet,SAW,17 Oct,avionio
+FR 5140,A,Faro,12:00,,Estimated 11:50,Ryanair,FAO,17 Oct,avionio
+FR 889,A,Krakow/Balice,12:05,,Estimated 12:05,Ryanair,KRK,17 Oct,avionio
+FZ 1573,A,Dubai,12:10,,Estimated 11:40,flydubai1,DXB,17 Oct,avionio
+EK 2140,A,Dubai,12:10,,Estimated 11:40,Emirates,DXB,17 Oct,avionio
+FR 3397,A,Crotone,12:40,,Estimated 12:40,Ryanair,CRV,17 Oct,avionio
+FR 4664,A,Valencia,12:40,,Estimated 12:40,Ryanair,VLC,17 Oct,avionio

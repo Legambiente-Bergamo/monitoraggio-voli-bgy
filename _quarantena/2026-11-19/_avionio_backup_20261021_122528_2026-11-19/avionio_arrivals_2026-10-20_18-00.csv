@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+BZ 154,A,Tel Aviv-Yafo,18:00,,Landed 17:01,Blue Bird Airways,TLV,20 Oct,avionio
+FR 3397,A,Crotone,18:00,,Landed 17:40,Ryanair,CRV,20 Oct,avionio
+FR 2893,A,Catania,18:10,,Estimated 18:02,Ryanair,CTA,20 Oct,avionio
+FR 7325,A,Malta,18:15,,Estimated 18:04,Ryanair,MLA,20 Oct,avionio
+FR 3216,A,Manchester,18:30,,Estimated 19:35,Ryanair,MAN,20 Oct,avionio
+FR 4202,A,Rhodes,18:40,,Estimated 18:25,Ryanair,RHO,20 Oct,avionio
+FR 3646,A,Edinburgh,19:20,,Estimated 22:15,Ryanair,EDI,20 Oct,avionio
+FR 8799,A,Ibiza,19:20,,Estimated 19:27,Ryanair,IBZ,20 Oct,avionio
+FR 4664,A,Valencia,19:25,,Estimated 19:25,Ryanair,VLC,20 Oct,avionio
+D8 2940,A,Helsinki,19:30,,Estimated 19:15,Norwegian Air Sweden AOC,HEL,20 Oct,avionio
+FR 3505,A,Krakow/Balice,19:30,,Estimated 19:30,Ryanair,KRK,20 Oct,avionio
+FR 3654,A,Bari,19:30,,Estimated 19:30,Ryanair,BRI,20 Oct,avionio
+FR 3165,A,Budapest,19:45,,Estimated 19:45,Ryanair,BUD,20 Oct,avionio
+FR 3500,A,Paris,19:55,,Estimated 19:55,Ryanair,BVA,20 Oct,avionio
+FR 6851,A,Alghero,19:55,,Estimated 19:55,Ryanair,AHO,20 Oct,avionio
+FR 2859,A,Brindisi,20:05,,Estimated 22:05,Ryanair,BDS,20 Oct,avionio
+W4 3469,A,Targu-Mures,20:05,,Scheduled,Wizz Air Malta,TGM,20 Oct,avionio
+W6 1433,A,Warsaw,20:05,,Estimated,Wizz Air,WAW,20 Oct,avionio
+FR 3538,A,Eindhoven,20:15,,Estimated 20:15,Ryanair,EIN,20 Oct,avionio
+FR 4041,A,Porto,20:15,,Estimated 20:14,Ryanair,OPO,20 Oct,avionio

@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 6991,D,Rabat,22:10,,Estimated 00:20,Ryanair,RBA,17 Oct,avionio
+W6 4508,D,Varna,22:10,,Estimated 22:27,Wizz Air,VAR,17 Oct,avionio
+FR 3280,D,Gdansk,22:20,,Estimated 22:30,Ryanair,GDN,17 Oct,avionio
+G9 696,D,Sharjah,22:50,,Estimated 23:01,Air Arabia,SHJ,17 Oct,avionio
+FR 8844,D,Wroclaw,22:55,,Scheduled,Ryanair,WRO,17 Oct,avionio
+FR 5999,D,Zagreb,23:05,,Estimated 01:06,Ryanair,ZAG,17 Oct,avionio
+FR 3408,D,Katowice,23:10,,Scheduled,Ryanair,KTW,17 Oct,avionio
+FR 3535,D,Krakow/Balice,23:15,,Scheduled,Ryanair,KRK,17 Oct,avionio
+W6 4124,D,Belgrade,23:35,,Scheduled,Wizz Air,BEG,17 Oct,avionio
+GH 1202,D,Tbilisi,00:50,,Scheduled,Georgian Airlines,TBS,18 Oct,avionio
+3O458,D,Casablanca,02:45,,Scheduled,Air Arabia Maroc,CMN,18 Oct,avionio
+FR 6086,D,Kalamata,05:45,,Scheduled,Ryanair,KLX,18 Oct,avionio
+FR 2830,D,Tenerife,05:50,,Scheduled,Ryanair,TFS,18 Oct,avionio
+FR 2254,D,Alghero,05:55,,Scheduled,Ryanair,AHO,18 Oct,avionio
+FR 2293,D,Pescara,05:55,,Scheduled,Ryanair,PSR,18 Oct,avionio
+FR 8511,D,Beni Mellal,05:55,,Scheduled,Ryanair,BEM,18 Oct,avionio
+FR 3142,D,Barcelona,06:00,,Scheduled,Ryanair,BCN,18 Oct,avionio
+FR 3200,D,Cagliari,06:00,,Scheduled,Ryanair,CAG,18 Oct,avionio
+FR 410,D,Luxembourg,06:05,,Scheduled,Ryanair,LUX,18 Oct,avionio
+FR 8334,D,Ibiza,06:05,,Scheduled,Ryanair,IBZ,18 Oct,avionio

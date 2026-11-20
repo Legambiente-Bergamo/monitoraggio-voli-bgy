@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 2887,A,Catania,14:10,,Estimated 14:03,Ryanair,CTA,17 Oct,avionio
+FR 218,A,Alicante,14:15,,Estimated 14:28,Ryanair,ALC,17 Oct,avionio
+FR 7325,A,Malta,14:15,,Estimated 14:05,Ryanair,MLA,17 Oct,avionio
+FR 5109,A,Lourdes/Tarbes,14:20,,Estimated 14:16,Ryanair,LDE,17 Oct,avionio
+FR 6258,A,Krakow/Balice,14:25,,Estimated 00:30,Ryanair,KRK,17 Oct,avionio
+FR 3674,A,London,14:30,,Estimated 14:15,Ryanair,STN,17 Oct,avionio
+FR 6179,A,Fuerteventura,14:40,,Estimated 14:30,Ryanair,FUE,17 Oct,avionio
+FR 4041,A,Porto,14:45,,Estimated 14:48,Ryanair,OPO,17 Oct,avionio
+FR 9240,A,Lublin,14:45,,Estimated 14:45,Ryanair,LUZ,17 Oct,avionio
+FR 4197,A,Kerkyra,14:55,,Estimated 14:50,Ryanair,CFU,17 Oct,avionio
+SM 831,A,Sharm el-Sheikh,14:55,,Estimated 14:52,Air Cairo,SSH,17 Oct,avionio
+FR 460,A,Newcastle,15:00,,Estimated 14:50,Ryanair,NCL,17 Oct,avionio
+W4 5017,A,Tirana,15:10,,Estimated 14:54,Wizz Air Malta,TIA,17 Oct,avionio
+FR 496,A,Valencia,15:15,,Estimated 15:15,Ryanair,VLC,17 Oct,avionio
+DY 1848,A,Bergen,15:25,,Estimated 15:13,Norwegian,BGO,17 Oct,avionio
+FR 3461,A,Eindhoven,15:40,,Estimated 15:40,Ryanair,EIN,17 Oct,avionio
+FR 5656,A,Palma de Mallorca,15:45,,Estimated 15:45,Ryanair,PMI,17 Oct,avionio
+FR 9373,A,Brno,15:45,,Estimated 15:45,Ryanair,BRQ,17 Oct,avionio
+FR 260,A,Bucharest,15:50,,Estimated 15:50,Ryanair,OTP,17 Oct,avionio
+FR 4659,A,Bari,15:50,,Estimated 15:50,Ryanair,BRI,17 Oct,avionio

@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 3461,A,Eindhoven,22:00,,Estimated 21:54,Ryanair,EIN,14 Oct,avionio
+FR 4659,A,Bari,22:00,,Estimated 22:31,Ryanair,BRI,14 Oct,avionio
+FR 7360,A,Vienna,22:00,,Estimated 22:52,Ryanair,VIE,14 Oct,avionio
+FR 9197,A,Trapani,22:10,,Landed 21:46,Ryanair,TPS,14 Oct,avionio
+FR 4189,A,London,22:15,,Estimated 22:26,Ryanair,STN,14 Oct,avionio
+C3 1211,A,Lourdes/Tarbes,22:25,,Estimated 22:10,Trade Air,LDE,14 Oct,avionio
+FR 3892,A,Cagliari,22:30,,Estimated 22:30,Ryanair,CAG,14 Oct,avionio
+W6 4123,A,Belgrade,23:00,,Estimated 22:39,Wizz Air,BEG,14 Oct,avionio
+FR 5493,A,Madrid,23:05,,Estimated 23:00,Ryanair,MAD,14 Oct,avionio
+FR 4664,A,Valencia,23:10,,Estimated 23:07,Ryanair,VLC,14 Oct,avionio
+NO 3865,A,Sal Island,23:10,,Estimated 22:38,Neos,SID,14 Oct,avionio
+FR 1702,A,Nottingham,23:15,,Estimated 23:17,Ryanair,EMA,14 Oct,avionio
+FR 6847,A,Liverpool,23:15,,Estimated 23:02,Ryanair,LPL,14 Oct,avionio
+FR 3666,A,Naples,23:25,,Estimated 23:25,Ryanair,NAP,14 Oct,avionio
+FR 8802,A,Ibiza,23:35,,Estimated 23:27,Ryanair,IBZ,14 Oct,avionio
+FR 2255,A,Alghero,23:45,,Estimated 01:15,Ryanair,AHO,14 Oct,avionio
+FR 858,A,Brindisi,00:00,,Estimated 00:00,Ryanair,BDS,15 Oct,avionio
+FR 2893,A,Catania,00:15,,Estimated 00:15,Ryanair,CTA,15 Oct,avionio
+FR 3505,A,Krakow/Balice,00:20,,Estimated 00:20,Ryanair,KRK,15 Oct,avionio
+FR 821,A,Lisbon,00:20,,Estimated 00:20,Ryanair,LIS,15 Oct,avionio

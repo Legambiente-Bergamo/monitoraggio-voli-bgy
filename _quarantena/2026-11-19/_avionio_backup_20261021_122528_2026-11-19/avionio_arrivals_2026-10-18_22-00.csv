@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+G9 695,A,Sharjah,22:00,,Estimated 21:53,Air Arabia,SHJ,18 Oct,avionio
+FR 3666,A,Naples,22:15,,Estimated 22:55,Ryanair,NAP,18 Oct,avionio
+FR 3674,A,London,22:15,,Estimated 23:05,Ryanair,STN,18 Oct,avionio
+FR 8979,A,Trapani,22:15,,Estimated 21:54,Ryanair,TPS,18 Oct,avionio
+FR 3218,A,Manchester,22:20,,Estimated 22:04,Ryanair,MAN,18 Oct,avionio
+FR 5701,A,Palma de Mallorca,22:25,,Estimated 00:25,Ryanair,PMI,18 Oct,avionio
+FR 5983,A,Madrid,22:25,,Estimated 22:22,Ryanair,MAD,18 Oct,avionio
+FR 4844,A,Dublin,22:55,,Estimated 22:58,Ryanair,DUB,18 Oct,avionio
+FR 5109,A,Lourdes/Tarbes,22:55,,Estimated 22:55,Ryanair,LDE,18 Oct,avionio
+FR 864,A,Bucharest,23:00,,Estimated 23:00,Ryanair,OTP,18 Oct,avionio
+W6 4123,A,Belgrade,23:00,,Estimated,Wizz Air,BEG,18 Oct,avionio
+FR 3660,A,Brussels,23:10,,Estimated 23:10,Ryanair,CRL,18 Oct,avionio
+FR 6847,A,Liverpool,23:10,,Estimated 23:18,Ryanair,LPL,18 Oct,avionio
+FR 7977,A,Kos,23:15,,Estimated 23:18,Ryanair,KGS,18 Oct,avionio
+FR 4000,A,Lanzarote,23:20,,Estimated 23:58,Ryanair,ACE,18 Oct,avionio
+FR 460,A,Newcastle,23:55,,Estimated 23:55,Ryanair,NCL,18 Oct,avionio
+FR 6467,A,Faro,23:55,,Estimated 23:55,Ryanair,FAO,18 Oct,avionio
+FR 4664,A,Valencia,00:00,,Estimated 00:00,Ryanair,VLC,19 Oct,avionio
+FR 77,A,Sevilla,00:25,,Estimated 00:25,Ryanair,SVQ,19 Oct,avionio
+FR 8422,A,Tirana,00:30,,Scheduled,Ryanair,TIA,19 Oct,avionio

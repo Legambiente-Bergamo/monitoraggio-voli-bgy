@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 3412,A,Katowice,23:00,,Landed 22:25,Ryanair,KTW,15 Oct,avionio
+W6 4123,A,Belgrade,23:00,,Estimated 22:44,Wizz Air,BEG,15 Oct,avionio
+FR 3536,A,Krakow/Balice,23:25,,Estimated 23:04,Ryanair,KRK,15 Oct,avionio
+FR 3279,A,Gdansk,23:40,,Estimated 23:21,Ryanair,GDN,15 Oct,avionio
+FR 7977,A,Kos,23:45,,Estimated 00:26,Ryanair,KGS,15 Oct,avionio
+FR 8802,A,Ibiza,23:50,,Estimated 23:43,Ryanair,IBZ,15 Oct,avionio
+FR 3500,A,Paris,23:55,,Estimated 23:55,Ryanair,BVA,15 Oct,avionio
+FR 3666,A,Naples,00:20,,Estimated 00:20,Ryanair,NAP,16 Oct,avionio
+FR 3301,A,Vitoria,00:25,,Estimated 00:25,Ryanair,VIT,16 Oct,avionio
+FR 412,A,Thessaloniki,00:35,,Estimated 00:54,Ryanair,SKG,16 Oct,avionio
+FR 4236,A,Vilnius,00:35,,Estimated 01:11,Ryanair,VNO,16 Oct,avionio
+FR 3892,A,Cagliari,00:40,,Estimated 00:40,Ryanair,CAG,16 Oct,avionio
+FR 4968,A,Palermo,00:40,,Estimated 00:40,Ryanair,PMO,16 Oct,avionio
+FR 8512,A,Beni Mellal,00:50,,Estimated 00:56,Ryanair,BEM,16 Oct,avionio
+FR 8845,A,Wroclaw,00:55,,Estimated 00:55,Ryanair,WRO,16 Oct,avionio
+FR 3403,A,Marrakech,01:00,,Estimated 01:03,Ryanair,RAK,16 Oct,avionio
+FR 858,A,Brindisi,01:05,,Estimated 01:05,Ryanair,BDS,16 Oct,avionio
+FR 9373,A,Brno,01:15,,Scheduled,Ryanair,BRQ,16 Oct,avionio
+DJ 6402,A,Cologne/Bonn,04:00,,Scheduled,Air Djibouti,CGN,16 Oct,avionio
+DJ 6498,A,Cologne/Bonn,05:15,,Scheduled,Air Djibouti,CGN,16 Oct,avionio

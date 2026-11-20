@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 6055,A,Zagreb,07:10,,Scheduled,Ryanair,ZAG,18 Oct,avionio
+FR 4668,A,Bari,07:20,,Estimated 07:20,Ryanair,BRI,18 Oct,avionio
+FR 5115,A,Lamezia Terme,07:25,,Scheduled,Ryanair,SUF,18 Oct,avionio
+FR 2108,A,Budapest,07:30,,Estimated 07:30,Ryanair,BUD,18 Oct,avionio
+W4 3131,A,Bucharest,07:30,,Estimated,Wizz Air Malta,OTP,18 Oct,avionio
+W4 3671,A,Iasi,07:30,,Estimated,Wizz Air Malta,IAS,18 Oct,avionio
+FR 3449,A,Brindisi,07:35,,Scheduled,Ryanair,BDS,18 Oct,avionio
+W6 4351,A,Sofia,07:35,,Cancelled,Wizz Air,SOF,18 Oct,avionio
+FR 6459,A,Palermo,07:45,,Scheduled,Ryanair,PMO,18 Oct,avionio
+W4 3381,A,Cluj-Napoca,07:50,,Estimated,Wizz Air Malta,CLJ,18 Oct,avionio
+W4 3769,A,Craiova,08:05,,Scheduled,Wizz Air Malta,CRA,18 Oct,avionio
+W6 1431,A,Warsaw,08:05,,Scheduled,Wizz Air,WAW,18 Oct,avionio
+FR 4474,A,Brussels,08:15,,Scheduled,Ryanair,CRL,18 Oct,avionio
+FR 1532,A,Vienna,08:45,,Scheduled,Ryanair,VIE,18 Oct,avionio
+FR 2294,A,Pescara,08:45,,Scheduled,Ryanair,PSR,18 Oct,avionio
+FR 2255,A,Alghero,08:50,,Scheduled,Ryanair,AHO,18 Oct,avionio
+FR 2734,A,London,08:55,,Scheduled,Ryanair,STN,18 Oct,avionio
+FR 3216,A,Manchester,09:05,,Scheduled,Ryanair,MAN,18 Oct,avionio
+FR 5532,A,Cologne/Bonn,09:10,,Scheduled,Ryanair,CGN,18 Oct,avionio
+FR 411,A,Luxembourg,09:20,,Scheduled,Ryanair,LUX,18 Oct,avionio

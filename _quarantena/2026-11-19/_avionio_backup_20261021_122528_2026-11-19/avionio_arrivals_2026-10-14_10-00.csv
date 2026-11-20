@@ -1,0 +1,22 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 2286,A,Naples,10:00,,Estimated 10:08,Ryanair,NAP,14 Oct,avionio
+FR 889,A,Krakow/Balice,10:05,,Estimated 10:00,Ryanair,KRK,14 Oct,avionio
+FR 8335,A,Ibiza,10:25,,Estimated 10:21,Ryanair,IBZ,14 Oct,avionio
+FR 3654,A,Bari,10:35,,Estimated 10:23,Ryanair,BRI,14 Oct,avionio
+FR 4632,A,Valencia,10:35,,Estimated 10:27,Ryanair,VLC,14 Oct,avionio
+FR 6305,A,Barcelona,10:45,,Estimated 10:40,Ryanair,BCN,14 Oct,avionio
+FR 3216,A,Manchester,10:55,,Estimated 10:28,Ryanair,MAN,14 Oct,avionio
+FR 3433,A,Paris,11:10,,Estimated 11:10,Ryanair,BVA,14 Oct,avionio
+FR 4651,A,Trapani,11:15,,Estimated 11:05,Ryanair,TPS,14 Oct,avionio
+E5 542,A,Cairo,11:25,,Estimated 11:34,Air Arabia Egypt,CAI,14 Oct,avionio
+FR 2865,A,Brindisi,11:35,,Estimated 11:26,Ryanair,BDS,14 Oct,avionio
+FR 3594,A,Poznan,11:40,,Estimated 11:40,Ryanair,POZ,14 Oct,avionio
+VF 61,A,Istanbul,11:45,,Estimated 11:37,Ajet,SAW,14 Oct,avionio
+FR 4522,A,Brussels,11:55,,Estimated 11:55,Ryanair,CRL,14 Oct,avionio
+FR 8120,A,Tirana,12:00,,Estimated 12:00,Ryanair,TIA,14 Oct,avionio
+BN 2302,A,Genoa,12:05,,Scheduled,Luxwing,GOA,14 Oct,avionio
+FZ 1573,A,Dubai,12:10,,Estimated 12:15,flydubai1,DXB,14 Oct,avionio
+EK 2140,A,Dubai,12:10,,Estimated 12:15,Emirates,DXB,14 Oct,avionio
+FR 2086,A,Lisbon,12:15,,Estimated 12:26,Ryanair,LIS,14 Oct,avionio
+FR 1852,A,Marseille,12:25,,Scheduled,Ryanair,MRS,14 Oct,avionio
+FR 3397,A,Crotone,12:25,,Estimated 12:25,Ryanair,CRV,14 Oct,avionio

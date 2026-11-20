@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+BN 2305,D,Genoa,18:00,,Estimated,Luxwing,GOA,20 Oct,avionio
+BZ 131,D,Rome,18:00,,Estimated 18:10,Blue Bird Airways,FCO,20 Oct,avionio
+FR 820,D,Lisbon,18:00,,Estimated 19:51,Ryanair,LIS,20 Oct,avionio
+GH 1202,D,Tbilisi,18:00,,Estimated 18:10,Georgian Airlines,TBS,20 Oct,avionio
+FR 3112,D,Iasi,18:05,,Estimated 18:40,Ryanair,IAS,20 Oct,avionio
+FR 5118,D,Lamezia Terme,18:05,,Estimated 18:20,Ryanair,SUF,20 Oct,avionio
+FR 5494,D,Madrid,18:20,,Estimated 19:55,Ryanair,MAD,20 Oct,avionio
+FR 2287,D,Bucharest,18:25,,Estimated 19:34,Ryanair,OTP,20 Oct,avionio
+FR 2892,D,Catania,18:35,,Scheduled,Ryanair,CTA,20 Oct,avionio
+FR 7324,D,Malta,18:40,,Scheduled,Ryanair,MLA,20 Oct,avionio
+FR 3217,D,Manchester,18:55,,Scheduled,Ryanair,MAN,20 Oct,avionio
+BZ 151,D,Tel Aviv-Yafo,19:00,,Scheduled,Blue Bird Airways,TLV,20 Oct,avionio
+FR 3665,D,Naples,19:20,,Estimated 19:43,Ryanair,NAP,20 Oct,avionio
+FR 2876,D,Brindisi,19:45,,Estimated 00:30,Ryanair,BDS,20 Oct,avionio
+FR 3535,D,Krakow/Balice,19:45,,Estimated 20:57,Ryanair,KRK,20 Oct,avionio
+FR 4706,D,Cagliari,19:50,,Scheduled,Ryanair,CAG,20 Oct,avionio
+FR 9890,D,Lodz,19:55,,Scheduled,Ryanair,LCJ,20 Oct,avionio
+D8 2941,D,Helsinki,20:15,,Scheduled,Norwegian Air Sweden AOC,HEL,20 Oct,avionio
+FR 3400,D,Sofia,20:20,,Scheduled,Ryanair,SOF,20 Oct,avionio
+FR 3440,D,Lamezia Terme,20:20,,Scheduled,Ryanair,SUF,20 Oct,avionio

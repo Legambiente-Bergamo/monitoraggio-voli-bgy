@@ -1,0 +1,23 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 2262,A,Catania,10:00,,Landed 09:51,Ryanair,CTA,15 Oct,avionio
+FR 8120,A,Tirana,10:00,,Landed 09:49,Ryanair,TIA,15 Oct,avionio
+FR 2290,A,Palermo,10:05,,Landed 09:53,Ryanair,PMO,15 Oct,avionio
+FR 2086,A,Lisbon,10:20,,Estimated 10:01,Ryanair,LIS,15 Oct,avionio
+FR 2286,A,Naples,10:25,,Estimated 10:36,Ryanair,NAP,15 Oct,avionio
+FR 3401,A,Sofia,10:35,,Estimated 10:14,Ryanair,SOF,15 Oct,avionio
+PC 1211,A,Istanbul,10:40,,Estimated 10:55,Pegasus1,SAW,15 Oct,avionio
+AZ 7051,A,Istanbul,10:40,,Estimated 10:55,ITA Airways,SAW,15 Oct,avionio
+FR 4651,A,Trapani,11:10,,Estimated 11:08,Ryanair,TPS,15 Oct,avionio
+FR 496,A,Valencia,11:10,,Estimated 11:00,Ryanair,VLC,15 Oct,avionio
+FR 9064,A,Alicante,11:10,,Estimated 11:10,Ryanair,ALC,15 Oct,avionio
+FR 4994,A,Kefallinia,11:15,,Estimated 11:09,Ryanair,EFL,15 Oct,avionio
+FR 7325,A,Malta,11:20,,Estimated 11:05,Ryanair,MLA,15 Oct,avionio
+FR 6258,A,Krakow/Balice,11:30,,Estimated 11:32,Ryanair,KRK,15 Oct,avionio
+FR 3451,A,Tangier,11:35,,Estimated 11:21,Ryanair,TNG,15 Oct,avionio
+FR 9891,A,Lodz,11:40,,Estimated 11:34,Ryanair,LCJ,15 Oct,avionio
+VF 61,A,Istanbul,11:45,,Estimated 11:39,Ajet,SAW,15 Oct,avionio
+FR 3546,A,Fes,12:05,,Estimated 12:08,Ryanair,FEZ,15 Oct,avionio
+FR 5140,A,Faro,12:05,,Estimated 11:53,Ryanair,FAO,15 Oct,avionio
+D8 3750,A,Copenhagen,12:10,,Estimated,Norwegian Air Sweden AOC,CPH,15 Oct,avionio
+FZ 1573,A,Dubai,12:10,,Estimated 12:08,flydubai1,DXB,15 Oct,avionio
+EK 2140,A,Dubai,12:10,,Estimated 12:08,Emirates,DXB,15 Oct,avionio

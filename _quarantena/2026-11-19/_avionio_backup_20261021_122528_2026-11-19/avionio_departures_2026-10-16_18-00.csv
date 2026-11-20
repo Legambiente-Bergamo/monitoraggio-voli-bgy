@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 5092,D,Lamezia Terme,18:05,,Estimated 18:20,Ryanair,SUF,16 Oct,avionio
+BZ 155,D,Tel Aviv-Yafo,18:15,,Estimated 18:33,Blue Bird Airways,TLV,16 Oct,avionio
+FR 3530,D,Prague,18:30,,Estimated 18:45,Ryanair,PRG,16 Oct,avionio
+FR 9050,D,Cork,18:30,,Estimated 19:29,Ryanair,ORK,16 Oct,avionio
+FR 8511,D,Beni Mellal,18:40,,Estimated 20:10,Ryanair,BEM,16 Oct,avionio
+FR 3219,D,Manchester,18:50,,Estimated 21:10,Ryanair,MAN,16 Oct,avionio
+FR 1319,D,Athens,18:55,,Estimated 21:27,Ryanair,ATH,16 Oct,avionio
+FR 8801,D,Ibiza,19:00,,Estimated 20:33,Ryanair,IBZ,16 Oct,avionio
+FR 1176,D,Menorca,19:10,,Estimated 20:50,Ryanair,MAH,16 Oct,avionio
+FR 4638,D,Porto,19:15,,Estimated 19:40,Ryanair,OPO,16 Oct,avionio
+FR 4548,D,Chania,19:25,,Estimated 20:52,Ryanair,CHQ,16 Oct,avionio
+FR 3112,D,Iasi,19:30,,Estimated 21:06,Ryanair,IAS,16 Oct,avionio
+FR 5876,D,Paris,19:35,,Estimated 21:10,Ryanair,BVA,16 Oct,avionio
+FR 3480,D,Cagliari,19:40,,Estimated 20:30,Ryanair,CAG,16 Oct,avionio
+FR 4631,D,Valencia,19:45,,Estimated 20:10,Ryanair,VLC,16 Oct,avionio
+3F248,D,Yerevan,20:25,,Scheduled,FLYONE Armenia,EVN,16 Oct,avionio
+FR 2735,D,London,20:30,,Scheduled,Ryanair,STN,16 Oct,avionio
+W4 3608,D,Suceava,20:30,,Scheduled,Wizz Air Malta,SCV,16 Oct,avionio
+FR 3561,D,Naples,20:35,,Scheduled,Ryanair,NAP,16 Oct,avionio
+W6 1434,D,Warsaw,20:40,,Scheduled,Wizz Air,WAW,16 Oct,avionio

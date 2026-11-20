@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 3165,A,Budapest,18:00,,Landed 17:44,Ryanair,BUD,14 Oct,avionio
+FR 3529,A,Prague,18:10,,Estimated 18:17,Ryanair,PRG,14 Oct,avionio
+FR 2290,A,Palermo,18:15,,Estimated 18:25,Ryanair,PMO,14 Oct,avionio
+VND8E,A,Cagliari,18:26,,Scheduled,Avionord,CAG,14 Oct,avionio
+FR 3588,A,Oslo,18:35,,Estimated 19:58,Ryanair,TRF,14 Oct,avionio
+FR 5532,A,Cologne/Bonn,18:50,,Estimated 18:58,Ryanair,CGN,14 Oct,avionio
+FR 4637,A,Porto,19:25,,Estimated 19:17,Ryanair,OPO,14 Oct,avionio
+FR 1418,A,Lamezia Terme,19:40,,Estimated 19:40,Ryanair,SUF,14 Oct,avionio
+FR 5109,A,Lourdes/Tarbes,19:45,,Estimated 19:45,Ryanair,LDE,14 Oct,avionio
+FR 3113,A,Iasi,19:50,,Estimated 20:03,Ryanair,IAS,14 Oct,avionio
+W4 3771,A,Craiova,19:55,,Scheduled,Wizz Air Malta,CRA,14 Oct,avionio
+FR 3646,A,Edinburgh,20:00,,Estimated 20:00,Ryanair,EDI,14 Oct,avionio
+FR 5112,A,Crotone,20:00,,Estimated 20:00,Ryanair,CRV,14 Oct,avionio
+W6 1433,A,Warsaw,20:05,,Estimated,Wizz Air,WAW,14 Oct,avionio
+FR 4236,A,Vilnius,20:10,,Estimated 20:06,Ryanair,VNO,14 Oct,avionio
+FR 3451,A,Tangier,20:25,,Estimated 20:25,Ryanair,TNG,14 Oct,avionio
+FR 4474,A,Brussels,20:25,,Scheduled,Ryanair,CRL,14 Oct,avionio
+FR 5140,A,Faro,20:25,,Estimated 20:36,Ryanair,FAO,14 Oct,avionio
+FR 3279,A,Gdansk,20:30,,Estimated 20:30,Ryanair,GDN,14 Oct,avionio
+NP 221,A,Cairo,20:30,,Estimated 20:48,Nile Air,CAI,14 Oct,avionio

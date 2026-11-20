@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 2285,D,Naples,05:45,,Scheduled,Ryanair,NAP,16 Oct,avionio
+FR 2697,D,London,05:45,,Scheduled,Ryanair,STN,16 Oct,avionio
+FR 3593,D,Poznan,05:45,,Scheduled,Ryanair,POZ,16 Oct,avionio
+FR 5139,D,Faro,05:50,,Scheduled,Ryanair,FAO,16 Oct,avionio
+DJ 6498,D,Bologna,06:00,,Scheduled,Air Djibouti,BLQ,16 Oct,avionio
+FR 2107,D,Budapest,06:00,,Scheduled,Ryanair,BUD,16 Oct,avionio
+FR 7324,D,Malta,06:05,,Scheduled,Ryanair,MLA,16 Oct,avionio
+FR 2872,D,Vilnius,06:10,,Scheduled,Ryanair,VNO,16 Oct,avionio
+FR 3528,D,Prague,06:15,,Scheduled,Ryanair,PRG,16 Oct,avionio
+FR 1533,D,Vienna,06:25,,Scheduled,Ryanair,VIE,16 Oct,avionio
+FR 3432,D,Paris,06:30,,Scheduled,Ryanair,BVA,16 Oct,avionio
+FR 4311,D,Rovaniemi,06:30,,Scheduled,Ryanair,RVN,16 Oct,avionio
+FR 259,D,Bucharest,06:35,,Scheduled,Ryanair,OTP,16 Oct,avionio
+FR 2261,D,Catania,06:40,,Scheduled,Ryanair,CTA,16 Oct,avionio
+FR 3460,D,Eindhoven,06:40,,Scheduled,Ryanair,EIN,16 Oct,avionio
+FR 4650,D,Trapani,06:50,,Scheduled,Ryanair,TPS,16 Oct,avionio
+FR 2669,D,Berlin,07:10,,Scheduled,Ryanair,BER,16 Oct,avionio
+FR 76,D,Sevilla,07:15,,Scheduled,Ryanair,SVQ,16 Oct,avionio
+FR 2293,D,Pescara,07:20,,Scheduled,Ryanair,PSR,16 Oct,avionio
+FR 820,D,Lisbon,07:20,,Scheduled,Ryanair,LIS,16 Oct,avionio

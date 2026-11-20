@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 2254,D,Alghero,05:45,,Scheduled,Ryanair,AHO,17 Oct,avionio
+FR 2669,D,Berlin,05:45,,Scheduled,Ryanair,BER,17 Oct,avionio
+FR 5139,D,Faro,05:50,,Scheduled,Ryanair,FAO,17 Oct,avionio
+FR 3659,D,Brussels,05:55,,Scheduled,Ryanair,CRL,17 Oct,avionio
+FR 6178,D,Fuerteventura,05:55,,Scheduled,Ryanair,FUE,17 Oct,avionio
+FR 8334,D,Ibiza,06:00,,Scheduled,Ryanair,IBZ,17 Oct,avionio
+FR 5551,D,Cologne/Bonn,06:05,,Scheduled,Ryanair,CGN,17 Oct,avionio
+FR 9196,D,Trapani,06:05,,Scheduled,Ryanair,TPS,17 Oct,avionio
+FR 3142,D,Barcelona,06:10,,Scheduled,Ryanair,BCN,17 Oct,avionio
+FR 2285,D,Naples,06:20,,Scheduled,Ryanair,NAP,17 Oct,avionio
+FR 5120,D,Madrid,06:20,,Scheduled,Ryanair,MAD,17 Oct,avionio
+FR 3528,D,Prague,06:30,,Scheduled,Ryanair,PRG,17 Oct,avionio
+FR 3593,D,Poznan,06:30,,Scheduled,Ryanair,POZ,17 Oct,avionio
+FR 1417,D,Lamezia Terme,06:45,,Scheduled,Ryanair,SUF,17 Oct,avionio
+FR 2261,D,Catania,06:45,,Scheduled,Ryanair,CTA,17 Oct,avionio
+FR 3400,D,Sofia,06:45,,Scheduled,Ryanair,SOF,17 Oct,avionio
+FR 3645,D,Edinburgh,07:15,,Scheduled,Ryanair,EDI,17 Oct,avionio
+FR 1746,D,Knock,07:20,,Scheduled,Ryanair,NOC,17 Oct,avionio
+FR 4663,D,Valencia,07:25,,Scheduled,Ryanair,VLC,17 Oct,avionio
+FR 8121,D,Tirana,07:30,,Scheduled,Ryanair,TIA,17 Oct,avionio

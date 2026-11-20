@@ -1,0 +1,22 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 6257,D,Krakow/Balice,17:10,,Departed 17:32,Ryanair,KRK,18 Oct,avionio
+PC 1214,D,Istanbul,17:15,,Estimated 18:03,Pegasus1,SAW,18 Oct,avionio
+AZ 7058,D,Istanbul,17:15,,Estimated 18:03,ITA Airways,SAW,18 Oct,avionio
+FR 3530,D,Prague,17:20,,Departed 17:29,Ryanair,PRG,18 Oct,avionio
+FR 7976,D,Kos,17:20,,Departed 17:39,Ryanair,KGS,18 Oct,avionio
+FR 4845,D,Dublin,17:25,,Estimated 17:48,Ryanair,DUB,18 Oct,avionio
+FR 3661,D,Sofia,17:30,,Departed 17:40,Ryanair,SOF,18 Oct,avionio
+FR 6149,D,Palermo,17:30,,Estimated 17:41,Ryanair,PMO,18 Oct,avionio
+FR 3649,D,Paphos,17:35,,Estimated 17:47,Ryanair,PFO,18 Oct,avionio
+FR 6466,D,Faro,17:45,,Estimated 17:58,Ryanair,FAO,18 Oct,avionio
+FR 1417,D,Lamezia Terme,18:00,,Estimated 18:13,Ryanair,SUF,18 Oct,avionio
+FR 2876,D,Brindisi,18:05,,Estimated 19:15,Ryanair,BDS,18 Oct,avionio
+FR 865,D,Bucharest,18:05,,Estimated 19:21,Ryanair,OTP,18 Oct,avionio
+FR 7324,D,Malta,18:15,,Estimated 18:28,Ryanair,MLA,18 Oct,avionio
+DJ 7907,D,Cologne/Bonn,18:30,,Estimated,Air Djibouti,CGN,18 Oct,avionio
+FR 76,D,Sevilla,18:30,,Estimated 18:43,Ryanair,SVQ,18 Oct,avionio
+FR 6862,D,Malaga,18:50,,Estimated 18:50,Ryanair,AGP,18 Oct,avionio
+FR 461,D,Newcastle,18:55,,Scheduled,Ryanair,NCL,18 Oct,avionio
+FR 3665,D,Naples,19:00,,Estimated 19:23,Ryanair,NAP,18 Oct,avionio
+FR 2992,D,Copenhagen,19:05,,Scheduled,Ryanair,CPH,18 Oct,avionio
+FR 5108,D,Lourdes/Tarbes,19:05,,Estimated 19:49,Ryanair,LDE,18 Oct,avionio

@@ -1,0 +1,22 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 2858,D,Brindisi,18:10,,Estimated 20:14,Ryanair,BDS,17 Oct,avionio
+FR 5092,D,Lamezia Terme,18:15,,Estimated 18:33,Ryanair,SUF,17 Oct,avionio
+FR 4845,D,Dublin,18:20,,Estimated 19:11,Ryanair,DUB,17 Oct,avionio
+FR 865,D,Bucharest,18:30,,Estimated 19:39,Ryanair,OTP,17 Oct,avionio
+FR 2428,D,Sarajevo,18:50,,Scheduled,Ryanair,SJJ,17 Oct,avionio
+BZ 151,D,Tel Aviv-Yafo,19:00,,Scheduled,Blue Bird Airways,TLV,17 Oct,avionio
+FR 3561,D,Naples,19:00,,Estimated 19:54,Ryanair,NAP,17 Oct,avionio
+FR 8349,D,Tirana,19:35,,Scheduled,Ryanair,TIA,17 Oct,avionio
+FR 3893,D,Cagliari,19:45,,Scheduled,Ryanair,CAG,17 Oct,avionio
+FR 3217,D,Manchester,20:00,,Scheduled,Ryanair,MAN,17 Oct,avionio
+FR 2892,D,Catania,20:05,,Scheduled,Ryanair,CTA,17 Oct,avionio
+FR 3164,D,Budapest,20:05,,Scheduled,Ryanair,BUD,17 Oct,avionio
+FR 3437,D,Sofia,20:10,,Scheduled,Ryanair,SOF,17 Oct,avionio
+FR 7361,D,Vienna,20:20,,Scheduled,Ryanair,VIE,17 Oct,avionio
+VR 631,D,Sal Island,20:20,,Scheduled,Cabo Verde Airlines1,SID,17 Oct,avionio
+X1 5095,D,Sal Island,20:20,,Scheduled,Hahn Air,SID,17 Oct,avionio
+FR 8800,D,Ibiza,20:25,,Scheduled,Ryanair,IBZ,17 Oct,avionio
+W4 3470,D,Targu-Mures,20:35,,Scheduled,Wizz Air Malta,TGM,17 Oct,avionio
+W6 1434,D,Warsaw,20:40,,Scheduled,Wizz Air,WAW,17 Oct,avionio
+FR 4631,D,Valencia,20:45,,Scheduled,Ryanair,VLC,17 Oct,avionio
+FR 859,D,Brindisi,20:45,,Scheduled,Ryanair,BDS,17 Oct,avionio

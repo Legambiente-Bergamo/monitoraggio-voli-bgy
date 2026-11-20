@@ -1,0 +1,23 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 9051,A,Cork,00:00,,Estimated 01:05,Ryanair,ORK,17 Oct,avionio
+FR 1318,A,Athens,00:15,,Estimated 02:55,Ryanair,ATH,17 Oct,avionio
+FR 3113,A,Iasi,00:35,,Estimated 04:01,Ryanair,IAS,17 Oct,avionio
+FR 4659,A,Bari,00:40,,Estimated 02:15,Ryanair,BRI,17 Oct,avionio
+FR 858,A,Brindisi,00:40,,Estimated 00:40,Ryanair,BDS,17 Oct,avionio
+FR 2734,A,London,00:55,,Estimated 00:55,Ryanair,STN,17 Oct,avionio
+FR 4968,A,Palermo,00:55,,Estimated 02:45,Ryanair,PMO,17 Oct,avionio
+FR 3403,A,Marrakech,01:00,,Estimated 04:25,Ryanair,RAK,17 Oct,avionio
+FR 4637,A,Porto,01:05,,Estimated 01:10,Ryanair,OPO,17 Oct,avionio
+FR 265,A,Fuerteventura,01:10,,Estimated 03:30,Ryanair,FUE,17 Oct,avionio
+FR 4549,A,Chania,01:10,,Estimated 01:10,Ryanair,CHQ,17 Oct,avionio
+FR 6305,A,Barcelona,01:10,,Estimated 03:10,Ryanair,BCN,17 Oct,avionio
+FR 2893,A,Catania,01:15,,Estimated 01:15,Ryanair,CTA,17 Oct,avionio
+FR 8512,A,Beni Mellal,01:15,,Estimated 01:15,Ryanair,BEM,17 Oct,avionio
+FR 1532,A,Vienna,07:10,,Scheduled,Ryanair,VIE,17 Oct,avionio
+DN 421,A,Bacau,07:20,,Scheduled,Dan Air2,BCM,17 Oct,avionio
+A1 5244,A,Bacau,07:20,,Scheduled,A.P.G. Distribution System,BCM,17 Oct,avionio
+X1 1505,A,Bacau,07:20,,Scheduled,Hahn Air,BCM,17 Oct,avionio
+FR 412,A,Thessaloniki,07:25,,Scheduled,Ryanair,SKG,17 Oct,avionio
+FR 5981,A,Toulouse,07:30,,Scheduled,Ryanair,TLS,17 Oct,avionio
+W4 3131,A,Bucharest,07:30,,Scheduled,Wizz Air Malta,OTP,17 Oct,avionio
+FR 2865,A,Brindisi,07:35,,Scheduled,Ryanair,BDS,17 Oct,avionio

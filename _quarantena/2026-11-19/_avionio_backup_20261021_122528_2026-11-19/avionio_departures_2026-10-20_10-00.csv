@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 5551,D,Cologne/Bonn,10:05,,Estimated 10:20,Ryanair,CGN,20 Oct,avionio
+FR 6451,D,Palermo,10:05,,Estimated 11:13,Ryanair,PMO,20 Oct,avionio
+FR 1746,D,Knock,10:10,,Estimated 10:27,Ryanair,NOC,20 Oct,avionio
+FR 3528,D,Prague,10:10,,Estimated 10:10,Ryanair,PRG,20 Oct,avionio
+FR 6991,D,Rabat,10:15,,Estimated 10:26,Ryanair,RBA,20 Oct,avionio
+FR 3506,D,Alicante,10:20,,Estimated 10:37,Ryanair,ALC,20 Oct,avionio
+FR 3402,D,Marrakech,10:25,,Estimated 10:54,Ryanair,RAK,20 Oct,avionio
+FR 259,D,Bucharest,10:35,,Estimated 10:50,Ryanair,OTP,20 Oct,avionio
+FR 9239,D,Lublin,10:35,,Estimated 10:50,Ryanair,LUZ,20 Oct,avionio
+FR 3587,D,Oslo,10:45,,Estimated 11:00,Ryanair,TRF,20 Oct,avionio
+FR 5980,D,Toulouse,11:10,,Estimated 11:53,Ryanair,TLS,20 Oct,avionio
+FR 410,D,Luxembourg,11:25,,Scheduled,Ryanair,LUX,20 Oct,avionio
+FR 3480,D,Cagliari,11:40,,Scheduled,Ryanair,CAG,20 Oct,avionio
+FR 859,D,Brindisi,11:50,,Estimated 13:28,Ryanair,BDS,20 Oct,avionio
+Z7 581,D,Tbilisi,11:55,,Scheduled,CAMEX Airlines,TBS,20 Oct,avionio
+FR 845,D,Cluj-Napoca,12:00,,Scheduled,Ryanair,CLJ,20 Oct,avionio
+FR 3561,D,Naples,12:10,,Scheduled,Ryanair,NAP,20 Oct,avionio
+FR 6501,D,Olbia,12:15,,Scheduled,Ryanair,OLB,20 Oct,avionio
+FR 8821,D,Biarritz,12:20,,Scheduled,Ryanair,BIQ,20 Oct,avionio
+FR 4001,D,Lanzarote,12:25,,Scheduled,Ryanair,ACE,20 Oct,avionio

@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+AP 3640,A,Marsa Alam,02:27,,Estimated 03:43,Alba Star.es,RMF,19 Oct,avionio
+DJ 6402,A,Cologne/Bonn,02:30,,Estimated 02:01,Air Djibouti,CGN,19 Oct,avionio
+DJ 6498,A,Cologne/Bonn,02:40,,Estimated,Air Djibouti,CGN,19 Oct,avionio
+FR 2877,A,Brindisi,07:30,,Scheduled,Ryanair,BDS,19 Oct,avionio
+W4 3131,A,Bucharest,07:30,,Scheduled,Wizz Air Malta,OTP,19 Oct,avionio
+W4 3671,A,Iasi,07:30,,Scheduled,Wizz Air Malta,IAS,19 Oct,avionio
+FR 3529,A,Prague,07:35,,Scheduled,Ryanair,PRG,19 Oct,avionio
+W6 4351,A,Sofia,07:35,,Scheduled,Wizz Air,SOF,19 Oct,avionio
+FR 3165,A,Budapest,07:45,,Scheduled,Ryanair,BUD,19 Oct,avionio
+FR 6148,A,Palermo,07:45,,Scheduled,Ryanair,PMO,19 Oct,avionio
+V7 1317,A,Olbia,07:45,,Scheduled,Volotea,OLB,19 Oct,avionio
+W4 3381,A,Cluj-Napoca,07:50,,Scheduled,Wizz Air Malta,CLJ,19 Oct,avionio
+FR 3562,A,Naples,07:55,,Scheduled,Ryanair,NAP,19 Oct,avionio
+W6 1431,A,Warsaw,07:55,,Scheduled,Wizz Air,WAW,19 Oct,avionio
+FR 1785,A,Copenhagen,08:05,,Scheduled,Ryanair,CPH,19 Oct,avionio
+PAV 671,A,Frankfurt,08:36,,Scheduled,ProAir Aviation,FRA,19 Oct,avionio
+FR 2738,A,London,08:50,,Scheduled,Ryanair,STN,19 Oct,avionio
+FR 3536,A,Krakow/Balice,08:50,,Scheduled,Ryanair,KRK,19 Oct,avionio
+FR 517,A,Newcastle,09:10,,Scheduled,Ryanair,NCL,19 Oct,avionio
+FR 4651,A,Trapani,09:30,,Scheduled,Ryanair,TPS,19 Oct,avionio

@@ -1,0 +1,22 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 3460,D,Eindhoven,10:00,,Estimated 10:08,Ryanair,EIN,19 Oct,avionio
+PAV 672,D,Birmingham,10:00,,Estimated 10:07,ProAir Aviation,BHX,19 Oct,avionio
+FR 497,D,Valencia,10:10,,Estimated 10:21,Ryanair,VLC,19 Oct,avionio
+FR 219,D,Alicante,10:15,,Estimated 10:31,Ryanair,ALC,19 Oct,avionio
+FR 4400,D,Heraklion,10:15,,Estimated 10:28,Ryanair,HER,19 Oct,avionio
+FR 4475,D,Brussels,10:20,,Estimated 10:35,Ryanair,CRL,19 Oct,avionio
+FR 8349,D,Tirana,10:20,,Estimated 10:35,Ryanair,TIA,19 Oct,avionio
+FR 8800,D,Ibiza,10:20,,Estimated 10:33,Ryanair,IBZ,19 Oct,avionio
+FR 1903,D,Nowy Dwor Mazowiecki,10:30,,Estimated 10:41,Ryanair,WMI,19 Oct,avionio
+FR 4201,D,Rhodes,10:45,,Scheduled,Ryanair,RHO,19 Oct,avionio
+FR 5700,D,Palma de Mallorca,10:50,,Estimated 11:15,Ryanair,PMI,19 Oct,avionio
+FR 3587,D,Oslo,10:55,,Estimated 11:19,Ryanair,TRF,19 Oct,avionio
+FR 1176,D,Menorca,11:15,,Scheduled,Ryanair,MAH,19 Oct,avionio
+FR 9890,D,Lodz,11:15,,Scheduled,Ryanair,LCJ,19 Oct,avionio
+FR 2830,D,Tenerife,11:30,,Estimated 11:30,Ryanair,TFS,19 Oct,avionio
+FR 2649,D,Malaga,11:35,,Estimated 11:35,Ryanair,AGP,19 Oct,avionio
+FR 2888,D,Catania,11:40,,Scheduled,Ryanair,CTA,19 Oct,avionio
+PC 1212,D,Istanbul,11:45,,Scheduled,Pegasus1,SAW,19 Oct,avionio
+AZ 7048,D,Istanbul,11:45,,Scheduled,ITA Airways,SAW,19 Oct,avionio
+FR 8193,D,Vienna,12:05,,Scheduled,Ryanair,VIE,19 Oct,avionio
+FR 2878,D,Stockholm,12:15,,Scheduled,Ryanair,ARN,19 Oct,avionio

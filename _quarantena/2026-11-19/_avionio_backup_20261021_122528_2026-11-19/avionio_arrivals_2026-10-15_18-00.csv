@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 6174,A,Catania,18:10,,Landed 17:52,Ryanair,CTA,15 Oct,avionio
+FR 3481,A,Cagliari,18:20,,Estimated 18:28,Ryanair,CAG,15 Oct,avionio
+BZ 154,A,Tel Aviv-Yafo,18:25,,Estimated 18:27,Blue Bird Airways,TLV,15 Oct,avionio
+FR 4699,A,Trapani,18:30,,Estimated 18:30,Ryanair,TPS,15 Oct,avionio
+FR 3461,A,Eindhoven,18:35,,Estimated 18:28,Ryanair,EIN,15 Oct,avionio
+FR 3529,A,Prague,19:00,,Estimated 19:00,Ryanair,PRG,15 Oct,avionio
+FR 3562,A,Naples,19:05,,Estimated 19:05,Ryanair,NAP,15 Oct,avionio
+FR 5121,A,Madrid,19:05,,Estimated 18:57,Ryanair,MAD,15 Oct,avionio
+XZ 353,A,Tripoli,19:20,,Estimated 19:12,Aeroitalia,MJI,15 Oct,avionio
+D8 2940,A,Helsinki,19:30,,Estimated 19:13,Norwegian Air Sweden AOC,HEL,15 Oct,avionio
+FR 3397,A,Crotone,19:30,,Estimated 19:30,Ryanair,CRV,15 Oct,avionio
+FR 3449,A,Brindisi,19:35,,Estimated 19:35,Ryanair,BDS,15 Oct,avionio
+E5 544,A,Cairo,19:55,,Estimated 20:02,Air Arabia Egypt,CAI,15 Oct,avionio
+FR 3320,A,Barcelona,20:00,,Estimated 20:00,Ryanair,BCN,15 Oct,avionio
+FR 7360,A,Vienna,20:00,,Estimated 20:00,Ryanair,VIE,15 Oct,avionio
+FR 3438,A,Sofia,20:05,,Estimated 20:05,Ryanair,SOF,15 Oct,avionio
+W4 3469,A,Targu-Mures,20:05,,Scheduled,Wizz Air Malta,TGM,15 Oct,avionio
+W6 1433,A,Warsaw,20:05,,Estimated,Wizz Air,WAW,15 Oct,avionio
+FR 1904,A,Nowy Dwor Mazowiecki,20:10,,Estimated 20:10,Ryanair,WMI,15 Oct,avionio
+FR 3218,A,Manchester,20:20,,Estimated 20:20,Ryanair,MAN,15 Oct,avionio

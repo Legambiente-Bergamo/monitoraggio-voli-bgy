@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 3666,A,Naples,00:20,,Estimated 00:20,Ryanair,NAP,16 Oct,avionio
+FR 3301,A,Vitoria,00:25,,Estimated 01:20,Ryanair,VIT,16 Oct,avionio
+FR 412,A,Thessaloniki,00:35,,Estimated 00:44,Ryanair,SKG,16 Oct,avionio
+FR 4236,A,Vilnius,00:35,,Estimated 01:11,Ryanair,VNO,16 Oct,avionio
+FR 3892,A,Cagliari,00:40,,Estimated 00:40,Ryanair,CAG,16 Oct,avionio
+FR 4968,A,Palermo,00:40,,Estimated 01:15,Ryanair,PMO,16 Oct,avionio
+FR 8512,A,Beni Mellal,00:50,,Estimated 00:56,Ryanair,BEM,16 Oct,avionio
+FR 8845,A,Wroclaw,00:55,,Estimated 00:46,Ryanair,WRO,16 Oct,avionio
+FR 3403,A,Marrakech,01:00,,Estimated 01:02,Ryanair,RAK,16 Oct,avionio
+FR 858,A,Brindisi,01:05,,Estimated 01:05,Ryanair,BDS,16 Oct,avionio
+FR 9373,A,Brno,01:15,,Estimated 01:15,Ryanair,BRQ,16 Oct,avionio
+DJ 6402,A,Cologne/Bonn,04:00,,Scheduled,Air Djibouti,CGN,16 Oct,avionio
+DJ 6498,A,Cologne/Bonn,05:15,,Scheduled,Air Djibouti,CGN,16 Oct,avionio
+FR 3401,A,Sofia,07:05,,Scheduled,Ryanair,SOF,16 Oct,avionio
+FR 3412,A,Katowice,07:30,,Scheduled,Ryanair,KTW,16 Oct,avionio
+FR 4707,A,Cagliari,07:30,,Scheduled,Ryanair,CAG,16 Oct,avionio
+W4 3131,A,Bucharest,07:30,,Scheduled,Wizz Air Malta,OTP,16 Oct,avionio
+W4 3671,A,Iasi,07:30,,Scheduled,Wizz Air Malta,IAS,16 Oct,avionio
+FR 1418,A,Lamezia Terme,07:35,,Scheduled,Ryanair,SUF,16 Oct,avionio
+W6 4351,A,Sofia,07:35,,Scheduled,Wizz Air,SOF,16 Oct,avionio

@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 5999,D,Zagreb,14:00,,Estimated 14:28,Ryanair,ZAG,16 Oct,avionio
+FR 2876,D,Brindisi,14:10,,Cancelled,Ryanair,BDS,16 Oct,avionio
+V7 1316,D,Olbia,14:10,,Estimated 14:40,Volotea,OLB,16 Oct,avionio
+FR 4111,D,Naples,14:15,,Cancelled,Ryanair,NAP,16 Oct,avionio
+FR 7976,D,Kos,14:15,,Estimated 14:27,Ryanair,KGS,16 Oct,avionio
+FR 8800,D,Ibiza,14:15,,Estimated 14:45,Ryanair,IBZ,16 Oct,avionio
+FR 3200,D,Cagliari,14:40,,Estimated 23:15,Ryanair,CAG,16 Oct,avionio
+FR 3659,D,Brussels,14:55,,Estimated 15:48,Ryanair,CRL,16 Oct,avionio
+FR 4698,D,Trapani,14:55,,Estimated 15:54,Ryanair,TPS,16 Oct,avionio
+W4 3772,D,Craiova,14:55,,Scheduled,Wizz Air Malta,CRA,16 Oct,avionio
+FR 1903,D,Nowy Dwor Mazowiecki,15:05,,Estimated 16:50,Ryanair,WMI,16 Oct,avionio
+FR 2888,D,Catania,15:05,,Estimated 15:22,Ryanair,CTA,16 Oct,avionio
+FR 5120,D,Madrid,15:20,,Estimated 16:06,Ryanair,MAD,16 Oct,avionio
+FR 3673,D,London,15:40,,Scheduled,Ryanair,STN,16 Oct,avionio
+FR 6086,D,Kalamata,15:40,,Estimated 16:01,Ryanair,KLX,16 Oct,avionio
+FR 6501,D,Olbia,15:40,,Estimated 16:36,Ryanair,OLB,16 Oct,avionio
+FR 5113,D,Crotone,15:45,,Cancelled,Ryanair,CRV,16 Oct,avionio
+W4 5018,D,Tirana,15:45,,Scheduled,Wizz Air Malta,TIA,16 Oct,avionio
+FR 219,D,Alicante,15:55,,Scheduled,Ryanair,ALC,16 Oct,avionio
+FR 1853,D,Marseille,16:05,,Scheduled,Ryanair,MRS,16 Oct,avionio

@@ -1,0 +1,21 @@
+﻿callsign_volo,tipo_movimento,destinazione_origine,orario_schedulato,orario_effettivo,stato_volo,compagnia_aerea,codice_iata,data,fonte
+FR 3659,D,Brussels,14:00,,Estimated 14:15,Ryanair,CRL,20 Oct,avionio
+FR 3396,D,Crotone,14:05,,Estimated 14:18,Ryanair,CRV,20 Oct,avionio
+FR 2428,D,Sarajevo,14:15,,Estimated 15:14,Ryanair,SJJ,20 Oct,avionio
+FR 1903,D,Nowy Dwor Mazowiecki,14:35,,Estimated 14:55,Ryanair,WMI,20 Oct,avionio
+FR 8193,D,Vienna,14:45,,Scheduled,Ryanair,VIE,20 Oct,avionio
+FR 4663,D,Valencia,14:50,,Estimated 15:30,Ryanair,VLC,20 Oct,avionio
+FR 2649,D,Malaga,15:00,,Estimated 15:30,Ryanair,AGP,20 Oct,avionio
+FR 8800,D,Ibiza,15:00,,Scheduled,Ryanair,IBZ,20 Oct,avionio
+FR 8421,D,Tirana,15:05,,Scheduled,Ryanair,TIA,20 Oct,avionio
+FRF 131,D,Birmingham,15:30,,Scheduled,Fleet Air International,BHX,20 Oct,avionio
+FR 3504,D,Krakow/Balice,15:35,,Scheduled,Ryanair,KRK,20 Oct,avionio
+W4 5018,D,Tirana,15:45,,Scheduled,Wizz Air Malta,TIA,20 Oct,avionio
+FR 266,D,Fuerteventura,15:55,,Estimated 17:12,Ryanair,FUE,20 Oct,avionio
+FR 3300,D,Vitoria,15:55,,Scheduled,Ryanair,VIT,20 Oct,avionio
+FR 3653,D,Bari,16:00,,Scheduled,Ryanair,BRI,20 Oct,avionio
+FR 9292,D,Kaunas,16:00,,Scheduled,Ryanair,KUN,20 Oct,avionio
+FR 3164,D,Budapest,16:05,,Scheduled,Ryanair,BUD,20 Oct,avionio
+FR 3559,D,Bristol,16:10,,Scheduled,Ryanair,BRS,20 Oct,avionio
+FR 2858,D,Brindisi,16:20,,Scheduled,Ryanair,BDS,20 Oct,avionio
+FR 3501,D,Paris,16:25,,Scheduled,Ryanair,BVA,20 Oct,avionio
