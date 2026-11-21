@@ -1,30 +1,6 @@
-﻿"""
-bgy_core/bgy_disclaimer.py - Gestione disclaimer web unificato.
-Versione 1.0.0
-
-Legge la sezione "disclaimers" di config_data.json e costruisce il JSON
-che serve TUTTE le pagine web (notturna, ritardi, aeroporti, rumore, ...).
-
-Struttura payload bgy-disclaimer.csv:
-{
-  "generated_at": "2026-10-10T18:30:00",
-  "min_date": "2026-09-30",
-  "global": { "show": bool, "title": str, "body": str },
-  "pages": {
-    "night":    { "show_global": bool, "extra": str },
-    "delays":   { "show_global": bool, "extra": str },
-    "airports": { "show_global": bool, "extra": str },
-    "noise":    { "show_global": bool, "extra": str }
-  }
-}
-
-Il placeholder {min_date} nel body viene sostituito automaticamente
-con web_export.min_date (oggi: 2026-09-30).
-
-API pubblica:
-  build_disclaimer_json() -> dict | None
-  save_disclaimer_json(payload) -> str | None
-  export_and_publish_disclaimer() -> (ok, msg)
+"""
+bgy_core/bgy_disclaimer.py - Gestione centralizzata Nota Metodologica e Disclaimer web.
+Versione 1.1.0
 """
 import os
 import json
@@ -35,20 +11,11 @@ from bgy_core.bgy_paths import DATA_DIR
 
 logger = get_logger("Disclaimer")
 
-# Stesso path di bgy_export_web.py
 WEB_OUTPUT_DIR = os.path.join(DATA_DIR, "bgy_output", "bgy_web")
 DISCLAIMER_OUTPUT_FILE = os.path.join(WEB_OUTPUT_DIR, "bgy-disclaimer.csv")
 DISCLAIMER_PREFIX = "# BGY Monitoring Suite - DISCLAIMER - dati JSON sotto questa riga\n"
 
-PAGES_KNOWN = ("night", "delays", "airports", "noise", "runway", "anticipi")
-
-
-def _cfg_disclaimers():
-    try:
-        cfg = config_manager.get_data_config()
-        return cfg.get("disclaimers", {}) or {}
-    except Exception:
-        return {}
+PAGES_KNOWN = ("home", "night", "delays", "anticipi", "fleet", "airports", "noise", "runway")
 
 
 def _cfg_web_min_date():
@@ -65,22 +32,17 @@ def _resolve_placeholders(text, min_date):
     return str(text).replace("{min_date}", min_date or "")
 
 
-def build_disclaimer_json():
-    cfg = _cfg_disclaimers()
-    if not cfg.get("enabled", True):
-        logger.info("Sezione disclaimers disabilitata in config_data.json")
+def _build_section(raw_sec, min_date):
+    sec = raw_sec or {}
+    if not sec.get("enabled", True):
         return None
-
-    min_date = _cfg_web_min_date()
-
-    g_in = cfg.get("global", {}) or {}
+    g_in = sec.get("global", {}) or {}
     global_out = {
         "show":  bool(g_in.get("show", True)),
         "title": str(g_in.get("title", "")).strip(),
         "body":  _resolve_placeholders(g_in.get("body", ""), min_date),
     }
-
-    pages_in = cfg.get("pages", {}) or {}
+    pages_in = sec.get("pages", {}) or {}
     pages_out = {}
     for page_key in PAGES_KNOWN:
         p = pages_in.get(page_key, {}) or {}
@@ -88,19 +50,31 @@ def build_disclaimer_json():
             "show_global": bool(p.get("show_global", True)),
             "extra":       _resolve_placeholders(p.get("extra", ""), min_date),
         }
+    return {"global": global_out, "pages": pages_out}
+
+
+def build_disclaimer_json():
+    try:
+        cfg = config_manager.get_data_config() or {}
+    except Exception:
+        cfg = {}
+
+    min_date = _cfg_web_min_date()
+    disc_sec = _build_section(cfg.get("disclaimers", {}), min_date)
+    meth_sec = _build_section(cfg.get("methodology", {}), min_date)
+
+    if not disc_sec and not meth_sec:
+        logger.info("Sezioni disclaimers e methodology disabilitate in config_data.json")
+        return None
 
     payload = {
         "generated_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
         "min_date": min_date,
-        "global": global_out,
-        "pages": pages_out,
+        "global": (disc_sec or {}).get("global", {"show": False, "title": "", "body": ""}),
+        "pages": (disc_sec or {}).get("pages", {}),
+        "methodology": meth_sec or {"global": {"show": False, "title": "", "body": ""}, "pages": {}},
     }
-
-    n_extra = sum(1 for v in pages_out.values() if v["extra"])
-    logger.info(
-        f"Disclaimer JSON: global={'si' if global_out['show'] else 'no'}, "
-        f"pagine={len(pages_out)}, extra non vuoti={n_extra}"
-    )
+    logger.info("Disclaimer & Nota Metodologica JSON generati correttamente")
     return payload
 
 
@@ -119,10 +93,6 @@ def save_disclaimer_json(payload):
 
 
 def export_and_publish_disclaimer():
-    """
-    Rigenera bgy-disclaimer.csv e lo pubblica su WordPress.
-    Ritorna (ok, msg) come gli altri exporter.
-    """
     from bgy_core import bgy_wordpress
 
     payload = build_disclaimer_json()

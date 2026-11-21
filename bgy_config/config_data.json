@@ -262,8 +262,38 @@
     "enabled": true,
     "global": {
       "show": true,
-      "title": "\u26a0\ufe0f NOTA METODOLOGICA E FASI DI COPERTURA",
-      "body": "Il sistema recupera in automatico i voli commerciali tramite interrogazioni pubbliche incrociate. I contatori riflettono tre diverse fasi di copertura temporale. <strong>Fase 1 (30/09 - 13/10/2026):</strong> Acquisizione basata sulla sola fonte primaria (tabellone aeroportuale, max 60 voli per fascia), con possibile sottostima fisiologica degli atterraggi nelle ore di punta. <strong>Fase 2 (14/10 - 18/11/2026):</strong> Integrazione della fonte secondaria (Avionio) con frequenza a 4 ore. <strong>Fase 3 (dal 19/11/2026 in poi):</strong> Frequenza di scansione infittita a 2 ore e recupero incrociato via radar, per garantire la tracciabilit\u00e0 integrale di tutti i movimenti di linea. Un eventuale scarto fisiologico inferiore all'1% tra decolli e atterraggi \u00e8 normale e deriva da soste notturne a cavallo delle date selezionate."
+      "title": "\u26a0\ufe0f DISCLAIMER \u2014 Monitoraggio civico indipendente",
+      "body": "I dati pubblicati su OsservatOrio provengono dall'elaborazione automatizzata di fonti pubbliche (tabelloni aeroportuali e tracciati radar ADS-B) a scopo informativo e di monitoraggio civico da parte del <strong>Circolo Legambiente Bergamo APS</strong>. Non costituiscono dati ufficiali certificati da ENAC, ENAV o SACBO e possono presentare scostamenti fisiologici dovuti a ritardi di aggiornamento delle fonti o variazioni operative dell'ultimo minuto."
+    },
+    "pages": {
+      "home": {
+        "show_global": true,
+        "extra": ""
+      },
+      "night": {
+        "show_global": true,
+        "extra": ""
+      },
+      "delays": {
+        "show_global": true,
+        "extra": ""
+      },
+      "anticipi": {
+        "show_global": true,
+        "extra": ""
+      },
+      "fleet": {
+        "show_global": true,
+        "extra": ""
+      },
+      "airports": {
+        "show_global": true,
+        "extra": ""
+      },
+      "noise": {
+        "show_global": true,
+        "extra": ""
+      }
     }
   },
   "print": {
@@ -570,5 +600,43 @@
     "timeout": 20,
     "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
     "retention_days": 180
+  },
+  "methodology": {
+    "enabled": true,
+    "global": {
+      "show": true,
+      "title": "\u2139\ufe0f NOTA METODOLOGICA E FASI DI COPERTURA",
+      "body": "Il sistema recupera in automatico i voli commerciali tramite interrogazioni pubbliche incrociate. I contatori riflettono tre diverse fasi di copertura temporale. <strong>Fase 1 (30/09 - 13/10/2026):</strong> Acquisizione basata sulla sola fonte primaria (tabellone aeroportuale, max 60 voli per fascia), con possibile sottostima fisiologica degli atterraggi nelle ore di punta. <strong>Fase 2 (14/10 - 18/11/2026):</strong> Integrazione della fonte secondaria (Avionio) con frequenza a 4 ore. <strong>Fase 3 (dal 19/11/2026 in poi):</strong> Frequenza di scansione infittita a 2 ore e recupero incrociato via radar, per garantire la tracciabilit\u00e0 integrale di tutti i movimenti di linea. Un eventuale scarto fisiologico inferiore all'1% tra decolli e atterraggi \u00e8 normale e deriva da soste notturne a cavallo delle date selezionate."
+    },
+    "pages": {
+      "home": {
+        "show_global": true,
+        "extra": ""
+      },
+      "night": {
+        "show_global": true,
+        "extra": ""
+      },
+      "delays": {
+        "show_global": true,
+        "extra": ""
+      },
+      "anticipi": {
+        "show_global": true,
+        "extra": ""
+      },
+      "fleet": {
+        "show_global": true,
+        "extra": ""
+      },
+      "airports": {
+        "show_global": true,
+        "extra": ""
+      },
+      "noise": {
+        "show_global": true,
+        "extra": ""
+      }
+    }
   }
 }

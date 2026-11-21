@@ -10,7 +10,7 @@
   "bgy_core/bgy_db.py": "13c3f84a6d4805b099f60737268139c89c0eb940e69cab7f0425ffeaf528e1f4",
   "bgy_core/bgy_db_migrate.py": "f5a894ec52bb3ea98526ed6ea85077e3005ba7f0e66fba76b6b60f4644e1b99b",
   "bgy_core/bgy_db_service.py": "14d55bd9256f3291fca9514e8c702fe8af0e461a93d97739f4b297358a8c029a",
-  "bgy_core/bgy_disclaimer.py": "f23eac484a2e35b914ed87db8d05b7c72455738669e0b0219b60388ef610c482",
+  "bgy_core/bgy_disclaimer.py": "b6e4d2944fdeecbe296fe582fac3c2e1b92c6b2b7f7f5b9c07303949788de18a",
   "bgy_core/bgy_export_common.py": "191f3359f3b663fd1c539037497345030ca6f9616319e0938be2f370de3fdfc3",
   "bgy_core/bgy_export_web.py": "b71028e227e7c3576e0237dc703fd9cd4584e2c55faace7119e9515a4277b5ab",
   "bgy_core/bgy_github_sync.py": "ce759a925a601439d250c4117c78d8d423ed9879aaadac7995a0568e31762533",
